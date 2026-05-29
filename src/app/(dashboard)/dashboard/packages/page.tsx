@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
 import { useClientStore } from '@/stores/useClientStore';
+import { mockTreatments } from '@/lib/mock-data';
 const PKG_COLORS = ['#8B5CF6', '#EC4899', '#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#6366F1', '#14B8A6'];
 
 /* ========== USE SESSION MODAL ========== */
@@ -499,10 +500,118 @@ function AddPaymentInner({ cp, onClose, onPay }: {
   );
 }
 
+/* ========== ADD LISTINO MODAL ========== */
+function AddListinoModal({ onClose, onSave }: { onClose: () => void; onSave: (p: PackageItem) => void }) {
+  const [name, setName] = useState('');
+  const [selectedTreatments, setSelectedTreatments] = useState<string[]>([]);
+  const [discount, setDiscount] = useState('10');
+  const [color, setColor] = useState(PKG_COLORS[0]);
+
+  const basePrice = selectedTreatments.reduce((sum, tId) => {
+    const t = mockTreatments.find(x => x.id === tId);
+    return sum + (t ? t.price : 0);
+  }, 0);
+
+  const discountVal = Number(discount) || 0;
+  const discountedPrice = basePrice * (1 - discountVal / 100);
+  const finalPrice = Math.ceil(discountedPrice * 2) / 2;
+
+  const handleSave = () => {
+    if (!name || selectedTreatments.length === 0) return;
+    const treatmentNames = selectedTreatments.map(id => mockTreatments.find(t => t.id === id)?.name).filter(Boolean).join(', ');
+    
+    onSave({
+      id: `listino-${Date.now()}`,
+      name,
+      type: 'Listino',
+      price: finalPrice,
+      totalSessions: selectedTreatments.length,
+      sold: 0,
+      color,
+      treatmentName: treatmentNames,
+    });
+  };
+
+  const toggleTreatment = (id: string) => {
+    setSelectedTreatments(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+        <div className="w-full max-w-md bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+            <h3 className="text-lg font-display font-semibold text-text-primary">Nuovo Trattamento / Listino</h3>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
+          </div>
+          
+          <div className="px-6 py-5 space-y-4 overflow-y-auto">
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Nome *</label>
+              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="es. Listino VIP Viso"
+                className="w-full px-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Seleziona Base *</label>
+              <div className="max-h-40 overflow-y-auto rounded-xl border border-border bg-bg-tertiary divide-y divide-border/50">
+                {mockTreatments.map(t => (
+                  <label key={t.id} className="flex items-center gap-3 p-3 hover:bg-bg-hover cursor-pointer transition-colors">
+                    <input type="checkbox" checked={selectedTreatments.includes(t.id)} onChange={() => toggleTreatment(t.id)} className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-text-primary truncate">{t.name}</p>
+                      <p className="text-xs text-text-muted">{formatCurrency(t.price)}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">Sconto (%)</label>
+                <div className="relative">
+                  <input type="number" value={discount} onChange={e => setDiscount(e.target.value)} min={0} max={100}
+                    className="w-full pl-4 pr-8 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted">%</span>
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-accent/5 border border-accent/20 flex flex-col justify-center">
+                <p className="text-[10px] text-text-secondary uppercase font-semibold">Prezzo Finale</p>
+                <p className="text-lg font-bold text-accent">{formatCurrency(finalPrice)}</p>
+                <p className="text-[10px] text-text-muted line-through">{formatCurrency(basePrice)}</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">Colore Riferimento</label>
+              <div className="flex gap-2">
+                {PKG_COLORS.map(c => (
+                  <button key={c} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 ring-offset-bg-secondary ring-accent scale-110' : 'hover:scale-110'}`} style={{ backgroundColor: c }} />
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          <div className="px-6 py-4 border-t border-border bg-bg-tertiary/30">
+            <button onClick={handleSave} disabled={!name || selectedTreatments.length === 0}
+              className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              Salva
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
 /* ========== MAIN PAGE ========== */
 export default function PackagesPage() {
   const { packages, clientPackages: clientPkgs, addPackage, deletePackage, activatePackage, useSession, deleteClientPackage, addPayment } = usePackageStore();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showListinoModal, setShowListinoModal] = useState(false);
   const [activatingPkg, setActivatingPkg] = useState<PackageItem | null>(null);
   const [usingSession, setUsingSession] = useState<ClientPackage | null>(null);
   const [viewingHistory, setViewingHistory] = useState<ClientPackage | null>(null);
@@ -539,7 +648,10 @@ export default function PackagesPage() {
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div><h2 className="text-xl font-display font-bold text-text-primary">Pacchetti & Abbonamenti</h2><p className="text-sm text-text-secondary">Gestisci pacchetti a sedute e scala le visite</p></div>
-        <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105"><Plus className="w-4 h-4" /> Nuovo Pacchetto</button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowListinoModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-tertiary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all"><Plus className="w-4 h-4" /> Nuovo Trattamento</button>
+          <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105"><Plus className="w-4 h-4" /> Nuovo Pacchetto</button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -673,6 +785,7 @@ export default function PackagesPage() {
 
       {/* Modals */}
       <AnimatePresence>{showAddModal && <AddPackageModal onClose={() => setShowAddModal(false)} onSave={p => { addPackage(p); setShowAddModal(false); }} />}</AnimatePresence>
+      <AnimatePresence>{showListinoModal && <AddListinoModal onClose={() => setShowListinoModal(false)} onSave={p => { addPackage(p); setShowListinoModal(false); }} />}</AnimatePresence>
       <AnimatePresence>{activatingPkg && <ActivatePackageModal pkg={activatingPkg} onClose={() => setActivatingPkg(null)} onActivate={(cn, vm, fp, pm, op, pl) => handleActivate(activatingPkg, cn, vm, fp, pm, op, pl)} />}</AnimatePresence>
       <AnimatePresence>{usingSession && <UseSessionModal cp={usingSession} onClose={() => setUsingSession(null)} onConfirm={(op, note) => handleUseSession(usingSession.id, op, note)} />}</AnimatePresence>
       <AnimatePresence>{viewingHistory && <HistoryModal cp={viewingHistory} onClose={() => setViewingHistory(null)} onAddPayment={(viewingHistory.remainingBalance || 0) > 0 ? () => { setAddingPayment(viewingHistory); setViewingHistory(null); } : undefined} />}</AnimatePresence>

@@ -114,14 +114,14 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const discountPercentage = Number(discount) || 0;
   const discountAmount = (subtotal * discountPercentage) / 100;
   const total = Math.max(0, subtotal - discountAmount);
-  const canComplete = cart.length > 0 && selectedClient;
+  const canComplete = cart.length > 0;
 
   const handleComplete = () => {
     if (!canComplete) return;
     const now = new Date();
     onComplete({
       id: Date.now(),
-      client: selectedClient,
+      client: selectedClient || 'Cliente Occasionale',
       items: cart.map(i => i.name).join(', '),
       total,
       method: PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label || 'Carta',
@@ -248,7 +248,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
 
                 {/* Client + Items Summary */}
                 <div className="rounded-xl bg-bg-tertiary/50 p-3 space-y-1">
-                  <p className="text-xs text-text-muted">Cliente: <span className="text-text-primary font-medium">{selectedClient || '—'}</span></p>
+                  <p className="text-xs text-text-muted">Cliente: <span className="text-text-primary font-medium">{selectedClient || 'Cliente Occasionale'}</span></p>
                   <p className="text-xs text-text-muted">Articoli: <span className="text-text-primary font-medium">{cart.map(i => i.name).join(', ') || '—'}</span></p>
                 </div>
               </div>
