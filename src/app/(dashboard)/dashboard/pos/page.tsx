@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import {
   CreditCard, Receipt, Calculator,
   Banknote, ArrowRight, Plus, X, CheckCircle,
@@ -298,7 +299,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   );
 }
 
-export default function POSPage() {
+function POSPageInner() {
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [transactions, setTransactions] = usePersistedState<TransactionRecord[]>('revo_pos_transactions', defaultTransactions);
   const [saleInitialData, setSaleInitialData] = useState<{ client: string; treatmentName: string; treatmentId: string; price: number; operator: string } | null>(null);
@@ -536,5 +537,13 @@ export default function POSPage() {
         </>
       )}</AnimatePresence>
     </motion.div>
+  );
+}
+
+export default function POSPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-text-muted">Caricamento POS...</div>}>
+      <POSPageInner />
+    </Suspense>
   );
 }
