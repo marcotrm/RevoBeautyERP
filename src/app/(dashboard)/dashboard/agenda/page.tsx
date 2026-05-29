@@ -1,0 +1,971 @@
+'use client';
+
+import React, { useMemo, useCallback, useRef, useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/navigation';
+import { useAgendaStore } from '@/stores/useAgendaStore';
+import { mockOperators, mockTreatments } from '@/lib/mock-data';
+import { useClientStore } from '@/stores/useClientStore';
+import { usePackageStore } from '@/stores/usePackageStore';
+import { Appointment, Operator, Treatment } from '@/types';
+import {
+  ChevronLeft, ChevronRight, CalendarDays, Plus,
+  Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
+  Lock, X, Search, UserCircle, Minus, Package,
+} from 'lucide-react';
+import {
+  formatDateLong, timeToMinutes, getStatusLabel,
+  getStatusColor, formatCurrency, getInitials, getCategoryLabel,
+} from '@/lib/helpers';
+
+const HOUR_HEIGHT = 64;
+const START_HOUR = 8;
+const END_HOUR = 21;
+const TOTAL_HOURS = END_HOUR - START_HOUR;
+
+const statusIcons: Record<string, React.ReactNode> = {
+  confirmed: <CheckCircle className="w-3 h-3" />,
+  pending: <AlertCircle className="w-3 h-3" />,
+  in_progress: <Play className="w-3 h-3" />,
+  completed: <CheckCircle className="w-3 h-3" />,
+  no_show: <XCircle className="w-3 h-3" />,
+  cancelled: <Ban className="w-3 h-3" />,
+  waitlist: <ListTodo className="w-3 h-3" />,
+};
+
+const WEEK_DAYS_IT = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+const MONTH_NAMES_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+
+function fmtDate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+/* ========== APPOINTMENT BLOCK (Day View) ========== */
+function AppointmentBlock({ appointment, onClick }: { appointment: Appointment; onClick: (a: Appointment) => void }) {
+  const startMin = timeToMinutes(appointment.startTime) - START_HOUR * 60;
+  const endMin = timeToMinutes(appointment.endTime) - START_HOUR * 60;
+  const top = (startMin / 60) * HOUR_HEIGHT;
+  const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT - 2, 24);
+  const isSmall = height < 48;
+
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('appointmentId', appointment.id);
+    e.dataTransfer.setData('duration', String(appointment.duration));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  return (
+    <div
+      draggable={!appointment.isLocked}
+      onDragStart={handleDragStart}
+      onClick={(e) => { e.stopPropagation(); onClick(appointment); }}
+      className={`appointment-block group ${appointment.isLocked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
+      style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${appointment.color}18`, borderLeftColor: appointment.color }}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1 min-w-0">
+          <span style={{ color: getStatusColor(appointment.status) }}>{statusIcons[appointment.status]}</span>
+          <span className={`font-semibold text-text-primary truncate ${isSmall ? 'text-[10px]' : 'text-xs'}`}>{appointment.clientName}</span>
+        </div>
+        {appointment.isLocked && <Lock className="w-3 h-3 text-text-muted flex-shrink-0" />}
+        {!appointment.isLocked && !isSmall && (
+          <svg className="w-3 h-3 text-text-muted opacity-0 group-hover:opacity-40 flex-shrink-0 transition-opacity" viewBox="0 0 6 10">
+            <circle cx="1.5" cy="1.5" r="1" fill="currentColor"/><circle cx="4.5" cy="1.5" r="1" fill="currentColor"/>
+            <circle cx="1.5" cy="5" r="1" fill="currentColor"/><circle cx="4.5" cy="5" r="1" fill="currentColor"/>
+            <circle cx="1.5" cy="8.5" r="1" fill="currentColor"/><circle cx="4.5" cy="8.5" r="1" fill="currentColor"/>
+          </svg>
+        )}
+      </div>
+      {!isSmall && (
+        <>
+          <p className="text-[11px] text-text-secondary truncate mt-0.5">{appointment.treatmentName}</p>
+          <div className="flex items-center gap-1 mt-auto text-[10px] text-text-muted">
+            <Clock className="w-2.5 h-2.5" />
+            {appointment.startTime} - {appointment.endTime}
+            {appointment.price > 0 && <span className="ml-auto font-medium">{formatCurrency(appointment.price)}</span>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function OperatorColumnHeader({ operator }: { operator: Operator }) {
+  return (
+    <div className="sticky top-0 z-20 bg-bg-secondary border-b border-border px-3 py-3 flex items-center gap-2.5">
+      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold" style={{ backgroundColor: operator.color }}>
+        {getInitials(operator.firstName, operator.lastName)}
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-text-primary truncate">{operator.firstName}</p>
+        <p className="text-[11px] text-text-muted truncate">{operator.lastName}</p>
+      </div>
+    </div>
+  );
+}
+
+function TimeGutter() {
+  const hours = Array.from({ length: TOTAL_HOURS }, (_, i) => START_HOUR + i);
+  return (
+    <div className="sticky left-0 z-10 bg-bg-primary border-r border-border w-16 flex-shrink-0">
+      <div className="sticky top-0 z-20 bg-bg-secondary border-b border-border h-[56px] flex items-center justify-center">
+        <Clock className="w-4 h-4 text-text-muted" />
+      </div>
+      {hours.map((hour) => (
+        <div key={hour} className="relative border-b border-border/50" style={{ height: `${HOUR_HEIGHT}px` }}>
+          <span className="absolute -top-2.5 right-2 text-[11px] font-medium text-text-muted">{String(hour).padStart(2,'0')}:00</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NowLine() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => { const i = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(i); }, []);
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const offsetMin = minutes - START_HOUR * 60;
+  if (offsetMin < 0 || offsetMin > TOTAL_HOURS * 60) return null;
+  const top = (offsetMin / 60) * HOUR_HEIGHT + 56;
+  return (
+    <div className="now-line" style={{ top: `${top}px` }}>
+      <div className="absolute left-0 -top-2.5 px-1.5 py-0.5 rounded bg-error text-white text-[10px] font-bold">
+        {String(now.getHours()).padStart(2,'0')}:{String(now.getMinutes()).padStart(2,'0')}
+      </div>
+    </div>
+  );
+}
+
+/* ========== DAY VIEW ========== */
+function DayView({ appointments, operators, onAppointmentClick, onSlotClick, onDropAppointment }: {
+  appointments: Appointment[]; operators: Operator[]; onAppointmentClick: (a: Appointment) => void;
+  onSlotClick: (operatorId: string, hour: number) => void;
+  onDropAppointment: (appointmentId: string, operatorId: string, newStartTime: string, duration: number) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const hours = Array.from({ length: TOTAL_HOURS }, (_, i) => START_HOUR + i);
+  const [dragOver, setDragOver] = useState<{ operatorId: string; time: string } | null>(null);
+
+  const byOperator = useMemo(() => {
+    const map: Record<string, Appointment[]> = {};
+    operators.forEach(op => { map[op.id] = appointments.filter(a => a.operatorId === op.id); });
+    return map;
+  }, [appointments, operators]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      const now = new Date();
+      const scrollTo = ((now.getHours() * 60 + now.getMinutes() - START_HOUR * 60) / 60) * HOUR_HEIGHT - 100;
+      scrollRef.current.scrollTop = Math.max(0, scrollTo);
+    }
+  }, []);
+
+  const calcTimeFromY = (e: React.DragEvent, columnEl: HTMLElement): string => {
+    const rect = columnEl.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    // Snap to 15-minute intervals
+    const totalMinutes = (y / HOUR_HEIGHT) * 60;
+    const snapped = Math.round(totalMinutes / 15) * 15;
+    const hour = START_HOUR + Math.floor(snapped / 60);
+    const min = snapped % 60;
+    return `${String(Math.max(START_HOUR, Math.min(END_HOUR - 1, hour))).padStart(2, '0')}:${String(Math.max(0, min)).padStart(2, '0')}`;
+  };
+
+  const handleDragOver = (e: React.DragEvent, operatorId: string, columnEl: HTMLElement) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const time = calcTimeFromY(e, columnEl);
+    setDragOver({ operatorId, time });
+  };
+
+  const handleDrop = (e: React.DragEvent, operatorId: string, columnEl: HTMLElement) => {
+    e.preventDefault();
+    const appointmentId = e.dataTransfer.getData('appointmentId');
+    const duration = Number(e.dataTransfer.getData('duration')) || 60;
+    if (!appointmentId) return;
+    const time = calcTimeFromY(e, columnEl);
+    onDropAppointment(appointmentId, operatorId, time, duration);
+    setDragOver(null);
+  };
+
+  // Ghost preview position
+  const dragGhostTop = dragOver ? (() => {
+    const [h, m] = dragOver.time.split(':').map(Number);
+    return ((h - START_HOUR) * 60 + m) / 60 * HOUR_HEIGHT;
+  })() : 0;
+
+  return (
+    <div ref={scrollRef} className="flex-1 overflow-auto border border-border rounded-2xl bg-bg-secondary relative">
+      <div className="flex min-w-0">
+        <TimeGutter />
+        {operators.map(operator => (
+          <div key={operator.id} className="flex-1 min-w-[160px] border-r border-border/50 last:border-r-0 relative">
+            <OperatorColumnHeader operator={operator} />
+            <div className="relative"
+              onDragOver={e => handleDragOver(e, operator.id, e.currentTarget)}
+              onDragLeave={() => setDragOver(null)}
+              onDrop={e => handleDrop(e, operator.id, e.currentTarget)}>
+              {hours.map(hour => (
+                <div key={hour} onClick={() => onSlotClick(operator.id, hour)}
+                  className="border-b border-border/30 relative cursor-pointer hover:bg-accent/[0.03] transition-colors group/slot"
+                  style={{ height: `${HOUR_HEIGHT}px` }}>
+                  <div className="absolute left-0 right-0 border-b border-border/15" style={{ top: `${HOUR_HEIGHT / 2}px` }} />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/slot:opacity-100 transition-opacity pointer-events-none">
+                    <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-accent/10 text-accent text-[10px] font-medium">
+                      <Plus className="w-3 h-3" /> {String(hour).padStart(2,'0')}:00
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {/* Drop ghost preview */}
+              {dragOver && dragOver.operatorId === operator.id && (
+                <div className="absolute left-1 right-1 rounded-lg border-2 border-dashed border-accent/50 bg-accent/10 pointer-events-none z-30 flex items-center justify-center"
+                  style={{ top: `${dragGhostTop}px`, height: `${HOUR_HEIGHT - 2}px` }}>
+                  <span className="text-[10px] font-semibold text-accent">{dragOver.time}</span>
+                </div>
+              )}
+              {(byOperator[operator.id] || []).map(apt => (
+                <AppointmentBlock key={apt.id} appointment={apt} onClick={onAppointmentClick} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <NowLine />
+    </div>
+  );
+}
+
+/* ========== WEEK VIEW ========== */
+function WeekView({ selectedDate, allAppointments, onAppointmentClick, onDayClick }: {
+  selectedDate: Date; allAppointments: Appointment[];
+  onAppointmentClick: (a: Appointment) => void; onDayClick: (d: Date) => void;
+}) {
+  const weekDates = useMemo(() => {
+    const d = new Date(selectedDate);
+    const dayOfWeek = d.getDay();
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - ((dayOfWeek + 6) % 7));
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      return date;
+    });
+  }, [selectedDate]);
+
+  const today = fmtDate(new Date());
+  const hours = Array.from({ length: TOTAL_HOURS }, (_, i) => START_HOUR + i);
+
+  const appointmentsByDay = useMemo(() => {
+    const map: Record<string, Appointment[]> = {};
+    weekDates.forEach(d => { map[fmtDate(d)] = allAppointments.filter(a => a.date === fmtDate(d)); });
+    return map;
+  }, [weekDates, allAppointments]);
+
+  return (
+    <div className="flex-1 overflow-auto border border-border rounded-2xl bg-bg-secondary">
+      <div className="flex min-w-0">
+        {/* Time gutter */}
+        <div className="sticky left-0 z-10 bg-bg-primary border-r border-border w-14 flex-shrink-0">
+          <div className="sticky top-0 z-20 bg-bg-secondary border-b border-border h-[52px]" />
+          {hours.map(hour => (
+            <div key={hour} className="relative border-b border-border/30" style={{ height: '48px' }}>
+              <span className="absolute -top-2 right-1.5 text-[10px] font-medium text-text-muted">{String(hour).padStart(2,'0')}:00</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Day columns */}
+        {weekDates.map((date, i) => {
+          const ds = fmtDate(date);
+          const isToday = ds === today;
+          const dayApts = appointmentsByDay[ds] || [];
+          return (
+            <div key={i} className="flex-1 min-w-[100px] border-r border-border/50 last:border-r-0">
+              {/* Day header */}
+              <button
+                onClick={() => onDayClick(date)}
+                className={`sticky top-0 z-20 w-full border-b border-border px-2 py-2 text-center transition-colors ${isToday ? 'bg-accent/10' : 'bg-bg-secondary hover:bg-bg-hover'}`}
+              >
+                <p className="text-[11px] text-text-muted">{WEEK_DAYS_IT[i]}</p>
+                <p className={`text-lg font-display font-bold ${isToday ? 'text-accent' : 'text-text-primary'}`}>{date.getDate()}</p>
+                {dayApts.length > 0 && (
+                  <p className="text-[10px] text-text-muted">{dayApts.length} app.</p>
+                )}
+              </button>
+
+              {/* Time grid */}
+              <div className="relative">
+                {hours.map(hour => (
+                  <div key={hour} className="border-b border-border/20" style={{ height: '48px' }} />
+                ))}
+                {/* Appointment chips */}
+                {dayApts.map(apt => {
+                  const startMin = timeToMinutes(apt.startTime) - START_HOUR * 60;
+                  const endMin = timeToMinutes(apt.endTime) - START_HOUR * 60;
+                  const top = (startMin / 60) * 48;
+                  const height = Math.max(((endMin - startMin) / 60) * 48 - 1, 18);
+                  return (
+                    <div
+                      key={apt.id}
+                      onClick={() => onAppointmentClick(apt)}
+                      className="absolute left-1 right-1 rounded-md px-1.5 py-0.5 cursor-pointer overflow-hidden hover:brightness-110 transition-all border-l-2"
+                      style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${apt.color}20`, borderLeftColor: apt.color }}
+                    >
+                      <p className="text-[10px] font-semibold text-text-primary truncate">{apt.clientName}</p>
+                      {height > 24 && <p className="text-[9px] text-text-muted truncate">{apt.startTime}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ========== MONTH VIEW ========== */
+function MonthView({ selectedDate, allAppointments, onAppointmentClick, onDayClick }: {
+  selectedDate: Date; allAppointments: Appointment[];
+  onAppointmentClick: (a: Appointment) => void; onDayClick: (d: Date) => void;
+}) {
+  const { year, month, weeks } = useMemo(() => {
+    const y = selectedDate.getFullYear();
+    const m = selectedDate.getMonth();
+    const firstDay = new Date(y, m, 1);
+    const startOffset = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const daysInPrevMonth = new Date(y, m, 0).getDate();
+
+    const cells: { date: Date; isCurrentMonth: boolean }[] = [];
+    for (let i = startOffset - 1; i >= 0; i--) {
+      cells.push({ date: new Date(y, m - 1, daysInPrevMonth - i), isCurrentMonth: false });
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      cells.push({ date: new Date(y, m, d), isCurrentMonth: true });
+    }
+    while (cells.length % 7 !== 0) {
+      cells.push({ date: new Date(y, m + 1, cells.length - daysInMonth - startOffset + 1), isCurrentMonth: false });
+    }
+
+    const w: typeof cells[] = [];
+    for (let i = 0; i < cells.length; i += 7) w.push(cells.slice(i, i + 7));
+    return { year: y, month: m, weeks: w };
+  }, [selectedDate]);
+
+  const today = fmtDate(new Date());
+
+  const aptsByDate = useMemo(() => {
+    const map: Record<string, Appointment[]> = {};
+    allAppointments.forEach(a => { if (!map[a.date]) map[a.date] = []; map[a.date].push(a); });
+    return map;
+  }, [allAppointments]);
+
+  return (
+    <div className="flex-1 border border-border rounded-2xl bg-bg-secondary overflow-hidden">
+      {/* Day headers */}
+      <div className="grid grid-cols-7 border-b border-border">
+        {WEEK_DAYS_IT.map(d => (
+          <div key={d} className="py-2.5 text-center text-xs font-semibold text-text-muted uppercase">{d}</div>
+        ))}
+      </div>
+      {/* Weeks */}
+      <div>
+        {weeks.map((week, wi) => (
+          <div key={wi} className="grid grid-cols-7 border-b border-border/30 last:border-b-0">
+            {week.map((cell, ci) => {
+              const ds = fmtDate(cell.date);
+              const isToday = ds === today;
+              const dayApts = aptsByDate[ds] || [];
+              return (
+                <button
+                  key={ci}
+                  onClick={() => onDayClick(cell.date)}
+                  className={`min-h-[90px] p-1.5 border-r border-border/20 last:border-r-0 text-left transition-colors hover:bg-bg-hover ${
+                    !cell.isCurrentMonth ? 'opacity-30' : ''
+                  } ${isToday ? 'bg-accent/5' : ''}`}
+                >
+                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${
+                    isToday ? 'bg-accent text-white' : 'text-text-primary'
+                  }`}>
+                    {cell.date.getDate()}
+                  </span>
+                  <div className="mt-1 space-y-0.5">
+                    {dayApts.slice(0, 3).map(apt => (
+                      <div
+                        key={apt.id}
+                        onClick={(e) => { e.stopPropagation(); onAppointmentClick(apt); }}
+                        className="flex items-center gap-1 px-1 py-0.5 rounded text-[10px] truncate cursor-pointer hover:brightness-125"
+                        style={{ backgroundColor: `${apt.color}20`, color: apt.color }}
+                      >
+                        <span className="font-medium">{apt.startTime}</span>
+                        <span className="truncate text-text-secondary">{apt.clientName}</span>
+                      </div>
+                    ))}
+                    {dayApts.length > 3 && (
+                      <p className="text-[10px] text-text-muted px-1">+{dayApts.length - 3} altri</p>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ========== APPOINTMENT MODAL ========== */
+function AppointmentModal() {
+  const { isAppointmentModalOpen, editingAppointment, closeAppointmentModal, addAppointment, updateAppointment, selectedDate, slotInfo } = useAgendaStore();
+  const [clientSearch, setClientSearch] = useState('');
+  const [selectedClientId, setSelectedClientId] = useState('');
+  const [selectedClientName, setSelectedClientName] = useState('');
+  const [selectedTreatmentId, setSelectedTreatmentId] = useState('');
+  const [selectedOperatorId, setSelectedOperatorId] = useState(mockOperators[0]?.id || '');
+  const [startTime, setStartTime] = useState('09:00');
+  const [notes, setNotes] = useState('');
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+
+  useEffect(() => {
+    if (isAppointmentModalOpen) {
+      if (editingAppointment) {
+        setSelectedClientId(editingAppointment.clientId);
+        setSelectedClientName(editingAppointment.clientName);
+        setSelectedTreatmentId(editingAppointment.treatmentId);
+        setSelectedOperatorId(editingAppointment.operatorId);
+        setStartTime(editingAppointment.startTime);
+        setNotes(editingAppointment.notes || '');
+      } else if (slotInfo) {
+        setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
+        setSelectedTreatmentId('');
+        setSelectedOperatorId(slotInfo.operatorId);
+        setStartTime(slotInfo.time);
+        setNotes('');
+      } else {
+        setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
+        setSelectedTreatmentId(''); setSelectedOperatorId(mockOperators[0]?.id || '');
+        setStartTime('09:00'); setNotes('');
+      }
+      setShowClientDropdown(false);
+    }
+  }, [isAppointmentModalOpen, editingAppointment, slotInfo]);
+
+  const allClients = useClientStore(s => s.clients);
+  const filteredClients = useMemo(() => {
+    if (!clientSearch.trim()) return allClients.slice(0, 5);
+    const q = clientSearch.toLowerCase();
+    return allClients.filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) || c.phone.includes(q)).slice(0, 8);
+  }, [clientSearch, allClients]);
+
+  // Active packages for selected client
+  const allPkgData = usePackageStore(s => s.clientPackages);
+  const clientActivePkgs = useMemo(() => {
+    if (!selectedClientName) return [];
+    const normalize = (n: string) => n.toLowerCase().trim().split(/\s+/).sort().join(' ');
+    const target = normalize(selectedClientName);
+    return allPkgData.filter(
+      cp => (normalize(cp.clientName) === target ||
+             cp.clientName.toLowerCase().includes(selectedClientName.toLowerCase()) ||
+             selectedClientName.toLowerCase().includes(cp.clientName.toLowerCase())) &&
+            (cp.status === 'active' || cp.status === 'expiring')
+    );
+  }, [selectedClientName, allPkgData]);
+
+  const selectedTreatment = useMemo(() => mockTreatments.find(t => t.id === selectedTreatmentId), [selectedTreatmentId]);
+  const endTime = useMemo(() => {
+    if (!selectedTreatment) return startTime;
+    const [h, m] = startTime.split(':').map(Number);
+    const total = h * 60 + m + selectedTreatment.duration;
+    return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
+  }, [startTime, selectedTreatment]);
+
+  const selectedOperator = mockOperators.find(o => o.id === selectedOperatorId);
+  const dateStr = fmtDate(selectedDate);
+  const canSave = selectedClientId && selectedTreatmentId && selectedOperatorId && startTime;
+
+  const handleSave = () => {
+    if (!canSave || !selectedTreatment || !selectedOperator) return;
+    const data = {
+      clientId: selectedClientId, clientName: selectedClientName,
+      treatmentId: selectedTreatmentId, treatmentName: selectedTreatment.name,
+      treatmentCategory: selectedTreatment.category,
+      operatorId: selectedOperatorId, operatorName: `${selectedOperator.firstName} ${selectedOperator.lastName}`,
+      date: dateStr, startTime, endTime, duration: selectedTreatment.duration,
+      price: selectedTreatment.price, status: 'confirmed' as const,
+      color: selectedTreatment.color, locationId: 'loc1', notes, isLocked: false,
+    };
+    if (editingAppointment) updateAppointment(editingAppointment.id, data);
+    else addAppointment(data);
+    closeAppointmentModal();
+  };
+
+  if (!isAppointmentModalOpen) return null;
+
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={closeAppointmentModal} />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: 'spring', damping: 30, stiffness: 400 }}
+        className="fixed inset-0 z-[61] flex items-center justify-center p-4"
+        onClick={(e) => e.target === e.currentTarget && closeAppointmentModal()}
+      >
+        <div className="w-full max-w-lg bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+            <h3 className="text-lg font-display font-semibold text-text-primary">
+              {editingAppointment ? 'Modifica Appuntamento' : 'Nuovo Appuntamento'}
+            </h3>
+            <button onClick={closeAppointmentModal} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="px-6 py-5 space-y-4 max-h-[calc(100vh-14rem)] overflow-y-auto">
+            {/* Client */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Cliente *</label>
+              {selectedClientId ? (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-bg-tertiary border border-border">
+                  <UserCircle className="w-5 h-5 text-accent" />
+                  <span className="text-sm font-medium text-text-primary flex-1">{selectedClientName}</span>
+                  <button onClick={() => { setSelectedClientId(''); setSelectedClientName(''); setClientSearch(''); }} className="text-text-muted hover:text-text-primary"><X className="w-4 h-4" /></button>
+                </div>
+              ) : (
+                <>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                    <input type="text" value={clientSearch} onChange={e => { setClientSearch(e.target.value); setShowClientDropdown(true); }} onFocus={() => setShowClientDropdown(true)}
+                      placeholder="Cerca cliente per nome o telefono..."
+                      className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-all" />
+                  </div>
+                  {showClientDropdown && (
+                    <div className="absolute left-0 right-0 mt-1 bg-bg-tertiary border border-border rounded-xl shadow-xl z-10 max-h-48 overflow-y-auto">
+                      {filteredClients.map(client => (
+                        <button key={client.id} onClick={() => { setSelectedClientId(client.id); setSelectedClientName(`${client.firstName} ${client.lastName}`); setShowClientDropdown(false); setClientSearch(''); }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-bg-hover transition-colors text-left">
+                          <div className="w-7 h-7 rounded-full bg-accent/20 text-accent flex items-center justify-center text-xs font-bold flex-shrink-0">{getInitials(client.firstName, client.lastName)}</div>
+                          <div className="min-w-0"><p className="text-sm font-medium text-text-primary">{client.firstName} {client.lastName}</p><p className="text-xs text-text-muted">{client.phone}</p></div>
+                        </button>
+                      ))}
+                      {filteredClients.length === 0 && <p className="px-3 py-3 text-sm text-text-muted text-center">Nessun cliente trovato</p>}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* === PACCHETTI ATTIVI DEL CLIENTE === */}
+            {selectedClientName && clientActivePkgs.length > 0 && (
+              <div className="rounded-xl border-2 border-accent/20 bg-accent/5 p-3 space-y-2">
+                <p className="text-xs font-semibold text-accent uppercase tracking-wider flex items-center gap-1.5">
+                  📦 Pacchetti Attivi di {selectedClientName.split(' ')[0]}
+                </p>
+                {clientActivePkgs.map(cp => {
+                  const remaining = cp.totalSessions - cp.usedSessions;
+                  return (
+                    <div key={cp.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-bg-secondary/80 border border-border/50">
+                      <div className="w-1.5 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: cp.packageColor }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-text-primary truncate">{cp.packageName}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex items-center gap-0.5">
+                            {Array.from({ length: Math.min(cp.totalSessions, 10) }, (_, i) => (
+                              <div key={i} className={`w-1.5 h-1.5 rounded-full ${i < cp.usedSessions ? 'bg-success' : 'bg-bg-tertiary'}`} />
+                            ))}
+                          </div>
+                          <span className={`text-[10px] font-bold ${remaining <= 2 ? 'text-warning' : 'text-text-muted'}`}>{remaining}/{cp.totalSessions}</span>
+                        </div>
+                      </div>
+                      <button type="button" onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const matchingTreatment = mockTreatments.find(t =>
+                          cp.packageName.toLowerCase().includes(t.name.toLowerCase()) ||
+                          t.name.toLowerCase().includes(cp.packageName.toLowerCase().split(' ').slice(0, 2).join(' '))
+                        );
+                        if (matchingTreatment) {
+                          setSelectedTreatmentId(matchingTreatment.id);
+                        } else {
+                          // If no matching treatment, use first one
+                          setSelectedTreatmentId(mockTreatments[0]?.id || '');
+                        }
+                        setNotes(`📦 Seduta da pacchetto: ${cp.packageName} (${remaining} rimanenti)`);
+                      }}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent text-white text-[10px] font-bold hover:bg-accent/90 transition-colors whitespace-nowrap cursor-pointer z-10">
+                        <Package className="w-3 h-3" /> Usa seduta
+                      </button>
+                    </div>
+                  );
+                })}
+                <p className="text-[10px] text-text-muted italic">La seduta verrà scalata solo quando l&apos;appuntamento sarà completato.</p>
+              </div>
+            )}
+
+            {/* Treatment */}
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Trattamento *</label>
+              <select value={selectedTreatmentId} onChange={e => setSelectedTreatmentId(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
+                <option value="">Seleziona trattamento...</option>
+                {Object.entries(mockTreatments.reduce((g, t) => { const c = getCategoryLabel(t.category); if (!g[c]) g[c]=[]; g[c].push(t); return g; }, {} as Record<string, Treatment[]>))
+                  .map(([cat, ts]) => (
+                    <optgroup key={cat} label={cat}>{ts.map(t => <option key={t.id} value={t.id}>{t.name} — {t.duration}min — {formatCurrency(t.price)}</option>)}</optgroup>
+                  ))}
+              </select>
+              {selectedTreatment && <div className="flex items-center gap-2 mt-2 text-xs text-text-muted"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: selectedTreatment.color }} />{selectedTreatment.duration} min • {formatCurrency(selectedTreatment.price)}</div>}
+            </div>
+            {/* Operator */}
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Operatrice *</label>
+              <div className="grid grid-cols-5 gap-2">
+                {mockOperators.map(op => (
+                  <button key={op.id} type="button" onClick={() => setSelectedOperatorId(op.id)}
+                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all ${selectedOperatorId === op.id ? 'border-accent bg-accent/10' : 'border-border hover:border-border-light'}`}>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: op.color }}>{getInitials(op.firstName, op.lastName)}</div>
+                    <span className="text-[11px] text-text-primary truncate w-full text-center">{op.firstName}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Date + Time */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">Data</label>
+                <input type="date" value={dateStr} readOnly className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none transition-all" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">Ora Inizio *</label>
+                <select value={startTime} onChange={e => setStartTime(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
+                  {Array.from({ length: (END_HOUR - START_HOUR) * 4 }, (_, i) => { const t = START_HOUR*60+i*15; const h=String(Math.floor(t/60)).padStart(2,'0'); const m=String(t%60).padStart(2,'0'); return <option key={i} value={`${h}:${m}`}>{h}:{m}</option>; })}
+                </select>
+              </div>
+            </div>
+            {selectedTreatment && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/5 border border-accent/10">
+                <Clock className="w-4 h-4 text-accent" />
+                <span className="text-sm text-text-secondary">Fine prevista: <strong className="text-text-primary">{endTime}</strong> ({selectedTreatment.duration} min)</span>
+              </div>
+            )}
+            {/* Notes */}
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Note</label>
+              <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Note interne sull'appuntamento..." rows={2}
+                className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all resize-none" />
+            </div>
+          </div>
+          <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-bg-tertiary/30">
+            <div className="text-sm text-text-secondary">{selectedTreatment && <span>Totale: <strong className="text-text-primary">{formatCurrency(selectedTreatment.price)}</strong></span>}</div>
+            <div className="flex items-center gap-2">
+              <button onClick={closeAppointmentModal} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Annulla</button>
+              <button onClick={handleSave} disabled={!canSave}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${canSave ? 'gradient-accent shadow-lg shadow-accent/20 hover:shadow-accent/30 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
+                <CheckCircle className="w-4 h-4" />{editingAppointment ? 'Salva Modifiche' : 'Crea Appuntamento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
+/* ========== DETAIL PANEL ========== */
+function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }: {
+  appointment: Appointment; onClose: () => void; onEdit: (a: Appointment) => void;
+  onStatusChange: (id: string, status: Appointment['status']) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [scaledPkgId, setScaledPkgId] = useState<string | null>(null);
+  const router = useRouter();
+  const usePackageSession = usePackageStore(s => s.useSession);
+  const allClientPkgs = usePackageStore(s => s.clientPackages);
+  
+  // Match by normalized name (word-order agnostic)
+  const normalize = (n: string) => n.toLowerCase().trim().split(/\s+/).sort().join(' ');
+  const targetName = normalize(appointment.clientName);
+  const clientPkgs = allClientPkgs.filter(
+    cp => (normalize(cp.clientName) === targetName ||
+           cp.clientName.toLowerCase().includes(appointment.clientName.toLowerCase()) ||
+           appointment.clientName.toLowerCase().includes(cp.clientName.toLowerCase())) &&
+          (cp.status === 'active' || cp.status === 'expiring')
+  );
+
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, x: 300 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 300 }}
+        transition={{ type: 'spring', damping: 30, stiffness: 400 }}
+        className="fixed right-0 top-0 h-full w-full max-w-md bg-bg-secondary border-l border-border z-50 overflow-y-auto">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-display font-semibold text-text-primary">Dettaglio Appuntamento</h3>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><XCircle className="w-5 h-5" /></button>
+          </div>
+          <div className="mb-6">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium"
+              style={{ backgroundColor: `${getStatusColor(appointment.status)}15`, color: getStatusColor(appointment.status) }}>
+              {statusIcons[appointment.status]}{getStatusLabel(appointment.status)}
+            </span>
+          </div>
+          <div className="bg-bg-tertiary rounded-xl p-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: appointment.color }}>
+                {appointment.clientName.split(' ').map(n => n[0]).join('')}
+              </div>
+              <div><p className="font-medium text-text-primary">{appointment.clientName}</p><p className="text-xs text-text-secondary">Cliente</p></div>
+            </div>
+          </div>
+          <div className="space-y-3 mb-6">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-bg-tertiary/50">
+              <div className="w-1 h-8 rounded-full" style={{ backgroundColor: appointment.color }} />
+              <div><p className="text-sm font-medium text-text-primary">{appointment.treatmentName}</p><p className="text-xs text-text-secondary">{appointment.duration} minuti</p></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Orario</p><p className="text-sm font-medium text-text-primary">{appointment.startTime} - {appointment.endTime}</p></div>
+              <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Prezzo</p><p className="text-sm font-medium text-text-primary">{formatCurrency(appointment.price)}</p></div>
+            </div>
+            <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Operatrice</p><p className="text-sm font-medium text-text-primary">{appointment.operatorName}</p></div>
+            {appointment.notes && <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Note</p><p className="text-sm text-text-primary">{appointment.notes}</p></div>}
+          </div>
+
+          {/* ===== PACCHETTI ATTIVI (info) ===== */}
+          {clientPkgs.length > 0 && (
+            <div className="mb-6">
+              <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">📦 Pacchetti Attivi</p>
+              <div className="space-y-2">
+                {clientPkgs.map(cp => {
+                  const remaining = cp.totalSessions - cp.usedSessions;
+                  const isPackageAppt = appointment.notes?.includes(cp.packageName);
+                  return (
+                    <div key={cp.id} className={`rounded-xl border p-3 ${isPackageAppt ? 'border-accent/40 bg-accent/5' : 'border-border bg-bg-tertiary/30'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-2 h-6 rounded-full" style={{ backgroundColor: cp.packageColor }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-text-primary truncate">{cp.packageName}</p>
+                          <p className="text-[10px] text-text-muted">Scadenza: {cp.expiryDate}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-sm font-bold ${remaining <= 2 ? 'text-warning' : 'text-text-primary'}`}>{remaining}/{cp.totalSessions}</p>
+                          <p className="text-[9px] text-text-muted">rimanenti</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 mb-1">
+                        {Array.from({ length: Math.min(cp.totalSessions, 12) }, (_, i) => (
+                          <div key={i} className={`flex-1 h-1.5 rounded-full transition-all ${i < cp.usedSessions ? 'bg-success' : 'bg-bg-tertiary'}`} />
+                        ))}
+                      </div>
+                      {isPackageAppt && (
+                        <p className="text-[10px] text-accent font-semibold mt-1.5">✓ Questo appuntamento usa una seduta di questo pacchetto</p>
+                      )}
+                    </div>
+                  );
+                })}
+                {scaledPkgId && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 text-success text-xs font-semibold">
+                    <CheckCircle className="w-3.5 h-3.5" /> Seduta scalata con successo!
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="space-y-2">
+            <button onClick={() => onEdit(appointment)} className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-medium hover:opacity-90 transition-opacity">
+              Modifica Appuntamento
+            </button>
+
+            {/* Status buttons */}
+            <p className="text-xs text-text-muted pt-2 pb-1">Cambia stato:</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => {
+                const isPackageSession = appointment.notes?.includes('📦 Seduta da pacchetto');
+                onStatusChange(appointment.id, 'completed');
+
+                if (isPackageSession) {
+                  // Package session: scale the session, do NOT open POS (already paid)
+                  const matchingPkg = clientPkgs.find(cp =>
+                    appointment.notes?.includes(cp.packageName) &&
+                    cp.usedSessions < cp.totalSessions
+                  );
+                  if (matchingPkg) {
+                    usePackageSession(matchingPkg.id, appointment.operatorName, `Completato: ${appointment.treatmentName}`);
+                    setScaledPkgId(matchingPkg.id);
+                  }
+                  onClose();
+                  // No POS redirect — package was prepaid
+                } else {
+                  // Normal appointment: go to POS for payment
+                  onClose();
+                  const params = new URLSearchParams({
+                    client: appointment.clientName,
+                    treatment: appointment.treatmentName,
+                    treatmentId: appointment.treatmentId,
+                    price: String(appointment.price),
+                    operator: appointment.operatorName,
+                  });
+                  router.push(`/dashboard/pos?${params.toString()}`);
+                }
+              }}
+                className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'completed' ? 'bg-success/20 text-success ring-1 ring-success/30' : 'bg-success/10 text-success hover:bg-success/20'}`}>
+                <span className="flex items-center justify-center gap-1.5"><CheckCircle className="w-3.5 h-3.5" /> {appointment.notes?.includes('📦 Seduta da pacchetto') ? 'Completato ✓ Scala Seduta' : 'Completato → Cassa'}</span>
+              </button>
+              <button onClick={() => { onStatusChange(appointment.id, 'no_show'); onClose(); }}
+                className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'no_show' ? 'bg-error/20 text-error ring-1 ring-error/30' : 'bg-error/10 text-error hover:bg-error/20'}`}>
+                <span className="flex items-center justify-center gap-1.5"><XCircle className="w-3.5 h-3.5" /> No-Show</span>
+              </button>
+              <button onClick={() => { onStatusChange(appointment.id, 'in_progress'); onClose(); }}
+                className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'in_progress' ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30' : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'}`}>
+                <span className="flex items-center justify-center gap-1.5"><Play className="w-3.5 h-3.5" /> In Corso</span>
+              </button>
+              <button onClick={() => { onStatusChange(appointment.id, 'cancelled'); onClose(); }}
+                className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'cancelled' ? 'bg-bg-tertiary text-text-muted ring-1 ring-border' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
+                <span className="flex items-center justify-center gap-1.5"><Ban className="w-3.5 h-3.5" /> Annulla</span>
+              </button>
+            </div>
+
+            {/* Delete */}
+            <div className="pt-3 border-t border-border mt-4">
+              {confirmDelete ? (
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { onDelete(appointment.id); onClose(); }}
+                    className="flex-1 py-2.5 rounded-xl bg-error text-white text-sm font-medium hover:bg-error/90 transition-colors">
+                    Conferma Eliminazione
+                  </button>
+                  <button onClick={() => setConfirmDelete(false)}
+                    className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+                    No
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmDelete(true)}
+                  className="w-full py-2.5 rounded-xl border border-error/20 text-error text-sm font-medium hover:bg-error/5 transition-colors">
+                  Elimina Appuntamento
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
+/* ========== MAIN PAGE ========== */
+export default function AgendaPage() {
+  const {
+    appointments, selectedDate, view, selectedOperatorIds,
+    setView, goToToday, goToPrev, goToNext, setSelectedDate,
+    openAppointmentModal, isAppointmentModalOpen, moveAppointment,
+    updateAppointment, deleteAppointment,
+  } = useAgendaStore();
+  const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
+
+  const visibleOperators = useMemo(
+    () => mockOperators.filter(op => selectedOperatorIds.includes(op.id)),
+    [selectedOperatorIds]
+  );
+
+  const dateStr = fmtDate(selectedDate);
+
+  const todayAppointments = useMemo(
+    () => appointments.filter(a => a.date === dateStr),
+    [appointments, dateStr]
+  );
+
+  const handleAppointmentClick = useCallback((apt: Appointment) => setSelectedApt(apt), []);
+
+  const handleDayClick = useCallback((d: Date) => {
+    setSelectedDate(d);
+    setView('day');
+  }, [setSelectedDate, setView]);
+
+  const handleEdit = useCallback((apt: Appointment) => {
+    setSelectedApt(null);
+    openAppointmentModal(apt);
+  }, [openAppointmentModal]);
+
+  const totalApts = todayAppointments.length;
+  const completedApts = todayAppointments.filter(a => a.status === 'completed').length;
+  const revenue = todayAppointments.filter(a => a.status !== 'cancelled' && a.status !== 'no_show').reduce((s, a) => s + a.price, 0);
+
+  // Header label
+  const headerLabel = useMemo(() => {
+    if (view === 'day') return formatDateLong(dateStr);
+    if (view === 'month') return `${MONTH_NAMES_IT[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
+    // week
+    const d = new Date(selectedDate);
+    const dow = (d.getDay() + 6) % 7;
+    const mon = new Date(d); mon.setDate(d.getDate() - dow);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    return `${mon.getDate()} - ${sun.getDate()} ${MONTH_NAMES_IT[sun.getMonth()]} ${sun.getFullYear()}`;
+  }, [view, selectedDate, dateStr]);
+
+  return (
+    <div className="h-[calc(100vh-7rem)] flex flex-col">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between mb-4 flex-shrink-0 flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <button onClick={goToPrev} className="p-2 rounded-xl hover:bg-bg-hover border border-border text-text-secondary transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+          <button onClick={goToToday} className="px-3 py-2 rounded-xl hover:bg-bg-hover border border-border text-sm font-medium text-text-primary transition-colors">Oggi</button>
+          <button onClick={goToNext} className="p-2 rounded-xl hover:bg-bg-hover border border-border text-text-secondary transition-colors"><ChevronRight className="w-4 h-4" /></button>
+          <h2 className="text-base font-display font-semibold text-text-primary ml-2 capitalize">{headerLabel}</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          {view === 'day' && (
+            <div className="hidden md:flex items-center gap-2 mr-2">
+              <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-bg-tertiary text-xs text-text-secondary"><CalendarDays className="w-3.5 h-3.5" /> {totalApts} app.</span>
+              <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-success-bg text-xs text-success"><CheckCircle className="w-3.5 h-3.5" /> {completedApts} compl.</span>
+              <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent/10 text-xs text-accent">€ {revenue.toLocaleString('it-IT')}</span>
+            </div>
+          )}
+          <div className="flex rounded-xl border border-border overflow-hidden">
+            {(['day','week','month'] as const).map(v => (
+              <button key={v} onClick={() => setView(v)}
+                className={`px-3 py-2 text-xs font-medium transition-colors ${view === v ? 'bg-accent text-white' : 'bg-bg-secondary text-text-secondary hover:bg-bg-hover'}`}>
+                {v === 'day' ? 'Giorno' : v === 'week' ? 'Settimana' : 'Mese'}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => openAppointmentModal()}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105">
+            <Plus className="w-4 h-4" /><span className="hidden sm:inline">Nuovo</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Views */}
+      {view === 'day' && (
+        <DayView appointments={todayAppointments} operators={visibleOperators} onAppointmentClick={handleAppointmentClick}
+          onSlotClick={(operatorId, hour) => openAppointmentModal(null, { operatorId, time: `${String(hour).padStart(2,'0')}:00` })}
+          onDropAppointment={(aptId, opId, newStart, duration) => {
+            const [h, m] = newStart.split(':').map(Number);
+            const endTotal = h * 60 + m + duration;
+            const endTime = `${String(Math.floor(endTotal / 60)).padStart(2, '0')}:${String(endTotal % 60).padStart(2, '0')}`;
+            moveAppointment(aptId, opId, newStart, endTime);
+          }} />
+      )}
+      {view === 'week' && (
+        <WeekView selectedDate={selectedDate} allAppointments={appointments} onAppointmentClick={handleAppointmentClick} onDayClick={handleDayClick} />
+      )}
+      {view === 'month' && (
+        <MonthView selectedDate={selectedDate} allAppointments={appointments} onAppointmentClick={handleAppointmentClick} onDayClick={handleDayClick} />
+      )}
+
+      {/* Detail Panel */}
+      <AnimatePresence>
+        {selectedApt && <DetailPanel appointment={selectedApt} onClose={() => setSelectedApt(null)} onEdit={handleEdit}
+          onStatusChange={(id, status) => updateAppointment(id, { status })}
+          onDelete={(id) => deleteAppointment(id)} />}
+      </AnimatePresence>
+
+      {/* Appointment Modal */}
+      <AnimatePresence>
+        {isAppointmentModalOpen && <AppointmentModal />}
+      </AnimatePresence>
+    </div>
+  );
+}
