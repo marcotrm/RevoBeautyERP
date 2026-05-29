@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// CLIENTS
+// ============================================================
+model Client {
+  id               String   @id @default(cuid())
+  firstName        String
+  lastName         String
+  email            String?
+  phone            String
+  birthDate        String?
+  gender           String?
+  address          String?
+  city             String?
+  notes            String?
+  privateNotes     String?
+  allergies        String?
+  preferences      String[] @default([])
+  tags             String[] @default([])
+  vipLevel         Int      @default(0)
+  loyaltyPoints    Int      @default(0)
+  cashback         Float    @default(0)
+  gdprConsent      Boolean  @default(true)
+  marketingConsent Boolean  @default(false)
+  avatar           String?
+  createdAt        String
+  lastVisit        String?
+  totalSpent       Float    @default(0)
+  visitCount       Int      @default(0)
+  avgTicket        Float    @default(0)
+  referredBy       String?
+
+  appointments     Appointment[]
+  clientPackages   ClientPackage[]
+  giftCardsPurchased GiftCard[] @relation("GiftCardBuyer")
+
+  @@map("clients")
+}
+
+// ============================================================
+// OPERATORS
+// ============================================================
+model Operator {
+  id              String   @id @default(cuid())
+  firstName       String
+  lastName        String
+  avatar          String?
+  color           String
+  specializations String[] @default([])
+  locationIds     String[] @default([])
+  schedule        Json     @default("{}")
+  isActive        Boolean  @default(true)
+  phone           String?
+  email           String?
+  commission      Float    @default(0)
+  hireDate        String
+
+  appointments    Appointment[]
+
+  @@map("operators")
+}
+
+// ============================================================
+// TREATMENTS
+// ============================================================
+model Treatment {
+  id               String  @id @default(cuid())
+  name             String
+  category         String
+  duration         Int
+  price            Float
+  description      String?
+  requiresRoom     Boolean @default(false)
+  requiresEquipment String?
+  bufferBefore     Int     @default(0)
+  bufferAfter      Int     @default(0)
+  color            String
+  isActive         Boolean @default(true)
+
+  appointments     Appointment[]
+
+  @@map("treatments")
+}
+
+// ============================================================
+// APPOINTMENTS
+// ============================================================
+model Appointment {
+  id                String   @id @default(cuid())
+  clientId          String
+  clientName        String
+  operatorId        String
+  operatorName      String
+  treatmentId       String
+  treatmentName     String
+  treatmentCategory String
+  roomId            String?
+  locationId        String   @default("loc-1")
+  date              String
+  startTime         String
+  endTime           String
+  duration          Int
+  status            String   @default("confirmed")
+  price             Float
+  notes             String?
+  isLocked          Boolean  @default(false)
+  color             String
+  createdAt         String
+  updatedAt         String
+  createdBy         String   @default("u1")
+
+  client            Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  operator          Operator  @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  treatment         Treatment @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+
+  @@map("appointments")
+}
+
+// ============================================================
+// PACKAGES
+// ============================================================
+model Package {
+  id             String  @id @default(cuid())
+  name           String
+  type           String
+  price          Float
+  totalSessions  Int
+  sold           Int     @default(0)
+  color          String
+  description    String?
+  treatmentName  String?
+
+  clientPackages ClientPackage[]
+
+  @@map("packages")
+}
+
+// ============================================================
+// CLIENT PACKAGES
+// ============================================================
+model ClientPackage {
+  id               String   @id @default(cuid())
+  clientName       String
+  packageName      String
+  packageColor     String
+  totalSessions    Int
+  usedSessions     Int      @default(0)
+  pricePaid        Float
+  totalPaid        Float    @default(0)
+  remainingBalance Float    @default(0)
+  paymentPlan      String   @default("full")
+  purchaseDate     String
+  expiryDate       String
+  status           String   @default("active")
+  history          Json     @default("[]")
+  payments         Json     @default("[]")
+
+  packageId        String?
+  package          Package? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  clientId         String?
+  client           Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@map("client_packages")
+}
+
+// ============================================================
+// GIFT CARDS
+// ============================================================
+model GiftCard {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  purchasedBy      String
+  recipientName    String
+  recipientPhone   String?
+  amount           Float
+  remainingBalance Float
+  purchaseDate     String
+  expiryDate       String
+  paymentMethod    String
+  purchaseOperator String
+  status           String   @default("active")
+  message          String?
+  transactions     Json     @default("[]")
+
+  buyerId          String?
+  buyer            Client?  @relation("GiftCardBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+
+  @@map("gift_cards")
+}
+
+// ============================================================
+// POS TRANSACTIONS
+// ============================================================
+model PosTransaction {
+  id            String   @id @default(cuid())
+  date          String
+  time          String
+  clientName    String?
+  items         Json     @default("[]")
+  total         Float
+  paymentMethod String
+  operator      String
+  isRefund      Boolean  @default(false)
+  refundReason  String?
+
+  @@map("pos_transactions")
+}
