@@ -111,7 +111,8 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const updateQty = (id: string, delta: number) => setCart(prev => prev.map(i => i.id === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i));
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const discountAmount = Number(discount) || 0;
+  const discountPercentage = Number(discount) || 0;
+  const discountAmount = (subtotal * discountPercentage) / 100;
   const total = Math.max(0, subtotal - discountAmount);
   const canComplete = cart.length > 0 && selectedClient;
 
@@ -225,7 +226,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                 <div className="rounded-xl border border-border p-4 space-y-2">
                   <div className="flex justify-between text-sm"><span className="text-text-secondary">Subtotale</span><span className="text-text-primary font-medium">{formatCurrency(subtotal)}</span></div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-text-secondary">Sconto €</span>
+                    <span className="text-text-secondary">Sconto %</span>
                     <input type="number" value={discount} onChange={e => setDiscount(e.target.value)} placeholder="0" className="w-20 px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
                   </div>
                   <div className="border-t border-border pt-2 flex justify-between"><span className="text-base font-semibold text-text-primary">Totale</span><span className="text-xl font-display font-bold text-accent">{formatCurrency(total)}</span></div>
