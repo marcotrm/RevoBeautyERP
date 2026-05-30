@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import { useClientStore } from '@/stores/useClientStore';
+import { usePriceListStore } from '@/stores/usePriceListStore';
 import { mockAppointments } from '@/lib/mock-data';
 import {
   ArrowLeft, Phone, Mail, Calendar, MapPin,
@@ -26,7 +27,8 @@ const tabs = [
 export default function ClientDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { clients } = useClientStore();
+  const { clients, updateClient } = useClientStore();
+  const { priceLists } = usePriceListStore();
   const [activeTab, setActiveTab] = useState('profile');
 
   const client = useMemo(
@@ -209,6 +211,21 @@ export default function ClientDetailPage() {
                     <span className="text-sm font-medium text-text-primary">{field.value}</span>
                   </div>
                 ))}
+                
+                {/* Listino Assegnato */}
+                <div className="flex items-center justify-between py-2 border-t border-border mt-2 pt-4">
+                  <span className="text-sm font-semibold text-text-secondary">Listino Assegnato</span>
+                  <select
+                    value={client.priceListId || ''}
+                    onChange={(e) => updateClient(client.id, { priceListId: e.target.value || null })}
+                    className="px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary font-medium focus:outline-none focus:border-accent/50 transition-colors"
+                  >
+                    <option value="">Standard (Nessuno Sconto)</option>
+                    {priceLists.map(pl => (
+                      <option key={pl.id} value={pl.id}>{pl.name} (-{pl.discountPercentage}%)</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 

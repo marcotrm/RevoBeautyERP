@@ -12,9 +12,12 @@ import { useThemeStore } from '@/stores/useThemeStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { formatCurrency, getCategoryLabel } from '@/lib/helpers';
 import { Treatment, TreatmentCategory } from '@/types';
+import { Tag } from 'lucide-react';
+import { PriceListsSection } from './PriceListsSection';
 
 const settingSections = [
   { id: 'general', label: 'Centro', icon: Building2, description: 'Nome, indirizzo, contatti' },
+  { id: 'price_lists', label: 'Listini', icon: Tag, description: 'Listini sconti clienti' },
   { id: 'hours', label: 'Orari', icon: Clock, description: 'Orari apertura e chiusura' },
   { id: 'appearance', label: 'Aspetto', icon: Palette, description: 'Tema, colori, logo' },
   { id: 'notifications', label: 'Notifiche', icon: Bell, description: 'Email, SMS, push' },
@@ -788,6 +791,11 @@ export default function SettingsPage() {
                   </button>
                 </div>
               </div>
+            )}
+
+            {/* LISTINI */}
+            {activeSection === 'price_lists' && (
+              <PriceListsSection />
             )}
 
             {/* INTEGRAZIONI */}

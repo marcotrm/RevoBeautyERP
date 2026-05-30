@@ -15,6 +15,7 @@ import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { useClientStore } from '@/stores/useClientStore';
 import { formatCurrency } from '@/lib/helpers';
 import { usePackageStore } from '@/stores/usePackageStore';
+import { usePriceListStore } from '@/stores/usePriceListStore';
 
 interface CartItem {
   id: string;
@@ -82,9 +83,27 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
 
   const allClients = useClientStore(s => s.clients);
   const packages = usePackageStore(s => s.packages);
+  const { priceLists } = usePriceListStore();
   const filteredClients = clientSearch.trim()
     ? allClients.filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(clientSearch.toLowerCase())).slice(0, 8)
     : [];
+
+  // Auto-apply price list discount when client is selected
+  useEffect(() => {
+    if (selectedClient && !initialData?.debtPkgId) {
+      const clientObj = allClients.find(c => `${c.firstName} ${c.lastName}` === selectedClient);
+      if (clientObj?.priceListId) {
+        const list = priceLists.find(pl => pl.id === clientObj.priceListId);
+        if (list) {
+          setDiscount(String(list.discountPercentage));
+        } else {
+          setDiscount('');
+        }
+      } else {
+        setDiscount('');
+      }
+    }
+  }, [selectedClient, allClients, priceLists, initialData?.debtPkgId]);
 
   // Merge treatments + packages into one searchable list
   const allSellableItems = useMemo(() => {

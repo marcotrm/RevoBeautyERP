@@ -48,6 +48,7 @@ export const useClientStore = create<ClientStore>()(
               avgTicket: 0,
               loyaltyPoints: 0,
               cashback: 0,
+              priceListId: null,
             } as Client,
           ],
         })),
