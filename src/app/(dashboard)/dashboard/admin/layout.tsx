@@ -17,6 +17,7 @@ const adminNav = [
   { href: '/dashboard/admin/breakeven', label: 'Punto di Pareggio', icon: Target },
   { href: '/dashboard/admin/cashflow', label: 'Cash Flow', icon: Wallet },
   { href: '/dashboard/admin/goals', label: 'Obiettivi', icon: Flag },
+  { href: '/dashboard/admin/partner-expenses', label: 'Spese Soci', icon: Wallet },
   { href: '/dashboard/admin/reports', label: 'Report', icon: FileBarChart },
   { href: '/dashboard/admin/automations', label: 'Automazioni', icon: Zap },
 ];
