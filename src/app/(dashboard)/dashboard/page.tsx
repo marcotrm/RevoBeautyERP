@@ -20,6 +20,17 @@ import {
   getStatusLabel, getStatusColor,
 } from '@/lib/helpers';
 import Link from 'next/link';
+import { usePersistedState } from '@/hooks/usePersistedState';
+
+interface TransactionRecord {
+  id: number;
+  client: string;
+  items: string;
+  total: number;
+  method: string;
+  time: string;
+  operator: string;
+}
 
 const container = {
   hidden: { opacity: 0 },
@@ -103,6 +114,7 @@ export default function DashboardPage() {
   const appointments = useAgendaStore(s => s.appointments);
   const clients = useClientStore(s => s.clients);
   const clientPackages = usePackageStore(s => s.clientPackages);
+  const [transactions] = usePersistedState<TransactionRecord[]>('revo_pos_transactions', []);
 
   const today = todayStr();
 
@@ -435,6 +447,55 @@ export default function DashboardPage() {
         <div className="bg-bg-secondary border border-border rounded-2xl p-4 text-center">
           <p className="text-2xl font-display font-bold text-accent">{formatCurrency(quickStats.monthRevenue)}</p>
           <p className="text-xs text-text-secondary mt-1">Fatturato Mese</p>
+        </div>
+      </motion.div>
+
+      {/* RECENT TRANSACTIONS TABLE */}
+      <motion.div variants={item} className="bg-bg-secondary border border-border rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-display font-semibold text-text-primary">Ultime Transazioni in Cassa</h3>
+            <p className="text-sm text-text-secondary">Dettagli incassi registrati oggi</p>
+          </div>
+          <Link href="/dashboard/pos" className="flex items-center gap-1 text-sm text-accent font-medium hover:underline">
+            Vai alla Cassa <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-border text-xs font-semibold text-text-muted uppercase tracking-wider">
+                <th className="py-3 px-4">Ora</th>
+                <th className="py-3 px-4">Cliente</th>
+                <th className="py-3 px-4">Articoli</th>
+                <th className="py-3 px-4">Operatrice</th>
+                <th className="py-3 px-4">Metodo</th>
+                <th className="py-3 px-4 text-right">Importo</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50 text-sm">
+              {transactions.slice(0, 8).map(tx => (
+                <tr key={tx.id} className="hover:bg-bg-hover transition-colors">
+                  <td className="py-3 px-4 text-text-muted">{tx.time}</td>
+                  <td className="py-3 px-4 font-medium text-text-primary">{tx.client}</td>
+                  <td className="py-3 px-4 text-text-secondary max-w-[200px] truncate" title={tx.items}>{tx.items}</td>
+                  <td className="py-3 px-4 text-text-secondary">{tx.operator}</td>
+                  <td className="py-3 px-4">
+                    <span className="px-2 py-1 rounded-lg bg-bg-tertiary text-xs text-text-secondary font-medium">
+                      {tx.method}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-right font-bold text-text-primary">{formatCurrency(tx.total)}</td>
+                </tr>
+              ))}
+              {transactions.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-6 text-center text-text-muted">Nessuna transazione registrata</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </motion.div>
     </motion.div>
