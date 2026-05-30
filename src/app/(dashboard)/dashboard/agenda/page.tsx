@@ -1167,7 +1167,7 @@ export default function AgendaPage() {
         {showWaitlistModal && <WaitlistModal onClose={() => setShowWaitlistModal(false)} initialData={waitlistPreFill} />}
       </AnimatePresence>
       <AnimatePresence>
-        {showWaitlistPanel && <WaitlistPanel onClose={() => setShowWaitlistPanel(false)} />}
+        {showWaitlistPanel && <WaitlistPanel onClose={() => setShowWaitlistPanel(false)} onOpenNew={() => { setShowWaitlistPanel(false); handleOpenWaitlistModal(); }} />}
       </AnimatePresence>
     </div>
   );

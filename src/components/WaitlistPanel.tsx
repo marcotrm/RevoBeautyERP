@@ -9,7 +9,7 @@ import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { mockOperators } from '@/lib/mock-data';
 import { timeToMinutes, formatDateLong } from '@/lib/helpers';
 
-export default function WaitlistPanel({ onClose }: { onClose: () => void }) {
+export default function WaitlistPanel({ onClose, onOpenNew }: { onClose: () => void; onOpenNew: () => void }) {
   const { entries, updateStatus } = useWaitlistStore();
   const { appointments, addAppointment } = useAgendaStore();
   const treatments = useTreatmentStore(s => s.treatments);
@@ -95,9 +95,14 @@ export default function WaitlistPanel({ onClose }: { onClose: () => void }) {
             <h2 className="text-lg font-display font-semibold text-text-primary">Clienti in Attesa</h2>
             <p className="text-xs text-text-secondary">{activeEntries.length} richieste pendenti</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={onOpenNew} className="p-2 rounded-xl bg-warning/10 hover:bg-warning/20 text-warning transition-colors" title="Aggiungi Nuova Richiesta">
+              <CalendarPlus className="w-5 h-5" />
+            </button>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
