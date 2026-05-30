@@ -11,16 +11,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { sidebarCollapsed } = useUIStore();
   const { isAuthenticated } = useAuthStore();
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    if (!isAuthenticated) {
+    const unsubHydrate = useAuthStore.persist.onFinishHydration(() => setIsHydrated(true));
+    setIsHydrated(useAuthStore.persist.hasHydrated());
+    return () => {
+      unsubHydrate();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isHydrated && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [isHydrated, isAuthenticated, router]);
 
-  if (!mounted || !isAuthenticated) return null;
+  if (!isHydrated || !isAuthenticated) return null;
 
   return (
     <div className="min-h-screen bg-bg-primary">
