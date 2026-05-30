@@ -77,6 +77,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const [serviceSearch, setServiceSearch] = useState('');
   const [discount, setDiscount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('carta');
+  const [customAmount, setCustomAmount] = useState<string>('');
   const [step, setStep] = useState<'items' | 'payment' | 'done'>(initialData && initialData.client ? 'payment' : 'items');
 
   const allClients = useClientStore(s => s.clients);
@@ -119,6 +120,9 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const discountPercentage = Number(discount) || 0;
   const discountAmount = (subtotal * discountPercentage) / 100;
   const total = Math.max(0, subtotal - discountAmount);
+  
+  const isDebtPayment = !!initialData?.debtPkgId;
+  const finalTotal = isDebtPayment ? (customAmount ? Number(customAmount) : total) : total;
   const canComplete = cart.length > 0;
 
   const handleComplete = () => {
@@ -128,7 +132,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       id: Date.now(),
       client: selectedClient || 'Cliente Occasionale',
       items: cart.map(i => i.name).join(', '),
-      total,
+      total: finalTotal,
       method: PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label || 'Carta',
       time: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`,
       operator: initialData?.operator || 'Staff',
@@ -144,7 +148,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
         <div className="w-full max-w-2xl bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
           <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
             <div className="flex items-center gap-3">
-              <h3 className="text-lg font-display font-semibold text-text-primary">Nuova Vendita</h3>
+              <h3 className="text-lg font-display font-semibold text-text-primary">{isDebtPayment ? 'Incasso' : 'Nuova Vendita'}</h3>
               <div className="flex gap-1">
                 <button onClick={() => setStep('items')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${step === 'items' ? 'bg-accent/15 text-accent' : 'text-text-muted'}`}>1. Articoli</button>
                 <button onClick={() => setStep('payment')} className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${step === 'payment' ? 'bg-accent/15 text-accent' : 'text-text-muted'}`}>2. Pagamento</button>
@@ -229,12 +233,28 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
               <div className="p-6 space-y-4">
                 {/* Summary */}
                 <div className="rounded-xl border border-border p-4 space-y-2">
-                  <div className="flex justify-between text-sm"><span className="text-text-secondary">Subtotale</span><span className="text-text-primary font-medium">{formatCurrency(subtotal)}</span></div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-text-secondary">Sconto %</span>
-                    <input type="number" value={discount} onChange={e => setDiscount(e.target.value)} placeholder="0" className="w-20 px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
-                  </div>
-                  <div className="border-t border-border pt-2 flex justify-between"><span className="text-base font-semibold text-text-primary">Totale</span><span className="text-xl font-display font-bold text-accent">{formatCurrency(total)}</span></div>
+                  {isDebtPayment ? (
+                    <>
+                      <div className="flex justify-between text-sm"><span className="text-text-secondary">Debito Rimanente</span><span className="text-text-primary font-medium">{formatCurrency(subtotal)}</span></div>
+                      <div className="flex items-center justify-between text-sm mt-2">
+                        <span className="text-text-secondary">Importo da incassare</span>
+                        <div className="relative">
+                          <input type="number" value={customAmount} onChange={e => setCustomAmount(e.target.value)} placeholder={String(subtotal)} className="w-24 pl-2 pr-6 py-1.5 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
+                        </div>
+                      </div>
+                      <div className="border-t border-border mt-3 pt-3 flex justify-between"><span className="text-base font-semibold text-text-primary">Totale</span><span className="text-xl font-display font-bold text-accent">{formatCurrency(finalTotal)}</span></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between text-sm"><span className="text-text-secondary">Subtotale</span><span className="text-text-primary font-medium">{formatCurrency(subtotal)}</span></div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-text-secondary">Sconto %</span>
+                        <input type="number" value={discount} onChange={e => setDiscount(e.target.value)} placeholder="0" className="w-20 px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
+                      </div>
+                      <div className="border-t border-border pt-2 flex justify-between"><span className="text-base font-semibold text-text-primary">Totale</span><span className="text-xl font-display font-bold text-accent">{formatCurrency(finalTotal)}</span></div>
+                    </>
+                  )}
                 </div>
 
                 {/* Payment Method */}
@@ -265,7 +285,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                   <CheckCircle className="w-10 h-10 text-success" />
                 </motion.div>
                 <h3 className="text-xl font-display font-bold text-text-primary mb-1">Pagamento Completato!</h3>
-                <p className="text-2xl font-display font-bold text-accent mb-2">{formatCurrency(total)}</p>
+                <p className="text-2xl font-display font-bold text-accent mb-2">{formatCurrency(finalTotal)}</p>
                 <div className="space-y-1 mb-4">
                   <p className="text-sm text-text-secondary">{selectedClient}</p>
                   <p className="text-xs text-text-muted">{cart.map(i => i.name).join(', ')}</p>
@@ -290,7 +310,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                 <button onClick={() => setStep('items')} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">← Indietro</button>
                 <button onClick={handleComplete} disabled={!canComplete}
                   className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${canComplete ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
-                  <CheckCircle className="w-4 h-4" /> Incassa {formatCurrency(total)}
+                  <CheckCircle className="w-4 h-4" /> Incassa {formatCurrency(finalTotal)}
                 </button>
               </>
             ) : (
