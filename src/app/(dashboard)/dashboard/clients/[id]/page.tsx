@@ -128,94 +128,100 @@ export default function ClientDetailPage() {
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-bg-secondary border border-border rounded-2xl overflow-hidden"
+        className="bg-bg-secondary border border-border rounded-3xl overflow-hidden relative"
       >
-        {/* Gradient Header */}
-        <div className="h-24 gradient-accent opacity-80 relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/20" />
-        </div>
+        {/* Subtle Background Effect */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-accent/5 rounded-full blur-[100px] pointer-events-none translate-x-1/3 -translate-y-1/3" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-accent/5 rounded-full blur-[80px] pointer-events-none -translate-x-1/2 translate-y-1/2" />
 
-        <div className="px-6 pb-6 -mt-10">
-          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
-            {/* Avatar */}
-            <div
-              className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-2xl font-bold border-4 border-bg-secondary shadow-xl"
-              style={{
-                background: client.vipLevel >= 2
-                  ? 'linear-gradient(135deg, #A855F7, #EC4899)'
-                  : '#3B82F6',
-              }}
-            >
-              {getInitials(client.firstName, client.lastName)}
+        <div className="p-6 sm:p-8 relative z-10">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+            {/* Avatar with Glow */}
+            <div className="relative group">
+              <div className="absolute inset-0 bg-accent/20 rounded-full blur-xl group-hover:bg-accent/30 transition-colors duration-500" />
+              <div
+                className="relative w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-display font-bold shadow-lg border-2 border-border/50 backdrop-blur-sm"
+                style={{
+                  background: client.vipLevel >= 2
+                    ? 'linear-gradient(135deg, #A855F7, #EC4899)'
+                    : 'linear-gradient(135deg, #3B82F6, #8B5CF6)',
+                }}
+              >
+                {getInitials(client.firstName, client.lastName)}
+              </div>
             </div>
 
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl font-display font-bold text-text-primary">
+            <div className="flex-1 min-w-0 flex flex-col items-center sm:items-start text-center sm:text-left mt-2 sm:mt-0">
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                <h2 className="text-2xl sm:text-3xl font-display font-bold text-text-primary tracking-tight">
                   {client.firstName} {client.lastName}
                 </h2>
                 {client.vipLevel >= 2 && (
-                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent/10 text-accent text-xs font-bold">
-                    <Crown className="w-3 h-3" /> VIP {client.vipLevel === 3 ? 'Gold' : 'Silver'}
+                  <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-accent/10 to-pink-500/10 border border-accent/20 text-accent text-xs font-bold shadow-sm">
+                    <Crown className="w-3.5 h-3.5" /> VIP {client.vipLevel === 3 ? 'Gold' : 'Silver'}
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-3 mt-1 flex-wrap">
-                <span className="flex items-center gap-1 text-sm text-text-secondary">
-                  <Phone className="w-3.5 h-3.5" /> {client.phone}
+              
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 mt-3">
+                <span className="flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors cursor-pointer">
+                  <div className="p-1.5 rounded-md bg-bg-tertiary text-text-muted"><Phone className="w-3.5 h-3.5" /></div>
+                  {client.phone}
                 </span>
                 {client.email && (
-                  <span className="flex items-center gap-1 text-sm text-text-secondary">
-                    <Mail className="w-3.5 h-3.5" /> {client.email}
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors cursor-pointer">
+                    <div className="p-1.5 rounded-md bg-bg-tertiary text-text-muted"><Mail className="w-3.5 h-3.5" /></div>
+                    {client.email}
                   </span>
                 )}
                 {client.birthDate && (
-                  <span className="flex items-center gap-1 text-sm text-text-secondary">
-                    <Cake className="w-3.5 h-3.5" /> {formatDate(client.birthDate)}
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-text-secondary">
+                    <div className="p-1.5 rounded-md bg-bg-tertiary text-text-muted"><Cake className="w-3.5 h-3.5" /></div>
+                    {formatDate(client.birthDate)}
                   </span>
                 )}
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button className="p-2 rounded-xl border border-border hover:bg-bg-hover text-text-secondary transition-colors">
+            <div className="flex items-center gap-2 mt-4 sm:mt-0 w-full sm:w-auto justify-center sm:justify-end">
+              <button className="flex-1 sm:flex-none flex items-center justify-center p-2.5 rounded-xl border border-border hover:bg-bg-hover hover:border-border-light text-text-secondary transition-all">
                 <Phone className="w-4 h-4" />
               </button>
-              <button className="p-2 rounded-xl border border-border hover:bg-bg-hover text-text-secondary transition-colors">
+              <button className="flex-1 sm:flex-none flex items-center justify-center p-2.5 rounded-xl border border-border hover:bg-bg-hover hover:border-border-light text-text-secondary transition-all">
                 <Mail className="w-4 h-4" />
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium">
+              <button className="flex-[2] sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl gradient-accent text-white text-sm font-bold shadow-lg shadow-accent/20 hover:shadow-accent/40 transition-all hover:-translate-y-0.5">
                 <Edit className="w-4 h-4" /> Modifica
               </button>
             </div>
           </div>
 
           {/* KPI Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-5">
-            <div className="bg-bg-tertiary/50 rounded-xl p-3 text-center">
-              <p className="text-lg font-display font-bold text-text-primary">{formatCurrency(client.totalSpent)}</p>
-              <p className="text-[11px] text-text-muted">Spesa Totale</p>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-8">
+            <div className="bg-bg-tertiary/40 border border-border/40 rounded-2xl p-4 text-center hover:bg-bg-tertiary/80 transition-colors">
+              <p className="text-xl font-display font-bold text-text-primary mb-0.5">{formatCurrency(client.totalSpent)}</p>
+              <p className="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Spesa Totale</p>
             </div>
-            <div className="bg-bg-tertiary/50 rounded-xl p-3 text-center">
-              <p className="text-lg font-display font-bold text-text-primary">{client.visitCount}</p>
-              <p className="text-[11px] text-text-muted">Visite</p>
+            <div className="bg-bg-tertiary/40 border border-border/40 rounded-2xl p-4 text-center hover:bg-bg-tertiary/80 transition-colors">
+              <p className="text-xl font-display font-bold text-text-primary mb-0.5">{client.visitCount}</p>
+              <p className="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Visite</p>
             </div>
-            <div className="bg-bg-tertiary/50 rounded-xl p-3 text-center">
-              <p className="text-lg font-display font-bold text-text-primary">{formatCurrency(client.avgTicket)}</p>
-              <p className="text-[11px] text-text-muted">Scontrino Medio</p>
+            <div className="bg-bg-tertiary/40 border border-border/40 rounded-2xl p-4 text-center hover:bg-bg-tertiary/80 transition-colors">
+              <p className="text-xl font-display font-bold text-text-primary mb-0.5">{formatCurrency(client.avgTicket)}</p>
+              <p className="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Scontrino Medio</p>
             </div>
-            <div className="bg-bg-tertiary/50 rounded-xl p-3 text-center">
-              <p className="text-lg font-display font-bold text-accent">{client.loyaltyPoints}</p>
-              <p className="text-[11px] text-text-muted">Punti Fedeltà</p>
+            <div className="bg-bg-tertiary/40 border border-border/40 rounded-2xl p-4 text-center hover:bg-bg-tertiary/80 transition-colors">
+              <p className="text-xl font-display font-bold text-accent mb-0.5">{client.loyaltyPoints}</p>
+              <p className="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Punti Fedeltà</p>
             </div>
-            <div className="bg-bg-tertiary/50 rounded-xl p-3 text-center">
-              <p className={`text-lg font-display font-bold ${
+            <div className="bg-bg-tertiary/40 border border-border/40 rounded-2xl p-4 text-center hover:bg-bg-tertiary/80 transition-colors">
+              <p className={`text-xl font-display font-bold mb-0.5 ${
                 daysSinceVisit !== null && daysSinceVisit <= 14 ? 'text-success' :
                 daysSinceVisit !== null && daysSinceVisit <= 60 ? 'text-warning' : 'text-error'
               }`}>
                 {daysSinceVisit !== null ? `${daysSinceVisit}g` : '—'}
               </p>
-              <p className="text-[11px] text-text-muted">Ultima Visita</p>
+              <p className="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Ultima Visita</p>
             </div>
           </div>
         </div>
