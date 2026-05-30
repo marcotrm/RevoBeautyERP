@@ -13,7 +13,7 @@ import { Appointment, Operator, Treatment } from '@/types';
 import {
   ChevronLeft, ChevronRight, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
-  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro
+  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus
 } from 'lucide-react';
 import {
   formatDateLong, timeToMinutes, getStatusLabel,
@@ -21,6 +21,7 @@ import {
 } from '@/lib/helpers';
 import WaitlistModal from '@/components/WaitlistModal';
 import WaitlistPanel from '@/components/WaitlistPanel';
+import AddClientModal from '@/components/AddClientModal';
 
 const HOUR_HEIGHT = 64;
 const START_HOUR = 8;
@@ -1033,6 +1034,10 @@ export default function AgendaPage() {
   const [showWaitlistModal, setShowWaitlistModal] = useState(false);
   const [waitlistPreFill, setWaitlistPreFill] = useState<Partial<WaitlistEntry>>({});
 
+  // Add Client Modal state
+  const [showAddClientModal, setShowAddClientModal] = useState(false);
+  const addClient = useClientStore(s => s.addClient);
+
   const matchingWaitlists = useMemo(() => {
     return waitlistEntries.filter(e => {
       if (e.status !== 'waiting') return false;
@@ -1154,9 +1159,14 @@ export default function AgendaPage() {
             {matchingWaitlists.length > 0 && <span className="bg-white text-warning w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold">{matchingWaitlists.length}</span>}
           </button>
 
+          <button onClick={() => setShowAddClientModal(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all">
+            <UserPlus className="w-4 h-4" /><span className="hidden sm:inline">Nuovo Cliente</span>
+          </button>
+
           <button onClick={() => openAppointmentModal()}
             className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105">
-            <Plus className="w-4 h-4" /><span className="hidden sm:inline">Nuovo</span>
+            <Plus className="w-4 h-4" /><span className="hidden sm:inline">Nuovo Appuntamento</span>
           </button>
         </div>
       </div>
@@ -1194,6 +1204,16 @@ export default function AgendaPage() {
       {/* Waitlist Modals & Panels */}
       <AnimatePresence>
         {showWaitlistModal && <WaitlistModal onClose={() => setShowWaitlistModal(false)} initialData={waitlistPreFill} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showAddClientModal && (
+          <AddClientModal 
+            onClose={() => setShowAddClientModal(false)}
+            onSave={(data) => {
+              addClient(data);
+            }}
+          />
+        )}
       </AnimatePresence>
       <AnimatePresence>
         {showWaitlistPanel && <WaitlistPanel onClose={() => setShowWaitlistPanel(false)} onOpenNew={() => { setShowWaitlistPanel(false); handleOpenWaitlistModal(); }} />}
