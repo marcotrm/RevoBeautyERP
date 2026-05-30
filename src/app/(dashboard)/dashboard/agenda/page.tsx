@@ -726,7 +726,19 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                 <option value="">Seleziona trattamento...</option>
                 {Object.entries(treatments.reduce((g, t) => { const c = getCategoryLabel(t.category); if (!g[c]) g[c]=[]; g[c].push(t); return g; }, {} as Record<string, Treatment[]>))
                   .map(([cat, treats]) => (
-                    <optgroup key={cat} label={cat}>{treats.map(t => <option key={t.id} value={t.id}>{t.name} — {t.duration}min — {formatCurrency(t.price)}</option>)}</optgroup>
+                    <optgroup key={cat} label={cat}>
+                      {treats.map(t => {
+                        const ct = selectedClient?.customTreatments?.find(c => c.treatmentId === t.id);
+                        const dur = ct ? ct.duration : t.duration;
+                        const pr = ct ? ct.price : t.price;
+                        const isCustom = !!ct;
+                        return (
+                          <option key={t.id} value={t.id}>
+                            {t.name} {isCustom ? '✨ (Personalizzato) — ' : '— '} {dur}min — {formatCurrency(pr)}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
                   ))}
               </select>
               {selectedTreatment && (
