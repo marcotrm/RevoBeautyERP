@@ -46,7 +46,7 @@ function fmtDate(d: Date) {
 }
 
 /* ========== APPOINTMENT BLOCK (Day View) ========== */
-function AppointmentBlock({ appointment, onClick }: { appointment: Appointment; onClick: (a: Appointment) => void }) {
+function AppointmentBlock({ appointment, onClick, onDoubleClick }: { appointment: Appointment; onClick: (a: Appointment) => void; onDoubleClick?: (a: Appointment) => void }) {
   const startMin = timeToMinutes(appointment.startTime) - START_HOUR * 60;
   const endMin = timeToMinutes(appointment.endTime) - START_HOUR * 60;
   const top = (startMin / 60) * HOUR_HEIGHT;
@@ -64,6 +64,7 @@ function AppointmentBlock({ appointment, onClick }: { appointment: Appointment; 
       draggable={!appointment.isLocked}
       onDragStart={handleDragStart}
       onClick={(e) => { e.stopPropagation(); onClick(appointment); }}
+      onDoubleClick={(e) => { e.stopPropagation(); if (onDoubleClick) onDoubleClick(appointment); }}
       className={`appointment-block group ${appointment.isLocked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${appointment.status === 'in_cabin' ? 'animate-[pulse_1.5s_ease-in-out_infinite] ring-2 ring-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.3)]' : ''}`}
       style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${appointment.color}18`, borderLeftColor: appointment.color }}
     >
@@ -142,10 +143,12 @@ function NowLine() {
 }
 
 /* ========== DAY VIEW ========== */
-function DayView({ appointments, operators, onAppointmentClick, onSlotClick, onDropAppointment }: {
-  appointments: Appointment[]; operators: Operator[]; onAppointmentClick: (a: Appointment) => void;
+function DayView({ appointments, operators, onAppointmentClick, onAppointmentDoubleClick, onSlotClick, onDropAppointment }: {
+  appointments: Appointment[]; operators: Operator[];
+  onAppointmentClick: (a: Appointment) => void;
+  onAppointmentDoubleClick?: (a: Appointment) => void;
   onSlotClick: (operatorId: string, hour: number) => void;
-  onDropAppointment: (appointmentId: string, operatorId: string, newStartTime: string, duration: number) => void;
+  onDropAppointment: (aptId: string, operatorId: string, newStart: string, duration: number) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const hours = Array.from({ length: TOTAL_HOURS }, (_, i) => START_HOUR + i);
@@ -230,7 +233,7 @@ function DayView({ appointments, operators, onAppointmentClick, onSlotClick, onD
                 </div>
               )}
               {(byOperator[operator.id] || []).map(apt => (
-                <AppointmentBlock key={apt.id} appointment={apt} onClick={onAppointmentClick} />
+                <AppointmentBlock key={apt.id} appointment={apt} onClick={onAppointmentClick} onDoubleClick={onAppointmentDoubleClick} />
               ))}
             </div>
           </div>
@@ -1061,6 +1064,18 @@ export default function AgendaPage() {
 
   const handleAppointmentClick = useCallback((apt: Appointment) => setSelectedApt(apt), []);
 
+  const handleAppointmentDoubleClick = useCallback((apt: Appointment) => {
+    handleOpenWaitlistModal({
+      clientName: apt.clientName,
+      treatmentId: apt.treatmentId,
+      treatmentName: apt.treatmentName,
+      duration: apt.duration,
+      date: apt.date,
+      startTime: apt.startTime,
+      operatorId: apt.operatorId,
+    });
+  }, []);
+
   const handleDayClick = useCallback((d: Date) => {
     setSelectedDate(d);
     setView('day');
@@ -1134,7 +1149,7 @@ export default function AgendaPage() {
 
       {/* Views */}
       {view === 'day' && (
-        <DayView appointments={todayAppointments} operators={visibleOperators} onAppointmentClick={handleAppointmentClick}
+        <DayView appointments={todayAppointments} operators={visibleOperators} onAppointmentClick={handleAppointmentClick} onAppointmentDoubleClick={handleAppointmentDoubleClick}
           onSlotClick={(operatorId, hour) => openAppointmentModal(null, { operatorId, time: `${String(hour).padStart(2,'0')}:00` })}
           onDropAppointment={(aptId, opId, newStart, duration) => {
             const [h, m] = newStart.split(':').map(Number);
