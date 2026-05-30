@@ -136,7 +136,7 @@ export interface Equipment {
 }
 
 // --- Appointments ---
-export type AppointmentStatus = 'confirmed' | 'pending' | 'in_progress' | 'completed' | 'no_show' | 'cancelled' | 'waitlist';
+export type AppointmentStatus = 'confirmed' | 'pending' | 'in_progress' | 'in_cabin' | 'completed' | 'no_show' | 'cancelled' | 'waitlist';
 
 export interface Appointment {
   id: string;

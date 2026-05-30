@@ -88,7 +88,8 @@ export function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     confirmed: 'Confermato',
     pending: 'In attesa',
-    in_progress: 'In corso',
+    in_progress: 'Check-in',
+    in_cabin: 'In Cabina',
     completed: 'Completato',
     no_show: 'No-Show',
     cancelled: 'Annullato',
@@ -102,6 +103,7 @@ export function getStatusColor(status: string): string {
     confirmed: '#22C55E',
     pending: '#F59E0B',
     in_progress: '#3B82F6',
+    in_cabin: '#EC4899',
     completed: '#8B92A5',
     no_show: '#EF4444',
     cancelled: '#565D73',

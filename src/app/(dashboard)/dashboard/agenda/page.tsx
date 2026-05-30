@@ -11,7 +11,7 @@ import { Appointment, Operator, Treatment } from '@/types';
 import {
   ChevronLeft, ChevronRight, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
-  Lock, X, Search, UserCircle, Minus, Package,
+  Lock, X, Search, UserCircle, Minus, Package, Sparkles,
 } from 'lucide-react';
 import {
   formatDateLong, timeToMinutes, getStatusLabel,
@@ -27,6 +27,7 @@ const statusIcons: Record<string, React.ReactNode> = {
   confirmed: <CheckCircle className="w-3 h-3" />,
   pending: <AlertCircle className="w-3 h-3" />,
   in_progress: <Play className="w-3 h-3" />,
+  in_cabin: <Sparkles className="w-3 h-3" />,
   completed: <CheckCircle className="w-3 h-3" />,
   no_show: <XCircle className="w-3 h-3" />,
   cancelled: <Ban className="w-3 h-3" />,
@@ -59,7 +60,7 @@ function AppointmentBlock({ appointment, onClick }: { appointment: Appointment; 
       draggable={!appointment.isLocked}
       onDragStart={handleDragStart}
       onClick={(e) => { e.stopPropagation(); onClick(appointment); }}
-      className={`appointment-block group ${appointment.isLocked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
+      className={`appointment-block group ${appointment.isLocked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${appointment.status === 'in_cabin' ? 'animate-[pulse_1.5s_ease-in-out_infinite] ring-2 ring-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.3)]' : ''}`}
       style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${appointment.color}18`, borderLeftColor: appointment.color }}
     >
       <div className="flex items-center justify-between">
@@ -819,7 +820,11 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
               </button>
               <button onClick={() => { onStatusChange(appointment.id, 'in_progress'); onClose(); }}
                 className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'in_progress' ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30' : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'}`}>
-                <span className="flex items-center justify-center gap-1.5"><Play className="w-3.5 h-3.5" /> In Corso</span>
+                <span className="flex items-center justify-center gap-1.5"><Play className="w-3.5 h-3.5" /> Check-in</span>
+              </button>
+              <button onClick={() => { onStatusChange(appointment.id, 'in_cabin'); onClose(); }}
+                className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'in_cabin' ? 'bg-pink-500/20 text-pink-400 ring-1 ring-pink-500/30' : 'bg-pink-500/10 text-pink-400 hover:bg-pink-500/20'}`}>
+                <span className="flex items-center justify-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> In Cabina</span>
               </button>
               <button onClick={() => { onStatusChange(appointment.id, 'cancelled'); onClose(); }}
                 className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'cancelled' ? 'bg-bg-tertiary text-text-muted ring-1 ring-border' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
