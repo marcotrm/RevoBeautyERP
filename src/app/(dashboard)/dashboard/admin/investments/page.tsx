@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, X, CheckCircle, Trash2 } from 'lucide-react';
+import { Plus, X, CheckCircle, Trash2, Edit2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { INVESTMENT_CATEGORY_LABELS, Investment } from '@/lib/admin-data';
 import { formatCurrency } from '@/lib/helpers';
@@ -149,9 +149,9 @@ export default function InvestmentsPage() {
         {filtered.map(inv => {
           const st = STATUS_STYLES[inv.status]; const progress = inv.installments ? Math.round(((inv.installmentsPaid || 0) / inv.installments) * 100) : 100;
           return (
-            <div key={inv.id} className="bg-bg-secondary border border-border rounded-2xl p-5 hover:border-border-light transition-all group relative">
-              <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                <button onClick={() => { setEditingInv(inv); setShowModal(true); }} className="p-1.5 rounded-lg hover:bg-bg-hover text-text-muted hover:text-accent transition-all"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 Z"></path></svg></button>
+            <div key={inv.id} className="bg-bg-secondary border border-border rounded-2xl p-5 hover:border-border-light transition-all relative">
+              <div className="absolute top-3 right-3 flex items-center gap-1 transition-all">
+                <button onClick={() => { setEditingInv(inv); setShowModal(true); }} className="p-1.5 rounded-lg hover:bg-bg-hover text-text-muted hover:text-accent transition-all"><Edit2 className="w-3.5 h-3.5" /></button>
                 <button onClick={() => { if(window.confirm('Eliminare questo investimento?')) deleteInvestment(inv.id); }} className="p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
               <div className="flex items-start justify-between mb-3"><div><h4 className="text-sm font-semibold text-text-primary">{inv.name}</h4><span className="text-xs text-text-muted">{INVESTMENT_CATEGORY_LABELS[inv.category]} • {inv.supplier}</span></div><span className={`text-[10px] font-semibold px-2 py-1 rounded-full ${st.bg} ${st.text}`}>{st.label}</span></div>
