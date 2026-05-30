@@ -47,7 +47,7 @@ function fmtDate(d: Date) {
 }
 
 /* ========== APPOINTMENT BLOCK (Day View) ========== */
-function AppointmentBlock({ appointment, onClick, onWaitlistAdd }: { appointment: Appointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void }) {
+function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle }: { appointment: Appointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties }) {
   const startMin = timeToMinutes(appointment.startTime) - START_HOUR * 60;
   const endMin = timeToMinutes(appointment.endTime) - START_HOUR * 60;
   const top = (startMin / 60) * HOUR_HEIGHT;
@@ -66,7 +66,7 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd }: { appointment
       onDragStart={handleDragStart}
       onClick={(e) => { e.stopPropagation(); onClick(appointment); }}
       className={`appointment-block group ${appointment.isLocked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${appointment.status === 'in_cabin' ? 'animate-[pulse_1.5s_ease-in-out_infinite] ring-2 ring-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.3)]' : ''}`}
-      style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${appointment.color}18`, borderLeftColor: appointment.color }}
+      style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${appointment.color}18`, borderLeftColor: appointment.color, ...overlapStyle }}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1 min-w-0">
@@ -95,9 +95,11 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd }: { appointment
       </div>
       {!isSmall && (
         <>
-          <p className="text-[11px] text-text-secondary truncate mt-0.5">{appointment.treatmentName}</p>
-          <div className="flex items-center gap-1 mt-auto text-[10px] text-text-muted">
-            <Clock className="w-2.5 h-2.5" />
+          <p className="text-[11px] text-text-secondary leading-tight mt-0.5 line-clamp-2" title={appointment.treatmentName}>
+            {appointment.treatmentName}
+          </p>
+          <div className="flex flex-wrap items-center gap-1 mt-auto text-[10px] text-text-muted">
+            <Clock className="w-2.5 h-2.5 flex-shrink-0" />
             {appointment.startTime} - {appointment.endTime}
             {appointment.price > 0 && <span className="ml-auto font-medium">{formatCurrency(appointment.price)}</span>}
           </div>
@@ -243,9 +245,56 @@ function DayView({ appointments, operators, onAppointmentClick, onWaitlistAdd, o
                   <span className="text-[10px] font-semibold text-accent">{dragOver.time}</span>
                 </div>
               )}
-              {(byOperator[operator.id] || []).map(apt => (
-                <AppointmentBlock key={apt.id} appointment={apt} onClick={onAppointmentClick} onWaitlistAdd={onWaitlistAdd} />
-              ))}
+              {(() => {
+                const operatorApts = byOperator[operator.id] || [];
+                // Sort by start time
+                const sorted = [...operatorApts].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+                
+                // Group overlapping
+                const overlappingGroups: Appointment[][] = [];
+                sorted.forEach(apt => {
+                  let placed = false;
+                  for (const group of overlappingGroups) {
+                    const overlaps = group.some(gApt => {
+                      const aStart = timeToMinutes(apt.startTime);
+                      const aEnd = timeToMinutes(apt.endTime);
+                      const gStart = timeToMinutes(gApt.startTime);
+                      const gEnd = timeToMinutes(gApt.endTime);
+                      // check overlap
+                      return Math.max(aStart, gStart) < Math.min(aEnd, gEnd);
+                    });
+                    if (overlaps) {
+                      group.push(apt);
+                      placed = true;
+                      break;
+                    }
+                  }
+                  if (!placed) overlappingGroups.push([apt]);
+                });
+
+                return overlappingGroups.flatMap(group => {
+                  const cols = group.length;
+                  return group.map((apt, index) => {
+                    const widthPercent = 100 / cols;
+                    const leftPercent = index * widthPercent;
+                    const overlapStyle: React.CSSProperties = cols > 1 ? {
+                      left: `calc(${leftPercent}% + 4px)`,
+                      width: `calc(${widthPercent}% - 8px)`,
+                      right: 'auto'
+                    } : {};
+
+                    return (
+                      <AppointmentBlock 
+                        key={apt.id} 
+                        appointment={apt} 
+                        onClick={onAppointmentClick} 
+                        onWaitlistAdd={onWaitlistAdd} 
+                        overlapStyle={overlapStyle}
+                      />
+                    );
+                  });
+                });
+              })()}
             </div>
           </div>
         ))}
