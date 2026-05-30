@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUIStore } from '@/stores/useUIStore';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -33,7 +33,7 @@ export default function Topbar() {
   const [showNotifications, setShowNotifications] = React.useState(false);
   const [showLocationPicker, setShowLocationPicker] = React.useState(false);
   const [showUserMenu, setShowUserMenu] = React.useState(false);
-  const router = import('next/navigation').then(m => m.useRouter);
+  const router = useRouter();
   
   const handleLogout = () => {
     logout();
@@ -171,6 +171,10 @@ export default function Topbar() {
                     {mockNotifications.map((notif) => (
                       <div
                         key={notif.id}
+                        onClick={() => {
+                          setShowNotifications(false);
+                          router.push('/dashboard/admin/automations');
+                        }}
                         className={`px-4 py-3 border-b border-border/50 hover:bg-bg-hover transition-colors cursor-pointer ${
                           !notif.isRead ? 'bg-accent/5' : ''
                         }`}
@@ -189,7 +193,13 @@ export default function Topbar() {
                     ))}
                   </div>
                   <div className="p-3">
-                    <button className="w-full text-center text-sm text-accent font-medium hover:underline">
+                    <button 
+                      onClick={() => {
+                        setShowNotifications(false);
+                        router.push('/dashboard/admin/automations');
+                      }}
+                      className="w-full text-center text-sm text-accent font-medium hover:underline py-1"
+                    >
                       Vedi tutte le notifiche
                     </button>
                   </div>
