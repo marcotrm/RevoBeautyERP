@@ -824,20 +824,21 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
             <div className="grid grid-cols-2 gap-2">
               {(appointment.status === 'in_progress' || appointment.status === 'in_cabin') ? (
                 <button onClick={handleCheckoutClick}
-                  className="py-2.5 rounded-xl text-sm font-medium transition-colors bg-success/10 text-success hover:bg-success/20">
+                  className="col-span-2 py-2.5 rounded-xl text-sm font-medium transition-colors bg-success/10 text-success hover:bg-success/20">
                   <span className="flex items-center justify-center gap-1.5"><CheckCircle className="w-3.5 h-3.5" /> Check-out</span>
                 </button>
               ) : (
-                <button onClick={() => { onStatusChange(appointment.id, 'in_cabin'); onClose(); }}
-                  className="py-2.5 rounded-xl text-sm font-medium transition-colors bg-pink-500/10 text-pink-400 hover:bg-pink-500/20">
-                  <span className="flex items-center justify-center gap-1.5"><Play className="w-3.5 h-3.5" /> Check-in</span>
-                </button>
+                <>
+                  <button onClick={() => { onStatusChange(appointment.id, 'in_cabin'); onClose(); }}
+                    className="py-2.5 rounded-xl text-sm font-medium transition-colors bg-pink-500/10 text-pink-400 hover:bg-pink-500/20">
+                    <span className="flex items-center justify-center gap-1.5"><Play className="w-3.5 h-3.5" /> Check-in</span>
+                  </button>
+                  <button onClick={() => { onStatusChange(appointment.id, 'no_show'); onClose(); }}
+                    className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'no_show' ? 'bg-error/20 text-error ring-1 ring-error/30' : 'bg-error/10 text-error hover:bg-error/20'}`}>
+                    <span className="flex items-center justify-center gap-1.5"><XCircle className="w-3.5 h-3.5" /> No-Show</span>
+                  </button>
+                </>
               )}
-              
-              <button onClick={() => { onStatusChange(appointment.id, 'no_show'); onClose(); }}
-                className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'no_show' ? 'bg-error/20 text-error ring-1 ring-error/30' : 'bg-error/10 text-error hover:bg-error/20'}`}>
-                <span className="flex items-center justify-center gap-1.5"><XCircle className="w-3.5 h-3.5" /> No-Show</span>
-              </button>
               
               <button onClick={() => { onStatusChange(appointment.id, 'cancelled'); onClose(); }}
                 className={`col-span-2 py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'cancelled' ? 'bg-bg-tertiary text-text-muted ring-1 ring-border' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
