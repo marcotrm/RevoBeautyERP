@@ -78,6 +78,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(initialData?.client || '');
   const [serviceSearch, setServiceSearch] = useState('');
+  const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
   const [discount, setDiscount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('carta');
   const [splitCash, setSplitCash] = useState('');
@@ -99,6 +100,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       if (clientObj?.priceListId) {
         const list = priceLists.find(pl => pl.id === clientObj.priceListId);
         if (list) {
+          setDiscountType('percent');
           setDiscount(String(list.discountPercentage));
         } else {
           setDiscount('');
@@ -140,11 +142,11 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const updateQty = (id: string, delta: number) => setCart(prev => prev.map(i => i.id === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i));
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const discountPercentage = Number(discount) || 0;
-  const discountAmount = (subtotal * discountPercentage) / 100;
+  const discountValue = Number(discount) || 0;
+  const discountAmount = discountType === 'percent' ? (subtotal * discountValue) / 100 : discountValue;
   const rawTotal = Math.max(0, subtotal - discountAmount);
-  // Sempre per eccesso se c'è sconto
-  const total = discountPercentage > 0 ? Math.ceil(rawTotal) : rawTotal;
+  // Sempre per eccesso se c'è sconto percentuale, altrimenti preciso
+  const total = (discountType === 'percent' && discountValue > 0) ? Math.ceil(rawTotal) : rawTotal;
   
   const isDebtPayment = !!initialData?.debtPkgId;
   const finalTotal = isDebtPayment ? (customAmount ? Number(customAmount) : 0) : total;
@@ -303,8 +305,14 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                     <>
                       <div className="flex justify-between text-sm"><span className="text-text-secondary">Subtotale</span><span className="text-text-primary font-medium">{formatCurrency(subtotal)}</span></div>
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-text-secondary">Sconto %</span>
-                        <input type="number" value={discount} onChange={e => setDiscount(e.target.value)} placeholder="0" className="w-20 px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
+                        <span className="text-text-secondary">Sconto</span>
+                        <div className="flex items-center gap-2">
+                          <div className="flex bg-bg-tertiary p-1 rounded-lg border border-border">
+                            <button onClick={() => setDiscountType('percent')} className={`px-2 py-0.5 rounded text-xs font-medium ${discountType === 'percent' ? 'bg-bg-secondary shadow-sm text-text-primary' : 'text-text-muted'}`}>%</button>
+                            <button onClick={() => setDiscountType('fixed')} className={`px-2 py-0.5 rounded text-xs font-medium ${discountType === 'fixed' ? 'bg-bg-secondary shadow-sm text-text-primary' : 'text-text-muted'}`}>€</button>
+                          </div>
+                          <input type="number" value={discount} onChange={e => setDiscount(e.target.value)} placeholder="0" className="w-20 px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
+                        </div>
                       </div>
                       <div className="border-t border-border pt-2 flex justify-between"><span className="text-base font-semibold text-text-primary">Totale</span><span className="text-xl font-display font-bold text-accent">{formatCurrency(finalTotal)}</span></div>
                     </>
