@@ -813,9 +813,11 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
 
           {/* Action Buttons */}
           <div className="space-y-2">
-            <button onClick={() => onEdit(appointment)} className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-medium hover:opacity-90 transition-opacity">
-              Modifica Appuntamento
-            </button>
+            {!['in_progress', 'in_cabin', 'completed'].includes(appointment.status) && (
+              <button onClick={() => onEdit(appointment)} className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-medium hover:opacity-90 transition-opacity">
+                Modifica Appuntamento
+              </button>
+            )}
 
             {/* Status buttons */}
             <p className="text-xs text-text-muted pt-2 pb-1">Cambia stato:</p>
@@ -845,25 +847,27 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
             </div>
 
             {/* Delete */}
-            <div className="pt-3 border-t border-border mt-4">
-              {confirmDelete ? (
-                <div className="flex items-center gap-2">
-                  <button onClick={() => { onDelete(appointment.id); onClose(); }}
-                    className="flex-1 py-2.5 rounded-xl bg-error text-white text-sm font-medium hover:bg-error/90 transition-colors">
-                    Conferma Eliminazione
+            {!['in_progress', 'in_cabin', 'completed'].includes(appointment.status) && (
+              <div className="pt-3 border-t border-border mt-4">
+                {confirmDelete ? (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => { onDelete(appointment.id); onClose(); }}
+                      className="flex-1 py-2.5 rounded-xl bg-error text-white text-sm font-medium hover:bg-error/90 transition-colors">
+                      Conferma Eliminazione
+                    </button>
+                    <button onClick={() => setConfirmDelete(false)}
+                      className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmDelete(true)}
+                    className="w-full py-2.5 rounded-xl border border-error/20 text-error text-sm font-medium hover:bg-error/5 transition-colors">
+                    Elimina Appuntamento
                   </button>
-                  <button onClick={() => setConfirmDelete(false)}
-                    className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
-                    No
-                  </button>
-                </div>
-              ) : (
-                <button onClick={() => setConfirmDelete(true)}
-                  className="w-full py-2.5 rounded-xl border border-error/20 text-error text-sm font-medium hover:bg-error/5 transition-colors">
-                  Elimina Appuntamento
-                </button>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </motion.div>
