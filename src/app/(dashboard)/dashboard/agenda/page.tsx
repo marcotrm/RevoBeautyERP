@@ -74,7 +74,7 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd }: { appointment
           <span className={`font-semibold text-text-primary truncate ${isSmall ? 'text-[10px]' : 'text-xs'}`}>{appointment.clientName}</span>
         </div>
         <div className="flex items-center gap-1">
-          {onWaitlistAdd && !isSmall && (
+          {onWaitlistAdd && (
             <button 
               onClick={(e) => { e.stopPropagation(); onWaitlistAdd(appointment); }}
               className="p-1 rounded-md bg-white/20 text-text-primary hover:bg-warning hover:text-white opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
