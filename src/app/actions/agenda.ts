@@ -17,7 +17,7 @@ export async function getAppointments() {
 export async function createAppointment(data: Omit<Appointment, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>) {
   const targetClientId = data.clientId || 'waitlist-client';
 
-  // Ensure the client exists in the DB (prevents foreign key errors for local-storage only clients)
+  // Ensure the client exists
   const existingClient = await prisma.client.findUnique({ where: { id: targetClientId } });
   if (!existingClient) {
     await prisma.client.create({
@@ -27,6 +27,38 @@ export async function createAppointment(data: Omit<Appointment, 'id' | 'createdA
         lastName: data.clientName.split(' ').slice(1).join(' ') || '',
         phone: '0000000000',
         createdAt: new Date().toISOString()
+      }
+    });
+  }
+
+  // Ensure the operator exists
+  const existingOp = await prisma.operator.findUnique({ where: { id: data.operatorId } });
+  if (!existingOp) {
+    await prisma.operator.create({
+      data: {
+        id: data.operatorId,
+        firstName: data.operatorName.split(' ')[0] || 'Operatrice',
+        lastName: data.operatorName.split(' ').slice(1).join(' ') || '',
+        color: '#A855F7',
+        isActive: true,
+        hireDate: new Date().toISOString().split('T')[0],
+      }
+    });
+  }
+
+  // Ensure the treatment exists
+  const existingTr = await prisma.treatment.findUnique({ where: { id: data.treatmentId } });
+  if (!existingTr) {
+    await prisma.treatment.create({
+      data: {
+        id: data.treatmentId,
+        name: data.treatmentName || 'Nuovo Trattamento',
+        category: data.treatmentCategory || 'generico',
+        duration: data.duration || 60,
+        price: data.price || 0,
+        color: data.color || '#F472B6',
+        isActive: true,
+        requiresRoom: false,
       }
     });
   }
