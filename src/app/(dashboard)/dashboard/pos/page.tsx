@@ -62,15 +62,15 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     // Try find by ID first
     if (initialData.treatmentId) {
       const t = treatments.find(t => t.id === initialData.treatmentId);
-      if (t) return [{ id: t.id, name: t.name, price: t.price, qty: 1, type: 'service' }];
+      if (t) return [{ id: t.id, name: t.name, price: initialData.price !== undefined ? initialData.price : t.price, qty: 1, type: 'service' }];
     }
     // Try find by name
     if (initialData.treatmentName) {
       const t = treatments.find(t => t.name === initialData.treatmentName);
-      if (t) return [{ id: t.id, name: t.name, price: t.price, qty: 1, type: 'service' }];
+      if (t) return [{ id: t.id, name: t.name, price: initialData.price !== undefined ? initialData.price : t.price, qty: 1, type: 'service' }];
     }
     // Fallback: create custom entry from initialData
-    if (initialData.treatmentName && initialData.price) {
+    if (initialData.treatmentName && initialData.price !== undefined) {
       return [{ id: `agenda-${Date.now()}`, name: initialData.treatmentName, price: initialData.price, qty: 1, type: 'service' }];
     }
     return [];
