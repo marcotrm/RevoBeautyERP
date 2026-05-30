@@ -33,17 +33,35 @@ export const useAuthStore = create<AuthStore>()(
       isAuthenticated: false,
       currentLocationId: 'loc1',
 
-      login: async (email: string, _password: string) => {
-        // Mock login
-        if (email) {
+      login: async (email: string, password: string) => {
+        // Predefined accounts
+        const accounts = [
+          { email: 'dino@revobeauty.it', password: 'password123', firstName: 'Dino', lastName: 'Caruso', role: 'owner' },
+          { email: 'francesco@revobeauty.it', password: 'password123', firstName: 'Francesco', lastName: '', role: 'owner' },
+          { email: 'staff@revobeauty.it', password: 'password123', firstName: 'Staff', lastName: 'Member', role: 'operator' }
+        ];
+
+        const account = accounts.find(a => a.email.toLowerCase() === email.toLowerCase() && a.password === password);
+
+        if (account) {
+          set({
+            user: { ...mockCurrentUser, id: `user-${account.firstName.toLowerCase()}`, email: account.email, firstName: account.firstName, lastName: account.lastName, role: account.role as UserRole },
+            isAuthenticated: true,
+          });
+          return true;
+        }
+        
+        // Fallback for any other test email (bypass password)
+        if (email && password && !accounts.find(a => a.email.toLowerCase() === email.toLowerCase())) {
           const userRole = email.includes('staff') ? 'operator' : 'owner';
-          const name = email.includes('staff') ? 'Staff Member' : 'Dino Caruso';
+          const name = email.includes('staff') ? 'Staff Member' : 'Test User';
           set({
             user: { ...mockCurrentUser, email, firstName: name.split(' ')[0], lastName: name.split(' ')[1] || '', role: userRole as UserRole },
             isAuthenticated: true,
           });
           return true;
         }
+        
         return false;
       },
 

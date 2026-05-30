@@ -8,6 +8,7 @@ import { mockOperators } from '@/lib/mock-data';
 import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { usePackageStore } from '@/stores/usePackageStore';
+import { useWaitlistStore, WaitlistEntry } from '@/stores/useWaitlistStore';
 import { Appointment, Operator, Treatment } from '@/types';
 import {
   ChevronLeft, ChevronRight, CalendarDays, Plus,
@@ -18,6 +19,8 @@ import {
   formatDateLong, timeToMinutes, getStatusLabel,
   getStatusColor, formatCurrency, getInitials, getCategoryLabel,
 } from '@/lib/helpers';
+import WaitlistModal from '@/components/WaitlistModal';
+import WaitlistPanel from '@/components/WaitlistPanel';
 
 const HOUR_HEIGHT = 64;
 const START_HOUR = 8;
@@ -421,9 +424,9 @@ function MonthView({ selectedDate, allAppointments, onAppointmentClick, onDayCli
 }
 
 /* ========== APPOINTMENT MODAL ========== */
-function AppointmentModal() {
+function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partial<WaitlistEntry>) => void }) {
   const treatments = useTreatmentStore(s => s.treatments);
-  const { isAppointmentModalOpen, editingAppointment, closeAppointmentModal, addAppointment, updateAppointment, selectedDate, slotInfo } = useAgendaStore();
+  const { isAppointmentModalOpen, editingAppointment, closeAppointmentModal, addAppointment, updateAppointment, selectedDate, slotInfo, appointments } = useAgendaStore();
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedClientName, setSelectedClientName] = useState('');
@@ -504,6 +507,31 @@ function AppointmentModal() {
     if (editingAppointment) updateAppointment(editingAppointment.id, data);
     else addAppointment(data);
     closeAppointmentModal();
+  };
+
+  const isOccupied = useMemo(() => {
+    if (!selectedTreatment || !selectedOperatorId) return false;
+    const eStart = timeToMinutes(startTime);
+    const eEnd = eStart + selectedTreatment.duration;
+    return appointments.some(a => 
+      a.date === dateStr && a.operatorId === selectedOperatorId &&
+      a.id !== editingAppointment?.id &&
+      !(timeToMinutes(a.endTime) <= eStart || timeToMinutes(a.startTime) >= eEnd)
+    );
+  }, [startTime, selectedTreatment, dateStr, selectedOperatorId, appointments, editingAppointment]);
+
+  const handleWaitlist = () => {
+    closeAppointmentModal();
+    onOpenWaitlist({
+      clientName: selectedClientName,
+      treatmentId: selectedTreatmentId,
+      treatmentName: selectedTreatment?.name,
+      duration: selectedTreatment?.duration,
+      date: dateStr,
+      startTime,
+      operatorId: selectedOperatorId,
+      notes,
+    });
   };
 
   if (!isAppointmentModalOpen) return null;
@@ -651,6 +679,16 @@ function AppointmentModal() {
                 <span className="text-sm text-text-secondary">Fine prevista: <strong className="text-text-primary">{endTime}</strong> ({selectedTreatment.duration} min)</span>
               </div>
             )}
+            {isOccupied && !editingAppointment && (
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-error/10 border border-error/20">
+                <AlertCircle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-error">Orario Occupato</p>
+                  <p className="text-xs text-text-secondary mt-0.5">Questa fascia oraria è già occupata. Vuoi mettere la cliente in lista d'attesa?</p>
+                </div>
+              </div>
+            )}
+            
             {/* Notes */}
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1.5">Note</label>
@@ -658,13 +696,21 @@ function AppointmentModal() {
                 className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all resize-none" />
             </div>
           </div>
-          <div className="px-6 py-4 border-t border-border bg-bg-tertiary/30 flex justify-end gap-2 flex-shrink-0">
-            <button onClick={closeAppointmentModal} className="px-4 py-2 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
-              Annulla
-            </button>
-            <button onClick={handleSave} disabled={!canSave} className={`px-5 py-2 rounded-xl text-white text-sm font-medium transition-all ${canSave ? 'gradient-accent shadow-lg shadow-accent/20' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
-              {editingAppointment ? 'Salva Modifiche' : 'Crea Appuntamento'}
-            </button>
+          <div className="px-6 py-4 border-t border-border bg-bg-tertiary/30 flex justify-between gap-2 flex-shrink-0">
+            {isOccupied && !editingAppointment ? (
+              <button onClick={handleWaitlist} disabled={!selectedClientName || !selectedTreatmentId} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-warning/10 text-warning text-sm font-medium hover:bg-warning/20 transition-colors">
+                <ListTodo className="w-4 h-4" /> Metti in Lista d'Attesa
+              </button>
+            ) : <div />}
+            
+            <div className="flex gap-2">
+              <button onClick={closeAppointmentModal} className="px-4 py-2 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+                Annulla
+              </button>
+              <button onClick={handleSave} disabled={!canSave || (isOccupied && !editingAppointment)} className={`px-5 py-2 rounded-xl text-white text-sm font-medium transition-all ${canSave && !(isOccupied && !editingAppointment) ? 'gradient-accent shadow-lg shadow-accent/20' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
+                {editingAppointment ? 'Salva Modifiche' : 'Crea Appuntamento'}
+              </button>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -960,9 +1006,46 @@ export default function AgendaPage() {
     appointments, selectedDate, view, selectedOperatorIds,
     setView, goToToday, goToPrev, goToNext, setSelectedDate,
     openAppointmentModal, isAppointmentModalOpen, moveAppointment,
-    updateAppointment, deleteAppointment,
+    updateAppointment, deleteAppointment, addAppointment,
   } = useAgendaStore();
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
+
+  // Waitlist state
+  const { entries: waitlistEntries, updateStatus: updateWaitlistStatus, addEntry: addWaitlistEntry } = useWaitlistStore();
+  const [showWaitlistPanel, setShowWaitlistPanel] = useState(false);
+  const [showWaitlistModal, setShowWaitlistModal] = useState(false);
+  const [waitlistPreFill, setWaitlistPreFill] = useState<Partial<WaitlistEntry>>({});
+
+  const matchingWaitlists = useMemo(() => {
+    return waitlistEntries.filter(e => {
+      if (e.status !== 'waiting') return false;
+      
+      const eStart = timeToMinutes(e.startTime);
+      const eEnd = eStart + e.duration;
+
+      if (e.operatorId) {
+        const hasConflict = appointments.some(a => 
+          a.date === e.date && a.operatorId === e.operatorId &&
+          !(timeToMinutes(a.endTime) <= eStart || timeToMinutes(a.startTime) >= eEnd)
+        );
+        return !hasConflict;
+      } else {
+        const isFree = mockOperators.some(op => {
+          const hasConflict = appointments.some(a => 
+            a.date === e.date && a.operatorId === op.id &&
+            !(timeToMinutes(a.endTime) <= eStart || timeToMinutes(a.startTime) >= eEnd)
+          );
+          return !hasConflict;
+        });
+        return isFree;
+      }
+    });
+  }, [waitlistEntries, appointments]);
+
+  const handleOpenWaitlistModal = (prefill: Partial<WaitlistEntry> = {}) => {
+    setWaitlistPreFill(prefill);
+    setShowWaitlistModal(true);
+  };
 
   const visibleOperators = useMemo(
     () => mockOperators.filter(op => selectedOperatorIds.includes(op.id)),
@@ -1030,6 +1113,18 @@ export default function AgendaPage() {
               </button>
             ))}
           </div>
+          
+          <button 
+            onClick={() => setShowWaitlistPanel(true)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border font-medium text-sm transition-all
+              ${matchingWaitlists.length > 0 ? 'bg-warning text-white border-warning shadow-glow animate-pulse' : 'bg-bg-secondary border-border text-text-secondary hover:bg-bg-hover'}
+            `}
+          >
+            <ListTodo className="w-4 h-4" />
+            <span className="hidden sm:inline">Clienti in attesa</span>
+            {matchingWaitlists.length > 0 && <span className="bg-white text-warning w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold">{matchingWaitlists.length}</span>}
+          </button>
+
           <button onClick={() => openAppointmentModal()}
             className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105">
             <Plus className="w-4 h-4" /><span className="hidden sm:inline">Nuovo</span>
@@ -1064,7 +1159,15 @@ export default function AgendaPage() {
 
       {/* Appointment Modal */}
       <AnimatePresence>
-        {isAppointmentModalOpen && <AppointmentModal />}
+        {isAppointmentModalOpen && <AppointmentModal onOpenWaitlist={handleOpenWaitlistModal} />}
+      </AnimatePresence>
+
+      {/* Waitlist Modals & Panels */}
+      <AnimatePresence>
+        {showWaitlistModal && <WaitlistModal onClose={() => setShowWaitlistModal(false)} initialData={waitlistPreFill} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showWaitlistPanel && <WaitlistPanel onClose={() => setShowWaitlistPanel(false)} />}
       </AnimatePresence>
     </div>
   );

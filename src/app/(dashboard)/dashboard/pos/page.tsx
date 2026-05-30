@@ -141,12 +141,30 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discountPercentage = Number(discount) || 0;
   const discountAmount = (subtotal * discountPercentage) / 100;
-  const total = Math.max(0, subtotal - discountAmount);
+  const rawTotal = Math.max(0, subtotal - discountAmount);
+  // Sempre per eccesso se c'è sconto
+  const total = discountPercentage > 0 ? Math.ceil(rawTotal) : rawTotal;
   
   const isDebtPayment = !!initialData?.debtPkgId;
   const finalTotal = isDebtPayment ? (customAmount ? Number(customAmount) : 0) : total;
   const isMistoValid = paymentMethod === 'misto' ? Math.abs((Number(splitCash) + Number(splitCard)) - finalTotal) < 0.01 : true;
   const canComplete = (isDebtPayment ? finalTotal > 0 : cart.length > 0) && isMistoValid;
+
+  const handleSplitCashChange = (val: string) => {
+    setSplitCash(val);
+    const num = Number(val);
+    if (!isNaN(num) && finalTotal > 0) {
+      setSplitCard(Math.max(0, finalTotal - num).toFixed(2));
+    }
+  };
+
+  const handleSplitCardChange = (val: string) => {
+    setSplitCard(val);
+    const num = Number(val);
+    if (!isNaN(num) && finalTotal > 0) {
+      setSplitCash(Math.max(0, finalTotal - num).toFixed(2));
+    }
+  };
 
   const handleComplete = () => {
     if (!canComplete) return;
@@ -312,14 +330,14 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                         <div className="flex-1">
                           <label className="block text-xs text-text-secondary mb-1">Contanti</label>
                           <div className="relative">
-                            <input type="number" step="0.01" value={splitCash} onChange={e => setSplitCash(e.target.value)} placeholder="0.00" className="w-full pl-2 pr-6 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
+                            <input type="number" step="0.01" value={splitCash} onChange={e => handleSplitCashChange(e.target.value)} placeholder="0.00" className="w-full pl-2 pr-6 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
                             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
                           </div>
                         </div>
                         <div className="flex-1">
                           <label className="block text-xs text-text-secondary mb-1">Carta / POS</label>
                           <div className="relative">
-                            <input type="number" step="0.01" value={splitCard} onChange={e => setSplitCard(e.target.value)} placeholder="0.00" className="w-full pl-2 pr-6 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
+                            <input type="number" step="0.01" value={splitCard} onChange={e => handleSplitCardChange(e.target.value)} placeholder="0.00" className="w-full pl-2 pr-6 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
                             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
                           </div>
                         </div>
