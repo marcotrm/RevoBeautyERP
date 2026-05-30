@@ -18,6 +18,14 @@ export interface User {
   createdAt: string;
 }
 
+// --- Price Lists ---
+export interface PriceList {
+  id: string;
+  name: string;
+  discountPercentage: number;
+  isActive: boolean;
+}
+
 // --- Locations ---
 export interface Location {
   id: string;
@@ -58,6 +66,7 @@ export interface Client {
   vipLevel: 0 | 1 | 2 | 3;
   loyaltyPoints: number;
   cashback: number;
+  priceListId?: string | null;
   gdprConsent: boolean;
   marketingConsent: boolean;
   avatar?: string;

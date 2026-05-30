@@ -110,7 +110,15 @@ export default function DashboardPage() {
   const kpi = useMemo(() => {
     const todayAppts = appointments.filter(a => a.date === today);
     const completedToday = todayAppts.filter(a => a.status === 'completed');
-    const revenueToday = completedToday.reduce((s, a) => s + a.price, 0);
+    const apptsRevenue = completedToday.reduce((s, a) => s + a.price, 0);
+    
+    // Add package payments (both new packages and debt payments)
+    const pkgPaymentsToday = clientPackages.reduce((sum, cp) => {
+      const todays = cp.payments.filter(p => p.date === today);
+      return sum + todays.reduce((s, p) => s + p.amount, 0);
+    }, 0);
+    
+    const revenueToday = apptsRevenue + pkgPaymentsToday;
     const appointmentsToday = todayAppts.length;
 
     // New clients created today (or in last 24h)
@@ -145,14 +153,21 @@ export default function DashboardPage() {
       revenueToday, revenueTrend, appointmentsToday, appointmentsTrend,
       newClientsToday, occupancyRate, noShowRate, avgTicket,
     };
-  }, [appointments, clients, today]);
+  }, [appointments, clients, clientPackages, today]);
 
   // =================== REVENUE CHART (last 7 days) ===================
   const revenueChartData = useMemo(() => {
     const days = lastNDays(7);
     return days.map((d, i) => {
       const dayAppts = appointments.filter(a => a.date === d && a.status === 'completed');
-      const revenue = dayAppts.reduce((s, a) => s + a.price, 0);
+      const apptsRev = dayAppts.reduce((s, a) => s + a.price, 0);
+      
+      const pkgRev = clientPackages.reduce((sum, cp) => {
+        const dayPayments = cp.payments.filter(p => p.date === d);
+        return sum + dayPayments.reduce((s, p) => s + p.amount, 0);
+      }, 0);
+
+      const revenue = apptsRev + pkgRev;
       const dayDate = new Date(d);
       const isToday = d === today;
       return {
@@ -161,7 +176,7 @@ export default function DashboardPage() {
         services: Math.round(revenue * 0.8),
       };
     });
-  }, [appointments, today]);
+  }, [appointments, clientPackages, today]);
 
   // =================== LIVE ACTIVITIES ===================
   const liveActivities = useMemo(() => {
