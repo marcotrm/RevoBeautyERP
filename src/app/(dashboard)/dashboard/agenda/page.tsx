@@ -13,7 +13,7 @@ import { Appointment, Operator, Treatment } from '@/types';
 import {
   ChevronLeft, ChevronRight, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
-  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus
+  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings
 } from 'lucide-react';
 import {
   formatDateLong, timeToMinutes, getStatusLabel,
@@ -545,13 +545,34 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     );
   }, [selectedClientName, allPkgData]);
 
+  const selectedClient = useMemo(() => allClients.find(c => c.id === selectedClientId), [selectedClientId, allClients]);
   const selectedTreatment = useMemo(() => treatments.find(t => t.id === selectedTreatmentId), [selectedTreatmentId, treatments]);
+  
+  const customTreatmentData = useMemo(() => {
+    if (!selectedClient || !selectedTreatmentId) return null;
+    return selectedClient.customTreatments?.find(ct => ct.treatmentId === selectedTreatmentId) || null;
+  }, [selectedClient, selectedTreatmentId]);
+
+  const effectiveDuration = customTreatmentData ? customTreatmentData.duration : (selectedTreatment?.duration || 0);
+  const effectivePrice = customTreatmentData ? customTreatmentData.price : (selectedTreatment?.price || 0);
+
+  useEffect(() => {
+    if (customTreatmentData?.notes && !editingAppointment) {
+      setNotes(prev => {
+        if (!prev.includes(customTreatmentData.notes!)) {
+          return prev ? prev + '\n' + customTreatmentData.notes : customTreatmentData.notes || '';
+        }
+        return prev;
+      });
+    }
+  }, [customTreatmentData, editingAppointment]);
+
   const endTime = useMemo(() => {
     if (!selectedTreatment) return startTime;
     const [h, m] = startTime.split(':').map(Number);
-    const total = h * 60 + m + selectedTreatment.duration;
+    const total = h * 60 + m + effectiveDuration;
     return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
-  }, [startTime, selectedTreatment]);
+  }, [startTime, selectedTreatment, effectiveDuration]);
 
   const selectedOperator = operators.find(o => o.id === selectedOperatorId);
   const dateStr = fmtDate(selectedDate);
@@ -564,8 +585,8 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       treatmentId: selectedTreatmentId, treatmentName: selectedTreatment.name,
       treatmentCategory: selectedTreatment.category,
       operatorId: selectedOperatorId, operatorName: `${selectedOperator.firstName} ${selectedOperator.lastName}`,
-      date: dateStr, startTime, endTime, duration: selectedTreatment.duration,
-      price: selectedTreatment.price, status: 'confirmed' as const,
+      date: dateStr, startTime, endTime, duration: effectiveDuration,
+      price: effectivePrice, status: 'confirmed' as const,
       color: selectedTreatment.color, locationId: 'loc1', notes, isLocked: false,
     };
     if (editingAppointment) updateAppointment(editingAppointment.id, data);
@@ -576,13 +597,13 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   const isOccupied = useMemo(() => {
     if (!selectedTreatment || !selectedOperatorId) return false;
     const eStart = timeToMinutes(startTime);
-    const eEnd = eStart + selectedTreatment.duration;
+    const eEnd = eStart + effectiveDuration;
     return appointments.some(a => 
       a.date === dateStr && a.operatorId === selectedOperatorId &&
       a.id !== editingAppointment?.id &&
       !(timeToMinutes(a.endTime) <= eStart || timeToMinutes(a.startTime) >= eEnd)
     );
-  }, [startTime, selectedTreatment, dateStr, selectedOperatorId, appointments, editingAppointment]);
+  }, [startTime, selectedTreatment, dateStr, selectedOperatorId, appointments, editingAppointment, effectiveDuration]);
 
   const handleWaitlist = () => {
     closeAppointmentModal();
@@ -590,7 +611,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       clientName: selectedClientName,
       treatmentId: selectedTreatmentId,
       treatmentName: selectedTreatment?.name,
-      duration: selectedTreatment?.duration,
+      duration: effectiveDuration,
       date: dateStr,
       startTime,
       operatorId: selectedOperatorId,
@@ -708,7 +729,24 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                     <optgroup key={cat} label={cat}>{treats.map(t => <option key={t.id} value={t.id}>{t.name} — {t.duration}min — {formatCurrency(t.price)}</option>)}</optgroup>
                   ))}
               </select>
-              {selectedTreatment && <div className="flex items-center gap-2 mt-2 text-xs text-text-muted"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: selectedTreatment.color }} />{selectedTreatment.duration} min • {formatCurrency(selectedTreatment.price)}</div>}
+              {selectedTreatment && (
+                <div className="mt-2 space-y-1.5">
+                  <div className="flex items-center gap-2 text-xs text-text-muted">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: selectedTreatment.color }} />
+                    <span className={customTreatmentData ? "line-through opacity-50" : ""}>{selectedTreatment.duration} min • {formatCurrency(selectedTreatment.price)}</span>
+                    {customTreatmentData && <span>(Standard)</span>}
+                  </div>
+                  {customTreatmentData && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-accent/10 border border-accent/20 rounded-xl">
+                      <Settings className="w-4 h-4 text-accent" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-accent">Personalizzazione Cliente Applicata</p>
+                        <p className="text-[11px] text-text-primary font-medium">{effectiveDuration} min • {formatCurrency(effectivePrice)}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             {/* Operator */}
             <div>
@@ -740,7 +778,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
             {selectedTreatment && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/5 border border-accent/10">
                 <Clock className="w-4 h-4 text-accent" />
-                <span className="text-sm text-text-secondary">Fine prevista: <strong className="text-text-primary">{endTime}</strong> ({selectedTreatment.duration} min)</span>
+                <span className="text-sm text-text-secondary">Fine prevista: <strong className="text-text-primary">{endTime}</strong> ({effectiveDuration} min)</span>
               </div>
             )}
             {isOccupied && !editingAppointment && (

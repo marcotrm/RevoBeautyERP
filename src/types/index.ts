@@ -62,6 +62,7 @@ export interface Client {
   privateNotes?: string;
   allergies?: string;
   preferences?: string[];
+  customTreatments?: CustomTreatment[];
   tags: string[];
   vipLevel: 0 | 1 | 2 | 3;
   loyaltyPoints: number;
@@ -80,6 +81,14 @@ export interface Client {
 
 // --- Treatments ---
 export type TreatmentCategory = 'facial' | 'body' | 'laser' | 'massage' | 'nails' | 'waxing' | 'consultation' | 'hair' | 'makeup';
+
+export interface CustomTreatment {
+  treatmentId: string;
+  treatmentName: string;
+  duration: number; // custom duration in minutes
+  price: number; // custom price
+  notes?: string;
+}
 
 export interface Treatment {
   id: string;
