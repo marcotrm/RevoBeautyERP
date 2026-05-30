@@ -10,12 +10,12 @@ import {
   Banknote, ArrowRight, Plus, X, CheckCircle,
   Trash2, Search,
 } from 'lucide-react';
-import { mockProducts } from '@/lib/mock-data';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { useClientStore } from '@/stores/useClientStore';
 import { formatCurrency } from '@/lib/helpers';
 import { usePackageStore } from '@/stores/usePackageStore';
 import { usePriceListStore } from '@/stores/usePriceListStore';
+import { useProductStore } from '@/stores/useProductStore';
 
 interface CartItem {
   id: string;
@@ -56,6 +56,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   initialData?: { client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string } | null;
 }) {
   const treatments = useTreatmentStore(s => s.treatments);
+  const products = useProductStore(s => s.products);
   const [cart, setCart] = useState<CartItem[]>(() => {
     if (!initialData) return [];
     // Try find by ID first
@@ -116,11 +117,11 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     const packageItems = packages.map(p => ({
       id: p.id, name: `📦 ${p.name}`, price: p.price, duration: 0, color: p.color, type: 'service' as const, isPackage: true,
     }));
-    const productItems = mockProducts.map(p => ({
+    const productItems = products.map(p => ({
       id: p.id, name: `🧴 ${p.name}`, price: p.price, duration: 0, color: '#F59E0B', type: 'product' as const, isPackage: false,
     }));
     return [...treatmentItems, ...packageItems, ...productItems];
-  }, [packages]);
+  }, [packages, treatments, products]);
 
   const filteredServices = serviceSearch.trim()
     ? allSellableItems.filter(t => t.name.toLowerCase().includes(serviceSearch.toLowerCase())).slice(0, 10)
@@ -130,7 +131,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     setCart(prev => {
       const existing = prev.find(i => i.id === t.id);
       if (existing) return prev.map(i => i.id === t.id ? { ...i, qty: i.qty + 1 } : i);
-      return [...prev, { id: t.id, name: t.name, price: t.price, qty: 1, type: 'service' }];
+      return [...prev, { id: t.id, name: t.name, price: t.price, qty: 1, type: t.type }];
     });
     setServiceSearch('');
   };
@@ -245,7 +246,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                         <div className="w-2 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-text-primary truncate">{t.name}</p>
-                          <p className="text-[10px] text-text-muted">{t.duration > 0 ? `${t.duration}min` : 'Pacchetto'}</p>
+                          <p className="text-[10px] text-text-muted">{(t as any).duration > 0 ? `${(t as any).duration}min` : 'Pacchetto/Prodotto'}</p>
                         </div>
                         <span className="text-xs font-bold text-accent">{formatCurrency(t.price)}</span>
                       </button>
@@ -405,6 +406,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
 
 function POSPageInner() {
   const { addPayment } = usePackageStore();
+  const { products } = useProductStore();
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [transactions, setTransactions] = usePersistedState<TransactionRecord[]>('revo_pos_transactions', defaultTransactions);
   const [saleInitialData, setSaleInitialData] = useState<{ client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string } | null>(null);

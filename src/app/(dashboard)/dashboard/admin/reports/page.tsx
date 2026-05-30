@@ -2,10 +2,12 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FileBarChart, Download, TrendingUp, Users, Scissors, DollarSign } from 'lucide-react';
+import { Download, FileText, Calendar, Filter, Users, Scissors, DollarSign } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { mockMonthlyFinancials, mockFixedCosts, FIXED_COST_CATEGORY_LABELS, getFixedCostsByCategory, FIXED_COST_CATEGORY_COLORS } from '@/lib/admin-data';
+import { FIXED_COST_CATEGORY_LABELS, getFixedCostsByCategory, FIXED_COST_CATEGORY_COLORS } from '@/lib/admin-data';
 import { formatCurrency } from '@/lib/helpers';
+import { useFixedCostStore } from '@/stores/useFixedCostStore';
+import { useFinancialStore } from '@/stores/useFinancialStore';
 
 const PERIODS = ['Mensile', 'Trimestrale', 'Annuale'];
 
@@ -27,6 +29,9 @@ const topStaff = [
 
 export default function AdminReportsPage() {
   const [period, setPeriod] = useState('Mensile');
+  const { fixedCosts: mockFixedCosts } = useFixedCostStore();
+  const { monthlyFinancials: mockMonthlyFinancials } = useFinancialStore();
+  
   const byCategory = getFixedCostsByCategory(mockFixedCosts);
   const costRanking = Object.entries(byCategory).sort((a, b) => b[1] - a[1]).map(([cat, val]) => ({
     name: FIXED_COST_CATEGORY_LABELS[cat], value: Math.round(val), color: FIXED_COST_CATEGORY_COLORS[cat],

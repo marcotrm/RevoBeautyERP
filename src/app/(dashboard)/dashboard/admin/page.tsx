@@ -12,11 +12,12 @@ import {
   ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import {
-  mockMonthlyFinancials, mockFixedCosts,
   getTotalFixedCostsMonthly, getFixedCostsByCategory,
   FIXED_COST_CATEGORY_LABELS, FIXED_COST_CATEGORY_COLORS,
 } from '@/lib/admin-data';
 import { formatCurrency } from '@/lib/helpers';
+import { useFixedCostStore } from '@/stores/useFixedCostStore';
+import { useFinancialStore } from '@/stores/useFinancialStore';
 
 function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name?: string; color?: string }>; label?: string }) {
   if (!active || !payload) return null;
@@ -33,8 +34,11 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 }
 
 export default function AdminDashboardPage() {
-  const current = mockMonthlyFinancials[4]; // Maggio
-  const prev = mockMonthlyFinancials[3]; // Aprile
+  const { fixedCosts: mockFixedCosts } = useFixedCostStore();
+  const { monthlyFinancials: mockMonthlyFinancials } = useFinancialStore();
+
+  const current = mockMonthlyFinancials[4] || mockMonthlyFinancials[mockMonthlyFinancials.length - 1]; // Maggio
+  const prev = mockMonthlyFinancials[3] || mockMonthlyFinancials[Math.max(0, mockMonthlyFinancials.length - 2)]; // Aprile
   const fixedTotal = getTotalFixedCostsMonthly(mockFixedCosts);
   const costsByCategory = getFixedCostsByCategory(mockFixedCosts);
 

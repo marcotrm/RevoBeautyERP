@@ -5,10 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Calendar, CreditCard, X, CheckCircle, Trash2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import {
-  mockFixedCosts, getTotalFixedCostsMonthly, getFixedCostsByCategory,
+  getTotalFixedCostsMonthly, getFixedCostsByCategory,
   FIXED_COST_CATEGORY_LABELS, FIXED_COST_CATEGORY_COLORS, FixedCost,
 } from '@/lib/admin-data';
 import { formatCurrency } from '@/lib/helpers';
+import { useFixedCostStore } from '@/stores/useFixedCostStore';
 
 const FREQ_LABELS: Record<string, string> = { mensile: 'Mensile', trimestrale: 'Trimestrale', annuale: 'Annuale', una_tantum: 'Una tantum' };
 const PAY_LABELS: Record<string, string> = { bonifico: 'Bonifico', rid: 'RID', carta: 'Carta', contanti: 'Contanti', assegno: 'Assegno' };
@@ -85,7 +86,7 @@ function AddCostModal({ onClose, onSave }: { onClose: () => void; onSave: (c: Fi
 }
 
 export default function FixedCostsPage() {
-  const [costs, setCosts] = useState<FixedCost[]>(mockFixedCosts);
+  const { fixedCosts: costs, addFixedCost, deleteFixedCost } = useFixedCostStore();
   const [showModal, setShowModal] = useState(false);
   const totalMonthly = getTotalFixedCostsMonthly(costs);
   const byCategory = getFixedCostsByCategory(costs);
@@ -125,7 +126,7 @@ export default function FixedCostsPage() {
                       <span className="px-2 py-0.5 rounded-full bg-bg-tertiary">{FREQ_LABELS[item.frequency]}</span>
                     </div>
                     <span className="text-sm font-semibold text-text-primary">{formatCurrency(item.amount)}</span>
-                    <button onClick={() => setCosts(p => p.filter(c => c.id !== item.id))} className="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => deleteFixedCost(item.id)} className="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 ))}</div>
               </div>
@@ -138,7 +139,7 @@ export default function FixedCostsPage() {
           <div className="space-y-2 mt-3">{pieData.map(item => (<div key={item.name} className="flex items-center justify-between"><div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} /><span className="text-xs text-text-secondary">{item.name}</span></div><span className="text-xs font-bold text-text-primary">{formatCurrency(item.value)}</span></div>))}</div>
         </div>
       </div>
-      <AnimatePresence>{showModal && <AddCostModal onClose={() => setShowModal(false)} onSave={c => setCosts(p => [...p, c])} />}</AnimatePresence>
+      <AnimatePresence>{showModal && <AddCostModal onClose={() => setShowModal(false)} onSave={c => addFixedCost(c)} />}</AnimatePresence>
     </motion.div>
   );
 }

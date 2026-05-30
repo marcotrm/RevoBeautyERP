@@ -3,16 +3,18 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Flag, TrendingUp, CheckCircle, AlertTriangle, ArrowUpRight } from 'lucide-react';
-import { mockEconomicGoals } from '@/lib/admin-data';
 import { formatCurrency } from '@/lib/helpers';
+import { useGoalStore } from '@/stores/useGoalStore';
+import { EconomicGoal } from '@/lib/admin-data';
 
 const TYPE_ICONS: Record<string, typeof Flag> = { fatturato: TrendingUp, utile: TrendingUp, clienti: Flag, ticket_medio: Flag, marginalita: Flag, vendita_prodotti: Flag };
 
 export default function GoalsPage() {
+  const { goals: mockEconomicGoals } = useGoalStore();
   const monthly = mockEconomicGoals.filter(g => g.period === 'mensile');
   const annual = mockEconomicGoals.filter(g => g.period === 'annuale');
 
-  const renderGoal = (goal: typeof mockEconomicGoals[0]) => {
+  const renderGoal = (goal: EconomicGoal) => {
     const progress = Math.min(100, (goal.current / goal.target) * 100);
     const status = progress >= 100 ? 'superato' : progress >= 70 ? 'in_linea' : 'a_rischio';
     const statusConfig = {

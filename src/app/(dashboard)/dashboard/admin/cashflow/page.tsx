@@ -4,11 +4,11 @@ import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Wallet, ArrowUpRight, ArrowDownRight, Calendar, Clock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { mockCashFlow } from '@/lib/admin-data';
 import { formatCurrency } from '@/lib/helpers';
+import { useCashFlowStore } from '@/stores/useCashFlowStore';
 
 export default function CashFlowPage() {
-  const entries = mockCashFlow;
+  const { cashFlowEntries: entries } = useCashFlowStore();
   const totalIn = entries.filter(e => e.type === 'entrata' && e.status === 'completato').reduce((s, e) => s + e.amount, 0);
   const totalOut = entries.filter(e => e.type === 'uscita' && e.status === 'completato').reduce((s, e) => s + e.amount, 0);
   const saldo = 12450;

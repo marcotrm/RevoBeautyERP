@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertTriangle, Plus, Search, Trash2, X, CheckCircle, Package,
 } from 'lucide-react';
-import { mockProducts } from '@/lib/mock-data';
+import { useProductStore } from '@/stores/useProductStore';
 import { formatCurrency, generateId } from '@/lib/helpers';
 import { Product } from '@/types';
 
@@ -112,8 +112,8 @@ function AddProductModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
 }
 
 export default function InventoryPage() {
-  const [products, setProducts] = useState<Product[]>(mockProducts);
-  const [showModal, setShowModal] = useState(false);
+  const { products, addProduct, deleteProduct } = useProductStore();
+  const [showAddModal, setShowAddModal] = useState(false);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('Tutti');
 
@@ -127,7 +127,6 @@ export default function InventoryPage() {
     return list;
   }, [products, search, activeCategory]);
 
-  const deleteProduct = (id: string) => setProducts(prev => prev.filter(p => p.id !== id));
   const lowStock = products.filter(p => p.stock <= p.minStock).length;
   const totalValue = products.reduce((s, p) => s + p.costPrice * p.stock, 0);
 
@@ -138,7 +137,7 @@ export default function InventoryPage() {
           <h2 className="text-xl font-display font-bold text-text-primary">Magazzino</h2>
           <p className="text-sm text-text-secondary">Inventario, scorte e fornitori</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105">
+        <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105">
           <Plus className="w-4 h-4" /> Aggiungi Prodotto
         </button>
       </div>
@@ -202,7 +201,7 @@ export default function InventoryPage() {
                       </span>
                     </td>
                     <td className="px-2 py-3.5">
-                      <button onClick={() => deleteProduct(product.id)} className="p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => { if(window.confirm('Eliminare prodotto?')) deleteProduct(product.id); }} className="p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5" /></button>
                     </td>
                   </tr>
                 );
@@ -213,7 +212,7 @@ export default function InventoryPage() {
             <div className="text-center py-12">
               <Package className="w-10 h-10 text-text-muted mx-auto mb-2" />
               <p className="text-text-secondary font-medium">Nessun prodotto trovato</p>
-              <button onClick={() => setShowModal(true)} className="mt-3 text-sm text-accent font-medium hover:underline">Aggiungi il primo prodotto</button>
+              <button onClick={() => setShowAddModal(true)} className="mt-3 text-sm text-accent font-medium hover:underline">Aggiungi il primo prodotto</button>
             </div>
           )}
         </div>
@@ -222,7 +221,7 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      <AnimatePresence>{showModal && <AddProductModal onClose={() => setShowModal(false)} onSave={p => { setProducts(prev => [p, ...prev]); setShowModal(false); }} />}</AnimatePresence>
+      <AnimatePresence>{showAddModal && <AddProductModal onClose={() => setShowAddModal(false)} onSave={(p) => { addProduct(p); setShowAddModal(false); }} />}</AnimatePresence>
     </motion.div>
   );
 }

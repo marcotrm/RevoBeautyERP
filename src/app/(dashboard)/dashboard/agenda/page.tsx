@@ -4,7 +4,7 @@ import React, { useMemo, useCallback, useRef, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useAgendaStore } from '@/stores/useAgendaStore';
-import { mockOperators } from '@/lib/mock-data';
+import { useOperatorStore } from '@/stores/useOperatorStore';
 import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { usePackageStore } from '@/stores/usePackageStore';
@@ -489,12 +489,13 @@ function MonthView({ selectedDate, allAppointments, onAppointmentClick, onDayCli
 /* ========== APPOINTMENT MODAL ========== */
 function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partial<WaitlistEntry>) => void }) {
   const treatments = useTreatmentStore(s => s.treatments);
+  const operators = useOperatorStore(s => s.operators);
   const { isAppointmentModalOpen, editingAppointment, closeAppointmentModal, addAppointment, updateAppointment, selectedDate, slotInfo, appointments } = useAgendaStore();
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedClientName, setSelectedClientName] = useState('');
   const [selectedTreatmentId, setSelectedTreatmentId] = useState('');
-  const [selectedOperatorId, setSelectedOperatorId] = useState(mockOperators[0]?.id || '');
+  const [selectedOperatorId, setSelectedOperatorId] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [notes, setNotes] = useState('');
   const [showClientDropdown, setShowClientDropdown] = useState(false);
@@ -516,12 +517,12 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
         setNotes('');
       } else {
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
-        setSelectedTreatmentId(''); setSelectedOperatorId(mockOperators[0]?.id || '');
+        setSelectedTreatmentId(''); setSelectedOperatorId(operators[0]?.id || '');
         setStartTime('09:00'); setNotes('');
       }
       setShowClientDropdown(false);
     }
-  }, [isAppointmentModalOpen, editingAppointment, slotInfo]);
+  }, [isAppointmentModalOpen, editingAppointment, slotInfo, operators]);
 
   const allClients = useClientStore(s => s.clients);
   const filteredClients = useMemo(() => {
@@ -552,7 +553,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
   }, [startTime, selectedTreatment]);
 
-  const selectedOperator = mockOperators.find(o => o.id === selectedOperatorId);
+  const selectedOperator = operators.find(o => o.id === selectedOperatorId);
   const dateStr = fmtDate(selectedDate);
   const canSave = selectedClientId && selectedTreatmentId && selectedOperatorId && startTime;
 
@@ -713,7 +714,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1.5">Operatrice *</label>
               <div className="grid grid-cols-5 gap-2">
-                {mockOperators.map(op => (
+                {operators.map(op => (
                   <button key={op.id} type="button" onClick={() => setSelectedOperatorId(op.id)}
                     className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all ${selectedOperatorId === op.id ? 'border-accent bg-accent/10' : 'border-border hover:border-border-light'}`}>
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: op.color }}>{getInitials(op.firstName, op.lastName)}</div>
@@ -791,7 +792,6 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
   const [scaledPkgId, setScaledPkgId] = useState<string | null>(null);
   const [showDebtModal, setShowDebtModal] = useState(false);
   const usePackageSession = usePackageStore(s => s.useSession);
-  const addPayment = usePackageStore(s => s.addPayment);
   const allClientPkgs = usePackageStore(s => s.clientPackages);
   const allClients = useClientStore(s => s.clients);
   
@@ -1071,6 +1071,7 @@ export default function AgendaPage() {
     openAppointmentModal, isAppointmentModalOpen, moveAppointment,
     updateAppointment, deleteAppointment, addAppointment, fetchAppointments,
   } = useAgendaStore();
+  const operators = useOperatorStore(s => s.operators);
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
 
   useEffect(() => {
@@ -1101,7 +1102,7 @@ export default function AgendaPage() {
         );
         return !hasConflict;
       } else {
-        const isFree = mockOperators.some(op => {
+        const isFree = operators.some(op => {
           const hasConflict = appointments.some(a => 
             a.date === e.date && a.operatorId === op.id &&
             !(timeToMinutes(a.endTime) <= eStart || timeToMinutes(a.startTime) >= eEnd)
@@ -1119,8 +1120,8 @@ export default function AgendaPage() {
   };
 
   const visibleOperators = useMemo(
-    () => mockOperators.filter(op => selectedOperatorIds.includes(op.id)),
-    [selectedOperatorIds]
+    () => operators.filter(op => selectedOperatorIds.includes(op.id)),
+    [selectedOperatorIds, operators]
   );
 
   const dateStr = fmtDate(selectedDate);

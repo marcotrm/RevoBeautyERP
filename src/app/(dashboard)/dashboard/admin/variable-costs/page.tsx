@@ -4,8 +4,9 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, AlertTriangle, Calendar, Trash2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { mockVariableCosts, VariableCost } from '@/lib/admin-data';
+import { VariableCost } from '@/lib/admin-data';
 import { formatCurrency } from '@/lib/helpers';
+import { useVariableCostStore } from '@/stores/useVariableCostStore';
 
 const CATEGORIES = ['Carta lettino','Rotoloni','Guanti','Mascherine','Creme','Sieri','Prodotti cabina','Monouso','Detergenti','Lavanderia','Acqua clienti','Caffè','Snack','Materiali marketing','Cancelleria','Prodotti pulizia','Manutenzione macchinari','Piccole riparazioni'];
 
@@ -15,7 +16,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 }
 
 export default function VariableCostsPage() {
-  const [costs, setCosts] = useState<VariableCost[]>(mockVariableCosts);
+  const { variableCosts: costs, addVariableCost, deleteVariableCost } = useVariableCostStore();
   const [newName, setNewName] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newAmount, setNewAmount] = useState('');
@@ -41,7 +42,7 @@ export default function VariableCostsPage() {
 
   const handleAdd = () => {
     if (!newName.trim() || !newCategory || !Number(newAmount)) return;
-    setCosts(prev => [{ id: `vc-${Date.now()}`, name: newName.trim(), category: newCategory, amount: Number(newAmount), date: newDate }, ...prev]);
+    addVariableCost({ id: `vc-${Date.now()}`, name: newName.trim(), category: newCategory, amount: Number(newAmount), date: newDate });
     setNewName(''); setNewCategory(''); setNewAmount('');
   };
 
@@ -87,7 +88,7 @@ export default function VariableCostsPage() {
                 <div key={item.id} className="flex items-center gap-3 px-5 py-2.5 hover:bg-bg-hover transition-colors group">
                   <div className="flex-1 min-w-0"><p className="text-sm font-medium text-text-primary">{item.name}</p><span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent">{item.category}</span></div>
                   <span className="text-sm font-semibold text-error">-{formatCurrency(item.amount)}</span>
-                  <button onClick={() => setCosts(p => p.filter(c => c.id !== item.id))} className="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => deleteVariableCost(item.id)} className="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
                 </div>
               ))}</div>
             </div>

@@ -4,17 +4,21 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Target, Users, ShoppingCart, TrendingUp, AlertCircle } from 'lucide-react';
 import {
-  mockFixedCosts, mockMonthlyFinancials,
   getTotalFixedCostsMonthly, getBreakEvenData,
 } from '@/lib/admin-data';
 import { formatCurrency } from '@/lib/helpers';
+import { useFixedCostStore } from '@/stores/useFixedCostStore';
+import { useFinancialStore } from '@/stores/useFinancialStore';
 
 export default function BreakevenPage() {
   const [costAdjust, setCostAdjust] = useState(0);
   const [staffAdjust, setStaffAdjust] = useState(0);
   const [priceAdjust, setPriceAdjust] = useState(0);
 
-  const current = mockMonthlyFinancials[4]; // Maggio
+  const { fixedCosts: mockFixedCosts } = useFixedCostStore();
+  const { monthlyFinancials: mockMonthlyFinancials } = useFinancialStore();
+
+  const current = mockMonthlyFinancials[4] || mockMonthlyFinancials[mockMonthlyFinancials.length - 1]; // Maggio o ultimo disponibile
   const fixedCosts = getTotalFixedCostsMonthly(mockFixedCosts);
   const variableRatio = current.variableCosts / current.revenue;
 

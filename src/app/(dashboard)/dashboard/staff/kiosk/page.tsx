@@ -5,16 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, LogIn, LogOut, Coffee, ArrowLeft, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useTimeClockStore } from '@/stores/useTimeClockStore';
-
-// Simple mock for staff members
-const MOCK_STAFF = [
-  { id: '1', name: 'Valentina', role: 'Estetista Senior', color: '#EC4899' },
-  { id: '2', name: 'Francesca', role: 'Estetista', color: '#8B5CF6' },
-  { id: '3', name: 'Sara', role: 'Receptionist', color: '#3B82F6' },
-  { id: '4', name: 'Dino', role: 'Titolare', color: '#F59E0B' },
-];
+import { useOperatorStore } from '@/stores/useOperatorStore';
 
 export default function KioskPage() {
+  const { operators: MOCK_STAFF } = useOperatorStore();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedStaff, setSelectedStaff] = useState<typeof MOCK_STAFF[0] | null>(null);
   const [showSuccess, setShowSuccess] = useState<string | null>(null);
@@ -31,7 +25,7 @@ export default function KioskPage() {
     
     addPunch({
       staffId: selectedStaff.id,
-      staffName: selectedStaff.name,
+      staffName: `${selectedStaff.firstName} ${selectedStaff.lastName}`,
       type,
       timestamp: new Date().toISOString()
     });
@@ -117,7 +111,7 @@ export default function KioskPage() {
               className="flex flex-col items-center text-center">
               <CheckCircle className="w-24 h-24 text-success mb-6" />
               <h2 className="text-3xl font-display font-bold text-text-primary mb-2">{showSuccess}</h2>
-              <p className="text-xl text-text-secondary">Grazie, {selectedStaff?.name}!</p>
+              <p className="text-xl text-text-secondary">Grazie, {selectedStaff?.firstName}!</p>
             </motion.div>
           ) : selectedStaff ? (
             <motion.div key="action" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }}
@@ -125,9 +119,9 @@ export default function KioskPage() {
               
               <div className="w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold text-white mb-6 shadow-lg"
                 style={{ backgroundColor: selectedStaff.color }}>
-                {selectedStaff.name.charAt(0)}
+                {selectedStaff.firstName.charAt(0)}
               </div>
-              <h2 className="text-3xl font-display font-bold text-text-primary mb-2">Ciao, {selectedStaff.name}!</h2>
+              <h2 className="text-3xl font-display font-bold text-text-primary mb-2">Ciao, {selectedStaff.firstName}!</h2>
               <p className="text-text-secondary mb-8 text-lg">Cosa vuoi fare?</p>
 
               {renderButtons()}
@@ -154,10 +148,10 @@ export default function KioskPage() {
                       className="bg-bg-secondary border border-border hover:border-accent/50 rounded-3xl p-6 flex flex-col items-center transition-all hover:scale-105 group relative overflow-hidden">
                       <div className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold text-white mb-4 shadow-lg transition-transform group-hover:scale-110"
                         style={{ backgroundColor: staff.color }}>
-                        {staff.name.charAt(0)}
+                        {staff.firstName.charAt(0)}
                       </div>
-                      <h3 className="text-xl font-bold text-text-primary mb-1">{staff.name}</h3>
-                      <p className="text-sm text-text-secondary mb-4">{staff.role}</p>
+                      <h3 className="text-xl font-bold text-text-primary mb-1">{staff.firstName} {staff.lastName}</h3>
+                      <p className="text-sm text-text-secondary mb-4 capitalize">{staff.specializations[0]?.replace(/_/g, ' ') || 'Staff'}</p>
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColor}`}>
                         {statusLabel}
                       </span>

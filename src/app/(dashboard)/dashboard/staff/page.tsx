@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTimeClockStore } from '@/stores/useTimeClockStore';
-import { mockOperators } from '@/lib/mock-data';
+import { useOperatorStore } from '@/stores/useOperatorStore';
 import { getInitials } from '@/lib/helpers';
 import { Operator, TreatmentCategory } from '@/types';
 
@@ -523,8 +523,8 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
 
 /* ========== MAIN PAGE ========== */
 export default function StaffPage() {
-  const [showModal, setShowModal] = useState(false);
-  const [staffList, setStaffList] = useState<Operator[]>(mockOperators);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const { operators: staffList, addOperator, deleteOperator } = useOperatorStore();
   const [activeTab, setActiveTab] = useState<'overview' | 'shifts'>('overview');
   const { punches } = useTimeClockStore();
 
@@ -539,7 +539,7 @@ export default function StaffPage() {
             ))}
           </div>
           <Link href="/dashboard/staff/kiosk" className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all"><Clock className="w-4 h-4" /> Apri Kiosk</Link>
-          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105"><Plus className="w-4 h-4" /> Aggiungi Staff</button>
+          <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105"><Plus className="w-4 h-4" /> Aggiungi Staff</button>
         </div>
       </div>
 
@@ -549,7 +549,11 @@ export default function StaffPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {staffList.map(op => (
               <div key={op.id} className="bg-bg-secondary border border-border rounded-2xl p-5 hover:border-border-light transition-all cursor-pointer group text-center relative">
-                <button onClick={() => setStaffList(p => p.filter(s => s.id !== op.id))} className="absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+                <button onClick={() => {
+                  if (window.confirm('Sei sicuro di voler eliminare questo collaboratore?')) {
+                    deleteOperator(op.id);
+                  }
+                }} className="absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
                 <div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-lg font-bold mx-auto mb-3" style={{ backgroundColor: op.color }}>{getInitials(op.firstName, op.lastName)}</div>
                 <h4 className="text-sm font-semibold text-text-primary">{op.firstName} {op.lastName}</h4>
                 <div className="flex flex-wrap gap-1 justify-center mt-2">{op.specializations.slice(0, 2).map(s => <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-muted">{specLabel(s)}</span>)}</div>
@@ -610,7 +614,14 @@ export default function StaffPage() {
         <WeeklyShiftPlanner operators={staffList} />
       )}
 
-      <AnimatePresence>{showModal && <AddStaffModal onClose={() => setShowModal(false)} onSave={s => setStaffList(p => [...p, s])} />}</AnimatePresence>
+      <AnimatePresence>
+        {showAddModal && (
+          <AddStaffModal 
+            onClose={() => setShowAddModal(false)} 
+            onSave={(op) => { addOperator(op); setShowAddModal(false); }} 
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
