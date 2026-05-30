@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   BarChart3, TrendingUp, Users, Euro, Calendar,
@@ -45,6 +45,8 @@ function CustomBarTooltip({ active, payload, label }: { active?: boolean; payloa
 }
 
 export default function ReportsPage() {
+  const [showFilters, setShowFilters] = useState(false);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -57,7 +59,12 @@ export default function ReportsPage() {
           <p className="text-sm text-text-secondary">Analisi performance e business intelligence</p>
         </div>
         <div className="flex gap-2">
-          <button className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border hover:bg-bg-hover text-sm text-text-secondary transition-colors">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-colors text-sm font-medium ${
+              showFilters ? 'bg-accent/10 border-accent/20 text-accent' : 'border-border hover:bg-bg-hover text-text-secondary'
+            }`}
+          >
             <Filter className="w-4 h-4" /> Filtra
           </button>
           <button className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border hover:bg-bg-hover text-sm text-text-secondary transition-colors">
@@ -65,6 +72,47 @@ export default function ReportsPage() {
           </button>
         </div>
       </div>
+
+      {/* Filters Bar */}
+      {showFilters && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-bg-secondary border border-border rounded-2xl p-4"
+        >
+          <div>
+            <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Periodo</label>
+            <select className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
+              <option>Questo Mese</option>
+              <option>Mese Scorso</option>
+              <option>Ultimi 3 Mesi</option>
+              <option>Quest'Anno</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Operatrice</label>
+            <select className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
+              <option>Tutte le operatrici</option>
+              <option>Sara R.</option>
+              <option>Valentina B.</option>
+              <option>Chiara M.</option>
+              <option>Francesca R.</option>
+              <option>Alessia C.</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Categoria</label>
+            <select className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
+              <option>Tutte le categorie</option>
+              <option>Viso</option>
+              <option>Corpo</option>
+              <option>Laser</option>
+              <option>Massaggi</option>
+              <option>Unghie</option>
+            </select>
+          </div>
+        </motion.div>
+      )}
 
       {/* KPI Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
