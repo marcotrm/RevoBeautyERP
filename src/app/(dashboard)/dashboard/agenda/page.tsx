@@ -868,6 +868,70 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
           </div>
         </div>
       </motion.div>
+
+      {showDebtModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowDebtModal(false)} />
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-bg-secondary border border-border rounded-2xl shadow-2xl p-6 w-full max-w-md z-10">
+            <div className="flex items-center gap-3 mb-4 text-warning">
+              <AlertTriangle className="w-6 h-6" />
+              <h3 className="text-lg font-display font-bold">Attenzione: Debiti in sospeso</h3>
+            </div>
+            <p className="text-sm text-text-secondary mb-4">
+              La cliente <strong className="text-text-primary">{appointment.clientName}</strong> ha delle rate in sospeso.
+            </p>
+            
+            <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto">
+              {packagesWithDebt.map(pkg => (
+                <div key={pkg.id} className="p-3 rounded-xl bg-bg-tertiary/50 border border-border">
+                  <p className="text-sm font-semibold text-text-primary mb-1">{pkg.packageName}</p>
+                  <div className="flex justify-between text-xs text-text-secondary mb-1">
+                    <span>Totale Pacchetto:</span>
+                    <span>{formatCurrency(pkg.pricePaid)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-success mb-1">
+                    <span>Pagato finora:</span>
+                    <span>{formatCurrency(pkg.totalPaid)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold text-error mt-2 pt-2 border-t border-border/50">
+                    <span>Da pagare:</span>
+                    <span>{formatCurrency(pkg.remainingBalance)}</span>
+                  </div>
+                  
+                  <div className="mt-3 flex items-center gap-2">
+                    <button onClick={() => {
+                      const amountStr = prompt(`Inserisci l'importo da pagare ora per il pacchetto:\n\n${pkg.packageName}\nRimanente: ${formatCurrency(pkg.remainingBalance)}`);
+                      if (amountStr) {
+                        const amount = parseFloat(amountStr.replace(',', '.'));
+                        if (!isNaN(amount) && amount > 0) {
+                          addPayment(pkg.id, amount, 'Carta', 'Staff', 'Pagamento in cabina');
+                          alert(`Pagamento di ${formatCurrency(amount)} registrato!`);
+                          setShowDebtModal(false);
+                          processCheckout();
+                        }
+                      }
+                    }} className="flex-1 py-1.5 rounded-lg bg-accent/10 text-accent text-xs font-semibold hover:bg-accent/20 transition-colors flex items-center justify-center gap-1">
+                      <Euro className="w-3.5 h-3.5" /> Registra Pagamento
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="flex gap-2">
+              <button onClick={() => setShowDebtModal(false)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+                Annulla
+              </button>
+              <button onClick={() => {
+                setShowDebtModal(false);
+                processCheckout();
+              }} className="flex-1 py-2.5 rounded-xl bg-bg-tertiary text-text-primary text-sm font-medium hover:bg-bg-hover transition-colors">
+                Salta per oggi
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </>
   );
 }
