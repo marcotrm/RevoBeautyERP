@@ -122,8 +122,8 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const total = Math.max(0, subtotal - discountAmount);
   
   const isDebtPayment = !!initialData?.debtPkgId;
-  const finalTotal = isDebtPayment ? (customAmount ? Number(customAmount) : total) : total;
-  const canComplete = cart.length > 0;
+  const finalTotal = isDebtPayment ? (customAmount ? Number(customAmount) : 0) : total;
+  const canComplete = isDebtPayment ? finalTotal > 0 : cart.length > 0;
 
   const handleComplete = () => {
     if (!canComplete) return;
@@ -235,15 +235,23 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                 <div className="rounded-xl border border-border p-4 space-y-2">
                   {isDebtPayment ? (
                     <>
-                      <div className="flex justify-between text-sm"><span className="text-text-secondary">Debito Rimanente</span><span className="text-text-primary font-medium">{formatCurrency(subtotal)}</span></div>
+                      <div className="flex justify-between text-sm"><span className="text-text-secondary">Debito Rimanente Attuale</span><span className="text-text-primary font-medium">{formatCurrency(subtotal)}</span></div>
                       <div className="flex items-center justify-between text-sm mt-2">
-                        <span className="text-text-secondary">Importo da incassare</span>
+                        <span className="text-text-secondary">Importo da incassare ora</span>
                         <div className="relative">
-                          <input type="number" value={customAmount} onChange={e => setCustomAmount(e.target.value)} placeholder={String(subtotal)} className="w-24 pl-2 pr-6 py-1.5 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
+                          <input type="number" value={customAmount} onChange={e => setCustomAmount(e.target.value)} placeholder="0" className="w-24 pl-2 pr-6 py-1.5 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
                         </div>
                       </div>
-                      <div className="border-t border-border mt-3 pt-3 flex justify-between"><span className="text-base font-semibold text-text-primary">Totale</span><span className="text-xl font-display font-bold text-accent">{formatCurrency(finalTotal)}</span></div>
+
+                      {customAmount && Number(customAmount) > 0 && (
+                        <div className="flex justify-between text-sm mt-3 pt-3 border-t border-border/30">
+                          <span className="text-warning font-medium">Nuovo Debito Rimanente</span>
+                          <span className="text-warning font-bold">{formatCurrency(Math.max(0, subtotal - Number(customAmount)))}</span>
+                        </div>
+                      )}
+
+                      <div className="border-t border-border mt-3 pt-3 flex justify-between"><span className="text-base font-semibold text-text-primary">Totale da Incassare</span><span className="text-xl font-display font-bold text-accent">{formatCurrency(finalTotal)}</span></div>
                     </>
                   ) : (
                     <>
