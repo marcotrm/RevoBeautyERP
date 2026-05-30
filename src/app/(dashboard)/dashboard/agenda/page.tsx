@@ -46,7 +46,7 @@ function fmtDate(d: Date) {
 }
 
 /* ========== APPOINTMENT BLOCK (Day View) ========== */
-function AppointmentBlock({ appointment, onClick, onDoubleClick }: { appointment: Appointment; onClick: (a: Appointment) => void; onDoubleClick?: (a: Appointment) => void }) {
+function AppointmentBlock({ appointment, onClick, onWaitlistAdd }: { appointment: Appointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void }) {
   const startMin = timeToMinutes(appointment.startTime) - START_HOUR * 60;
   const endMin = timeToMinutes(appointment.endTime) - START_HOUR * 60;
   const top = (startMin / 60) * HOUR_HEIGHT;
@@ -64,7 +64,6 @@ function AppointmentBlock({ appointment, onClick, onDoubleClick }: { appointment
       draggable={!appointment.isLocked}
       onDragStart={handleDragStart}
       onClick={(e) => { e.stopPropagation(); onClick(appointment); }}
-      onDoubleClick={(e) => { e.stopPropagation(); if (onDoubleClick) onDoubleClick(appointment); }}
       className={`appointment-block group ${appointment.isLocked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${appointment.status === 'in_cabin' ? 'animate-[pulse_1.5s_ease-in-out_infinite] ring-2 ring-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.3)]' : ''}`}
       style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${appointment.color}18`, borderLeftColor: appointment.color }}
     >
@@ -73,14 +72,25 @@ function AppointmentBlock({ appointment, onClick, onDoubleClick }: { appointment
           <span style={{ color: getStatusColor(appointment.status) }}>{statusIcons[appointment.status]}</span>
           <span className={`font-semibold text-text-primary truncate ${isSmall ? 'text-[10px]' : 'text-xs'}`}>{appointment.clientName}</span>
         </div>
-        {appointment.isLocked && <Lock className="w-3 h-3 text-text-muted flex-shrink-0" />}
-        {!appointment.isLocked && !isSmall && (
-          <svg className="w-3 h-3 text-text-muted opacity-0 group-hover:opacity-40 flex-shrink-0 transition-opacity" viewBox="0 0 6 10">
-            <circle cx="1.5" cy="1.5" r="1" fill="currentColor"/><circle cx="4.5" cy="1.5" r="1" fill="currentColor"/>
-            <circle cx="1.5" cy="5" r="1" fill="currentColor"/><circle cx="4.5" cy="5" r="1" fill="currentColor"/>
-            <circle cx="1.5" cy="8.5" r="1" fill="currentColor"/><circle cx="4.5" cy="8.5" r="1" fill="currentColor"/>
-          </svg>
-        )}
+        <div className="flex items-center gap-1">
+          {onWaitlistAdd && !isSmall && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); onWaitlistAdd(appointment); }}
+              className="p-1 rounded-md bg-white/20 text-text-primary hover:bg-warning hover:text-white opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
+              title="Metti in Lista d'Attesa"
+            >
+              <ListTodo className="w-3 h-3" />
+            </button>
+          )}
+          {appointment.isLocked && <Lock className="w-3 h-3 text-text-muted flex-shrink-0" />}
+          {!appointment.isLocked && !isSmall && (
+            <svg className="w-3 h-3 text-text-muted opacity-0 group-hover:opacity-40 flex-shrink-0 transition-opacity" viewBox="0 0 6 10">
+              <circle cx="1.5" cy="1.5" r="1" fill="currentColor"/><circle cx="4.5" cy="1.5" r="1" fill="currentColor"/>
+              <circle cx="1.5" cy="5" r="1" fill="currentColor"/><circle cx="4.5" cy="5" r="1" fill="currentColor"/>
+              <circle cx="1.5" cy="8.5" r="1" fill="currentColor"/><circle cx="4.5" cy="8.5" r="1" fill="currentColor"/>
+            </svg>
+          )}
+        </div>
       </div>
       {!isSmall && (
         <>
@@ -143,10 +153,10 @@ function NowLine() {
 }
 
 /* ========== DAY VIEW ========== */
-function DayView({ appointments, operators, onAppointmentClick, onAppointmentDoubleClick, onSlotClick, onDropAppointment }: {
+function DayView({ appointments, operators, onAppointmentClick, onWaitlistAdd, onSlotClick, onDropAppointment }: {
   appointments: Appointment[]; operators: Operator[];
   onAppointmentClick: (a: Appointment) => void;
-  onAppointmentDoubleClick?: (a: Appointment) => void;
+  onWaitlistAdd?: (a: Appointment) => void;
   onSlotClick: (operatorId: string, hour: number) => void;
   onDropAppointment: (aptId: string, operatorId: string, newStart: string, duration: number) => void;
 }) {
@@ -233,7 +243,7 @@ function DayView({ appointments, operators, onAppointmentClick, onAppointmentDou
                 </div>
               )}
               {(byOperator[operator.id] || []).map(apt => (
-                <AppointmentBlock key={apt.id} appointment={apt} onClick={onAppointmentClick} onDoubleClick={onAppointmentDoubleClick} />
+                <AppointmentBlock key={apt.id} appointment={apt} onClick={onAppointmentClick} onWaitlistAdd={onWaitlistAdd} />
               ))}
             </div>
           </div>
@@ -1064,12 +1074,12 @@ export default function AgendaPage() {
 
   const handleAppointmentClick = useCallback((apt: Appointment) => setSelectedApt(apt), []);
 
-  const handleAppointmentDoubleClick = useCallback((apt: Appointment) => {
+  const handleWaitlistAdd = useCallback((apt: Appointment) => {
     handleOpenWaitlistModal({
-      clientName: apt.clientName,
-      treatmentId: apt.treatmentId,
-      treatmentName: apt.treatmentName,
-      duration: apt.duration,
+      clientName: '',
+      treatmentId: '',
+      treatmentName: '',
+      duration: 60,
       date: apt.date,
       startTime: apt.startTime,
       operatorId: apt.operatorId,
@@ -1149,7 +1159,7 @@ export default function AgendaPage() {
 
       {/* Views */}
       {view === 'day' && (
-        <DayView appointments={todayAppointments} operators={visibleOperators} onAppointmentClick={handleAppointmentClick} onAppointmentDoubleClick={handleAppointmentDoubleClick}
+        <DayView appointments={todayAppointments} operators={visibleOperators} onAppointmentClick={handleAppointmentClick} onWaitlistAdd={handleWaitlistAdd}
           onSlotClick={(operatorId, hour) => openAppointmentModal(null, { operatorId, time: `${String(hour).padStart(2,'0')}:00` })}
           onDropAppointment={(aptId, opId, newStart, duration) => {
             const [h, m] = newStart.split(':').map(Number);
