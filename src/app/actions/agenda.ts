@@ -15,26 +15,26 @@ export async function getAppointments() {
 }
 
 export async function createAppointment(data: Omit<Appointment, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>) {
-  // Ensure the dummy client exists if the ID doesn't exist
-  if (data.clientId === 'waitlist-client' || !data.clientId) {
-    const existing = await prisma.client.findFirst({ where: { id: 'waitlist-client' } });
-    if (!existing) {
-      await prisma.client.create({
-        data: {
-          id: 'waitlist-client',
-          firstName: 'Waitlist',
-          lastName: 'Client',
-          phone: '0000000000',
-          createdAt: new Date().toISOString()
-        }
-      });
-    }
+  const targetClientId = data.clientId || 'waitlist-client';
+
+  // Ensure the client exists in the DB (prevents foreign key errors for local-storage only clients)
+  const existingClient = await prisma.client.findUnique({ where: { id: targetClientId } });
+  if (!existingClient) {
+    await prisma.client.create({
+      data: {
+        id: targetClientId,
+        firstName: data.clientName.split(' ')[0] || 'Unknown',
+        lastName: data.clientName.split(' ').slice(1).join(' ') || '',
+        phone: '0000000000',
+        createdAt: new Date().toISOString()
+      }
+    });
   }
 
   const appointment = await prisma.appointment.create({
     data: {
       ...data,
-      clientId: data.clientId || 'waitlist-client',
+      clientId: targetClientId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       createdBy: 'dino',
