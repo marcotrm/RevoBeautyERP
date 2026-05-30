@@ -684,10 +684,17 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
   const usePackageSession = usePackageStore(s => s.useSession);
   const addPayment = usePackageStore(s => s.addPayment);
   const allClientPkgs = usePackageStore(s => s.clientPackages);
+  const allClients = useClientStore(s => s.clients);
   
   // Match by normalized name (word-order agnostic)
   const normalize = (n: string) => n.toLowerCase().trim().split(/\s+/).sort().join(' ');
   const targetName = normalize(appointment.clientName);
+  
+  const clientData = allClients.find(c => 
+    normalize(c.firstName + ' ' + c.lastName) === targetName ||
+    (c.firstName + ' ' + c.lastName).toLowerCase().includes(appointment.clientName.toLowerCase()) ||
+    appointment.clientName.toLowerCase().includes((c.firstName + ' ' + c.lastName).toLowerCase())
+  );
   const clientPkgs = allClientPkgs.filter(
     cp => (normalize(cp.clientName) === targetName ||
            cp.clientName.toLowerCase().includes(appointment.clientName.toLowerCase()) ||
@@ -767,7 +774,16 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
               <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Prezzo</p><p className="text-sm font-medium text-text-primary">{formatCurrency(appointment.price)}</p></div>
             </div>
             <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Operatrice</p><p className="text-sm font-medium text-text-primary">{appointment.operatorName}</p></div>
-            {appointment.notes && <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Note</p><p className="text-sm text-text-primary">{appointment.notes}</p></div>}
+            {appointment.notes && <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Note Appuntamento</p><p className="text-sm text-text-primary">{appointment.notes}</p></div>}
+            
+            {clientData?.notes && (
+              <div className="p-3 rounded-xl bg-warning/10 border border-warning/20">
+                <p className="text-xs text-warning font-bold mb-1 flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Note Cliente ({clientData.firstName})
+                </p>
+                <p className="text-sm text-warning font-medium">{clientData.notes}</p>
+              </div>
+            )}
           </div>
 
           {/* ===== PACCHETTI ATTIVI (info) ===== */}

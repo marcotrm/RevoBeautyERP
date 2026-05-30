@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Clock, Plus, Euro, X, CheckCircle, Trash2, ChevronLeft, ChevronRight,
 } from 'lucide-react';
+import Link from 'next/link';
+import { useTimeClockStore } from '@/stores/useTimeClockStore';
 import { mockOperators } from '@/lib/mock-data';
 import { getInitials } from '@/lib/helpers';
 import { Operator, TreatmentCategory } from '@/types';
@@ -524,6 +526,7 @@ export default function StaffPage() {
   const [showModal, setShowModal] = useState(false);
   const [staffList, setStaffList] = useState<Operator[]>(mockOperators);
   const [activeTab, setActiveTab] = useState<'overview' | 'shifts'>('overview');
+  const { punches } = useTimeClockStore();
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -535,6 +538,7 @@ export default function StaffPage() {
               <button key={val} onClick={() => setActiveTab(val)} className={`px-4 py-2 text-xs font-medium transition-colors ${activeTab === val ? 'bg-accent text-white' : 'bg-bg-secondary text-text-secondary hover:bg-bg-hover'}`}>{label}</button>
             ))}
           </div>
+          <Link href="/dashboard/staff/kiosk" className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all"><Clock className="w-4 h-4" /> Apri Kiosk</Link>
           <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105"><Plus className="w-4 h-4" /> Aggiungi Staff</button>
         </div>
       </div>
@@ -561,6 +565,43 @@ export default function StaffPage() {
               <div key={i} className="flex items-center gap-4 px-5 py-3.5 hover:bg-bg-hover transition-colors"><div className="w-2 h-8 rounded-full" style={{ backgroundColor: s.color }} /><div className="flex-1"><p className="text-sm font-medium text-text-primary">{s.name}</p><p className="text-xs text-text-muted">Fatturato: € {s.revenue.toLocaleString('it-IT')}</p></div><div className="text-right"><p className="text-sm font-semibold text-accent">€ {s.commission.toLocaleString('it-IT')}</p><p className="text-[11px] text-text-muted">{s.rate}% commissione</p></div></div>
             ))}</div>
             <div className="px-5 py-3 bg-bg-tertiary/30 border-t border-border flex items-center justify-between"><span className="text-sm font-medium text-text-secondary">Totale Commissioni</span><span className="text-sm font-bold text-accent">€ {commissions.reduce((s, c) => s + c.commission, 0).toLocaleString('it-IT')}</span></div>
+          </div>
+
+          {/* Recent Punches */}
+          <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden mt-6">
+            <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+              <Clock className="w-4 h-4 text-accent" />
+              <h3 className="text-base font-display font-semibold text-text-primary">Ultime Timbrature</h3>
+            </div>
+            <div className="divide-y divide-border/30">
+              {punches.slice(0, 5).map((p) => {
+                let badge = '';
+                let color = '';
+                if (p.type === 'in') { badge = 'Entrata'; color = 'text-success bg-success/10'; }
+                if (p.type === 'out') { badge = 'Uscita'; color = 'text-error bg-error/10'; }
+                if (p.type === 'break_start') { badge = 'Inizio Pausa'; color = 'text-warning bg-warning/10'; }
+                if (p.type === 'break_end') { badge = 'Fine Pausa'; color = 'text-blue-500 bg-blue-500/10'; }
+                const date = new Date(p.timestamp);
+                
+                return (
+                  <div key={p.id} className="flex items-center justify-between px-5 py-3 hover:bg-bg-hover transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white text-xs font-bold">
+                        {p.staffName.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-text-primary">{p.staffName}</p>
+                        <p className="text-xs text-text-muted">{date.toLocaleDateString('it-IT')} alle {date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${color}`}>{badge}</span>
+                  </div>
+                );
+              })}
+              {punches.length === 0 && (
+                <div className="px-5 py-6 text-center text-text-muted text-sm">Nessuna timbratura registrata oggi.</div>
+              )}
+            </div>
           </div>
         </>
       )}
