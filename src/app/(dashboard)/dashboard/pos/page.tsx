@@ -48,6 +48,7 @@ const PAYMENT_METHODS = [
   { id: 'satispay', label: 'Satispay', icon: '📱' },
   { id: 'bonifico', label: 'Bonifico', icon: '🏦' },
   { id: 'buono', label: 'Buono Regalo', icon: '🎁' },
+  { id: 'misto', label: 'Misto', icon: '⚖️' },
 ];
 
 function NewSaleModal({ onClose, onComplete, initialData }: {
@@ -78,6 +79,8 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const [serviceSearch, setServiceSearch] = useState('');
   const [discount, setDiscount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('carta');
+  const [splitCash, setSplitCash] = useState('');
+  const [splitCard, setSplitCard] = useState('');
   const [customAmount, setCustomAmount] = useState<string>('');
   const [step, setStep] = useState<'items' | 'payment' | 'done'>(initialData && initialData.client ? 'payment' : 'items');
 
@@ -142,17 +145,22 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   
   const isDebtPayment = !!initialData?.debtPkgId;
   const finalTotal = isDebtPayment ? (customAmount ? Number(customAmount) : 0) : total;
-  const canComplete = isDebtPayment ? finalTotal > 0 : cart.length > 0;
+  const isMistoValid = paymentMethod === 'misto' ? Math.abs((Number(splitCash) + Number(splitCard)) - finalTotal) < 0.01 : true;
+  const canComplete = (isDebtPayment ? finalTotal > 0 : cart.length > 0) && isMistoValid;
 
   const handleComplete = () => {
     if (!canComplete) return;
     const now = new Date();
+    const finalMethod = paymentMethod === 'misto' 
+      ? `Misto (Contanti: €${splitCash}, Carta: €${splitCard})` 
+      : PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label || 'Carta';
+
     onComplete({
       id: Date.now(),
       client: selectedClient || 'Cliente Occasionale',
       items: cart.map(i => i.name).join(', '),
       total: finalTotal,
-      method: PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label || 'Carta',
+      method: finalMethod,
       time: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`,
       operator: initialData?.operator || 'Staff',
     }, initialData?.debtPkgId);
@@ -296,6 +304,31 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                       </button>
                     ))}
                   </div>
+
+                  {paymentMethod === 'misto' && (
+                    <div className="mt-4 p-4 rounded-xl bg-bg-tertiary/50 border border-border space-y-3">
+                      <p className="text-sm font-medium text-text-primary mb-2">Dividi Importo (Totale: {formatCurrency(finalTotal)})</p>
+                      <div className="flex gap-4">
+                        <div className="flex-1">
+                          <label className="block text-xs text-text-secondary mb-1">Contanti</label>
+                          <div className="relative">
+                            <input type="number" step="0.01" value={splitCash} onChange={e => setSplitCash(e.target.value)} placeholder="0.00" className="w-full pl-2 pr-6 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-xs text-text-secondary mb-1">Carta / POS</label>
+                          <div className="relative">
+                            <input type="number" step="0.01" value={splitCard} onChange={e => setSplitCard(e.target.value)} placeholder="0.00" className="w-full pl-2 pr-6 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
+                          </div>
+                        </div>
+                      </div>
+                      {Math.abs((Number(splitCash) + Number(splitCard)) - finalTotal) > 0.01 && (
+                        <p className="text-xs text-error font-medium">La somma deve essere uguale a {formatCurrency(finalTotal)} (Attuale: {formatCurrency(Number(splitCash) + Number(splitCard))})</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Client + Items Summary */}
