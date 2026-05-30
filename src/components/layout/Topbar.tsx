@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { mockLocations, mockNotifications } from '@/lib/mock-data';
 import {
   Search, Bell, Menu, ChevronDown,
-  MapPin, Command,
+  MapPin, Command, LogOut, User as UserIcon
 } from 'lucide-react';
 import { getInitials, getRelativeTime } from '@/lib/helpers';
 
@@ -29,9 +29,16 @@ const pageTitles: Record<string, string> = {
 export default function Topbar() {
   const pathname = usePathname();
   const { setSidebarMobileOpen, setCommandPaletteOpen, sidebarCollapsed } = useUIStore();
-  const { user, currentLocationId, setCurrentLocation } = useAuthStore();
+  const { user, currentLocationId, setCurrentLocation, logout } = useAuthStore();
   const [showNotifications, setShowNotifications] = React.useState(false);
   const [showLocationPicker, setShowLocationPicker] = React.useState(false);
+  const [showUserMenu, setShowUserMenu] = React.useState(false);
+  const router = import('next/navigation').then(m => m.useRouter);
+  
+  const handleLogout = () => {
+    logout();
+    window.location.href = '/login';
+  };
 
   const currentLocation = mockLocations.find(l => l.id === currentLocationId);
   const unreadCount = mockNotifications.filter(n => !n.isRead).length;
@@ -194,12 +201,48 @@ export default function Topbar() {
 
         {/* User Avatar */}
         {user && (
-          <div className="hidden sm:flex items-center gap-2 pl-2 ml-1 border-l border-border">
-            <div className="w-8 h-8 rounded-full gradient-accent flex items-center justify-center">
-              <span className="text-xs font-bold text-white">
-                {getInitials(user.firstName, user.lastName)}
-              </span>
-            </div>
+          <div className="relative hidden sm:flex items-center pl-2 ml-1 border-l border-border">
+            <button 
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="flex items-center gap-2 p-1 pr-2 rounded-xl hover:bg-bg-hover transition-colors"
+            >
+              <div className="w-8 h-8 rounded-full gradient-accent flex items-center justify-center">
+                <span className="text-xs font-bold text-white">
+                  {getInitials(user.firstName, user.lastName)}
+                </span>
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-text-muted" />
+            </button>
+
+            <AnimatePresence>
+              {showUserMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    className="absolute right-0 top-12 w-56 bg-bg-secondary border border-border rounded-2xl shadow-xl z-50 overflow-hidden"
+                  >
+                    <div className="p-3 border-b border-border">
+                      <p className="text-sm font-semibold text-text-primary">{user.firstName} {user.lastName}</p>
+                      <p className="text-xs text-text-muted capitalize">{user.role}</p>
+                    </div>
+                    <div className="p-2">
+                      <button className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-bg-hover text-sm text-text-secondary transition-colors">
+                        <UserIcon className="w-4 h-4" /> Profilo
+                      </button>
+                      <button 
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-error/10 text-sm text-error transition-colors mt-1"
+                      >
+                        <LogOut className="w-4 h-4" /> Esci
+                      </button>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </div>
