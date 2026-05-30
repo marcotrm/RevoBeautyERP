@@ -12,7 +12,7 @@ import { Appointment, Operator, Treatment } from '@/types';
 import {
   ChevronLeft, ChevronRight, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
-  Lock, X, Search, UserCircle, Minus, Package, Sparkles,
+  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro
 } from 'lucide-react';
 import {
   formatDateLong, timeToMinutes, getStatusLabel,
@@ -673,17 +673,18 @@ function AppointmentModal() {
     </>
   );
 }
-
 /* ========== DETAIL PANEL ========== */
 function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }: {
   appointment: Appointment; onClose: () => void; onEdit: (a: Appointment) => void;
   onStatusChange: (id: string, status: Appointment['status']) => void;
   onDelete: (id: string) => void;
 }) {
+  const router = useRouter();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [scaledPkgId, setScaledPkgId] = useState<string | null>(null);
-  const router = useRouter();
+  const [showDebtModal, setShowDebtModal] = useState(false);
   const usePackageSession = usePackageStore(s => s.useSession);
+  const addPayment = usePackageStore(s => s.addPayment);
   const allClientPkgs = usePackageStore(s => s.clientPackages);
   
   // Match by normalized name (word-order agnostic)
@@ -695,6 +696,43 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
            appointment.clientName.toLowerCase().includes(cp.clientName.toLowerCase())) &&
           (cp.status === 'active' || cp.status === 'expiring')
   );
+
+  const packagesWithDebt = clientPkgs.filter(cp => cp.remainingBalance > 0);
+
+  const processCheckout = () => {
+    const isPackageSession = appointment.notes?.includes('📦 Seduta da pacchetto');
+    onStatusChange(appointment.id, 'completed');
+
+    if (isPackageSession) {
+      const matchingPkg = clientPkgs.find(cp =>
+        appointment.notes?.includes(cp.packageName) &&
+        cp.usedSessions < cp.totalSessions
+      );
+      if (matchingPkg) {
+        usePackageSession(matchingPkg.id, appointment.operatorName, `Completato: ${appointment.treatmentName}`);
+        setScaledPkgId(matchingPkg.id);
+      }
+      onClose();
+    } else {
+      onClose();
+      const params = new URLSearchParams({
+        client: appointment.clientName,
+        treatment: appointment.treatmentName,
+        treatmentId: appointment.treatmentId,
+        price: String(appointment.price),
+        operator: appointment.operatorName,
+      });
+      router.push(`/dashboard/pos?${params.toString()}`);
+    }
+  };
+
+  const handleCheckoutClick = () => {
+    if (packagesWithDebt.length > 0) {
+      setShowDebtModal(true);
+    } else {
+      processCheckout();
+    }
+  };
 
   return (
     <>
@@ -784,52 +822,25 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
             {/* Status buttons */}
             <p className="text-xs text-text-muted pt-2 pb-1">Cambia stato:</p>
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => {
-                const isPackageSession = appointment.notes?.includes('📦 Seduta da pacchetto');
-                onStatusChange(appointment.id, 'completed');
-
-                if (isPackageSession) {
-                  // Package session: scale the session, do NOT open POS (already paid)
-                  const matchingPkg = clientPkgs.find(cp =>
-                    appointment.notes?.includes(cp.packageName) &&
-                    cp.usedSessions < cp.totalSessions
-                  );
-                  if (matchingPkg) {
-                    usePackageSession(matchingPkg.id, appointment.operatorName, `Completato: ${appointment.treatmentName}`);
-                    setScaledPkgId(matchingPkg.id);
-                  }
-                  onClose();
-                  // No POS redirect — package was prepaid
-                } else {
-                  // Normal appointment: go to POS for payment
-                  onClose();
-                  const params = new URLSearchParams({
-                    client: appointment.clientName,
-                    treatment: appointment.treatmentName,
-                    treatmentId: appointment.treatmentId,
-                    price: String(appointment.price),
-                    operator: appointment.operatorName,
-                  });
-                  router.push(`/dashboard/pos?${params.toString()}`);
-                }
-              }}
-                className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'completed' ? 'bg-success/20 text-success ring-1 ring-success/30' : 'bg-success/10 text-success hover:bg-success/20'}`}>
-                <span className="flex items-center justify-center gap-1.5"><CheckCircle className="w-3.5 h-3.5" /> {appointment.notes?.includes('📦 Seduta da pacchetto') ? 'Completato ✓ Scala Seduta' : 'Completato → Cassa'}</span>
-              </button>
+              {(appointment.status === 'in_progress' || appointment.status === 'in_cabin') ? (
+                <button onClick={handleCheckoutClick}
+                  className="py-2.5 rounded-xl text-sm font-medium transition-colors bg-success/10 text-success hover:bg-success/20">
+                  <span className="flex items-center justify-center gap-1.5"><CheckCircle className="w-3.5 h-3.5" /> Check-out</span>
+                </button>
+              ) : (
+                <button onClick={() => { onStatusChange(appointment.id, 'in_cabin'); onClose(); }}
+                  className="py-2.5 rounded-xl text-sm font-medium transition-colors bg-pink-500/10 text-pink-400 hover:bg-pink-500/20">
+                  <span className="flex items-center justify-center gap-1.5"><Play className="w-3.5 h-3.5" /> Check-in</span>
+                </button>
+              )}
+              
               <button onClick={() => { onStatusChange(appointment.id, 'no_show'); onClose(); }}
                 className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'no_show' ? 'bg-error/20 text-error ring-1 ring-error/30' : 'bg-error/10 text-error hover:bg-error/20'}`}>
                 <span className="flex items-center justify-center gap-1.5"><XCircle className="w-3.5 h-3.5" /> No-Show</span>
               </button>
-              <button onClick={() => { onStatusChange(appointment.id, 'in_progress'); onClose(); }}
-                className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'in_progress' ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30' : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20'}`}>
-                <span className="flex items-center justify-center gap-1.5"><Play className="w-3.5 h-3.5" /> Check-in</span>
-              </button>
-              <button onClick={() => { onStatusChange(appointment.id, 'in_cabin'); onClose(); }}
-                className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'in_cabin' ? 'bg-pink-500/20 text-pink-400 ring-1 ring-pink-500/30' : 'bg-pink-500/10 text-pink-400 hover:bg-pink-500/20'}`}>
-                <span className="flex items-center justify-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> In Cabina</span>
-              </button>
+              
               <button onClick={() => { onStatusChange(appointment.id, 'cancelled'); onClose(); }}
-                className={`py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'cancelled' ? 'bg-bg-tertiary text-text-muted ring-1 ring-border' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
+                className={`col-span-2 py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'cancelled' ? 'bg-bg-tertiary text-text-muted ring-1 ring-border' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
                 <span className="flex items-center justify-center gap-1.5"><Ban className="w-3.5 h-3.5" /> Annulla</span>
               </button>
             </div>
