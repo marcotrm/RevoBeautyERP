@@ -647,8 +647,8 @@ export default function PackagesPage() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div><h2 className="text-xl font-display font-bold text-text-primary">Pacchetti & Abbonamenti</h2><p className="text-sm text-text-secondary">Gestisci pacchetti a sedute e scala le visite</p></div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div><h2 className="text-xl font-display font-bold text-text-primary">Trattamenti e Pacchetti</h2><p className="text-sm text-text-secondary">Gestisci pacchetti a sedute e scala le visite</p></div>
         <div className="flex gap-2">
           <button onClick={() => setShowListinoModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-tertiary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all"><Plus className="w-4 h-4" /> Nuovo Trattamento</button>
           <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105"><Plus className="w-4 h-4" /> Nuovo Pacchetto</button>

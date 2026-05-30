@@ -20,7 +20,7 @@ const menuItems = [
   { id: 'agenda', label: 'Agenda', icon: Calendar, href: '/dashboard/agenda' },
   { id: 'clients', label: 'Clienti', icon: Users, href: '/dashboard/clients' },
   { id: 'pos', label: 'Cassa', icon: ShoppingBag, href: '/dashboard/pos', badge: 0 },
-  { id: 'packages', label: 'Pacchetti', icon: Package, href: '/dashboard/packages' },
+  { id: 'packages', label: 'Trattamenti e Pacchetti', icon: Package, href: '/dashboard/packages' },
   { id: 'gift-cards', label: 'Buoni Regalo', icon: Gift, href: '/dashboard/packages/gift-cards' },
   { id: 'inventory', label: 'Magazzino', icon: Warehouse, href: '/dashboard/inventory' },
   { id: 'marketing', label: 'Marketing', icon: Megaphone, href: '/dashboard/marketing' },

@@ -27,7 +27,7 @@ const NAV_ITEMS: SearchItem[] = [
   { id: 'nav-agenda', label: 'Agenda', description: 'Appuntamenti, calendario, prenotazioni', icon: Calendar, href: '/dashboard/agenda', group: 'Pagine', keywords: 'appuntamenti calendario prenotazioni' },
   { id: 'nav-clients', label: 'Clienti', description: 'CRM, schede cliente, anagrafica', icon: Users, href: '/dashboard/clients', group: 'Pagine', keywords: 'crm anagrafica contatti' },
   { id: 'nav-pos', label: 'Cassa', description: 'Punto vendita, scontrini, pagamenti', icon: ShoppingBag, href: '/dashboard/pos', group: 'Pagine', keywords: 'pagamenti scontrini vendita' },
-  { id: 'nav-packages', label: 'Pacchetti', description: 'Abbonamenti, pacchetti trattamento', icon: Package, href: '/dashboard/packages', group: 'Pagine', keywords: 'abbonamenti bundle' },
+  { id: 'nav-packages', label: 'Trattamenti e Pacchetti', description: 'Abbonamenti, pacchetti trattamento', icon: Package, href: '/dashboard/packages', group: 'Pagine', keywords: 'abbonamenti bundle' },
   { id: 'nav-inventory', label: 'Magazzino', description: 'Prodotti, scorte, ordini', icon: Warehouse, href: '/dashboard/inventory', group: 'Pagine', keywords: 'prodotti scorte inventario' },
   { id: 'nav-marketing', label: 'Marketing', description: 'Campagne, promozioni, recall', icon: Megaphone, href: '/dashboard/marketing', group: 'Pagine', keywords: 'campagne promozioni sms' },
   { id: 'nav-reports', label: 'Report', description: 'Statistiche, analytics, grafici', icon: BarChart3, href: '/dashboard/reports', group: 'Pagine', keywords: 'statistiche analytics' },
