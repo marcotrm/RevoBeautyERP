@@ -99,14 +99,14 @@ export function PriceListsSection() {
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)} />
             <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} 
-              className="fixed inset-0 z-[61] flex items-center justify-center p-4 pointer-events-none">
-              <div className="w-full max-w-md bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden pointer-events-auto">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              className="fixed inset-0 z-[61] flex items-center justify-center sm:p-4 pointer-events-none">
+              <div className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-md bg-bg-secondary sm:border sm:border-border sm:rounded-2xl shadow-2xl overflow-hidden pointer-events-auto flex flex-col">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
                   <h3 className="text-lg font-display font-semibold text-text-primary">{editingList ? 'Modifica Listino' : 'Nuovo Listino'}</h3>
                   <button onClick={() => setShowModal(false)} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary transition-colors"><X className="w-5 h-5" /></button>
                 </div>
                 
-                <div className="p-6 space-y-4">
+                <div className="p-6 space-y-4 flex-1 overflow-y-auto">
                   <div>
                     <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Nome Listino</label>
                     <input type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Es. VIP, Gold..." className="w-full px-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-colors" />
@@ -120,7 +120,7 @@ export function PriceListsSection() {
                   </div>
                 </div>
 
-                <div className="px-6 py-4 border-t border-border bg-bg-tertiary/30">
+                <div className="px-6 py-4 border-t border-border bg-bg-tertiary/30 flex-shrink-0">
                   <button onClick={handleSave} disabled={!formData.name.trim() || !formData.discountPercentage} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                     <CheckCircle className="w-4 h-4" /> {editingList ? 'Salva Modifiche' : 'Crea Listino'}
                   </button>

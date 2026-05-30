@@ -163,8 +163,8 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
-        <div className="w-full max-w-2xl bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center sm:p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+        <div className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-2xl bg-bg-secondary sm:border sm:border-border sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
             <div className="flex items-center gap-3">
               <h3 className="text-lg font-display font-semibold text-text-primary">{isDebtPayment ? 'Incasso' : 'Nuova Vendita'}</h3>
@@ -212,7 +212,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                     <input type="text" value={serviceSearch} onChange={e => setServiceSearch(e.target.value)} placeholder="Cerca trattamento..."
                       className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
                   </div>
-                  <div className="grid grid-cols-2 gap-2 max-h-[180px] overflow-y-auto">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto">
                     {filteredServices.map(t => (
                       <button key={t.id} onClick={() => addToCart(t)}
                         className="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg-tertiary border border-border hover:border-accent/30 text-left transition-all group">

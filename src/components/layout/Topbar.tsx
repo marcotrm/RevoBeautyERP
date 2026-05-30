@@ -59,15 +59,24 @@ export default function Topbar() {
       {/* Right */}
       <div className="flex items-center gap-2">
         {/* Search */}
+        {/* Search - Desktop/Tablet */}
         <button
           onClick={() => setCommandPaletteOpen(true)}
-          className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-bg-tertiary border border-border hover:border-border-light text-text-muted text-sm transition-all duration-200 min-w-[200px]"
+          className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-bg-tertiary border border-border hover:border-border-light text-text-muted text-sm transition-all duration-200 min-w-[200px]"
         >
           <Search className="w-4 h-4" />
           <span>Cerca...</span>
           <kbd className="ml-auto flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-bg-hover text-[10px] font-medium text-text-muted border border-border">
             <Command className="w-3 h-3" />K
           </kbd>
+        </button>
+
+        {/* Search - Mobile */}
+        <button
+          onClick={() => setCommandPaletteOpen(true)}
+          className="md:hidden p-2 rounded-xl hover:bg-bg-hover text-text-secondary transition-colors"
+        >
+          <Search className="w-5 h-5" />
         </button>
 
         {/* Location Picker */}
