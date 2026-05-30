@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import { useClientStore } from '@/stores/useClientStore';
-import { mockAppointments, mockTreatments } from '@/lib/mock-data';
+import { mockAppointments } from '@/lib/mock-data';
 import {
   ArrowLeft, Phone, Mail, Calendar, MapPin,
   Heart, Star, Crown, Gift, CreditCard,

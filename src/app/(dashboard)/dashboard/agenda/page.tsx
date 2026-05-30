@@ -4,8 +4,9 @@ import React, { useMemo, useCallback, useRef, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useAgendaStore } from '@/stores/useAgendaStore';
-import { mockOperators, mockTreatments } from '@/lib/mock-data';
+import { mockOperators } from '@/lib/mock-data';
 import { useClientStore } from '@/stores/useClientStore';
+import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { usePackageStore } from '@/stores/usePackageStore';
 import { Appointment, Operator, Treatment } from '@/types';
 import {
@@ -421,6 +422,7 @@ function MonthView({ selectedDate, allAppointments, onAppointmentClick, onDayCli
 
 /* ========== APPOINTMENT MODAL ========== */
 function AppointmentModal() {
+  const treatments = useTreatmentStore(s => s.treatments);
   const { isAppointmentModalOpen, editingAppointment, closeAppointmentModal, addAppointment, updateAppointment, selectedDate, slotInfo } = useAgendaStore();
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClientId, setSelectedClientId] = useState('');
@@ -476,7 +478,7 @@ function AppointmentModal() {
     );
   }, [selectedClientName, allPkgData]);
 
-  const selectedTreatment = useMemo(() => mockTreatments.find(t => t.id === selectedTreatmentId), [selectedTreatmentId]);
+  const selectedTreatment = useMemo(() => treatments.find(t => t.id === selectedTreatmentId), [selectedTreatmentId, treatments]);
   const endTime = useMemo(() => {
     if (!selectedTreatment) return startTime;
     const [h, m] = startTime.split(':').map(Number);
@@ -581,7 +583,7 @@ function AppointmentModal() {
                       <button type="button" onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        const matchingTreatment = mockTreatments.find(t =>
+                        const matchingTreatment = treatments.find(t =>
                           cp.packageName.toLowerCase().includes(t.name.toLowerCase()) ||
                           t.name.toLowerCase().includes(cp.packageName.toLowerCase().split(' ').slice(0, 2).join(' '))
                         );
@@ -589,7 +591,7 @@ function AppointmentModal() {
                           setSelectedTreatmentId(matchingTreatment.id);
                         } else {
                           // If no matching treatment, use first one
-                          setSelectedTreatmentId(mockTreatments[0]?.id || '');
+                          setSelectedTreatmentId(treatments[0]?.id || '');
                         }
                         setNotes(`📦 Seduta da pacchetto: ${cp.packageName} (${remaining} rimanenti)`);
                       }}
@@ -609,9 +611,9 @@ function AppointmentModal() {
               <select value={selectedTreatmentId} onChange={e => setSelectedTreatmentId(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
                 <option value="">Seleziona trattamento...</option>
-                {Object.entries(mockTreatments.reduce((g, t) => { const c = getCategoryLabel(t.category); if (!g[c]) g[c]=[]; g[c].push(t); return g; }, {} as Record<string, Treatment[]>))
-                  .map(([cat, ts]) => (
-                    <optgroup key={cat} label={cat}>{ts.map(t => <option key={t.id} value={t.id}>{t.name} — {t.duration}min — {formatCurrency(t.price)}</option>)}</optgroup>
+                {Object.entries(treatments.reduce((g, t) => { const c = getCategoryLabel(t.category); if (!g[c]) g[c]=[]; g[c].push(t); return g; }, {} as Record<string, Treatment[]>))
+                  .map(([cat, treats]) => (
+                    <optgroup key={cat} label={cat}>{treats.map(t => <option key={t.id} value={t.id}>{t.name} — {t.duration}min — {formatCurrency(t.price)}</option>)}</optgroup>
                   ))}
               </select>
               {selectedTreatment && <div className="flex items-center gap-2 mt-2 text-xs text-text-muted"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: selectedTreatment.color }} />{selectedTreatment.duration} min • {formatCurrency(selectedTreatment.price)}</div>}

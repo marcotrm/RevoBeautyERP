@@ -9,7 +9,8 @@ import {
   Package, Warehouse, Megaphone, BarChart3, UserCog, Settings,
   Landmark, ArrowRight, Hash, Scissors, User,
 } from 'lucide-react';
-import { mockOperators, mockTreatments } from '@/lib/mock-data';
+import { mockOperators } from '@/lib/mock-data';
+import { useTreatmentStore } from '@/stores/useTreatmentStore';
 
 interface SearchItem {
   id: string;
@@ -45,6 +46,7 @@ const NAV_ITEMS: SearchItem[] = [
 
 export default function CommandPalette() {
   const router = useRouter();
+  const treatments = useTreatmentStore(s => s.treatments);
   const { commandPaletteOpen, setCommandPaletteOpen } = useUIStore();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -59,7 +61,7 @@ export default function CommandPalette() {
       icon: User, href: '/dashboard/staff', group: 'Staff',
       keywords: `${op.firstName} ${op.lastName} operatrice estetista`,
     }));
-    const treatmentItems: SearchItem[] = mockTreatments.slice(0, 15).map(t => ({
+    const treatmentItems: SearchItem[] = treatments.slice(0, 15).map(t => ({
       id: `treat-${t.id}`, label: t.name,
       description: `${t.duration}min • €${t.price}`,
       icon: Scissors, href: '/dashboard/settings', group: 'Trattamenti',

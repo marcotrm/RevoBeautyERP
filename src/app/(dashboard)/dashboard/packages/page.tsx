@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
 import { useClientStore } from '@/stores/useClientStore';
-import { mockTreatments } from '@/lib/mock-data';
+import { useTreatmentStore } from '@/stores/useTreatmentStore';
 const PKG_COLORS = ['#8B5CF6', '#EC4899', '#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#6366F1', '#14B8A6'];
 
 /* ========== USE SESSION MODAL ========== */
@@ -502,13 +502,14 @@ function AddPaymentInner({ cp, onClose, onPay }: {
 
 /* ========== ADD LISTINO MODAL ========== */
 function AddListinoModal({ onClose, onSave }: { onClose: () => void; onSave: (p: PackageItem) => void }) {
+  const treatments = useTreatmentStore(s => s.treatments);
   const [name, setName] = useState('');
   const [selectedTreatments, setSelectedTreatments] = useState<string[]>([]);
   const [discount, setDiscount] = useState('10');
   const [color, setColor] = useState(PKG_COLORS[0]);
 
   const basePrice = selectedTreatments.reduce((sum, tId) => {
-    const t = mockTreatments.find(x => x.id === tId);
+    const t = treatments.find(x => x.id === tId);
     return sum + (t ? t.price : 0);
   }, 0);
 
@@ -518,7 +519,7 @@ function AddListinoModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
 
   const handleSave = () => {
     if (!name || selectedTreatments.length === 0) return;
-    const treatmentNames = selectedTreatments.map(id => mockTreatments.find(t => t.id === id)?.name).filter(Boolean).join(', ');
+    const treatmentNames = selectedTreatments.map(id => treatments.find(t => t.id === id)?.name).filter(Boolean).join(', ');
     
     onSave({
       id: `listino-${Date.now()}`,
@@ -557,7 +558,7 @@ function AddListinoModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1.5">Seleziona Base *</label>
               <div className="max-h-40 overflow-y-auto rounded-xl border border-border bg-bg-tertiary divide-y divide-border/50">
-                {mockTreatments.map(t => (
+                {treatments.map(t => (
                   <label key={t.id} className="flex items-center gap-3 p-3 hover:bg-bg-hover cursor-pointer transition-colors">
                     <input type="checkbox" checked={selectedTreatments.includes(t.id)} onChange={() => toggleTreatment(t.id)} className="w-4 h-4 rounded border-border text-accent focus:ring-accent" />
                     <div className="flex-1 min-w-0">

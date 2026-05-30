@@ -9,7 +9,7 @@ import {
   CreditCard, Clock, Euro, Eye,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
-import { mockTreatments } from '@/lib/mock-data';
+import { useTreatmentStore } from '@/stores/useTreatmentStore';
 
 /* ========== CREATE GIFT CARD MODAL ========== */
 function CreateGiftCardModal({ onClose, onCreate }: {
@@ -250,6 +250,7 @@ function RedeemModal({ gc, onClose, onRedeem }: {
   gc: GiftCard; onClose: () => void;
   onRedeem: (amount: number, service: string, operator: string) => void;
 }) {
+  const treatments = useTreatmentStore(s => s.treatments);
   const [amount, setAmount] = useState('');
   const [serviceSearch, setServiceSearch] = useState('');
   const [selectedService, setSelectedService] = useState('');
@@ -257,8 +258,8 @@ function RedeemModal({ gc, onClose, onRedeem }: {
   const operators = ['Sara Rossi', 'Valentina Bianchi', 'Chiara Moretti', 'Francesca Romano', 'Alessia Conti'];
 
   const filteredServices = serviceSearch.trim()
-    ? mockTreatments.filter(t => t.name.toLowerCase().includes(serviceSearch.toLowerCase()) && t.isActive).slice(0, 6)
-    : mockTreatments.filter(t => t.isActive).slice(0, 6);
+    ? treatments.filter(t => t.name.toLowerCase().includes(serviceSearch.toLowerCase()) && t.isActive).slice(0, 6)
+    : treatments.filter(t => t.isActive).slice(0, 6);
 
   const amountNum = Number(amount) || 0;
   const newBalance = Math.max(0, gc.remainingBalance - amountNum);

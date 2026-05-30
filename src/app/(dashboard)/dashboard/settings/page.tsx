@@ -9,7 +9,7 @@ import {
   ChevronRight, Save, Plus, Search, X, CheckCircle,
 } from 'lucide-react';
 import { useThemeStore } from '@/stores/useThemeStore';
-import { mockTreatments } from '@/lib/mock-data';
+import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { formatCurrency, getCategoryLabel } from '@/lib/helpers';
 import { Treatment, TreatmentCategory } from '@/types';
 
@@ -64,10 +64,13 @@ const CATEGORIES = [
 const TREATMENT_COLORS = ['#A855F7','#EC4899','#3B82F6','#22C55E','#F59E0B','#EF4444','#6366F1','#14B8A6','#8B5CF6','#F97316'];
 
 function TreatmentsSection() {
-  const [treatments, setTreatments] = usePersistedState('revo_treatments', [...mockTreatments]);
+  const treatments = useTreatmentStore(s => s.treatments);
+  const addTreatment = useTreatmentStore(s => s.addTreatment);
+  const updateTreatment = useTreatmentStore(s => s.updateTreatment);
+  const deleteTreatment = useTreatmentStore(s => s.deleteTreatment);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState<typeof mockTreatments[0] | null>(null);
+  const [editing, setEditing] = useState<Treatment | null>(null);
 
   // Modal state
   const [name, setName] = useState('');
@@ -77,25 +80,25 @@ function TreatmentsSection() {
   const [color, setColor] = useState('#A855F7');
 
   const openAdd = () => { setEditing(null); setName(''); setCategory('facial'); setDuration('60'); setPrice(''); setColor('#A855F7'); setShowModal(true); };
-  const openEdit = (t: typeof mockTreatments[0]) => { setEditing(t); setName(t.name); setCategory(t.category); setDuration(String(t.duration)); setPrice(String(t.price)); setColor(t.color); setShowModal(true); };
+  const openEdit = (t: Treatment) => { setEditing(t); setName(t.name); setCategory(t.category); setDuration(String(t.duration)); setPrice(String(t.price)); setColor(t.color); setShowModal(true); };
   const closeModal = () => { setShowModal(false); setEditing(null); };
 
   const handleSave = () => {
     if (!name.trim() || !price) return;
     if (editing) {
-      setTreatments(prev => prev.map(t => t.id === editing.id ? { ...t, name: name.trim(), category: category as TreatmentCategory, duration: Number(duration), price: Number(price), color } : t));
+      updateTreatment(editing.id, { name: name.trim(), category: category as TreatmentCategory, duration: Number(duration), price: Number(price), color });
     } else {
       const newTreatment: Treatment = {
         id: `treat-${Date.now()}`, name: name.trim(), category: category as TreatmentCategory,
         duration: Number(duration), price: Number(price), color, isActive: true, description: '',
         requiresRoom: false, bufferBefore: 0, bufferAfter: 0,
       };
-      setTreatments(prev => [...prev, newTreatment]);
+      addTreatment(newTreatment);
     }
     closeModal();
   };
 
-  const handleDelete = (id: string) => { setTreatments(prev => prev.filter(t => t.id !== id)); };
+  const handleDelete = (id: string) => { deleteTreatment(id); };
 
   const filtered = search.trim() ? treatments.filter(t => t.name.toLowerCase().includes(search.toLowerCase())) : treatments;
 

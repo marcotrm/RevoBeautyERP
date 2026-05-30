@@ -10,7 +10,8 @@ import {
   Banknote, ArrowRight, Plus, X, CheckCircle,
   Trash2, Search,
 } from 'lucide-react';
-import { mockTreatments, mockProducts } from '@/lib/mock-data';
+import { mockProducts } from '@/lib/mock-data';
+import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { useClientStore } from '@/stores/useClientStore';
 import { formatCurrency } from '@/lib/helpers';
 import { usePackageStore } from '@/stores/usePackageStore';
@@ -52,16 +53,17 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   onClose: () => void; onComplete: (tx: TransactionRecord) => void;
   initialData?: { client: string; treatmentName: string; treatmentId: string; price: number; operator: string } | null;
 }) {
+  const treatments = useTreatmentStore(s => s.treatments);
   const [cart, setCart] = useState<CartItem[]>(() => {
     if (!initialData) return [];
     // Try find by ID first
     if (initialData.treatmentId) {
-      const t = mockTreatments.find(t => t.id === initialData.treatmentId);
+      const t = treatments.find(t => t.id === initialData.treatmentId);
       if (t) return [{ id: t.id, name: t.name, price: t.price, qty: 1, type: 'service' }];
     }
     // Try find by name
     if (initialData.treatmentName) {
-      const t = mockTreatments.find(t => t.name === initialData.treatmentName);
+      const t = treatments.find(t => t.name === initialData.treatmentName);
       if (t) return [{ id: t.id, name: t.name, price: t.price, qty: 1, type: 'service' }];
     }
     // Fallback: create custom entry from initialData
@@ -85,7 +87,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
 
   // Merge treatments + packages into one searchable list
   const allSellableItems = useMemo(() => {
-    const treatmentItems = mockTreatments.filter(t => t.isActive).map(t => ({
+    const treatmentItems = treatments.filter(t => t.isActive).map(t => ({
       id: t.id, name: t.name, price: t.price, duration: t.duration, color: t.color, type: 'service' as const, isPackage: false,
     }));
     const packageItems = packages.map(p => ({
