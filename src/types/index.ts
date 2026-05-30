@@ -225,6 +225,7 @@ export interface Product {
   brand: string;
   category: string;
   sku: string;
+  barcode?: string;
   price: number;
   costPrice: number;
   stock: number;

@@ -15,6 +15,7 @@ function AddProductModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
   const [category, setCategory] = useState('Viso');
+  const [barcode, setBarcode] = useState('');
   const [sku, setSku] = useState('');
   const [price, setPrice] = useState('');
   const [costPrice, setCostPrice] = useState('');
@@ -31,6 +32,7 @@ function AddProductModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
       name: name.trim(),
       brand: brand.trim() || 'Generico',
       category,
+      barcode: barcode.trim(),
       sku: sku.trim() || `SKU-${Date.now().toString(36).toUpperCase()}`,
       price: Number(price),
       costPrice: Number(costPrice) || 0,
@@ -61,12 +63,15 @@ function AddProductModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
                 <input type="text" value={brand} onChange={e => setBrand(e.target.value)} placeholder="Es. Dermalogica..."
                   className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Categoria</label>
                 <select value={category} onChange={e => setCategory(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
                   {categories.filter(c => c !== 'Tutti').map(c => <option key={c} value={c}>{c}</option>)}
                 </select></div>
+              <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Codice a Barre</label>
+                <input type="text" value={barcode} onChange={e => setBarcode(e.target.value)} placeholder="Scannerizza..."
+                  className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">SKU</label>
                 <input type="text" value={sku} onChange={e => setSku(e.target.value)} placeholder="Auto-generato"
                   className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
@@ -117,7 +122,7 @@ export default function InventoryPage() {
     if (activeCategory !== 'Tutti') list = list.filter(p => p.category === activeCategory);
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter(p => p.name.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
+      list = list.filter(p => p.name.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.barcode && p.barcode.includes(q)));
     }
     return list;
   }, [products, search, activeCategory]);
@@ -153,7 +158,7 @@ export default function InventoryPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
         <div className="relative flex-1 w-full sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca prodotto, SKU, brand..."
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca prodotto, SKU, barcode, brand..."
             className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-all" />
         </div>
         <div className="flex items-center gap-1 overflow-x-auto pb-1">
@@ -173,7 +178,7 @@ export default function InventoryPage() {
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left px-5 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Prodotto</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider hidden md:table-cell">SKU</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider hidden md:table-cell">Codici (SKU/Barcode)</th>
                 <th className="text-right px-5 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Prezzo</th>
                 <th className="text-right px-5 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Costo</th>
                 <th className="text-center px-5 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Stock</th>
@@ -187,7 +192,7 @@ export default function InventoryPage() {
                 return (
                   <tr key={product.id} className="hover:bg-bg-hover transition-colors group">
                     <td className="px-5 py-3.5"><div><p className="text-sm font-medium text-text-primary">{product.name}</p><p className="text-xs text-text-muted">{product.brand} • {product.category}</p></div></td>
-                    <td className="px-5 py-3.5 hidden md:table-cell"><span className="text-xs text-text-secondary font-mono">{product.sku}</span></td>
+                    <td className="px-5 py-3.5 hidden md:table-cell"><span className="text-xs text-text-secondary font-mono">{product.sku}</span>{product.barcode && <p className="text-[10px] text-text-muted font-mono">{product.barcode}</p>}</td>
                     <td className="px-5 py-3.5 text-right"><span className="text-sm font-medium text-text-primary">{formatCurrency(product.price)}</span></td>
                     <td className="px-5 py-3.5 text-right"><span className="text-sm text-text-secondary">{formatCurrency(product.costPrice)}</span></td>
                     <td className="px-5 py-3.5 text-center"><span className={`text-sm font-semibold ${isLow ? 'text-error' : 'text-text-primary'}`}>{product.stock}</span></td>
