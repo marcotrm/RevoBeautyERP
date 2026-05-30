@@ -925,10 +925,8 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
             
             {clientData?.notes && (
               <div className="p-3 rounded-xl bg-warning/10 border border-warning/20">
-                <p className="text-xs text-warning font-bold mb-1 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5" /> Note Cliente ({clientData.firstName})
-                </p>
-                <p className="text-sm text-warning font-medium">{clientData.notes}</p>
+                <p className="text-xs text-warning/80 mb-1">Note Cliente</p>
+                <p className="text-sm font-medium text-warning">{clientData.notes}</p>
               </div>
             )}
           </div>
