@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, AlertTriangle, Calendar, Trash2 } from 'lucide-react';
+import { Plus, AlertTriangle, Calendar, Trash2, Edit2, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { VariableCost } from '@/lib/admin-data';
 import { formatCurrency } from '@/lib/helpers';
@@ -16,7 +16,8 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 }
 
 export default function VariableCostsPage() {
-  const { variableCosts: costs, addVariableCost, deleteVariableCost } = useVariableCostStore();
+  const { variableCosts: costs, addVariableCost, updateVariableCost, deleteVariableCost } = useVariableCostStore();
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newAmount, setNewAmount] = useState('');
@@ -40,9 +41,27 @@ export default function VariableCostsPage() {
 
   const topSpender = byCategory[0];
 
-  const handleAdd = () => {
+  const handleAddOrEdit = () => {
     if (!newName.trim() || !newCategory || !Number(newAmount)) return;
-    addVariableCost({ id: `vc-${Date.now()}`, name: newName.trim(), category: newCategory, amount: Number(newAmount), date: newDate });
+    if (editingId) {
+      updateVariableCost(editingId, { name: newName.trim(), category: newCategory, amount: Number(newAmount), date: newDate });
+      setEditingId(null);
+    } else {
+      addVariableCost({ id: `vc-${Date.now()}`, name: newName.trim(), category: newCategory, amount: Number(newAmount), date: newDate });
+    }
+    setNewName(''); setNewCategory(''); setNewAmount('');
+  };
+
+  const startEdit = (c: VariableCost) => {
+    setEditingId(c.id);
+    setNewName(c.name);
+    setNewCategory(c.category);
+    setNewAmount(String(c.amount));
+    setNewDate(c.date);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
     setNewName(''); setNewCategory(''); setNewAmount('');
   };
 
@@ -63,7 +82,7 @@ export default function VariableCostsPage() {
 
       {/* Quick Entry */}
       <div className="bg-bg-secondary border border-border rounded-2xl p-5">
-        <h3 className="text-sm font-display font-semibold text-text-primary mb-3">Inserimento Rapido</h3>
+        <h3 className="text-sm font-display font-semibold text-text-primary mb-3">{editingId ? 'Modifica Spesa' : 'Inserimento Rapido'}</h3>
         <div className="flex flex-wrap gap-3">
           <input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nome spesa..." className="flex-1 min-w-[160px] px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
           <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
@@ -72,7 +91,8 @@ export default function VariableCostsPage() {
           </select>
           <input type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)} placeholder="€ Importo" className="w-28 px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
           <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all" />
-          <button onClick={handleAdd} className="flex items-center gap-2 px-4 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium hover:opacity-90 transition-opacity"><Plus className="w-4 h-4" /> Aggiungi</button>
+          <button onClick={handleAddOrEdit} className="flex items-center gap-2 px-4 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium hover:opacity-90 transition-opacity">{editingId ? 'Salva' : <><Plus className="w-4 h-4" /> Aggiungi</>}</button>
+          {editingId && <button onClick={cancelEdit} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border text-text-secondary text-sm font-medium hover:bg-bg-hover transition-colors"><X className="w-4 h-4" /> Annulla</button>}
         </div>
       </div>
 
@@ -87,8 +107,11 @@ export default function VariableCostsPage() {
               <div className="divide-y divide-border/30">{items.map(item => (
                 <div key={item.id} className="flex items-center gap-3 px-5 py-2.5 hover:bg-bg-hover transition-colors group">
                   <div className="flex-1 min-w-0"><p className="text-sm font-medium text-text-primary">{item.name}</p><span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent">{item.category}</span></div>
-                  <span className="text-sm font-semibold text-error">-{formatCurrency(item.amount)}</span>
-                  <button onClick={() => deleteVariableCost(item.id)} className="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+                  <span className="text-sm font-semibold text-error mr-2">-{formatCurrency(item.amount)}</span>
+                  <div className="flex items-center gap-1 transition-all">
+                    <button onClick={() => startEdit(item)} className="p-1 rounded-lg hover:bg-bg-hover text-text-muted hover:text-accent transition-all"><Edit2 className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => { if(window.confirm('Eliminare questa spesa?')) deleteVariableCost(item.id); }} className="p-1 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
                 </div>
               ))}</div>
             </div>
