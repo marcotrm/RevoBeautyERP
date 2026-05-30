@@ -107,7 +107,11 @@ export default function Sidebar() {
         {/* Nav */}
         <nav className="flex-1 py-3 px-2 overflow-y-auto space-y-0.5">
           {menuItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname?.startsWith(item.href));
+            const activeItem = [...menuItems]
+              .sort((a, b) => b.href.length - a.href.length)
+              .find(mi => pathname === mi.href || (mi.href !== '/dashboard' && pathname?.startsWith(mi.href + '/')));
+            
+            const isActive = activeItem?.id === item.id || (item.href === '/dashboard' && pathname === '/dashboard');
             const Icon = item.icon;
             return (
               <Link
