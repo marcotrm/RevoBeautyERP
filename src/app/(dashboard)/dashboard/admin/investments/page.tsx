@@ -63,7 +63,7 @@ function InvestmentModal({ onClose, onSave, initialData }: { onClose: () => void
               <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Es. Laser a diodo, Ristrutturazione..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Categoria</label>
-                <select value={category} onChange={e => setCategory(e.target.value)} className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
+                <select value={category} onChange={e => setCategory(e.target.value as Investment['category'])} className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
                   {INV_CATEGORIES.map(c => <option key={c} value={c}>{INVESTMENT_CATEGORY_LABELS[c]}</option>)}
                 </select></div>
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Costo Totale € *</label>
@@ -87,7 +87,7 @@ function InvestmentModal({ onClose, onSave, initialData }: { onClose: () => void
             </div>
             <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Stato</label>
               <div className="flex gap-2">{Object.entries(STATUS_STYLES).map(([k, v]) => (
-                <button key={k} onClick={() => setStatus(k)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${status === k ? `${v.bg} ${v.text} border border-current/20` : 'bg-bg-tertiary text-text-secondary border border-border'}`}>{v.label}</button>
+                <button key={k} onClick={() => setStatus(k as Investment['status'])} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${status === k ? `${v.bg} ${v.text} border border-current/20` : 'bg-bg-tertiary text-text-secondary border border-border'}`}>{v.label}</button>
               ))}</div></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Rate Pagate</label>
