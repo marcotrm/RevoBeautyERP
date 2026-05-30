@@ -900,16 +900,15 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
                   
                   <div className="mt-3 flex items-center gap-2">
                     <button onClick={() => {
-                      const amountStr = prompt(`Inserisci l'importo da pagare ora per il pacchetto:\n\n${pkg.packageName}\nRimanente: ${formatCurrency(pkg.remainingBalance)}`);
-                      if (amountStr) {
-                        const amount = parseFloat(amountStr.replace(',', '.'));
-                        if (!isNaN(amount) && amount > 0) {
-                          addPayment(pkg.id, amount, 'Carta', 'Staff', 'Pagamento in cabina');
-                          alert(`Pagamento di ${formatCurrency(amount)} registrato!`);
-                          setShowDebtModal(false);
-                          processCheckout();
-                        }
-                      }
+                      setShowDebtModal(false);
+                      const params = new URLSearchParams({
+                        client: appointment.clientName,
+                        treatment: `Rata Pacchetto: ${pkg.packageName}`,
+                        price: String(pkg.remainingBalance),
+                        operator: appointment.operatorName || 'Staff',
+                        debtPkgId: pkg.id,
+                      });
+                      router.push(`/dashboard/pos?${params.toString()}`);
                     }} className="flex-1 py-1.5 rounded-lg bg-accent/10 text-accent text-xs font-semibold hover:bg-accent/20 transition-colors flex items-center justify-center gap-1">
                       <Euro className="w-3.5 h-3.5" /> Registra Pagamento
                     </button>

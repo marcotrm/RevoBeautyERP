@@ -50,8 +50,8 @@ const PAYMENT_METHODS = [
 ];
 
 function NewSaleModal({ onClose, onComplete, initialData }: {
-  onClose: () => void; onComplete: (tx: TransactionRecord) => void;
-  initialData?: { client: string; treatmentName: string; treatmentId: string; price: number; operator: string } | null;
+  onClose: () => void; onComplete: (tx: TransactionRecord, debtPkgId?: string) => void;
+  initialData?: { client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string } | null;
 }) {
   const treatments = useTreatmentStore(s => s.treatments);
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -132,7 +132,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       method: PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label || 'Carta',
       time: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`,
       operator: initialData?.operator || 'Staff',
-    });
+    }, initialData?.debtPkgId);
     setStep('done');
   };
 
@@ -306,9 +306,10 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
 }
 
 function POSPageInner() {
+  const { addPayment } = usePackageStore();
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [transactions, setTransactions] = usePersistedState<TransactionRecord[]>('revo_pos_transactions', defaultTransactions);
-  const [saleInitialData, setSaleInitialData] = useState<{ client: string; treatmentName: string; treatmentId: string; price: number; operator: string } | null>(null);
+  const [saleInitialData, setSaleInitialData] = useState<{ client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string } | null>(null);
   const [showCloseCassa, setShowCloseCassa] = useState(false);
   const [showLastReceipt, setShowLastReceipt] = useState(false);
   const [showRefund, setShowRefund] = useState(false);
@@ -322,17 +323,22 @@ function POSPageInner() {
     const treatmentId = searchParams.get('treatmentId');
     const price = searchParams.get('price');
     const operator = searchParams.get('operator');
+    const debtPkgId = searchParams.get('debtPkgId');
     if (client && treatment) {
       setSaleInitialData({
         client, treatmentName: treatment, treatmentId: treatmentId || '',
         price: Number(price) || 0, operator: operator || 'Staff',
+        debtPkgId: debtPkgId || undefined,
       });
       setShowSaleModal(true);
     }
   }, [searchParams]);
 
-  const handleNewSale = (tx: TransactionRecord) => {
+  const handleNewSale = (tx: TransactionRecord, debtPkgId?: string) => {
     setTransactions(prev => [tx, ...prev]);
+    if (debtPkgId) {
+      addPayment(debtPkgId, tx.total, tx.method as any, tx.operator, 'Pagamento da Cassa');
+    }
   };
 
   const handleRefund = (txId: number) => {
