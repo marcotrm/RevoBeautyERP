@@ -37,7 +37,7 @@ export default function ClientDetailPage() {
   // Custom treatments state
   const [isCustomTreatmentModalOpen, setIsCustomTreatmentModalOpen] = useState(false);
   const [editingCustomTreatmentId, setEditingCustomTreatmentId] = useState<string | null>(null);
-  const [customForm, setCustomForm] = useState({ treatmentId: '', duration: 0, price: 0, notes: '' });
+  const [customForm, setCustomForm] = useState<{treatmentId: string; duration: number | ''; price: number | ''; notes: string}>({ treatmentId: '', duration: '', price: '', notes: '' });
 
   const client = useMemo(
     () => clients.find(c => c.id === params.id),
@@ -65,7 +65,7 @@ export default function ClientDetailPage() {
     : null;
 
   const handleSaveCustomTreatment = () => {
-    if (!customForm.treatmentId || customForm.duration <= 0 || customForm.price < 0) return;
+    if (!customForm.treatmentId || customForm.duration === '' || customForm.duration <= 0 || customForm.price === '' || customForm.price < 0) return;
     
     const tr = treatments.find(t => t.id === customForm.treatmentId);
     if (!tr) return;
@@ -78,8 +78,8 @@ export default function ClientDetailPage() {
       newCustoms = currentCustoms.map(ct => ct.treatmentId === editingCustomTreatmentId ? {
         treatmentId: customForm.treatmentId,
         treatmentName: tr.name,
-        duration: customForm.duration,
-        price: customForm.price,
+        duration: Number(customForm.duration),
+        price: Number(customForm.price),
         notes: customForm.notes,
       } : ct);
     } else {
@@ -89,8 +89,8 @@ export default function ClientDetailPage() {
         {
           treatmentId: customForm.treatmentId,
           treatmentName: tr.name,
-          duration: customForm.duration,
-          price: customForm.price,
+          duration: Number(customForm.duration),
+          price: Number(customForm.price),
           notes: customForm.notes,
         }
       ];
@@ -98,7 +98,7 @@ export default function ClientDetailPage() {
     
     updateClient(client.id, { customTreatments: newCustoms });
     setIsCustomTreatmentModalOpen(false);
-    setCustomForm({ treatmentId: '', duration: 0, price: 0, notes: '' });
+    setCustomForm({ treatmentId: '', duration: '', price: '', notes: '' });
     setEditingCustomTreatmentId(null);
   };
 
@@ -413,7 +413,7 @@ export default function ClientDetailPage() {
               <button 
                 onClick={() => {
                   setEditingCustomTreatmentId(null);
-                  setCustomForm({ treatmentId: '', duration: 0, price: 0, notes: '' });
+                  setCustomForm({ treatmentId: '', duration: '', price: '', notes: '' });
                   setIsCustomTreatmentModalOpen(true);
                 }}
                 className="flex items-center gap-2 px-3 py-2 rounded-xl gradient-accent text-white text-sm font-medium hover:opacity-90 transition-opacity"
@@ -585,7 +585,7 @@ export default function ClientDetailPage() {
                     <input 
                       type="number" 
                       value={customForm.price} 
-                      onChange={e => setCustomForm(prev => ({ ...prev, price: Number(e.target.value) }))}
+                      onChange={e => setCustomForm(prev => ({ ...prev, price: e.target.value === '' ? '' : Number(e.target.value) }))}
                       className="w-full px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50"
                     />
                   </div>
@@ -595,7 +595,7 @@ export default function ClientDetailPage() {
                       type="number" 
                       step={5}
                       value={customForm.duration} 
-                      onChange={e => setCustomForm(prev => ({ ...prev, duration: Number(e.target.value) }))}
+                      onChange={e => setCustomForm(prev => ({ ...prev, duration: e.target.value === '' ? '' : Number(e.target.value) }))}
                       className="w-full px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50"
                     />
                   </div>
