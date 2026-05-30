@@ -10,7 +10,7 @@ import {
   Banknote, ArrowRight, Plus, X, CheckCircle,
   Trash2, Search,
 } from 'lucide-react';
-import { mockTreatments } from '@/lib/mock-data';
+import { mockTreatments, mockProducts } from '@/lib/mock-data';
 import { useClientStore } from '@/stores/useClientStore';
 import { formatCurrency } from '@/lib/helpers';
 import { usePackageStore } from '@/stores/usePackageStore';
@@ -91,7 +91,10 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     const packageItems = packages.map(p => ({
       id: p.id, name: `📦 ${p.name}`, price: p.price, duration: 0, color: p.color, type: 'service' as const, isPackage: true,
     }));
-    return [...treatmentItems, ...packageItems];
+    const productItems = mockProducts.map(p => ({
+      id: p.id, name: `🧴 ${p.name}`, price: p.price, duration: 0, color: '#F59E0B', type: 'product' as const, isPackage: false,
+    }));
+    return [...treatmentItems, ...packageItems, ...productItems];
   }, [packages]);
 
   const filteredServices = serviceSearch.trim()
@@ -153,7 +156,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
               <div className="p-6 space-y-4">
                 {/* Client Search */}
                 <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Cliente *</label>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Cliente (Opzionale)</label>
                   {selectedClient ? (
                     <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-accent/10 border border-accent/20">
                       <span className="text-sm font-medium text-accent flex-1">{selectedClient}</span>
