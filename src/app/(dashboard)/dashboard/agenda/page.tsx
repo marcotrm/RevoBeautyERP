@@ -488,6 +488,8 @@ function MonthView({ selectedDate, allAppointments, onAppointmentClick, onDayCli
 
 /* ========== APPOINTMENT MODAL ========== */
 function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partial<WaitlistEntry>) => void }) {
+  const addClient = useClientStore(s => s.addClient);
+  const [showAddClientModal, setShowAddClientModal] = useState(false);
   const treatments = useTreatmentStore(s => s.treatments);
   const operators = useOperatorStore(s => s.operators);
   const { isAppointmentModalOpen, editingAppointment, closeAppointmentModal, addAppointment, updateAppointment, selectedDate, slotInfo, appointments } = useAgendaStore();
@@ -640,7 +642,16 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
           <div className="px-6 py-5 space-y-4 flex-1 overflow-y-auto">
             {/* Client */}
             <div className="relative">
-              <label className="block text-sm font-medium text-text-secondary mb-1.5">Cliente *</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium text-text-secondary">Cliente *</label>
+                <button 
+                  onClick={() => setShowAddClientModal(true)} 
+                  className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 transition-colors font-medium bg-accent/10 px-2 py-1 rounded-md"
+                >
+                  <UserPlus className="w-3.5 h-3.5" /> Nuovo Cliente
+                </button>
+              </div>
+              
               {selectedClientId ? (
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-bg-tertiary border border-border">
                   <UserCircle className="w-5 h-5 text-accent" />
@@ -828,6 +839,20 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
           </div>
         </div>
       </motion.div>
+
+      <AnimatePresence>
+        {showAddClientModal && (
+          <AddClientModal 
+            onClose={() => setShowAddClientModal(false)}
+            onSave={(data) => {
+              addClient(data);
+              setShowAddClientModal(false);
+              // We could automatically select the new client here, but since the mock ID isn't returned, 
+              // the user can just search for them. In a real app we'd get the ID back and set it.
+            }}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }
