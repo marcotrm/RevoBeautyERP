@@ -1019,9 +1019,13 @@ export default function AgendaPage() {
     appointments, selectedDate, view, selectedOperatorIds,
     setView, goToToday, goToPrev, goToNext, setSelectedDate,
     openAppointmentModal, isAppointmentModalOpen, moveAppointment,
-    updateAppointment, deleteAppointment, addAppointment,
+    updateAppointment, deleteAppointment, addAppointment, fetchAppointments,
   } = useAgendaStore();
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
+
+  useEffect(() => {
+    fetchAppointments();
+  }, [fetchAppointments]);
 
   // Waitlist state
   const { entries: waitlistEntries, updateStatus: updateWaitlistStatus, addEntry: addWaitlistEntry } = useWaitlistStore();
