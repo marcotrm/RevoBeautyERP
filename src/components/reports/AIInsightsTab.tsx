@@ -1,11 +1,21 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, TrendingUp, AlertTriangle, Lightbulb, Users, Info, ShieldCheck } from 'lucide-react';
+import { Sparkles, TrendingUp, AlertTriangle, Lightbulb, Users, Info, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { AI_INSIGHTS } from '@/lib/reports-mock-data';
 
 export default function AIInsightsTab() {
+  const [actionStates, setActionStates] = useState<Record<number, 'idle' | 'loading' | 'done'>>({});
+
+  const handleAction = (index: number) => {
+    if (actionStates[index] === 'done') return;
+    setActionStates(prev => ({ ...prev, [index]: 'loading' }));
+    setTimeout(() => {
+      setActionStates(prev => ({ ...prev, [index]: 'done' }));
+    }, 1500);
+  };
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="bg-gradient-to-r from-accent/20 via-pink-500/10 to-accent/5 border border-accent/20 rounded-2xl p-6 relative overflow-hidden">
@@ -73,8 +83,18 @@ export default function AIInsightsTab() {
                   <h4 className="text-sm font-bold text-text-primary">{action.title}</h4>
                 </div>
                 <p className="text-sm text-text-secondary leading-relaxed">{action.message}</p>
-                <button className={`mt-4 text-xs font-bold text-${color} flex items-center gap-1 opacity-80 hover:opacity-100 transition-opacity`}>
-                  Applica Azione Ora &rarr;
+                <button 
+                  onClick={() => handleAction(i)}
+                  disabled={actionStates[i] === 'loading' || actionStates[i] === 'done'}
+                  className={`mt-4 text-xs font-bold ${actionStates[i] === 'done' ? 'text-success' : `text-${color}`} flex items-center gap-1.5 opacity-80 hover:opacity-100 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {actionStates[i] === 'loading' ? (
+                    <><div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" /> Esecuzione AI in corso...</>
+                  ) : actionStates[i] === 'done' ? (
+                    <><CheckCircle2 className="w-4 h-4" /> Azione Applicata</>
+                  ) : (
+                    <>Applica Azione Ora &rarr;</>
+                  )}
                 </button>
               </div>
             </div>

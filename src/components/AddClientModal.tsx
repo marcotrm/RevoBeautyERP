@@ -8,23 +8,25 @@ import { getInitials } from '@/lib/helpers';
 
 export default function AddClientModal({ 
   onClose, 
-  onSave 
+  onSave,
+  initialData
 }: { 
   onClose: () => void; 
-  onSave: (data: Omit<Client, 'id' | 'createdAt' | 'totalSpent' | 'visitCount' | 'avgTicket' | 'loyaltyPoints' | 'cashback'>) => void;
+  onSave: (data: any) => void;
+  initialData?: Client;
 }) {
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [birthDate, setBirthDate] = useState('');
-  const [gender, setGender] = useState<'F' | 'M' | 'other'>('F');
-  const [address, setAddress] = useState('');
-  const [city, setCity] = useState('');
-  const [notes, setNotes] = useState('');
-  const [gdprConsent, setGdprConsent] = useState(false);
-  const [marketingConsent, setMarketingConsent] = useState(false);
-  const [tags, setTags] = useState('');
+  const [firstName, setFirstName] = useState(initialData?.firstName || '');
+  const [lastName, setLastName] = useState(initialData?.lastName || '');
+  const [phone, setPhone] = useState(initialData?.phone || '');
+  const [email, setEmail] = useState(initialData?.email || '');
+  const [birthDate, setBirthDate] = useState(initialData?.birthDate || '');
+  const [gender, setGender] = useState<'F' | 'M' | 'other'>(initialData?.gender || 'F');
+  const [address, setAddress] = useState(initialData?.address || '');
+  const [city, setCity] = useState(initialData?.city || '');
+  const [notes, setNotes] = useState(initialData?.notes || '');
+  const [gdprConsent, setGdprConsent] = useState(initialData?.gdprConsent || false);
+  const [marketingConsent, setMarketingConsent] = useState(initialData?.marketingConsent || false);
+  const [tags, setTags] = useState(initialData?.tags?.join(', ') || '');
 
   const canSave = firstName.trim() && lastName.trim() && phone.trim();
 
@@ -41,7 +43,7 @@ export default function AddClientModal({
       city: city || undefined,
       notes: notes || undefined,
       tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-      vipLevel: 0,
+      vipLevel: initialData ? initialData.vipLevel : 0,
       gdprConsent,
       marketingConsent,
     });
@@ -55,7 +57,7 @@ export default function AddClientModal({
         transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center sm:p-4" onClick={e => e.target === e.currentTarget && onClose()}>
         <div className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-lg bg-bg-secondary sm:border sm:border-border sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
-            <h3 className="text-lg font-display font-semibold text-text-primary">Nuovo Cliente</h3>
+            <h3 className="text-lg font-display font-semibold text-text-primary">{initialData ? 'Modifica Cliente' : 'Nuovo Cliente'}</h3>
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
           </div>
           <div className="px-6 py-5 space-y-4 flex-1 overflow-y-auto">
@@ -126,7 +128,7 @@ export default function AddClientModal({
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-bg-tertiary/30 flex-shrink-0">
             <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Annulla</button>
             <button onClick={handleSave} disabled={!canSave} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${canSave ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
-              <CheckCircle className="w-4 h-4" /> Crea Cliente
+              <CheckCircle className="w-4 h-4" /> {initialData ? 'Salva Modifiche' : 'Crea Cliente'}
             </button>
           </div>
         </div>

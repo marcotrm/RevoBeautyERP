@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency, getInitials, formatDate, getStatusLabel, getStatusColor, getCategoryLabel, generateId } from '@/lib/helpers';
 import Link from 'next/link';
+import AddClientModal from '@/components/AddClientModal';
 
 const tabs = [
   { id: 'profile', label: 'Profilo', icon: User },
@@ -38,6 +39,9 @@ export default function ClientDetailPage() {
   const [isCustomTreatmentModalOpen, setIsCustomTreatmentModalOpen] = useState(false);
   const [editingCustomTreatmentId, setEditingCustomTreatmentId] = useState<string | null>(null);
   const [customForm, setCustomForm] = useState<{treatmentId: string; duration: number | ''; price: number | ''; notes: string}>({ treatmentId: '', duration: '', price: '', notes: '' });
+
+  // Edit client modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const client = useMemo(
     () => clients.find(c => c.id === params.id),
@@ -190,7 +194,10 @@ export default function ClientDetailPage() {
               <button className="flex-1 sm:flex-none flex items-center justify-center p-2.5 rounded-xl border border-border hover:bg-bg-hover hover:border-border-light text-text-secondary transition-all">
                 <Mail className="w-4 h-4" />
               </button>
-              <button className="flex-[2] sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl gradient-accent text-white text-sm font-bold shadow-lg shadow-accent/20 hover:shadow-accent/40 transition-all hover:-translate-y-0.5">
+              <button 
+                onClick={() => setIsEditModalOpen(true)}
+                className="flex-[2] sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl gradient-accent text-white text-sm font-bold shadow-lg shadow-accent/20 hover:shadow-accent/40 transition-all hover:-translate-y-0.5"
+              >
                 <Edit className="w-4 h-4" /> Modifica
               </button>
             </div>
@@ -635,6 +642,18 @@ export default function ClientDetailPage() {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {isEditModalOpen && (
+          <AddClientModal
+            initialData={client}
+            onClose={() => setIsEditModalOpen(false)}
+            onSave={(updates) => {
+              updateClient(client.id, updates);
+              setIsEditModalOpen(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
