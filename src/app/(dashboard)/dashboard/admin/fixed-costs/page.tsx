@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Calendar, CreditCard, X, CheckCircle, Trash2 } from 'lucide-react';
+import { Plus, Calendar, CreditCard, X, CheckCircle, Trash2, Edit2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import {
   getTotalFixedCostsMonthly, getFixedCostsByCategory,
@@ -15,23 +15,29 @@ const FREQ_LABELS: Record<string, string> = { mensile: 'Mensile', trimestrale: '
 const PAY_LABELS: Record<string, string> = { bonifico: 'Bonifico', rid: 'RID', carta: 'Carta', contanti: 'Contanti', assegno: 'Assegno' };
 const CATEGORIES = ['personale', 'struttura', 'utenze', 'tasse', 'marketing'] as const;
 
-function AddCostModal({ onClose, onSave }: { onClose: () => void; onSave: (c: FixedCost) => void }) {
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState<string>('personale');
-  const [subcategory, setSubcategory] = useState('');
-  const [amount, setAmount] = useState('');
-  const [frequency, setFrequency] = useState<string>('mensile');
-  const [paymentDate, setPaymentDate] = useState('1');
-  const [paymentMethod, setPaymentMethod] = useState<string>('bonifico');
-  const [notes, setNotes] = useState('');
+function CostModal({ onClose, onSave, initialData }: { onClose: () => void; onSave: (c: FixedCost) => void; initialData?: FixedCost | null }) {
+  const [name, setName] = useState(initialData?.name || '');
+  const [category, setCategory] = useState<string>(initialData?.category || 'personale');
+  const [subcategory, setSubcategory] = useState(initialData?.subcategory || '');
+  const [amount, setAmount] = useState(initialData?.amount ? String(initialData.amount) : '');
+  const [frequency, setFrequency] = useState<string>(initialData?.frequency || 'mensile');
+  const [paymentDate, setPaymentDate] = useState(initialData?.paymentDate ? String(initialData.paymentDate) : '1');
+  const [paymentMethod, setPaymentMethod] = useState<string>(initialData?.paymentMethod || 'bonifico');
+  const [notes, setNotes] = useState(initialData?.notes || '');
   const canSave = name.trim() && Number(amount) > 0;
   const handleSave = () => {
     if (!canSave) return;
     onSave({
-      id: `fc-${Date.now()}`, name: name.trim(), category: category as FixedCost['category'],
-      subcategory: subcategory || name.trim(), amount: Number(amount),
-      frequency: frequency as FixedCost['frequency'], paymentDate: Number(paymentDate),
-      paymentMethod: paymentMethod as FixedCost['paymentMethod'], notes, isActive: true,
+      id: initialData ? initialData.id : `fc-${Date.now()}`, 
+      name: name.trim(), 
+      category: category as FixedCost['category'],
+      subcategory: subcategory || name.trim(), 
+      amount: Number(amount),
+      frequency: frequency as FixedCost['frequency'], 
+      paymentDate: Number(paymentDate),
+      paymentMethod: paymentMethod as FixedCost['paymentMethod'], 
+      notes, 
+      isActive: initialData ? initialData.isActive : true,
     });
     onClose();
   };
@@ -42,7 +48,7 @@ function AddCostModal({ onClose, onSave }: { onClose: () => void; onSave: (c: Fi
         transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
         <div className="w-full max-w-lg bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-            <h3 className="text-lg font-display font-semibold text-text-primary">Nuovo Costo Fisso</h3>
+            <h3 className="text-lg font-display font-semibold text-text-primary">{initialData ? 'Modifica Costo Fisso' : 'Nuovo Costo Fisso'}</h3>
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
           </div>
           <div className="px-6 py-5 space-y-4 max-h-[calc(100vh-14rem)] overflow-y-auto">
@@ -77,7 +83,7 @@ function AddCostModal({ onClose, onSave }: { onClose: () => void; onSave: (c: Fi
           </div>
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-bg-tertiary/30">
             <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Annulla</button>
-            <button onClick={handleSave} disabled={!canSave} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${canSave ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}><CheckCircle className="w-4 h-4" /> Aggiungi</button>
+            <button onClick={handleSave} disabled={!canSave} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${canSave ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}><CheckCircle className="w-4 h-4" /> {initialData ? 'Salva Modifiche' : 'Aggiungi'}</button>
           </div>
         </div>
       </motion.div>
@@ -86,8 +92,9 @@ function AddCostModal({ onClose, onSave }: { onClose: () => void; onSave: (c: Fi
 }
 
 export default function FixedCostsPage() {
-  const { fixedCosts: costs, addFixedCost, deleteFixedCost } = useFixedCostStore();
+  const { fixedCosts: costs, addFixedCost, updateFixedCost, deleteFixedCost } = useFixedCostStore();
   const [showModal, setShowModal] = useState(false);
+  const [editingCost, setEditingCost] = useState<FixedCost | null>(null);
   const totalMonthly = getTotalFixedCostsMonthly(costs);
   const byCategory = getFixedCostsByCategory(costs);
   const categories = Object.keys(byCategory);
@@ -98,7 +105,7 @@ export default function FixedCostsPage() {
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h2 className="text-xl font-display font-bold text-text-primary">Costi Fissi</h2><p className="text-sm text-text-secondary">Gestione costi fissi mensili, trimestrali e annuali</p></div>
-        <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105"><Plus className="w-4 h-4" /> Aggiungi Costo</button>
+        <button onClick={() => { setEditingCost(null); setShowModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105"><Plus className="w-4 h-4" /> Aggiungi Costo</button>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-bg-secondary border border-border rounded-2xl p-5"><p className="text-sm text-text-secondary">Totale Mensile</p><p className="text-2xl font-display font-bold text-text-primary mt-1">{formatCurrency(totalMonthly)}</p></div>
@@ -125,8 +132,9 @@ export default function FixedCostsPage() {
                       <span className="flex items-center gap-1"><CreditCard className="w-3 h-3" />{PAY_LABELS[item.paymentMethod]}</span>
                       <span className="px-2 py-0.5 rounded-full bg-bg-tertiary">{FREQ_LABELS[item.frequency]}</span>
                     </div>
-                    <span className="text-sm font-semibold text-text-primary">{formatCurrency(item.amount)}</span>
-                    <button onClick={() => deleteFixedCost(item.id)} className="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <span className="text-sm font-semibold text-text-primary mr-2">{formatCurrency(item.amount)}</span>
+                    <button onClick={() => { setEditingCost(item); setShowModal(true); }} className="p-1 rounded-lg hover:bg-bg-hover text-text-muted hover:text-accent transition-all"><Edit2 className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => { if(window.confirm('Eliminare questo costo fisso?')) deleteFixedCost(item.id); }} className="p-1 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 ))}</div>
               </div>
@@ -139,7 +147,21 @@ export default function FixedCostsPage() {
           <div className="space-y-2 mt-3">{pieData.map(item => (<div key={item.name} className="flex items-center justify-between"><div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} /><span className="text-xs text-text-secondary">{item.name}</span></div><span className="text-xs font-bold text-text-primary">{formatCurrency(item.value)}</span></div>))}</div>
         </div>
       </div>
-      <AnimatePresence>{showModal && <AddCostModal onClose={() => setShowModal(false)} onSave={c => addFixedCost(c)} />}</AnimatePresence>
+      <AnimatePresence>
+        {showModal && (
+          <CostModal 
+            initialData={editingCost}
+            onClose={() => { setShowModal(false); setEditingCost(null); }} 
+            onSave={c => {
+              if (editingCost) {
+                updateFixedCost(c.id, c);
+              } else {
+                addFixedCost(c);
+              }
+            }} 
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
