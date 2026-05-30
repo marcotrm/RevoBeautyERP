@@ -4,8 +4,9 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, CheckCircle, Trash2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { mockInvestments, INVESTMENT_CATEGORY_LABELS, Investment } from '@/lib/admin-data';
+import { INVESTMENT_CATEGORY_LABELS, Investment } from '@/lib/admin-data';
 import { formatCurrency } from '@/lib/helpers';
+import { useInvestmentStore } from '@/stores/useInvestmentStore';
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   pianificato: { bg: 'bg-warning/10', text: 'text-warning', label: 'Pianificato' },
@@ -90,7 +91,7 @@ function AddInvestmentModal({ onClose, onSave }: { onClose: () => void; onSave: 
 }
 
 export default function InvestmentsPage() {
-  const [investments, setInvestments] = useState<Investment[]>(mockInvestments);
+  const { investments, addInvestment, deleteInvestment } = useInvestmentStore();
   const [filter, setFilter] = useState<string>('all');
   const [showModal, setShowModal] = useState(false);
   const filtered = filter === 'all' ? investments : investments.filter(i => i.status === filter);
@@ -132,7 +133,7 @@ export default function InvestmentsPage() {
           const st = STATUS_STYLES[inv.status]; const progress = inv.installments ? Math.round(((inv.installmentsPaid || 0) / inv.installments) * 100) : 100;
           return (
             <div key={inv.id} className="bg-bg-secondary border border-border rounded-2xl p-5 hover:border-border-light transition-all group relative">
-              <button onClick={() => setInvestments(p => p.filter(i => i.id !== inv.id))} className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+              <button onClick={() => deleteInvestment(inv.id)} className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
               <div className="flex items-start justify-between mb-3"><div><h4 className="text-sm font-semibold text-text-primary">{inv.name}</h4><span className="text-xs text-text-muted">{INVESTMENT_CATEGORY_LABELS[inv.category]} • {inv.supplier}</span></div><span className={`text-[10px] font-semibold px-2 py-1 rounded-full ${st.bg} ${st.text}`}>{st.label}</span></div>
               <div className="grid grid-cols-3 gap-3 mb-3"><div><p className="text-[10px] text-text-muted">Costo</p><p className="text-sm font-bold text-text-primary">{formatCurrency(inv.totalCost)}</p></div><div><p className="text-[10px] text-text-muted">ROI Stimato</p><p className="text-sm font-bold text-info">{inv.estimatedROI}%</p></div><div><p className="text-[10px] text-text-muted">ROI Reale</p><p className="text-sm font-bold text-success">{inv.actualROI ? `${inv.actualROI}%` : '—'}</p></div></div>
               {inv.installments && <div><div className="flex justify-between text-[10px] text-text-muted mb-1"><span>Rate: {inv.installmentsPaid}/{inv.installments}</span><span>{progress}%</span></div><div className="w-full h-1.5 rounded-full bg-bg-tertiary overflow-hidden"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} /></div></div>}
@@ -141,7 +142,7 @@ export default function InvestmentsPage() {
           );
         })}
       </div>
-      <AnimatePresence>{showModal && <AddInvestmentModal onClose={() => setShowModal(false)} onSave={i => setInvestments(p => [...p, i])} />}</AnimatePresence>
+      <AnimatePresence>{showModal && <AddInvestmentModal onClose={() => setShowModal(false)} onSave={i => addInvestment(i)} />}</AnimatePresence>
     </motion.div>
   );
 }
