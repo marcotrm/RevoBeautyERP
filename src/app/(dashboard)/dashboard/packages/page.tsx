@@ -10,6 +10,7 @@ import {
 import { formatCurrency } from '@/lib/helpers';
 import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
+import { TreatmentsSection } from './TreatmentsSection';
 const PKG_COLORS = ['#8B5CF6', '#EC4899', '#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#6366F1', '#14B8A6'];
 
 /* ========== USE SESSION MODAL ========== */
@@ -650,7 +651,6 @@ export default function PackagesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div><h2 className="text-xl font-display font-bold text-text-primary">Trattamenti e Pacchetti</h2><p className="text-sm text-text-secondary">Gestisci pacchetti a sedute e scala le visite</p></div>
         <div className="flex gap-2">
-          <button onClick={() => setShowListinoModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-tertiary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all"><Plus className="w-4 h-4" /> Nuovo Trattamento</button>
           <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105"><Plus className="w-4 h-4" /> Nuovo Pacchetto</button>
         </div>
       </div>
@@ -783,6 +783,9 @@ export default function PackagesPage() {
           )}
         </div>
       </div>
+
+      {/* Treatments Section */}
+      <TreatmentsSection />
 
       {/* Modals */}
       <AnimatePresence>{showAddModal && <AddPackageModal onClose={() => setShowAddModal(false)} onSave={p => { addPackage(p); setShowAddModal(false); }} />}</AnimatePresence>
