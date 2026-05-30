@@ -16,25 +16,35 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }>
 };
 const INV_CATEGORIES = Object.keys(INVESTMENT_CATEGORY_LABELS);
 
-function AddInvestmentModal({ onClose, onSave }: { onClose: () => void; onSave: (i: Investment) => void }) {
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState('macchinari');
-  const [totalCost, setTotalCost] = useState('');
-  const [supplier, setSupplier] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('Bonifico');
-  const [estimatedROI, setEstimatedROI] = useState('100');
-  const [amortYears, setAmortYears] = useState('5');
-  const [installments, setInstallments] = useState('');
-  const [status, setStatus] = useState('pianificato');
+function InvestmentModal({ onClose, onSave, initialData }: { onClose: () => void; onSave: (i: Investment) => void; initialData?: Investment | null }) {
+  const [name, setName] = useState(initialData?.name || '');
+  const [category, setCategory] = useState(initialData?.category || 'macchinari');
+  const [totalCost, setTotalCost] = useState(initialData?.totalCost ? String(initialData.totalCost) : '');
+  const [supplier, setSupplier] = useState(initialData?.supplier || '');
+  const [paymentMethod, setPaymentMethod] = useState(initialData?.paymentMethod || 'Bonifico');
+  const [estimatedROI, setEstimatedROI] = useState(initialData?.estimatedROI ? String(initialData.estimatedROI) : '100');
+  const [amortYears, setAmortYears] = useState(initialData?.amortizationYears ? String(initialData.amortizationYears) : '5');
+  const [installments, setInstallments] = useState(initialData?.installments ? String(initialData.installments) : '');
+  const [status, setStatus] = useState(initialData?.status || 'pianificato');
+  const [actualROI, setActualROI] = useState(initialData?.actualROI ? String(initialData.actualROI) : '');
+  const [installmentsPaid, setInstallmentsPaid] = useState(initialData?.installmentsPaid ? String(initialData.installmentsPaid) : '0');
   const canSave = name.trim() && Number(totalCost) > 0;
   const handleSave = () => {
     if (!canSave) return;
     onSave({
-      id: `inv-${Date.now()}`, name: name.trim(), category: category as Investment['category'],
-      totalCost: Number(totalCost), date: new Date().toISOString().slice(0, 10), supplier,
-      paymentMethod, installments: Number(installments) || undefined, installmentsPaid: 0,
-      estimatedROI: Number(estimatedROI), status: status as Investment['status'],
+      id: initialData ? initialData.id : `inv-${Date.now()}`, 
+      name: name.trim(), 
+      category: category as Investment['category'],
+      totalCost: Number(totalCost), 
+      date: initialData ? initialData.date : new Date().toISOString().slice(0, 10), 
+      supplier,
+      paymentMethod, 
+      installments: Number(installments) || undefined, 
+      installmentsPaid: Number(installmentsPaid) || 0,
+      estimatedROI: Number(estimatedROI), 
+      status: status as Investment['status'],
       amortizationYears: Number(amortYears),
+      actualROI: actualROI ? Number(actualROI) : undefined,
     });
     onClose();
   };
@@ -45,7 +55,7 @@ function AddInvestmentModal({ onClose, onSave }: { onClose: () => void; onSave: 
         transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
         <div className="w-full max-w-lg bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-            <h3 className="text-lg font-display font-semibold text-text-primary">Nuovo Investimento</h3>
+            <h3 className="text-lg font-display font-semibold text-text-primary">{initialData ? 'Modifica Investimento' : 'Nuovo Investimento'}</h3>
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
           </div>
           <div className="px-6 py-5 space-y-4 max-h-[calc(100vh-14rem)] overflow-y-auto">
@@ -79,10 +89,16 @@ function AddInvestmentModal({ onClose, onSave }: { onClose: () => void; onSave: 
               <div className="flex gap-2">{Object.entries(STATUS_STYLES).map(([k, v]) => (
                 <button key={k} onClick={() => setStatus(k)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${status === k ? `${v.bg} ${v.text} border border-current/20` : 'bg-bg-tertiary text-text-secondary border border-border'}`}>{v.label}</button>
               ))}</div></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Rate Pagate</label>
+                <input type="number" value={installmentsPaid} onChange={e => setInstallmentsPaid(e.target.value)} disabled={!installments || Number(installments) === 0} className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all disabled:opacity-50" /></div>
+              <div><label className="block text-sm font-medium text-text-secondary mb-1.5">ROI Reale %</label>
+                <input type="number" value={actualROI} onChange={e => setActualROI(e.target.value)} placeholder="Opzionale" className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+            </div>
           </div>
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-bg-tertiary/30">
             <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Annulla</button>
-            <button onClick={handleSave} disabled={!canSave} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${canSave ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}><CheckCircle className="w-4 h-4" /> Crea Investimento</button>
+            <button onClick={handleSave} disabled={!canSave} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${canSave ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}><CheckCircle className="w-4 h-4" /> {initialData ? 'Salva Modifiche' : 'Crea Investimento'}</button>
           </div>
         </div>
       </motion.div>
@@ -91,9 +107,10 @@ function AddInvestmentModal({ onClose, onSave }: { onClose: () => void; onSave: 
 }
 
 export default function InvestmentsPage() {
-  const { investments, addInvestment, deleteInvestment } = useInvestmentStore();
+  const { investments, addInvestment, updateInvestment, deleteInvestment } = useInvestmentStore();
   const [filter, setFilter] = useState<string>('all');
   const [showModal, setShowModal] = useState(false);
+  const [editingInv, setEditingInv] = useState<Investment | null>(null);
   const filtered = filter === 'all' ? investments : investments.filter(i => i.status === filter);
   const totalInvested = investments.filter(i => i.status !== 'annullato').reduce((s, i) => s + i.totalCost, 0);
   const withROI = investments.filter(i => i.actualROI);
@@ -106,7 +123,7 @@ export default function InvestmentsPage() {
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h2 className="text-xl font-display font-bold text-text-primary">Investimenti</h2><p className="text-sm text-text-secondary">Macchinari, formazione, ristrutturazioni e ROI</p></div>
-        <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105"><Plus className="w-4 h-4" /> Nuovo Investimento</button>
+        <button onClick={() => { setEditingInv(null); setShowModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105"><Plus className="w-4 h-4" /> Nuovo Investimento</button>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-bg-secondary border border-border rounded-2xl p-5"><p className="text-sm text-text-secondary">Totale Investito</p><p className="text-2xl font-display font-bold text-text-primary mt-1">{formatCurrency(totalInvested)}</p></div>
@@ -133,7 +150,10 @@ export default function InvestmentsPage() {
           const st = STATUS_STYLES[inv.status]; const progress = inv.installments ? Math.round(((inv.installmentsPaid || 0) / inv.installments) * 100) : 100;
           return (
             <div key={inv.id} className="bg-bg-secondary border border-border rounded-2xl p-5 hover:border-border-light transition-all group relative">
-              <button onClick={() => deleteInvestment(inv.id)} className="absolute top-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+              <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                <button onClick={() => { setEditingInv(inv); setShowModal(true); }} className="p-1.5 rounded-lg hover:bg-bg-hover text-text-muted hover:text-accent transition-all"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 Z"></path></svg></button>
+                <button onClick={() => { if(window.confirm('Eliminare questo investimento?')) deleteInvestment(inv.id); }} className="p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+              </div>
               <div className="flex items-start justify-between mb-3"><div><h4 className="text-sm font-semibold text-text-primary">{inv.name}</h4><span className="text-xs text-text-muted">{INVESTMENT_CATEGORY_LABELS[inv.category]} • {inv.supplier}</span></div><span className={`text-[10px] font-semibold px-2 py-1 rounded-full ${st.bg} ${st.text}`}>{st.label}</span></div>
               <div className="grid grid-cols-3 gap-3 mb-3"><div><p className="text-[10px] text-text-muted">Costo</p><p className="text-sm font-bold text-text-primary">{formatCurrency(inv.totalCost)}</p></div><div><p className="text-[10px] text-text-muted">ROI Stimato</p><p className="text-sm font-bold text-info">{inv.estimatedROI}%</p></div><div><p className="text-[10px] text-text-muted">ROI Reale</p><p className="text-sm font-bold text-success">{inv.actualROI ? `${inv.actualROI}%` : '—'}</p></div></div>
               {inv.installments && <div><div className="flex justify-between text-[10px] text-text-muted mb-1"><span>Rate: {inv.installmentsPaid}/{inv.installments}</span><span>{progress}%</span></div><div className="w-full h-1.5 rounded-full bg-bg-tertiary overflow-hidden"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} /></div></div>}
@@ -142,7 +162,21 @@ export default function InvestmentsPage() {
           );
         })}
       </div>
-      <AnimatePresence>{showModal && <AddInvestmentModal onClose={() => setShowModal(false)} onSave={i => addInvestment(i)} />}</AnimatePresence>
+      <AnimatePresence>
+        {showModal && (
+          <InvestmentModal 
+            initialData={editingInv}
+            onClose={() => { setShowModal(false); setEditingInv(null); }} 
+            onSave={i => {
+              if (editingInv) {
+                updateInvestment(i.id, i);
+              } else {
+                addInvestment(i);
+              }
+            }} 
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
