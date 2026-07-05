@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, X, CheckCircle } from 'lucide-react';
+import { Plus, Search, X, CheckCircle, Upload, Loader2 } from 'lucide-react';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { Treatment, TreatmentCategory } from '@/types';
 import { formatCurrency } from '@/lib/helpers';
@@ -21,6 +21,10 @@ export function TreatmentsSection() {
   const addTreatment = useTreatmentStore(s => s.addTreatment);
   const updateTreatment = useTreatmentStore(s => s.updateTreatment);
   const deleteTreatment = useTreatmentStore(s => s.deleteTreatment);
+  const setTreatments = useTreatmentStore(s => s.setTreatments);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Treatment | null>(null);
@@ -53,6 +57,33 @@ export function TreatmentsSection() {
 
   const handleDelete = (id: string) => { deleteTreatment(id); };
 
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setImportMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/treatments/import', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Errore durante l\'import');
+      setTreatments(data.treatments as Treatment[]);
+      setImportMsg(`✓ ${data.count} trattamenti importati con successo`);
+    } catch (err) {
+      setImportMsg(`✗ ${err instanceof Error ? err.message : 'Errore'}`);
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Prezzo/durata donna e uomo per la visualizzazione
+  const priceF = (t: Treatment) => t.priceFemale ?? t.price;
+  const priceM = (t: Treatment) => t.priceMale;
+  const durF = (t: Treatment) => t.durationFemale ?? t.duration;
+  const durM = (t: Treatment) => t.durationMale;
+
   const filtered = search.trim() ? treatments.filter(t => t.name.toLowerCase().includes(search.toLowerCase())) : treatments;
 
   return (
@@ -66,11 +97,22 @@ export function TreatmentsSection() {
               <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca..."
                 className="pl-8 pr-3 py-2 rounded-xl bg-bg-tertiary border border-border text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all w-40" />
             </div>
+            <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleImport} className="hidden" />
+            <button onClick={() => fileInputRef.current?.click()} disabled={importing}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-text-primary text-xs font-medium hover:bg-bg-hover transition-all disabled:opacity-50">
+              {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+              {importing ? 'Importo...' : 'Importa Excel'}
+            </button>
             <button onClick={openAdd} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-text-primary text-xs font-medium hover:bg-bg-hover transition-all">
               <Plus className="w-3.5 h-3.5" /> Nuovo
             </button>
           </div>
         </div>
+        {importMsg && (
+          <div className={`px-6 py-2.5 text-xs font-medium border-b border-border ${importMsg.startsWith('✓') ? 'text-green-500 bg-green-500/5' : 'text-error bg-error/5'}`}>
+            {importMsg}
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead><tr className="border-b border-border">
@@ -85,8 +127,13 @@ export function TreatmentsSection() {
                 <tr key={t.id} className="hover:bg-bg-hover transition-colors group">
                   <td className="px-5 py-3"><div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} /><span className="text-sm font-medium text-text-primary">{t.name}</span></div></td>
                   <td className="px-5 py-3 hidden sm:table-cell"><span className="text-xs text-text-secondary">{getCategoryLabel(t.category)}</span></td>
-                  <td className="px-5 py-3 text-center"><span className="text-sm text-text-secondary">{t.duration} min</span></td>
-                  <td className="px-5 py-3 text-right"><span className="text-sm font-semibold text-text-primary">{formatCurrency(t.price)}</span></td>
+                  <td className="px-5 py-3 text-center">
+                    <span className="text-sm text-text-secondary">♀ {durF(t)}′{durM(t) != null ? <span className="text-text-muted"> · ♂ {durM(t)}′</span> : null}</span>
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <span className="text-sm font-semibold text-text-primary">♀ {formatCurrency(priceF(t))}</span>
+                    {priceM(t) != null ? <span className="text-xs text-text-muted block">♂ {formatCurrency(priceM(t) as number)}</span> : null}
+                  </td>
                   <td className="px-3 py-3">
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => openEdit(t)} className="p-1.5 rounded-lg hover:bg-accent/10 text-text-muted hover:text-accent transition-all" title="Modifica">

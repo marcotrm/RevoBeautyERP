@@ -8,6 +8,7 @@ interface TreatmentState {
   addTreatment: (treatment: Treatment) => void;
   updateTreatment: (id: string, data: Partial<Treatment>) => void;
   deleteTreatment: (id: string) => void;
+  setTreatments: (treatments: Treatment[]) => void;
 }
 
 export const useTreatmentStore = create<TreatmentState>()(
@@ -27,7 +28,9 @@ export const useTreatmentStore = create<TreatmentState>()(
       
       deleteTreatment: (id) => set((state) => ({
         treatments: state.treatments.filter((t) => t.id !== id)
-      }))
+      })),
+
+      setTreatments: (treatments) => set({ treatments })
     }),
     {
       name: 'revo_treatments', // using the same key as the old usePersistedState so data is preserved

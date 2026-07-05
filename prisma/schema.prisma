@@ -77,6 +77,10 @@ model Treatment {
   category         String
   duration         Int
   price            Float
+  priceMale        Float?
+  priceFemale      Float?
+  durationMale     Int?
+  durationFemale   Int?
   description      String?
   requiresRoom     Boolean @default(false)
   requiresEquipment String?

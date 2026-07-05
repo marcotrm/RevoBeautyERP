@@ -94,8 +94,12 @@ export interface Treatment {
   id: string;
   name: string;
   category: TreatmentCategory;
-  duration: number; // minutes
-  price: number;
+  duration: number; // minutes (default = valore donna)
+  price: number; // default = prezzo donna
+  priceMale?: number;
+  priceFemale?: number;
+  durationMale?: number; // minutes
+  durationFemale?: number; // minutes
   description?: string;
   requiresRoom: boolean;
   requiresEquipment?: string;
