@@ -626,9 +626,10 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     if (!selectedTreatment || !selectedOperatorId) return false;
     const eStart = timeToMinutes(startTime);
     const eEnd = eStart + effectiveDuration;
-    return appointments.some(a => 
+    return appointments.some(a =>
       a.date === dateStr && a.operatorId === selectedOperatorId &&
       a.id !== editingAppointment?.id &&
+      a.status !== 'cancelled' && a.status !== 'no_show' &&
       !(timeToMinutes(a.endTime) <= eStart || timeToMinutes(a.startTime) >= eEnd)
     );
   }, [startTime, selectedTreatment, dateStr, selectedOperatorId, appointments, editingAppointment, effectiveDuration]);
@@ -1356,7 +1357,22 @@ export default function AgendaPage() {
       {/* Views */}
       {view === 'day' && (
         <DayView appointments={todayAppointments} operators={visibleOperators} onAppointmentClick={handleAppointmentClick} onWaitlistAdd={handleWaitlistAdd}
-          onSlotClick={(operatorId, hour) => openAppointmentModal(null, { operatorId, time: `${String(hour).padStart(2,'0')}:00` })}
+          onSlotClick={(operatorId, hour) => {
+            // Parte dal primo orario libero all'interno/dopo la fascia cliccata
+            let startMin = hour * 60;
+            const dayAppts = todayAppointments.filter(a => a.operatorId === operatorId && a.status !== 'cancelled' && a.status !== 'no_show');
+            let moved = true;
+            while (moved) {
+              moved = false;
+              for (const a of dayAppts) {
+                const aS = timeToMinutes(a.startTime), aE = timeToMinutes(a.endTime);
+                if (startMin >= aS && startMin < aE) { startMin = aE; moved = true; }
+              }
+            }
+            const h = String(Math.floor(startMin / 60)).padStart(2, '0');
+            const m = String(startMin % 60).padStart(2, '0');
+            openAppointmentModal(null, { operatorId, time: `${h}:${m}` });
+          }}
           onDropAppointment={(aptId, opId, newStart, duration) => {
             const [h, m] = newStart.split(':').map(Number);
             const endTotal = h * 60 + m + duration;
