@@ -1143,6 +1143,7 @@ export default function AgendaPage() {
     setView, goToToday, goToPrev, goToNext, setSelectedDate,
     openAppointmentModal, isAppointmentModalOpen, moveAppointment,
     updateAppointment, deleteAppointment, addAppointment, fetchAppointments,
+    setSelectedOperatorIds,
   } = useAgendaStore();
   const operators = useOperatorStore(s => s.operators);
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
@@ -1150,6 +1151,18 @@ export default function AgendaPage() {
   useEffect(() => {
     fetchAppointments();
   }, [fetchAppointments]);
+
+  // Mantiene il filtro operatrici allineato alle operatrici esistenti:
+  // rimuove gli id di operatrici eliminate e mostra automaticamente le nuove.
+  useEffect(() => {
+    const existingIds = operators.map(o => o.id);
+    const pruned = selectedOperatorIds.filter(id => existingIds.includes(id));
+    const missing = existingIds.filter(id => !selectedOperatorIds.includes(id));
+    if (missing.length > 0 || pruned.length !== selectedOperatorIds.length) {
+      setSelectedOperatorIds([...pruned, ...missing]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [operators]);
 
   // Waitlist state
   const { entries: waitlistEntries, updateStatus: updateWaitlistStatus, addEntry: addWaitlistEntry } = useWaitlistStore();
