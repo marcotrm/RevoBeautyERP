@@ -501,6 +501,8 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   const [startTime, setStartTime] = useState('09:00');
   const [notes, setNotes] = useState('');
   const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [treatmentQuery, setTreatmentQuery] = useState('');
+  const [treatmentOpen, setTreatmentOpen] = useState(false);
 
   useEffect(() => {
     if (isAppointmentModalOpen) {
@@ -508,21 +510,23 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
         setSelectedClientId(editingAppointment.clientId);
         setSelectedClientName(editingAppointment.clientName);
         setSelectedTreatmentId(editingAppointment.treatmentId);
+        setTreatmentQuery(editingAppointment.treatmentName || '');
         setSelectedOperatorId(editingAppointment.operatorId);
         setStartTime(editingAppointment.startTime);
         setNotes(editingAppointment.notes || '');
       } else if (slotInfo) {
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
-        setSelectedTreatmentId('');
+        setSelectedTreatmentId(''); setTreatmentQuery('');
         setSelectedOperatorId(slotInfo.operatorId);
         setStartTime(slotInfo.time);
         setNotes('');
       } else {
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
-        setSelectedTreatmentId(''); setSelectedOperatorId(operators[0]?.id || '');
+        setSelectedTreatmentId(''); setTreatmentQuery(''); setSelectedOperatorId(operators[0]?.id || '');
         setStartTime('09:00'); setNotes('');
       }
       setShowClientDropdown(false);
+      setTreatmentOpen(false);
     }
   }, [isAppointmentModalOpen, editingAppointment, slotInfo, operators]);
 
@@ -732,26 +736,38 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
             {/* Treatment */}
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1.5">Trattamento *</label>
-              <select value={selectedTreatmentId} onChange={e => setSelectedTreatmentId(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
-                <option value="">Seleziona trattamento...</option>
-                {Object.entries(treatments.reduce((g, t) => { const c = getCategoryLabel(t.category); if (!g[c]) g[c]=[]; g[c].push(t); return g; }, {} as Record<string, Treatment[]>))
-                  .map(([cat, treats]) => (
-                    <optgroup key={cat} label={cat}>
-                      {treats.map(t => {
+              <div className="relative">
+                <input type="text" value={treatmentQuery}
+                  onChange={e => { setTreatmentQuery(e.target.value); setSelectedTreatmentId(''); setTreatmentOpen(true); }}
+                  onFocus={() => setTreatmentOpen(true)}
+                  onBlur={() => setTimeout(() => setTreatmentOpen(false), 150)}
+                  placeholder="Cerca o scrivi il trattamento..."
+                  className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
+                {treatmentOpen && (() => {
+                  const q = treatmentQuery.trim().toLowerCase();
+                  const list = (q ? treatments.filter(t => t.name.toLowerCase().includes(q)) : treatments).slice(0, 50);
+                  return (
+                    <div className="absolute z-10 mt-1 w-full max-h-64 overflow-y-auto rounded-xl bg-bg-secondary border border-border shadow-xl">
+                      {list.length === 0 ? (
+                        <div className="px-3 py-3 text-xs text-text-muted">Nessun trattamento trovato</div>
+                      ) : list.map(t => {
                         const ct = selectedClient?.customTreatments?.find(c => c.treatmentId === t.id);
                         const dur = ct ? ct.duration : t.duration;
                         const pr = ct ? ct.price : t.price;
-                        const isCustom = !!ct;
                         return (
-                          <option key={t.id} value={t.id}>
-                            {t.name} {isCustom ? '✨ (Personalizzato) — ' : '— '} {dur}min — {formatCurrency(pr)}
-                          </option>
+                          <button key={t.id} type="button" onMouseDown={e => e.preventDefault()}
+                            onClick={() => { setSelectedTreatmentId(t.id); setTreatmentQuery(t.name); setTreatmentOpen(false); }}
+                            className={`w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-hover transition-colors ${selectedTreatmentId === t.id ? 'bg-accent/10' : ''}`}>
+                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
+                            <span className="text-sm text-text-primary flex-1 truncate">{t.name}{ct ? ' ✨' : ''}</span>
+                            <span className="text-xs text-text-muted flex-shrink-0">{dur}min · {formatCurrency(pr)}</span>
+                          </button>
                         );
                       })}
-                    </optgroup>
-                  ))}
-              </select>
+                    </div>
+                  );
+                })()}
+              </div>
               {selectedTreatment && (
                 <div className="mt-2 space-y-1.5">
                   <div className="flex items-center gap-2 text-xs text-text-muted">
