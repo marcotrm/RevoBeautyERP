@@ -75,13 +75,6 @@ function buildDefaultShifts(operators: Operator[]): WeekShifts {
   return shifts;
 }
 
-const commissions = [
-  { name: 'Sara Rossi', revenue: 5200, commission: 780, rate: 15, color: '#A855F7' },
-  { name: 'Valentina Bianchi', revenue: 4800, commission: 576, rate: 12, color: '#EC4899' },
-  { name: 'Chiara Moretti', revenue: 4100, commission: 738, rate: 18, color: '#F59E0B' },
-  { name: 'Francesca Romano', revenue: 3200, commission: 320, rate: 10, color: '#22C55E' },
-  { name: 'Alessia Conti', revenue: 3850, commission: 539, rate: 14, color: '#3B82F6' },
-];
 
 /* ========== helpers ========== */
 function calcMinutes(start: string, end: string): number {
@@ -528,6 +521,16 @@ export default function StaffPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'shifts'>('overview');
   const { punches } = useTimeClockStore();
 
+  // Commissioni derivate dalle operatrici reali. Il fatturato per operatrice non è
+  // ancora tracciato dalle vendite, quindi resta a 0 finché non ci sono dati reali.
+  const commissions = staffList.map((op) => ({
+    name: `${op.firstName} ${op.lastName}`.trim(),
+    revenue: 0,
+    commission: 0,
+    rate: op.commission,
+    color: op.color,
+  }));
+
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -565,7 +568,9 @@ export default function StaffPage() {
           {/* Commissions */}
           <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex items-center gap-2"><Euro className="w-4 h-4 text-accent" /><h3 className="text-base font-display font-semibold text-text-primary">Commissioni del Mese</h3></div>
-            <div className="divide-y divide-border/30">{commissions.map((s, i) => (
+            <div className="divide-y divide-border/30">{commissions.length === 0 ? (
+              <div className="px-5 py-8 text-center text-sm text-text-muted">Nessuna operatrice registrata</div>
+            ) : commissions.map((s, i) => (
               <div key={i} className="flex items-center gap-4 px-5 py-3.5 hover:bg-bg-hover transition-colors"><div className="w-2 h-8 rounded-full" style={{ backgroundColor: s.color }} /><div className="flex-1"><p className="text-sm font-medium text-text-primary">{s.name}</p><p className="text-xs text-text-muted">Fatturato: € {s.revenue.toLocaleString('it-IT')}</p></div><div className="text-right"><p className="text-sm font-semibold text-accent">€ {s.commission.toLocaleString('it-IT')}</p><p className="text-[11px] text-text-muted">{s.rate}% commissione</p></div></div>
             ))}</div>
             <div className="px-5 py-3 bg-bg-tertiary/30 border-t border-border flex items-center justify-between"><span className="text-sm font-medium text-text-secondary">Totale Commissioni</span><span className="text-sm font-bold text-accent">€ {commissions.reduce((s, c) => s + c.commission, 0).toLocaleString('it-IT')}</span></div>
