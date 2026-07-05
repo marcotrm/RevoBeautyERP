@@ -669,14 +669,14 @@ export default function SettingsPage() {
                 <h3 className="text-lg font-display font-semibold text-text-primary">Informazioni Centro</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
-                    { label: 'Nome Centro', value: 'Revobeauty Milano Centro' },
-                    { label: 'P.IVA', value: 'IT12345678901' },
-                    { label: 'Indirizzo', value: 'Via Torino 45' },
-                    { label: 'Città', value: 'Milano' },
-                    { label: 'Telefono', value: '+39 02 1234567' },
-                    { label: 'Email', value: 'centro@revobeauty.it' },
-                    { label: 'CAP', value: '20123' },
-                    { label: 'Sito Web', value: 'www.revobeauty.it' },
+                    { label: 'Ragione Sociale', value: 'REVOBEAUTY SRL' },
+                    { label: 'P.IVA', value: 'IT10625841217' },
+                    { label: 'Sede Legale', value: 'Via Aniello Falcone 394' },
+                    { label: 'Città', value: 'Napoli (NA)' },
+                    { label: 'CAP', value: '80127' },
+                    { label: 'PEC', value: 'revobeauty@pec.it' },
+                    { label: 'Sede Operativa', value: 'Via Caudina, Maddaloni (CE) 81024' },
+                    { label: 'Telefono', value: '' },
                   ].map((field) => (
                     <div key={field.label}>
                       <label className="block text-sm text-text-secondary mb-1.5">{field.label}</label>
@@ -764,10 +764,9 @@ export default function SettingsPage() {
                 <h3 className="text-lg font-display font-semibold text-text-primary">Dati Fatturazione</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
-                    { label: 'Ragione Sociale', value: 'Revobeauty S.r.l.' },
-                    { label: 'P.IVA', value: 'IT12345678901' },
-                    { label: 'Codice Fiscale', value: '12345678901' },
-                    { label: 'Codice SDI', value: 'M5UXCR1' },
+                    { label: 'Ragione Sociale', value: 'REVOBEAUTY SRL' },
+                    { label: 'P.IVA', value: 'IT10625841217' },
+                    { label: 'Sede Legale', value: 'Via Aniello Falcone 394, 80127 Napoli (NA)' },
                     { label: 'PEC', value: 'revobeauty@pec.it' },
                     { label: 'Regime Fiscale', value: 'Ordinario' },
                   ].map((field) => (
