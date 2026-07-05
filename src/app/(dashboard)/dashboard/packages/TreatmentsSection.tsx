@@ -4,7 +4,7 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, X, CheckCircle, Upload, Loader2, Trash2 } from 'lucide-react';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
-import { Treatment, TreatmentCategory } from '@/types';
+import { Treatment } from '@/types';
 import { formatCurrency } from '@/lib/helpers';
 import { getCategoryLabel } from '@/lib/helpers';
 
@@ -18,9 +18,6 @@ export const TREATMENT_COLORS = ['#A855F7','#EC4899','#3B82F6','#22C55E','#F59E0
 
 export function TreatmentsSection() {
   const treatments = useTreatmentStore(s => s.treatments);
-  const addTreatment = useTreatmentStore(s => s.addTreatment);
-  const updateTreatment = useTreatmentStore(s => s.updateTreatment);
-  const deleteTreatment = useTreatmentStore(s => s.deleteTreatment);
   const setTreatments = useTreatmentStore(s => s.setTreatments);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -29,33 +26,64 @@ export function TreatmentsSection() {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Treatment | null>(null);
 
-  // Modal state
+  // Modal state (prezzi/tempi donna e uomo)
   const [name, setName] = useState('');
   const [category, setCategory] = useState('facial');
-  const [duration, setDuration] = useState('60');
-  const [price, setPrice] = useState('');
+  const [wPrice, setWPrice] = useState(''); // prezzo donna
+  const [mPrice, setMPrice] = useState(''); // prezzo uomo
+  const [wDur, setWDur] = useState('30');   // durata donna
+  const [mDur, setMDur] = useState('');     // durata uomo
   const [color, setColor] = useState('#A855F7');
+  const [saving, setSaving] = useState(false);
 
-  const openAdd = () => { setEditing(null); setName(''); setCategory('facial'); setDuration('60'); setPrice(''); setColor('#A855F7'); setShowModal(true); };
-  const openEdit = (t: Treatment) => { setEditing(t); setName(t.name); setCategory(t.category); setDuration(String(t.duration)); setPrice(String(t.price)); setColor(t.color); setShowModal(true); };
+  const openAdd = () => { setEditing(null); setName(''); setCategory('facial'); setWPrice(''); setMPrice(''); setWDur('30'); setMDur(''); setColor('#A855F7'); setShowModal(true); };
+  const openEdit = (t: Treatment) => {
+    setEditing(t); setName(t.name); setCategory(t.category);
+    setWPrice(String(t.priceFemale ?? t.price ?? ''));
+    setMPrice(t.priceMale != null ? String(t.priceMale) : '');
+    setWDur(String(t.durationFemale ?? t.duration ?? 30));
+    setMDur(t.durationMale != null ? String(t.durationMale) : '');
+    setColor(t.color); setShowModal(true);
+  };
   const closeModal = () => { setShowModal(false); setEditing(null); };
 
-  const handleSave = () => {
-    if (!name.trim() || !price) return;
-    if (editing) {
-      updateTreatment(editing.id, { name: name.trim(), category: category as TreatmentCategory, duration: Number(duration), price: Number(price), color });
-    } else {
-      const newTreatment: Treatment = {
-        id: `treat-${Date.now()}`, name: name.trim(), category: category as TreatmentCategory,
-        duration: Number(duration), price: Number(price), color, isActive: true, description: '',
-        requiresRoom: false, bufferBefore: 0, bufferAfter: 0,
-      };
-      addTreatment(newTreatment);
+  const handleSave = async () => {
+    if (!name.trim() || !wPrice) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/treatments/save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editing?.id, name: name.trim(), category,
+          priceFemale: wPrice, priceMale: mPrice, durationFemale: wDur, durationMale: mDur, color,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Errore durante il salvataggio');
+      setTreatments(data.treatments as Treatment[]);
+      closeModal();
+    } catch (err) {
+      setImportMsg(`✗ ${err instanceof Error ? err.message : 'Errore'}`);
+    } finally {
+      setSaving(false);
     }
-    closeModal();
   };
 
-  const handleDelete = (id: string) => { deleteTreatment(id); };
+  const runBulk = async (payload: object) => {
+    const res = await fetch('/api/treatments/bulk', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Errore');
+    setTreatments(data.treatments as Treatment[]);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Eliminare questo trattamento?')) return;
+    try { await runBulk({ action: 'delete', ids: [id] }); }
+    catch (err) { setImportMsg(`✗ ${err instanceof Error ? err.message : 'Errore'}`); }
+  };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -100,16 +128,16 @@ export function TreatmentsSection() {
   });
   const clearSelection = () => setSelected(new Set());
 
-  const bulkDelete = () => {
+  const bulkDelete = async () => {
     if (selected.size === 0) return;
     if (!confirm(`Eliminare ${selected.size} trattament${selected.size === 1 ? 'o' : 'i'}?`)) return;
-    selected.forEach(id => deleteTreatment(id));
-    clearSelection();
+    try { await runBulk({ action: 'delete', ids: [...selected] }); clearSelection(); }
+    catch (err) { setImportMsg(`✗ ${err instanceof Error ? err.message : 'Errore'}`); }
   };
-  const bulkCategory = (cat: string) => {
+  const bulkCategory = async (cat: string) => {
     if (!cat || selected.size === 0) return;
-    selected.forEach(id => updateTreatment(id, { category: cat as TreatmentCategory }));
-    clearSelection();
+    try { await runBulk({ action: 'category', ids: [...selected], category: cat }); clearSelection(); }
+    catch (err) { setImportMsg(`✗ ${err instanceof Error ? err.message : 'Errore'}`); }
   };
 
   return (
@@ -220,13 +248,19 @@ export function TreatmentsSection() {
                       {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                     </select></div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Durata (min)</label>
-                      <select value={duration} onChange={e => setDuration(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
-                        {[15,20,30,45,60,75,90,120,150,180].map(d => <option key={d} value={d}>{d} min</option>)}
-                      </select></div>
-                    <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Prezzo (€) *</label>
-                      <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="0"
+                    <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Prezzo Donna (€) *</label>
+                      <input type="number" value={wPrice} onChange={e => setWPrice(e.target.value)} placeholder="0"
+                        className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+                    <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Prezzo Uomo (€)</label>
+                      <input type="number" value={mPrice} onChange={e => setMPrice(e.target.value)} placeholder="—"
+                        className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Durata Donna (min)</label>
+                      <input type="number" value={wDur} onChange={e => setWDur(e.target.value)} placeholder="30"
+                        className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+                    <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Durata Uomo (min)</label>
+                      <input type="number" value={mDur} onChange={e => setMDur(e.target.value)} placeholder="—"
                         className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
                   </div>
                   <div><label className="block text-sm font-medium text-text-secondary mb-2">Colore</label>
@@ -239,18 +273,24 @@ export function TreatmentsSection() {
                     </div>
                   </div>
                   {/* Preview */}
-                  {name.trim() && price && (
+                  {name.trim() && wPrice && (
                     <div className="flex items-center gap-3 p-3 rounded-xl bg-bg-tertiary/50 border border-border/30">
                       <div className="w-3 h-10 rounded-full" style={{ backgroundColor: color }} />
-                      <div><p className="text-sm font-medium text-text-primary">{name}</p><p className="text-xs text-text-muted">{getCategoryLabel(category)} • {duration} min • {formatCurrency(Number(price))}</p></div>
+                      <div>
+                        <p className="text-sm font-medium text-text-primary">{name}</p>
+                        <p className="text-xs text-text-muted">
+                          {getCategoryLabel(category)} • ♀ {formatCurrency(Number(wPrice))} / {wDur || 0}′
+                          {mPrice ? ` • ♂ ${formatCurrency(Number(mPrice))} / ${mDur || wDur || 0}′` : ''}
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>
                 <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-bg-tertiary/30">
                   <button onClick={closeModal} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Annulla</button>
-                  <button onClick={handleSave} disabled={!name.trim() || !price}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${name.trim() && price ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
-                    <CheckCircle className="w-4 h-4" /> {editing ? 'Salva Modifiche' : 'Aggiungi'}
+                  <button onClick={handleSave} disabled={!name.trim() || !wPrice || saving}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${name.trim() && wPrice && !saving ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} {editing ? 'Salva Modifiche' : 'Aggiungi'}
                   </button>
                 </div>
               </div>
