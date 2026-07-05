@@ -115,3 +115,24 @@ export function getStatusColor(status: string): string {
 export function generateId(): string {
   return Math.random().toString(36).substring(2, 15);
 }
+
+// Nomi italiani che non seguono la regola "finale -a = femmina"
+const MALE_NAME_EXCEPTIONS = new Set([
+  'andrea', 'luca', 'nicola', 'mattia', 'elia', 'enea', 'battista', 'tobia', 'amerigo',
+]);
+const FEMALE_NAME_EXCEPTIONS = new Set([
+  'alice', 'beatrice', 'irene', 'adele', 'rachele', 'ester', 'nives', 'ines', 'iris',
+  'carmen', 'miriam', 'noemi', 'ruth', 'consuelo', 'ingrid', 'agnese', 'gaia', 'dafne',
+]);
+
+// Deduce il sesso dal nome (euristica italiana). Usare il campo gender della scheda quando disponibile.
+export function guessGenderFromName(fullName: string): 'male' | 'female' {
+  const first = (fullName || '').trim().toLowerCase().split(/\s+/)[0] || '';
+  if (!first) return 'female';
+  if (MALE_NAME_EXCEPTIONS.has(first)) return 'male';
+  if (FEMALE_NAME_EXCEPTIONS.has(first)) return 'female';
+  const last = first[first.length - 1];
+  if (last === 'a') return 'female';
+  // -o, -e, consonanti: in italiano tipicamente maschili (le eccezioni femminili sono nella lista sopra)
+  return 'male';
+}

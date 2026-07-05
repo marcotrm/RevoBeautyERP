@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import {
   formatDateLong, timeToMinutes, getStatusLabel,
-  getStatusColor, formatCurrency, getInitials, getCategoryLabel,
+  getStatusColor, formatCurrency, getInitials, getCategoryLabel, guessGenderFromName,
 } from '@/lib/helpers';
 import WaitlistModal from '@/components/WaitlistModal';
 import WaitlistPanel from '@/components/WaitlistPanel';
@@ -566,6 +566,16 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     if (!selectedClient || !selectedTreatmentId) return null;
     return selectedClient.customTreatments?.find(ct => ct.treatmentId === selectedTreatmentId) || null;
   }, [selectedClient, selectedTreatmentId]);
+
+  // Sceglie automaticamente il listino uomo/donna in base al cliente selezionato
+  // (campo genere della scheda se presente, altrimenti dal nome). Modificabile a mano.
+  useEffect(() => {
+    if (editingAppointment || !selectedClient) return;
+    if (selectedClient.gender === 'M') setGender('male');
+    else if (selectedClient.gender === 'F') setGender('female');
+    else setGender(guessGenderFromName(`${selectedClient.firstName} ${selectedClient.lastName}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClientId]);
 
   // Prezzo/durata in base al sesso selezionato (fallback all'altro se mancante)
   const genderPrice = (t: Treatment) => gender === 'male' ? (t.priceMale ?? t.priceFemale ?? t.price) : (t.priceFemale ?? t.price);
