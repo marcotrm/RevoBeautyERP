@@ -23,7 +23,7 @@ import WaitlistModal from '@/components/WaitlistModal';
 import WaitlistPanel from '@/components/WaitlistPanel';
 import AddClientModal from '@/components/AddClientModal';
 
-const HOUR_HEIGHT = 64;
+const HOUR_HEIGHT = 88;
 const START_HOUR = 8;
 const END_HOUR = 21;
 const TOTAL_HOURS = END_HOUR - START_HOUR;
@@ -51,8 +51,8 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle }:
   const startMin = timeToMinutes(appointment.startTime) - START_HOUR * 60;
   const endMin = timeToMinutes(appointment.endTime) - START_HOUR * 60;
   const top = (startMin / 60) * HOUR_HEIGHT;
-  const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT - 2, 24);
-  const isSmall = height < 48;
+  const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT - 2, 18);
+  const isSmall = height < 44;
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('appointmentId', appointment.id);
@@ -1319,7 +1319,7 @@ export default function AgendaPage() {
             <div className="hidden md:flex items-center gap-2 mr-2">
               <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-bg-tertiary text-xs text-text-secondary"><CalendarDays className="w-3.5 h-3.5" /> {totalApts} app.</span>
               <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-success-bg text-xs text-success"><CheckCircle className="w-3.5 h-3.5" /> {completedApts} compl.</span>
-              <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent/10 text-xs text-accent">€ {revenue.toLocaleString('it-IT')}</span>
+              <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent/10 text-xs text-accent" title="Incasso stimato della giornata">Incasso stimato: € {revenue.toLocaleString('it-IT')}</span>
             </div>
           )}
           <div className="flex rounded-xl border border-border overflow-hidden">
