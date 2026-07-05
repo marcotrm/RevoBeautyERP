@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Search, X, CheckCircle, Upload, Loader2 } from 'lucide-react';
+import { Plus, Search, X, CheckCircle, Upload, Loader2, Trash2 } from 'lucide-react';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { Treatment, TreatmentCategory } from '@/types';
 import { formatCurrency } from '@/lib/helpers';
@@ -86,6 +86,32 @@ export function TreatmentsSection() {
 
   const filtered = search.trim() ? treatments.filter(t => t.name.toLowerCase().includes(search.toLowerCase())) : treatments;
 
+  // --- Selezione multipla e azioni massive ---
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleOne = (id: string) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const allVisibleSelected = filtered.length > 0 && filtered.every(t => selected.has(t.id));
+  const toggleAll = () => setSelected(prev => {
+    if (allVisibleSelected) return new Set();
+    return new Set(filtered.map(t => t.id));
+  });
+  const clearSelection = () => setSelected(new Set());
+
+  const bulkDelete = () => {
+    if (selected.size === 0) return;
+    if (!confirm(`Eliminare ${selected.size} trattament${selected.size === 1 ? 'o' : 'i'}?`)) return;
+    selected.forEach(id => deleteTreatment(id));
+    clearSelection();
+  };
+  const bulkCategory = (cat: string) => {
+    if (!cat || selected.size === 0) return;
+    selected.forEach(id => updateTreatment(id, { category: cat as TreatmentCategory }));
+    clearSelection();
+  };
+
   return (
     <div className="space-y-4">
       <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
@@ -113,9 +139,28 @@ export function TreatmentsSection() {
             {importMsg}
           </div>
         )}
+        {selected.size > 0 && (
+          <div className="px-6 py-2.5 border-b border-border bg-accent/5 flex items-center justify-between gap-3 flex-wrap">
+            <span className="text-xs font-semibold text-accent">{selected.size} selezionat{selected.size === 1 ? 'o' : 'i'}</span>
+            <div className="flex items-center gap-2">
+              <select onChange={e => { bulkCategory(e.target.value); e.target.value = ''; }} defaultValue=""
+                className="px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none focus:border-accent/50">
+                <option value="" disabled>Cambia categoria…</option>
+                {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+              <button onClick={bulkDelete} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-error/10 border border-error/20 text-error text-xs font-medium hover:bg-error/20 transition-all">
+                <Trash2 className="w-3.5 h-3.5" /> Elimina
+              </button>
+              <button onClick={clearSelection} className="px-3 py-1.5 rounded-lg border border-border text-text-secondary text-xs font-medium hover:bg-bg-hover transition-all">
+                Annulla
+              </button>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead><tr className="border-b border-border">
+              <th className="w-10 px-4 py-3 text-center"><input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="w-4 h-4 rounded border-border accent-accent cursor-pointer" /></th>
               <th className="text-left px-5 py-3 text-xs font-semibold text-text-muted uppercase">Trattamento</th>
               <th className="text-left px-5 py-3 text-xs font-semibold text-text-muted uppercase hidden sm:table-cell">Categoria</th>
               <th className="text-center px-5 py-3 text-xs font-semibold text-text-muted uppercase">Durata</th>
@@ -124,7 +169,8 @@ export function TreatmentsSection() {
             </tr></thead>
             <tbody className="divide-y divide-border/30">
               {filtered.map(t => (
-                <tr key={t.id} className="hover:bg-bg-hover transition-colors group">
+                <tr key={t.id} className={`transition-colors group ${selected.has(t.id) ? 'bg-accent/5' : 'hover:bg-bg-hover'}`}>
+                  <td className="px-4 py-3 text-center"><input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleOne(t.id)} className="w-4 h-4 rounded border-border accent-accent cursor-pointer" /></td>
                   <td className="px-5 py-3"><div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} /><span className="text-sm font-medium text-text-primary">{t.name}</span></div></td>
                   <td className="px-5 py-3 hidden sm:table-cell"><span className="text-xs text-text-secondary">{getCategoryLabel(t.category)}</span></td>
                   <td className="px-5 py-3 text-center">
