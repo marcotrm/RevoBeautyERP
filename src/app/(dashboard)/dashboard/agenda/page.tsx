@@ -503,6 +503,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [treatmentQuery, setTreatmentQuery] = useState('');
   const [treatmentOpen, setTreatmentOpen] = useState(false);
+  const [gender, setGender] = useState<'female' | 'male'>('female');
 
   useEffect(() => {
     if (isAppointmentModalOpen) {
@@ -527,6 +528,13 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       }
       setShowClientDropdown(false);
       setTreatmentOpen(false);
+      // In modifica: deduci il sesso dal prezzo salvato, altrimenti default Donna
+      if (editingAppointment) {
+        const t = treatments.find(tr => tr.id === editingAppointment.treatmentId);
+        setGender(t && t.priceMale != null && t.priceMale === editingAppointment.price && t.priceMale !== t.priceFemale ? 'male' : 'female');
+      } else {
+        setGender('female');
+      }
     }
   }, [isAppointmentModalOpen, editingAppointment, slotInfo, operators]);
 
@@ -559,8 +567,12 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     return selectedClient.customTreatments?.find(ct => ct.treatmentId === selectedTreatmentId) || null;
   }, [selectedClient, selectedTreatmentId]);
 
-  const effectiveDuration = customTreatmentData ? customTreatmentData.duration : (selectedTreatment?.duration || 0);
-  const effectivePrice = customTreatmentData ? customTreatmentData.price : (selectedTreatment?.price || 0);
+  // Prezzo/durata in base al sesso selezionato (fallback all'altro se mancante)
+  const genderPrice = (t: Treatment) => gender === 'male' ? (t.priceMale ?? t.priceFemale ?? t.price) : (t.priceFemale ?? t.price);
+  const genderDuration = (t: Treatment) => gender === 'male' ? (t.durationMale ?? t.durationFemale ?? t.duration) : (t.durationFemale ?? t.duration);
+
+  const effectiveDuration = customTreatmentData ? customTreatmentData.duration : (selectedTreatment ? genderDuration(selectedTreatment) : 0);
+  const effectivePrice = customTreatmentData ? customTreatmentData.price : (selectedTreatment ? genderPrice(selectedTreatment) : 0);
 
   useEffect(() => {
     if (customTreatmentData?.notes && !editingAppointment) {
@@ -735,7 +747,15 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
 
             {/* Treatment */}
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1.5">Trattamento *</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium text-text-secondary">Trattamento *</label>
+                <div className="flex rounded-lg border border-border overflow-hidden text-xs font-medium">
+                  <button type="button" onClick={() => setGender('female')}
+                    className={`px-2.5 py-1 transition-colors ${gender === 'female' ? 'bg-accent text-white' : 'text-text-secondary hover:bg-bg-hover'}`}>♀ Donna</button>
+                  <button type="button" onClick={() => setGender('male')}
+                    className={`px-2.5 py-1 transition-colors ${gender === 'male' ? 'bg-accent text-white' : 'text-text-secondary hover:bg-bg-hover'}`}>♂ Uomo</button>
+                </div>
+              </div>
               <div className="relative">
                 <input type="text" value={treatmentQuery}
                   onChange={e => { setTreatmentQuery(e.target.value); setSelectedTreatmentId(''); setTreatmentOpen(true); }}
@@ -752,8 +772,8 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                         <div className="px-3 py-3 text-xs text-text-muted">Nessun trattamento trovato</div>
                       ) : list.map(t => {
                         const ct = selectedClient?.customTreatments?.find(c => c.treatmentId === t.id);
-                        const dur = ct ? ct.duration : t.duration;
-                        const pr = ct ? ct.price : t.price;
+                        const dur = ct ? ct.duration : genderDuration(t);
+                        const pr = ct ? ct.price : genderPrice(t);
                         return (
                           <button key={t.id} type="button" onMouseDown={e => e.preventDefault()}
                             onClick={() => { setSelectedTreatmentId(t.id); setTreatmentQuery(t.name); setTreatmentOpen(false); }}
@@ -772,7 +792,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                 <div className="mt-2 space-y-1.5">
                   <div className="flex items-center gap-2 text-xs text-text-muted">
                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: selectedTreatment.color }} />
-                    <span className={customTreatmentData ? "line-through opacity-50" : ""}>{selectedTreatment.duration} min • {formatCurrency(selectedTreatment.price)}</span>
+                    <span className={customTreatmentData ? "line-through opacity-50" : ""}>{gender === 'male' ? '♂' : '♀'} {genderDuration(selectedTreatment)} min • {formatCurrency(genderPrice(selectedTreatment))}</span>
                     {customTreatmentData && <span>(Standard)</span>}
                   </div>
                   {customTreatmentData && (
