@@ -8,7 +8,7 @@ import Link from 'next/link';
 import {
   Search, Plus, Users, Crown,
   UserPlus, Clock, Phone, Mail,
-  ChevronRight, Heart, Download, X, CheckCircle, BarChart3,
+  ChevronRight, Heart, Download, X, CheckCircle, BarChart3, Trash2, Tag,
 } from 'lucide-react';
 import { formatCurrency, getInitials } from '@/lib/helpers';
 import AddClientModal from '@/components/AddClientModal';
@@ -36,11 +36,13 @@ function VIPBadge({ level }: { level: number }) {
   return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${colors[level]}15`, color: colors[level] }}>{labels[level]}</span>;
 }
 
-function ClientRow({ client }: { client: Client }) {
+function ClientRow({ client, checked, onToggle }: { client: Client; checked: boolean; onToggle: (id: string) => void }) {
   const daysSinceVisit = client.lastVisit ? Math.floor((Date.now() - new Date(client.lastVisit).getTime()) / (1000 * 60 * 60 * 24)) : null;
   return (
-    <motion.div variants={item}>
-      <Link href={`/dashboard/clients/${client.id}`} className="flex items-center gap-4 p-3.5 rounded-xl hover:bg-bg-hover border border-transparent hover:border-border transition-all duration-200 group">
+    <motion.div variants={item} className={`flex items-center gap-2 pl-3.5 ${checked ? 'bg-accent/5' : ''}`}>
+      <input type="checkbox" checked={checked} onChange={() => onToggle(client.id)}
+        className="w-4 h-4 rounded border-border accent-accent cursor-pointer flex-shrink-0" />
+      <Link href={`/dashboard/clients/${client.id}`} className="flex items-center gap-4 p-3.5 rounded-xl hover:bg-bg-hover border border-transparent hover:border-border transition-all duration-200 group flex-1 min-w-0">
         <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
           style={{ background: client.vipLevel >= 2 ? 'linear-gradient(135deg, #A855F7, #EC4899)' : '#3B82F6' }}>
           {getInitials(client.firstName, client.lastName)}
@@ -79,9 +81,37 @@ function ClientRow({ client }: { client: Client }) {
 // AddClientModal extracted to components
 
 export default function ClientsPage() {
-  const { searchQuery, setSearchQuery, activeFilter, setActiveFilter, getFilteredClients, clients, addClient } = useClientStore();
+  const { searchQuery, setSearchQuery, activeFilter, setActiveFilter, getFilteredClients, clients, addClient, updateClient, deleteClient } = useClientStore();
   const filteredClients = useMemo(() => getFilteredClients(), [searchQuery, activeFilter, clients]);
   const [showModal, setShowModal] = useState(false);
+
+  // Selezione singola e di massa
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggleOne = (id: string) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const allVisibleSelected = filteredClients.length > 0 && filteredClients.every(c => selected.has(c.id));
+  const toggleAll = () => setSelected(prev => allVisibleSelected ? new Set() : new Set(filteredClients.map(c => c.id)));
+  const clearSelection = () => setSelected(new Set());
+
+  const bulkDelete = () => {
+    if (selected.size === 0) return;
+    if (!confirm(`Eliminare ${selected.size} client${selected.size === 1 ? 'e' : 'i'}? L'operazione non è reversibile.`)) return;
+    selected.forEach(id => deleteClient(id));
+    clearSelection();
+  };
+  const bulkTag = () => {
+    if (selected.size === 0) return;
+    const tag = prompt('Tag da aggiungere ai clienti selezionati:')?.trim();
+    if (!tag) return;
+    selected.forEach(id => {
+      const c = clients.find(cl => cl.id === id);
+      if (c && !c.tags.includes(tag)) updateClient(id, { tags: [...c.tags, tag] });
+    });
+    clearSelection();
+  };
 
   const totalClients = clients.length;
   const vipClients = clients.filter(c => c.vipLevel >= 2).length;
@@ -136,11 +166,28 @@ export default function ClientsPage() {
       </div>
 
       <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
-        <div className="hidden md:flex items-center gap-4 px-3.5 py-3 border-b border-border text-xs font-semibold text-text-muted uppercase tracking-wider">
-          <div className="w-10" /><div className="flex-1">Cliente</div><div className="hidden lg:block w-[150px]">Tag</div><div className="w-[80px] text-right">Spesa</div><div className="w-[90px] text-right">Ultima Visita</div><div className="w-4" />
+        {selected.size > 0 && (
+          <div className="flex items-center justify-between gap-3 flex-wrap px-3.5 py-2.5 border-b border-border bg-accent/5">
+            <span className="text-xs font-semibold text-accent">{selected.size} selezionat{selected.size === 1 ? 'o' : 'i'}</span>
+            <div className="flex items-center gap-2">
+              <button onClick={bulkTag} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border text-text-primary text-xs font-medium hover:bg-bg-hover transition-all">
+                <Tag className="w-3.5 h-3.5" /> Aggiungi tag
+              </button>
+              <button onClick={bulkDelete} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-error/10 border border-error/20 text-error text-xs font-medium hover:bg-error/20 transition-all">
+                <Trash2 className="w-3.5 h-3.5" /> Elimina
+              </button>
+              <button onClick={clearSelection} className="px-3 py-1.5 rounded-lg border border-border text-text-secondary text-xs font-medium hover:bg-bg-hover transition-all">Annulla</button>
+            </div>
+          </div>
+        )}
+        <div className="flex items-center gap-2 px-3.5 py-3 border-b border-border text-xs font-semibold text-text-muted uppercase tracking-wider">
+          <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="w-4 h-4 rounded border-border accent-accent cursor-pointer flex-shrink-0" title="Seleziona tutti" />
+          <div className="hidden md:flex items-center gap-4 flex-1">
+            <div className="w-10" /><div className="flex-1">Cliente</div><div className="hidden lg:block w-[150px]">Tag</div><div className="w-[80px] text-right">Spesa</div><div className="w-[90px] text-right">Ultima Visita</div><div className="w-4" />
+          </div>
         </div>
         <motion.div variants={container} initial="hidden" animate="show" className="divide-y divide-border/30">
-          {filteredClients.map(client => <ClientRow key={client.id} client={client} />)}
+          {filteredClients.map(client => <ClientRow key={client.id} client={client} checked={selected.has(client.id)} onToggle={toggleOne} />)}
         </motion.div>
         {filteredClients.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16">
