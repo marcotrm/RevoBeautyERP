@@ -47,6 +47,16 @@ function fmtDate(d: Date) {
 }
 
 /* ========== APPOINTMENT BLOCK (Day View) ========== */
+// Verifica se un'operatrice lavora in una certa data, in base al turno settimanale
+// (schedule keyed 1=Lun .. 6=Sab; domenica salone chiuso).
+function operatorWorksOn(op: Operator, date: Date): boolean {
+  const dow = date.getDay(); // 0=Domenica .. 6=Sabato
+  if (dow === 0) return false;
+  const day = op.schedule?.[dow];
+  if (!day) return true; // nessun turno impostato: assume operativa
+  return day.isWorking !== false;
+}
+
 function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle }: { appointment: Appointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties }) {
   const startMin = timeToMinutes(appointment.startTime) - START_HOUR * 60;
   const endMin = timeToMinutes(appointment.endTime) - START_HOUR * 60;
@@ -109,16 +119,17 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle }:
   );
 }
 
-function OperatorColumnHeader({ operator }: { operator: Operator }) {
+function OperatorColumnHeader({ operator, off }: { operator: Operator; off?: boolean }) {
   return (
     <div className="sticky top-0 z-20 bg-bg-secondary border-b border-border px-3 py-3 flex items-center gap-2.5">
-      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold" style={{ backgroundColor: operator.color }}>
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ${off ? 'opacity-50' : ''}`} style={{ backgroundColor: operator.color }}>
         {getInitials(operator.firstName, operator.lastName)}
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-text-primary truncate">{operator.firstName}</p>
         <p className="text-[11px] text-text-muted truncate">{operator.lastName}</p>
       </div>
+      {off && <span className="px-2 py-0.5 rounded-full bg-bg-tertiary text-text-muted text-[10px] font-semibold border border-border flex-shrink-0">Riposo</span>}
     </div>
   );
 }
@@ -156,8 +167,8 @@ function NowLine() {
 }
 
 /* ========== DAY VIEW ========== */
-function DayView({ appointments, operators, onAppointmentClick, onWaitlistAdd, onSlotClick, onDropAppointment }: {
-  appointments: Appointment[]; operators: Operator[];
+function DayView({ appointments, operators, selectedDate, onAppointmentClick, onWaitlistAdd, onSlotClick, onDropAppointment }: {
+  appointments: Appointment[]; operators: Operator[]; selectedDate: Date;
   onAppointmentClick: (a: Appointment) => void;
   onWaitlistAdd?: (a: Appointment) => void;
   onSlotClick: (operatorId: string, hour: number) => void;
@@ -219,25 +230,34 @@ function DayView({ appointments, operators, onAppointmentClick, onWaitlistAdd, o
     <div ref={scrollRef} className="flex-1 overflow-auto border border-border rounded-2xl bg-bg-secondary relative">
       <div className="flex min-w-0">
         <TimeGutter />
-        {operators.map(operator => (
+        {operators.map(operator => {
+          const off = !operatorWorksOn(operator, selectedDate);
+          return (
           <div key={operator.id} className="flex-1 min-w-[160px] border-r border-border/50 last:border-r-0 relative">
-            <OperatorColumnHeader operator={operator} />
-            <div className="relative"
-              onDragOver={e => handleDragOver(e, operator.id, e.currentTarget)}
+            <OperatorColumnHeader operator={operator} off={off} />
+            <div className={`relative ${off ? 'bg-bg-tertiary/20' : ''}`}
+              onDragOver={e => !off && handleDragOver(e, operator.id, e.currentTarget)}
               onDragLeave={() => setDragOver(null)}
-              onDrop={e => handleDrop(e, operator.id, e.currentTarget)}>
+              onDrop={e => !off && handleDrop(e, operator.id, e.currentTarget)}>
               {hours.map(hour => (
-                <div key={hour} onClick={() => onSlotClick(operator.id, hour)}
-                  className="border-b border-border/30 relative cursor-pointer hover:bg-accent/[0.03] transition-colors group/slot"
+                <div key={hour} onClick={off ? undefined : () => onSlotClick(operator.id, hour)}
+                  className={`border-b border-border/30 relative transition-colors group/slot ${off ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-accent/[0.03]'}`}
                   style={{ height: `${HOUR_HEIGHT}px` }}>
                   <div className="absolute left-0 right-0 border-b border-border/15" style={{ top: `${HOUR_HEIGHT / 2}px` }} />
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/slot:opacity-100 transition-opacity pointer-events-none">
-                    <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-accent/10 text-accent text-[10px] font-medium">
-                      <Plus className="w-3 h-3" /> {String(hour).padStart(2,'0')}:00
+                  {!off && (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/slot:opacity-100 transition-opacity pointer-events-none">
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-accent/10 text-accent text-[10px] font-medium">
+                        <Plus className="w-3 h-3" /> {String(hour).padStart(2,'0')}:00
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               ))}
+              {off && (
+                <div className="absolute inset-0 top-8 flex items-start justify-center pt-4 pointer-events-none z-10">
+                  <span className="px-3 py-1 rounded-full bg-bg-secondary text-text-muted text-xs font-semibold border border-border shadow-sm">Giorno di riposo</span>
+                </div>
+              )}
               {/* Drop ghost preview */}
               {dragOver && dragOver.operatorId === operator.id && (
                 <div className="absolute left-1 right-1 rounded-lg border-2 border-dashed border-accent/50 bg-accent/10 pointer-events-none z-30 flex items-center justify-center"
@@ -297,7 +317,8 @@ function DayView({ appointments, operators, onAppointmentClick, onWaitlistAdd, o
               })()}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
       <NowLine />
     </div>
@@ -523,7 +544,9 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
         setNotes('');
       } else {
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
-        setSelectedTreatmentId(''); setTreatmentQuery(''); setSelectedOperatorId(operators[0]?.id || '');
+        setSelectedTreatmentId(''); setTreatmentQuery('');
+        const firstWorking = operators.find(o => operatorWorksOn(o, selectedDate)) || operators[0];
+        setSelectedOperatorId(firstWorking?.id || '');
         setStartTime('09:00'); setNotes('');
       }
       setShowClientDropdown(false);
@@ -822,13 +845,17 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1.5">Operatrice *</label>
               <div className="grid grid-cols-5 gap-2">
-                {operators.map(op => (
-                  <button key={op.id} type="button" onClick={() => setSelectedOperatorId(op.id)}
-                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all ${selectedOperatorId === op.id ? 'border-accent bg-accent/10' : 'border-border hover:border-border-light'}`}>
+                {operators.map(op => {
+                  const off = !operatorWorksOn(op, selectedDate);
+                  return (
+                  <button key={op.id} type="button" disabled={off} onClick={() => !off && setSelectedOperatorId(op.id)}
+                    title={off ? 'A riposo in questa data' : ''}
+                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all ${off ? 'opacity-40 cursor-not-allowed border-border' : selectedOperatorId === op.id ? 'border-accent bg-accent/10' : 'border-border hover:border-border-light'}`}>
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: op.color }}>{getInitials(op.firstName, op.lastName)}</div>
-                    <span className="text-[11px] text-text-primary truncate w-full text-center">{op.firstName}</span>
+                    <span className="text-[11px] text-text-primary truncate w-full text-center">{op.firstName}{off ? ' (riposo)' : ''}</span>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
             {/* Date + Time */}
@@ -1356,7 +1383,7 @@ export default function AgendaPage() {
 
       {/* Views */}
       {view === 'day' && (
-        <DayView appointments={todayAppointments} operators={visibleOperators} onAppointmentClick={handleAppointmentClick} onWaitlistAdd={handleWaitlistAdd}
+        <DayView appointments={todayAppointments} operators={visibleOperators} selectedDate={selectedDate} onAppointmentClick={handleAppointmentClick} onWaitlistAdd={handleWaitlistAdd}
           onSlotClick={(operatorId, hour) => {
             // Parte dal primo orario libero all'interno/dopo la fascia cliccata
             let startMin = hour * 60;

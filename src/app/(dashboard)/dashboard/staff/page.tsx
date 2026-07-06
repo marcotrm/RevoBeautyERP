@@ -330,6 +330,7 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [shifts, setShifts] = useState<WeekShifts>(() => buildDefaultShifts(operators));
   const [editModal, setEditModal] = useState<{ operatorId: string; dayIndex: number } | null>(null);
+  const updateOperator = useOperatorStore(s => s.updateOperator);
 
   const monday = getMonday(new Date());
   monday.setDate(monday.getDate() + weekOffset * 7);
@@ -345,11 +346,18 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
   }, [shifts]);
 
   const updateShift = useCallback((opId: string, day: number, entry: ShiftEntry) => {
-    setShifts(prev => ({
-      ...prev,
-      [opId]: { ...(prev[opId] || {}), [day]: entry },
-    }));
-  }, []);
+    setShifts(prev => {
+      const nextOpShifts = { ...(prev[opId] || {}), [day]: entry };
+      // Persiste nella scheda operatrice (giorni 1=Lun .. 6=Sab) così l'agenda lo rispetta
+      const schedule: Record<number, { isWorking: boolean; startTime: string; endTime: string }> = {};
+      for (let d = 0; d < 6; d++) {
+        const s = nextOpShifts[d] || { isWorking: true, startTime: '09:00', endTime: '18:00' };
+        schedule[d + 1] = { isWorking: s.isWorking, startTime: s.startTime, endTime: s.endTime };
+      }
+      updateOperator(opId, { schedule });
+      return { ...prev, [opId]: nextOpShifts };
+    });
+  }, [updateOperator]);
 
   // Ensure new operators have shifts
   React.useEffect(() => {
