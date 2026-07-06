@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, X, Send, ChevronLeft, AlertTriangle } from 'lucide-react';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -28,6 +29,8 @@ export default function ClientChat() {
   const dismissedRef = useRef<Set<string>>(new Set());
   const user = useAuthStore(s => s.user);
   const threadEndRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const activeConv = conversations.find(c => c.clientId === activeId);
 
@@ -123,6 +126,8 @@ export default function ClientChat() {
         )}
       </button>
 
+      {mounted && createPortal(
+      <>
       <AnimatePresence>
         {open && (
           <>
@@ -226,6 +231,9 @@ export default function ClientChat() {
           </div>
         )}
       </AnimatePresence>
+      </>,
+      document.body
+      )}
     </>
   );
 }
