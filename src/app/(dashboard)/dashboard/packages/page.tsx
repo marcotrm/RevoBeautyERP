@@ -375,6 +375,8 @@ function AddPackageModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
   const [price, setPrice] = useState('');
   const [totalSessions, setTotalSessions] = useState('10');
   const [treatmentName, setTreatmentName] = useState('');
+  const [treatmentOpen, setTreatmentOpen] = useState(false);
+  const treatments = useTreatmentStore(s => s.treatments);
   const [description, setDescription] = useState('');
   const [color, setColor] = useState('#8B5CF6');
   const canSave = name.trim() && price && totalSessions;
@@ -395,8 +397,33 @@ function AddPackageModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
               <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Es. Pacchetto Anti-Age 10 Sedute"
                 className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
             <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Trattamento associato</label>
-              <input type="text" value={treatmentName} onChange={e => setTreatmentName(e.target.value)} placeholder="Es. Trattamento Anti-Age Premium"
-                className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+              <div className="relative">
+                <input type="text" value={treatmentName}
+                  onChange={e => { setTreatmentName(e.target.value); setTreatmentOpen(true); }}
+                  onFocus={() => setTreatmentOpen(true)}
+                  onBlur={() => setTimeout(() => setTreatmentOpen(false), 150)}
+                  placeholder="Cerca o scrivi il trattamento..."
+                  className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
+                {treatmentOpen && (() => {
+                  const q = treatmentName.trim().toLowerCase();
+                  const list = (q ? treatments.filter(t => t.name.toLowerCase().includes(q)) : treatments).slice(0, 50);
+                  return (
+                    <div className="absolute z-10 mt-1 w-full max-h-60 overflow-y-auto rounded-xl bg-bg-secondary border border-border shadow-xl">
+                      {list.length === 0 ? (
+                        <div className="px-3 py-3 text-xs text-text-muted">Nessun trattamento trovato</div>
+                      ) : list.map(t => (
+                        <button key={t.id} type="button" onMouseDown={e => e.preventDefault()}
+                          onClick={() => { setTreatmentName(t.name); setTreatmentOpen(false); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-hover transition-colors">
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
+                          <span className="text-sm text-text-primary flex-1 truncate">{t.name}</span>
+                          <span className="text-xs text-text-muted flex-shrink-0">{t.duration}min · {formatCurrency(t.price)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Prezzo totale (€) *</label>
                 <input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="0"
