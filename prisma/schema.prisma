@@ -41,8 +41,25 @@ model Client {
   appointments     Appointment[]
   clientPackages   ClientPackage[]
   giftCardsPurchased GiftCard[] @relation("GiftCardBuyer")
+  mobileAccount    MobileAccount?
 
   @@map("clients")
+}
+
+// ============================================================
+// MOBILE ACCOUNTS (account di accesso dell'app clienti)
+// ============================================================
+model MobileAccount {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  passwordHash String
+  sessionToken String? @unique
+  createdAt    String
+
+  clientId     String  @unique
+  client       Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("mobile_accounts")
 }
 
 // ============================================================
@@ -216,4 +233,22 @@ model PosTransaction {
   refundReason  String?
 
   @@map("pos_transactions")
+}
+
+// ============================================================
+// CHAT MESSAGES (chat clienti <-> operatrici)
+// ============================================================
+model ChatMessage {
+  id             String  @id @default(cuid())
+  clientId       String
+  clientName     String
+  sender         String  // 'client' | 'operator'
+  body           String
+  operatorName   String?
+  readByOperator Boolean @default(false)
+  readByClient   Boolean @default(false)
+  createdAt      String
+
+  @@index([clientId])
+  @@map("chat_messages")
 }

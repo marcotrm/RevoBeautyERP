@@ -11,6 +11,7 @@ import {
   MapPin, Command, LogOut, User as UserIcon
 } from 'lucide-react';
 import { getInitials, getRelativeTime } from '@/lib/helpers';
+import ClientChat from '@/components/chat/ClientChat';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -56,10 +57,11 @@ export default function Topbar() {
           <Menu className="w-5 h-5" />
         </button>
 
-        <div>
+        <div className="flex items-center gap-2">
           <h1 className="text-lg font-display font-semibold text-text-primary">
             {pageTitle}
           </h1>
+          <ClientChat />
         </div>
       </div>
 
