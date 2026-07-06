@@ -9,23 +9,29 @@ export async function GET() {
   });
 
   const byClient = new Map<string, {
-    clientId: string; clientName: string; lastBody: string; lastAt: string; lastSender: string; unread: number;
+    clientId: string; clientName: string; lastBody: string; lastAt: string; lastSender: string; unread: number; oldestUnreadAt: string | null;
   }>();
 
   for (const m of messages) {
+    const isUnread = m.sender === 'client' && !m.readByOperator;
     const existing = byClient.get(m.clientId);
-    const unreadInc = m.sender === 'client' && !m.readByOperator ? 1 : 0;
     if (!existing) {
       byClient.set(m.clientId, {
         clientId: m.clientId, clientName: m.clientName,
-        lastBody: m.body, lastAt: m.createdAt, lastSender: m.sender, unread: unreadInc,
+        lastBody: m.body, lastAt: m.createdAt, lastSender: m.sender,
+        unread: isUnread ? 1 : 0,
+        oldestUnreadAt: isUnread ? m.createdAt : null,
       });
     } else {
       existing.clientName = m.clientName || existing.clientName;
       existing.lastBody = m.body;
       existing.lastAt = m.createdAt;
       existing.lastSender = m.sender;
-      existing.unread += unreadInc;
+      if (isUnread) {
+        existing.unread += 1;
+        // messaggi in ordine crescente: il primo non letto è il più vecchio
+        if (!existing.oldestUnreadAt) existing.oldestUnreadAt = m.createdAt;
+      }
     }
   }
 

@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, Send, ChevronLeft } from 'lucide-react';
+import { MessageCircle, X, Send, ChevronLeft, AlertTriangle } from 'lucide-react';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { getInitials } from '@/lib/helpers';
 
-type Conversation = { clientId: string; clientName: string; lastBody: string; lastAt: string; lastSender: string; unread: number };
+const WAIT_ALERT_MS = 10 * 60 * 1000; // 10 minuti
+
+type Conversation = { clientId: string; clientName: string; lastBody: string; lastAt: string; lastSender: string; unread: number; oldestUnreadAt: string | null };
 type Message = { id: string; clientId: string; clientName: string; sender: string; body: string; operatorName?: string | null; createdAt: string };
 
 function initials(name: string) {
@@ -22,6 +24,8 @@ export default function ClientChat() {
   const [thread, setThread] = useState<Message[]>([]);
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
+  const [alertConv, setAlertConv] = useState<Conversation | null>(null);
+  const dismissedRef = useRef<Set<string>>(new Set());
   const user = useAuthStore(s => s.user);
   const threadEndRef = useRef<HTMLDivElement>(null);
 
@@ -61,6 +65,29 @@ export default function ClientChat() {
 
   useEffect(() => { threadEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread]);
 
+  // Avviso: cliente in attesa da oltre 10 minuti senza risposta
+  useEffect(() => {
+    // reset dei "già avvisati" per conversazioni ora risolte
+    for (const id of Array.from(dismissedRef.current)) {
+      const conv = conversations.find(c => c.clientId === id);
+      if (!conv || conv.unread === 0) dismissedRef.current.delete(id);
+    }
+    // chiudi il popup se la conversazione è stata gestita
+    setAlertConv(prev => {
+      if (!prev) return prev;
+      const still = conversations.find(c => c.clientId === prev.clientId);
+      return (!still || still.unread === 0) ? null : prev;
+    });
+    // cerca una conversazione in ritardo (>10 min) non ancora avvisata né aperta
+    const overdue = conversations.find(c =>
+      c.unread > 0 && c.oldestUnreadAt &&
+      (Date.now() - new Date(c.oldestUnreadAt).getTime()) > WAIT_ALERT_MS &&
+      !dismissedRef.current.has(c.clientId) &&
+      c.clientId !== activeId
+    );
+    if (overdue) setAlertConv(prev => prev ?? overdue);
+  }, [conversations, activeId]);
+
   const openConversation = async (clientId: string) => {
     setActiveId(clientId);
     await loadThread(clientId);
@@ -89,7 +116,7 @@ export default function ClientChat() {
   return (
     <>
       <button onClick={() => setOpen(true)} title="Chat clienti"
-        className="relative p-2 rounded-xl hover:bg-bg-hover text-text-secondary transition-colors">
+        className={`relative p-2 rounded-xl hover:bg-bg-hover text-text-secondary transition-colors ${totalUnread > 0 ? 'chat-blink' : ''}`}>
         <MessageCircle className="w-5 h-5" />
         {totalUnread > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-error text-white text-[10px] font-bold px-1">{totalUnread}</span>
@@ -165,6 +192,38 @@ export default function ClientChat() {
               )}
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Popup: cliente in attesa da oltre 10 minuti */}
+      <AnimatePresence>
+        {alertConv && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { dismissedRef.current.add(alertConv.clientId); setAlertConv(null); }} />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              className="relative w-full max-w-sm bg-bg-secondary border border-border rounded-2xl shadow-2xl p-6 z-10">
+              <div className="flex items-center gap-3 mb-3 text-warning">
+                <div className="w-10 h-10 rounded-full bg-warning/15 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <h3 className="text-lg font-display font-bold text-text-primary">Cliente in attesa</h3>
+              </div>
+              <p className="text-sm text-text-secondary mb-5">
+                <strong className="text-text-primary">{alertConv.clientName}</strong> ha scritto in chat e attende una risposta da <strong className="text-warning">oltre 10 minuti</strong>.
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => { dismissedRef.current.add(alertConv.clientId); setAlertConv(null); }}
+                  className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+                  Più tardi
+                </button>
+                <button onClick={() => { const id = alertConv.clientId; setAlertConv(null); setOpen(true); openConversation(id); }}
+                  className="flex-1 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium hover:opacity-90 transition-opacity">
+                  Apri chat
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </>
