@@ -37,6 +37,8 @@ model Client {
   visitCount       Int      @default(0)
   avgTicket        Float    @default(0)
   referredBy       String?
+  customTreatments Json     @default("[]")
+  priceListId      String?
 
   appointments     Appointment[]
   clientPackages   ClientPackage[]

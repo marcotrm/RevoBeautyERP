@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useClientStore } from '@/stores/useClientStore';
 import { Client } from '@/types';
@@ -81,9 +81,13 @@ function ClientRow({ client, checked, onToggle }: { client: Client; checked: boo
 // AddClientModal extracted to components
 
 export default function ClientsPage() {
-  const { searchQuery, setSearchQuery, activeFilter, setActiveFilter, getFilteredClients, clients, addClient, updateClient, deleteClient } = useClientStore();
+  const { searchQuery, setSearchQuery, activeFilter, setActiveFilter, getFilteredClients, clients, addClient, updateClient, deleteClient, fetchClients } = useClientStore();
   const filteredClients = useMemo(() => getFilteredClients(), [searchQuery, activeFilter, clients]);
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]);
 
   // Selezione singola e di massa
   const [selected, setSelected] = useState<Set<string>>(new Set());

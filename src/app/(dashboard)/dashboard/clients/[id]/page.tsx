@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import { useClientStore } from '@/stores/useClientStore';
@@ -30,10 +30,15 @@ const tabs = [
 export default function ClientDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { clients, updateClient } = useClientStore();
+  const { clients, updateClient, fetchClients } = useClientStore();
   const { priceLists } = usePriceListStore();
-  const { treatments } = useTreatmentStore();
+  const { treatments, fetchTreatments } = useTreatmentStore();
   const [activeTab, setActiveTab] = useState('profile');
+
+  useEffect(() => {
+    fetchClients();
+    fetchTreatments();
+  }, [fetchClients, fetchTreatments]);
   
   // Custom treatments state
   const [isCustomTreatmentModalOpen, setIsCustomTreatmentModalOpen] = useState(false);

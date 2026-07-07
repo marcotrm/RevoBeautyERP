@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Clock, Plus, Euro, X, CheckCircle, Trash2, ChevronLeft, ChevronRight,
@@ -525,9 +525,13 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
 /* ========== MAIN PAGE ========== */
 export default function StaffPage() {
   const [showAddModal, setShowAddModal] = useState(false);
-  const { operators: staffList, addOperator, deleteOperator } = useOperatorStore();
+  const { operators: staffList, addOperator, deleteOperator, fetchOperators } = useOperatorStore();
   const [activeTab, setActiveTab] = useState<'overview' | 'shifts'>('overview');
   const { punches } = useTimeClockStore();
+
+  useEffect(() => {
+    fetchOperators();
+  }, [fetchOperators]);
 
   // Commissioni derivate dalle operatrici reali. Il fatturato per operatrice non è
   // ancora tracciato dalle vendite, quindi resta a 0 finché non ci sono dati reali.

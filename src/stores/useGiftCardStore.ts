@@ -1,7 +1,10 @@
 'use client';
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import {
+  getGiftCards, createGiftCard as createGiftCardAction, redeemGiftCard as redeemGiftCardAction,
+  deleteGiftCard as deleteGiftCardAction,
+} from '@/app/actions/giftcards';
 
 export interface GiftCardTransaction {
   id: string;
@@ -28,42 +31,11 @@ export interface GiftCard {
   transactions: GiftCardTransaction[];
 }
 
-function generateCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return `RB-${new Date().getFullYear()}-${code}`;
-}
-
-const defaultGiftCards: GiftCard[] = [
-  {
-    id: 'gc-1', code: 'RB-2026-K7M3', purchasedBy: 'Marco Rossi', recipientName: 'Giulia Rossi',
-    amount: 150, remainingBalance: 150, purchaseDate: '2026-05-10', expiryDate: '2027-05-10',
-    paymentMethod: 'Carta', purchaseOperator: 'Sara Rossi', status: 'active',
-    message: 'Buon compleanno amore! ❤️', transactions: [],
-  },
-  {
-    id: 'gc-2', code: 'RB-2026-P9R2', purchasedBy: 'Elena Bianchi', recipientName: 'Francesca Verdi',
-    amount: 100, remainingBalance: 35, purchaseDate: '2026-04-15', expiryDate: '2027-04-15',
-    paymentMethod: 'Contanti', purchaseOperator: 'Valentina Bianchi', status: 'partial',
-    message: 'Per la tua festa! 🎉', transactions: [
-      { id: 'gct-1', date: '2026-04-28', amount: 65, service: 'Pulizia Viso Profonda', operator: 'Sara Rossi' },
-    ],
-  },
-  {
-    id: 'gc-3', code: 'RB-2026-W5T1', purchasedBy: 'Anna Colombo', recipientName: 'Laura Ferrari',
-    amount: 200, remainingBalance: 0, purchaseDate: '2026-02-14', expiryDate: '2027-02-14',
-    paymentMethod: 'Carta', purchaseOperator: 'Chiara Moretti', status: 'used',
-    message: 'San Valentino 💕', transactions: [
-      { id: 'gct-2', date: '2026-03-01', amount: 95, service: 'Trattamento Anti-Age Premium', operator: 'Sara Rossi' },
-      { id: 'gct-3', date: '2026-03-20', amount: 70, service: 'Radiofrequenza Viso', operator: 'Chiara Moretti' },
-      { id: 'gct-4', date: '2026-04-10', amount: 35, service: 'Manicure Semipermanente', operator: 'Francesca Romano' },
-    ],
-  },
-];
-
 interface GiftCardStore {
   giftCards: GiftCard[];
+  isLoading: boolean;
+
+  fetchGiftCards: () => Promise<void>;
 
   createGiftCard: (data: {
     purchasedBy: string;
@@ -74,10 +46,10 @@ interface GiftCardStore {
     operator: string;
     validityMonths: number;
     message?: string;
-  }) => GiftCard;
+  }) => Promise<GiftCard>;
 
-  redeemGiftCard: (gcId: string, amount: number, service: string, operator: string) => void;
-  deleteGiftCard: (gcId: string) => void;
+  redeemGiftCard: (gcId: string, amount: number, service: string, operator: string) => Promise<void>;
+  deleteGiftCard: (gcId: string) => Promise<void>;
 
   findByCode: (code: string) => GiftCard | undefined;
   findByRecipient: (name: string) => GiftCard[];
@@ -85,81 +57,71 @@ interface GiftCardStore {
   getTotalActiveBalance: () => number;
 }
 
-export const useGiftCardStore = create<GiftCardStore>()(
-  persist(
-    (set, get) => ({
-      giftCards: defaultGiftCards,
+export const useGiftCardStore = create<GiftCardStore>()((set, get) => ({
+  giftCards: [],
+  isLoading: false,
 
-      createGiftCard: (data) => {
-        const now = new Date();
-        const exp = new Date(now);
-        exp.setMonth(exp.getMonth() + data.validityMonths);
-        const gc: GiftCard = {
-          id: `gc-${Date.now()}`,
-          code: generateCode(),
-          purchasedBy: data.purchasedBy,
-          recipientName: data.recipientName,
-          recipientPhone: data.recipientPhone,
-          amount: data.amount,
-          remainingBalance: data.amount,
-          purchaseDate: now.toISOString().split('T')[0],
-          expiryDate: exp.toISOString().split('T')[0],
-          paymentMethod: data.paymentMethod,
-          purchaseOperator: data.operator,
-          status: 'active',
-          message: data.message,
-          transactions: [],
-        };
-        set((s) => ({ giftCards: [gc, ...s.giftCards] }));
-        return gc;
-      },
+  fetchGiftCards: async () => {
+    set({ isLoading: true });
+    try {
+      const data = await getGiftCards();
+      set({ giftCards: data, isLoading: false });
+    } catch (e) {
+      console.error(e);
+      set({ isLoading: false });
+    }
+  },
 
-      redeemGiftCard: (gcId, amount, service, operator) => {
-        const today = new Date().toISOString().split('T')[0];
-        set((s) => ({
-          giftCards: s.giftCards.map(gc => {
-            if (gc.id !== gcId) return gc;
-            const newBalance = Math.max(0, gc.remainingBalance - amount);
-            return {
-              ...gc,
-              remainingBalance: newBalance,
-              status: newBalance <= 0 ? 'used' : 'partial',
-              transactions: [...gc.transactions, {
-                id: `gct-${Date.now()}`,
-                date: today,
-                amount,
-                service,
-                operator,
-              }],
-            };
-          }),
-        }));
-      },
+  createGiftCard: async (data) => {
+    try {
+      const gc = await createGiftCardAction(data);
+      set((s) => ({ giftCards: [gc, ...s.giftCards] }));
+      return gc;
+    } catch (error) {
+      console.error('Failed to create gift card', error);
+      throw error;
+    }
+  },
 
-      deleteGiftCard: (gcId) => set((s) => ({
-        giftCards: s.giftCards.filter(gc => gc.id !== gcId),
-      })),
+  redeemGiftCard: async (gcId, amount, service, operator) => {
+    try {
+      const updated = await redeemGiftCardAction(gcId, amount, service, operator);
+      set((s) => ({
+        giftCards: s.giftCards.map(gc => gc.id === gcId ? updated : gc),
+      }));
+    } catch (error) {
+      console.error('Failed to redeem gift card', error);
+      throw error;
+    }
+  },
 
-      findByCode: (code) => get().giftCards.find(gc =>
-        gc.code.toLowerCase() === code.toLowerCase() && gc.status !== 'expired'
-      ),
+  deleteGiftCard: async (gcId) => {
+    try {
+      await deleteGiftCardAction(gcId);
+      set((s) => ({ giftCards: s.giftCards.filter(gc => gc.id !== gcId) }));
+    } catch (error) {
+      console.error('Failed to delete gift card', error);
+      throw error;
+    }
+  },
 
-      findByRecipient: (name) => {
-        const q = name.toLowerCase();
-        return get().giftCards.filter(gc =>
-          gc.recipientName.toLowerCase().includes(q) &&
-          (gc.status === 'active' || gc.status === 'partial')
-        );
-      },
+  findByCode: (code) => get().giftCards.find(gc =>
+    gc.code.toLowerCase() === code.toLowerCase() && gc.status !== 'expired'
+  ),
 
-      getActiveGiftCards: () => get().giftCards.filter(gc =>
-        gc.status === 'active' || gc.status === 'partial'
-      ),
+  findByRecipient: (name) => {
+    const q = name.toLowerCase();
+    return get().giftCards.filter(gc =>
+      gc.recipientName.toLowerCase().includes(q) &&
+      (gc.status === 'active' || gc.status === 'partial')
+    );
+  },
 
-      getTotalActiveBalance: () => get().giftCards
-        .filter(gc => gc.status === 'active' || gc.status === 'partial')
-        .reduce((s, gc) => s + gc.remainingBalance, 0),
-    }),
-    { name: 'revo_giftcards_store' }
-  )
-);
+  getActiveGiftCards: () => get().giftCards.filter(gc =>
+    gc.status === 'active' || gc.status === 'partial'
+  ),
+
+  getTotalActiveBalance: () => get().giftCards
+    .filter(gc => gc.status === 'active' || gc.status === 'partial')
+    .reduce((s, gc) => s + gc.remainingBalance, 0),
+}));

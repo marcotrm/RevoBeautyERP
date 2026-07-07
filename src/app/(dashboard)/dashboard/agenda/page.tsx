@@ -1220,11 +1220,17 @@ export default function AgendaPage() {
     setSelectedOperatorIds,
   } = useAgendaStore();
   const operators = useOperatorStore(s => s.operators);
+  const fetchOperators = useOperatorStore(s => s.fetchOperators);
+  const fetchClients = useClientStore(s => s.fetchClients);
+  const fetchTreatments = useTreatmentStore(s => s.fetchTreatments);
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
 
   useEffect(() => {
     fetchAppointments();
-  }, [fetchAppointments]);
+    fetchOperators();
+    fetchClients();
+    fetchTreatments();
+  }, [fetchAppointments, fetchOperators, fetchClients, fetchTreatments]);
 
   // Mantiene il filtro operatrici allineato alle operatrici esistenti:
   // rimuove gli id di operatrici eliminate e mostra automaticamente le nuove.

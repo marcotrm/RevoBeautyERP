@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { usePersistedState } from '@/hooks/usePersistedState';
+import { usePosStore, TransactionRecord } from '@/stores/usePosStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
@@ -25,23 +25,6 @@ interface CartItem {
   type: 'service' | 'product';
 }
 
-interface TransactionRecord {
-  id: number;
-  client: string;
-  items: string;
-  total: number;
-  method: string;
-  time: string;
-  operator: string;
-}
-
-const defaultTransactions: TransactionRecord[] = [
-  { id: 1, client: 'Laura Ferrari', items: 'Epilazione Laser Gambe', total: 120, method: 'Carta', time: '09:48', operator: 'Valentina' },
-  { id: 2, client: 'Silvia Marino', items: 'Manicure Semipermanente', total: 30, method: 'Contanti', time: '09:45', operator: 'Francesca' },
-  { id: 3, client: 'Maria Colombo', items: 'Pulizia Viso + Crema SPF30', total: 107, method: 'Carta', time: '10:05', operator: 'Sara' },
-  { id: 4, client: 'Alessandra Russo', items: 'Trattamento Anti-Age Premium', total: 95, method: 'Satispay', time: '11:35', operator: 'Sara' },
-];
-
 const PAYMENT_METHODS = [
   { id: 'carta', label: 'Carta', icon: '💳' },
   { id: 'contanti', label: 'Contanti', icon: '💵' },
@@ -52,7 +35,7 @@ const PAYMENT_METHODS = [
 ];
 
 function NewSaleModal({ onClose, onComplete, initialData }: {
-  onClose: () => void; onComplete: (tx: TransactionRecord, debtPkgId?: string) => void;
+  onClose: () => void; onComplete: (tx: Omit<TransactionRecord, 'id'>, debtPkgId?: string) => void;
   initialData?: { client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string } | null;
 }) {
   const treatments = useTreatmentStore(s => s.treatments);
@@ -177,7 +160,6 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       : PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label || 'Carta';
 
     onComplete({
-      id: Date.now(),
       client: selectedClient || 'Cliente Occasionale',
       items: cart.map(i => i.name).join(', '),
       total: finalTotal,
@@ -415,14 +397,22 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
 function POSPageInner() {
   const { addPayment } = usePackageStore();
   const { products } = useProductStore();
+  const { transactions, fetchTransactions, addTransaction } = usePosStore();
+  const fetchClients = useClientStore(s => s.fetchClients);
+  const fetchTreatments = useTreatmentStore(s => s.fetchTreatments);
   const [showSaleModal, setShowSaleModal] = useState(false);
-  const [transactions, setTransactions] = usePersistedState<TransactionRecord[]>('revo_pos_transactions', defaultTransactions);
   const [saleInitialData, setSaleInitialData] = useState<{ client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string } | null>(null);
   const [showCloseCassa, setShowCloseCassa] = useState(false);
   const [showLastReceipt, setShowLastReceipt] = useState(false);
   const [showRefund, setShowRefund] = useState(false);
   const searchParams = useSearchParams();
   const todayTotal = transactions.reduce((s, t) => s + t.total, 0);
+
+  useEffect(() => {
+    fetchTransactions();
+    fetchClients();
+    fetchTreatments();
+  }, [fetchTransactions, fetchClients, fetchTreatments]);
 
   // Auto-open from agenda
   useEffect(() => {
@@ -442,26 +432,24 @@ function POSPageInner() {
     }
   }, [searchParams]);
 
-  const handleNewSale = (tx: TransactionRecord, debtPkgId?: string) => {
-    setTransactions(prev => [tx, ...prev]);
+  const handleNewSale = async (tx: Omit<TransactionRecord, 'id'>, debtPkgId?: string) => {
+    const created = await addTransaction(tx);
     if (debtPkgId) {
-      addPayment(debtPkgId, tx.total, tx.method as any, tx.operator, 'Pagamento da Cassa');
+      addPayment(debtPkgId, created.total, created.method as any, created.operator, 'Pagamento da Cassa');
     }
   };
 
-  const handleRefund = (txId: number) => {
+  const handleRefund = async (txId: string) => {
     const tx = transactions.find(t => t.id === txId);
     if (!tx) return;
-    const refundTx: TransactionRecord = {
-      id: Date.now(),
+    await addTransaction({
       client: tx.client,
       items: `RIMBORSO: ${tx.items}`,
       total: -tx.total,
       method: tx.method,
       time: `${new Date().getHours().toString().padStart(2, '0')}:${new Date().getMinutes().toString().padStart(2, '0')}`,
       operator: tx.operator,
-    };
-    setTransactions(prev => [refundTx, ...prev]);
+    });
     setShowRefund(false);
   };
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp, TrendingDown, Calendar, Users, Euro,
@@ -20,17 +20,7 @@ import {
   getStatusLabel, getStatusColor,
 } from '@/lib/helpers';
 import Link from 'next/link';
-import { usePersistedState } from '@/hooks/usePersistedState';
-
-interface TransactionRecord {
-  id: number;
-  client: string;
-  items: string;
-  total: number;
-  method: string;
-  time: string;
-  operator: string;
-}
+import { usePosStore } from '@/stores/usePosStore';
 
 const container = {
   hidden: { opacity: 0 },
@@ -112,9 +102,20 @@ const dayLabels = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const appointments = useAgendaStore(s => s.appointments);
+  const fetchAppointments = useAgendaStore(s => s.fetchAppointments);
   const clients = useClientStore(s => s.clients);
+  const fetchClients = useClientStore(s => s.fetchClients);
   const clientPackages = usePackageStore(s => s.clientPackages);
-  const [transactions] = usePersistedState<TransactionRecord[]>('revo_pos_transactions', []);
+  const fetchPackages = usePackageStore(s => s.fetchPackages);
+  const transactions = usePosStore(s => s.transactions);
+  const fetchTransactions = usePosStore(s => s.fetchTransactions);
+
+  useEffect(() => {
+    fetchAppointments();
+    fetchClients();
+    fetchPackages();
+    fetchTransactions();
+  }, [fetchAppointments, fetchClients, fetchPackages, fetchTransactions]);
 
   const today = todayStr();
 

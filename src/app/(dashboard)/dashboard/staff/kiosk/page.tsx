@@ -8,12 +8,16 @@ import { useTimeClockStore } from '@/stores/useTimeClockStore';
 import { useOperatorStore } from '@/stores/useOperatorStore';
 
 export default function KioskPage() {
-  const { operators: MOCK_STAFF } = useOperatorStore();
+  const { operators: MOCK_STAFF, fetchOperators } = useOperatorStore();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedStaff, setSelectedStaff] = useState<typeof MOCK_STAFF[0] | null>(null);
   const [showSuccess, setShowSuccess] = useState<string | null>(null);
 
   const { addPunch, getStaffStatus } = useTimeClockStore();
+
+  useEffect(() => {
+    fetchOperators();
+  }, [fetchOperators]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { usePackageStore, PackageItem, ClientPackage } from '@/stores/usePackageStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -638,8 +638,14 @@ function AddListinoModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
 
 /* ========== MAIN PAGE ========== */
 export default function PackagesPage() {
-  const { packages, clientPackages: clientPkgs, addPackage, deletePackage, activatePackage, useSession, deleteClientPackage, addPayment } = usePackageStore();
+  const { packages, clientPackages: clientPkgs, addPackage, deletePackage, activatePackage, useSession, deleteClientPackage, addPayment, fetchPackages } = usePackageStore();
+  const fetchTreatments = useTreatmentStore(s => s.fetchTreatments);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  useEffect(() => {
+    fetchPackages();
+    fetchTreatments();
+  }, [fetchPackages, fetchTreatments]);
   const [showListinoModal, setShowListinoModal] = useState(false);
   const [activatingPkg, setActivatingPkg] = useState<PackageItem | null>(null);
   const [usingSession, setUsingSession] = useState<ClientPackage | null>(null);

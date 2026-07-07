@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useGiftCardStore, GiftCard } from '@/stores/useGiftCardStore';
 import { useClientStore } from '@/stores/useClientStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -351,8 +351,14 @@ function RedeemModal({ gc, onClose, onRedeem }: {
 
 /* ========== MAIN PAGE ========== */
 export default function GiftCardsPage() {
-  const { giftCards, createGiftCard, redeemGiftCard, deleteGiftCard, getTotalActiveBalance } = useGiftCardStore();
+  const { giftCards, createGiftCard, redeemGiftCard, deleteGiftCard, getTotalActiveBalance, fetchGiftCards } = useGiftCardStore();
+  const fetchClients = useClientStore(s => s.fetchClients);
   const [showCreate, setShowCreate] = useState(false);
+
+  useEffect(() => {
+    fetchGiftCards();
+    fetchClients();
+  }, [fetchGiftCards, fetchClients]);
   const [redeemingGc, setRedeemingGc] = useState<GiftCard | null>(null);
   const [viewingGc, setViewingGc] = useState<GiftCard | null>(null);
   const [search, setSearch] = useState('');
