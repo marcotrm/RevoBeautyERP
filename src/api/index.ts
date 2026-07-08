@@ -11,6 +11,7 @@
  */
 import { AppointmentsProvider, RealAppointmentsService } from './AppointmentsProvider';
 import { AuthProvider } from './AuthProvider';
+import { BookingProvider, RealBookingService } from './BookingProvider';
 import { CatalogProvider, RealCatalogService } from './CatalogProvider';
 import { ChatProvider, RealChatService } from './ChatProvider';
 import { RealAuthService } from './RealAuthService';
@@ -19,9 +20,11 @@ export const authService: AuthProvider = new RealAuthService();
 export const catalogService: CatalogProvider = new RealCatalogService();
 export const appointmentsService: AppointmentsProvider = new RealAppointmentsService();
 export const chatService: ChatProvider = new RealChatService();
+export const bookingService: BookingProvider = new RealBookingService();
 
 export type { AuthProvider } from './AuthProvider';
 export type { CatalogProvider } from './CatalogProvider';
 export type { AppointmentsProvider } from './AppointmentsProvider';
 export type { ChatProvider, ChatMessage } from './ChatProvider';
+export type { BookingProvider, BookingTreatment, BookingSlot, BookingResult } from './BookingProvider';
 export * from './types';
