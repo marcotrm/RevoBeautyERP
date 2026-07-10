@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { treatmentLabel, TREATMENTS } from '@/lib/inaugurazione';
 import { PartyPopper, CheckCircle2, Clock, Users, Mail, Phone, RefreshCw } from 'lucide-react';
+import DeleteLeadButton from './DeleteLeadButton';
 
 // Pagina protetta dal gate client-side del layout dashboard (come il resto dell'ERP).
 export const dynamic = 'force-dynamic';
@@ -136,6 +137,7 @@ export default async function InaugurazionePage({
                   <th className="px-4 py-3 font-medium">Trattamento</th>
                   <th className="px-4 py-3 font-medium">Stato</th>
                   <th className="px-4 py-3 font-medium whitespace-nowrap">Data richiesta</th>
+                  <th className="px-4 py-3 font-medium text-right">Azioni</th>
                 </tr>
               </thead>
               <tbody>
@@ -174,6 +176,9 @@ export default async function InaugurazionePage({
                     </td>
                     <td className="px-4 py-3 text-text-secondary whitespace-nowrap">
                       {formatDate(lead.createdAt)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <DeleteLeadButton id={lead.id} name={`${lead.firstName} ${lead.lastName}`} />
                     </td>
                   </tr>
                 ))}
