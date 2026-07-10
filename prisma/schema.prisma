@@ -254,3 +254,24 @@ model ChatMessage {
   @@index([clientId])
   @@map("chat_messages")
 }
+
+// ============================================================
+// INAUGURATION LEADS (coupon "Nuova Apertura" dal sito)
+// ============================================================
+model InaugurationLead {
+  id           String  @id @default(cuid())
+  firstName    String
+  lastName     String
+  phone        String
+  email        String
+  treatment    String  // 'lampada' | 'pressoterapia' | 'body_sculpting'
+  status       String  @default("pending") // 'pending' | 'confirmed'
+  confirmToken String  @unique
+  source       String? // es. 'qr-striscione'
+  createdAt    String
+  confirmedAt  String?
+
+  @@index([status])
+  @@index([email])
+  @@map("inauguration_leads")
+}

@@ -11,7 +11,7 @@ import {
   Calendar, Users, ShoppingBag, Package, BarChart3,
   Megaphone, Settings, ChevronLeft, ChevronRight,
   LayoutDashboard, UserCog, Sun, Moon, LogOut,
-  Warehouse, Sparkles, X, Landmark, Gift,
+  Warehouse, Sparkles, X, Landmark, Gift, PartyPopper,
 } from 'lucide-react';
 import { getInitials } from '@/lib/helpers';
 
@@ -28,6 +28,7 @@ const menuItems = [
   { id: 'admin', label: 'Amministrazione', icon: Landmark, href: '/dashboard/admin' },
   { id: 'staff', label: 'Staff', icon: UserCog, href: '/dashboard/staff' },
   { id: 'settings', label: 'Impostazioni', icon: Settings, href: '/dashboard/settings' },
+  { id: 'inaugurazione', label: 'Inaugurazione', icon: PartyPopper, href: '/dashboard/settings/inaugurazione' },
 ];
 
 export default function Sidebar() {
