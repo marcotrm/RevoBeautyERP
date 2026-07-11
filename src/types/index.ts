@@ -119,6 +119,7 @@ export interface Operator {
   specializations: TreatmentCategory[];
   locationIds: string[];
   schedule: OperatorWeekSchedule;
+  contractHours?: number; // ore settimanali da contratto
   isActive: boolean;
   phone?: string;
   email?: string;

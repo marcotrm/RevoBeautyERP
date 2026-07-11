@@ -267,6 +267,7 @@ function AddStaffModal({ onClose, onSave }: { onClose: () => void; onSave: (s: O
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [commission, setCommission] = useState('10');
+  const [contractHours, setContractHours] = useState('');
   const [specs, setSpecs] = useState<TreatmentCategory[]>([]);
   const [color, setColor] = useState(COLORS[0]);
   const toggleSpec = (s: TreatmentCategory) => setSpecs(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
@@ -276,6 +277,7 @@ function AddStaffModal({ onClose, onSave }: { onClose: () => void; onSave: (s: O
     onSave({
       id: `op-${Date.now()}`, firstName: firstName.trim(), lastName: lastName.trim(),
       email, phone, specializations: specs, commission: Number(commission),
+      contractHours: Number(contractHours) || 0,
       color, avatar: '', isActive: true, locationIds: ['loc1'], hireDate: new Date().toISOString().slice(0, 10),
       schedule: { 1: { isWorking: true, startTime: '09:00', endTime: '18:00' }, 2: { isWorking: true, startTime: '09:00', endTime: '18:00' }, 3: { isWorking: true, startTime: '09:00', endTime: '18:00' }, 4: { isWorking: true, startTime: '09:00', endTime: '18:00' }, 5: { isWorking: true, startTime: '09:00', endTime: '18:00' }, 6: { isWorking: false, startTime: '', endTime: '' } },
     });
@@ -304,8 +306,12 @@ function AddStaffModal({ onClose, onSave }: { onClose: () => void; onSave: (s: O
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Telefono</label>
                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+39 333..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
             </div>
-            <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Commissione %</label>
-              <input type="number" min="0" max="100" value={commission} onChange={e => setCommission(e.target.value)} className="w-32 px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Commissione %</label>
+                <input type="number" min="0" max="100" value={commission} onChange={e => setCommission(e.target.value)} className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all" /></div>
+              <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Ore contratto / sett.</label>
+                <input type="number" min="0" max="60" step="0.5" value={contractHours} onChange={e => setContractHours(e.target.value)} placeholder="es. 40" className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+            </div>
             <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Colore</label>
               <div className="flex gap-2">{COLORS.map(c => <button key={c} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 ring-offset-bg-secondary ring-accent scale-110' : 'hover:scale-105'}`} style={{ backgroundColor: c }} />)}</div></div>
             <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Specializzazioni</label>
@@ -337,44 +343,31 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
   const [email, setEmail] = useState(operator.email || '');
   const [phone, setPhone] = useState(operator.phone || '');
   const [commission, setCommission] = useState(String(operator.commission ?? 0));
+  const [contractHours, setContractHours] = useState(String(operator.contractHours || ''));
   const [color, setColor] = useState(operator.color);
   const [specs, setSpecs] = useState<TreatmentCategory[]>(operator.specializations || []);
-  const [tab, setTab] = useState<'hours' | 'info'>('hours');
-
-  const [week, setWeek] = useState<Record<number, ShiftEntry>>(() => {
-    const w: Record<number, ShiftEntry> = {};
-    for (let d = 1; d <= 6; d++) {
-      const s = operator.schedule?.[d];
-      w[d] = s
-        ? { isWorking: s.isWorking, startTime: s.startTime || '09:00', endTime: s.endTime || '18:00', breakStart: s.breakStart, breakEnd: s.breakEnd }
-        : d === 6
-          ? { isWorking: false, startTime: '', endTime: '' }
-          : { isWorking: true, startTime: '09:00', endTime: '18:00' };
-    }
-    return w;
-  });
-
-  const setDay = (d: number, patch: Partial<ShiftEntry>) =>
-    setWeek(prev => ({ ...prev, [d]: { ...prev[d], ...patch } }));
 
   const toggleSpec = (s: TreatmentCategory) => setSpecs(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
 
-  const totalWeekHours = Object.values(week).reduce((sum, s) => sum + shiftTotalMinutes(s) / 60, 0);
+  // Ore effettivamente pianificate (dai turni salvati)
+  const plannedHours = (() => {
+    let h = 0;
+    for (let d = 1; d <= 6; d++) {
+      const s = operator.schedule?.[d];
+      if (s?.isWorking) h += shiftTotalMinutes({ isWorking: true, startTime: s.startTime, endTime: s.endTime, breakStart: s.breakStart, breakEnd: s.breakEnd }) / 60;
+    }
+    return h;
+  })();
+
   const canSave = firstName.trim() && lastName.trim();
 
   const handleSave = () => {
     if (!canSave) return;
-    const schedule: Operator['schedule'] = {};
-    for (let d = 1; d <= 6; d++) {
-      const s = week[d];
-      schedule[d] = s.isWorking
-        ? { isWorking: true, startTime: s.startTime, endTime: s.endTime, ...(s.breakStart && s.breakEnd ? { breakStart: s.breakStart, breakEnd: s.breakEnd } : {}) }
-        : { isWorking: false, startTime: '', endTime: '' };
-    }
     onSave({
       firstName: firstName.trim(), lastName: lastName.trim(),
       email, phone, commission: Number(commission) || 0,
-      color, specializations: specs, schedule,
+      contractHours: Number(contractHours) || 0,
+      color, specializations: specs,
     });
     onClose();
   };
@@ -393,7 +386,7 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
               </div>
               <div>
                 <h3 className="text-base font-display font-semibold text-text-primary">{firstName} {lastName}</h3>
-                <p className="text-xs text-text-muted">{totalWeekHours.toFixed(1).replace('.0', '')} ore a settimana</p>
+                <p className="text-xs text-text-muted">{operator.contractHours ? `${operator.contractHours} ore da contratto` : 'Ore contratto non impostate'}</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -405,79 +398,31 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="flex border-b border-border">
-            {([['hours', 'Orari e ore'], ['info', 'Dati e commissioni']] as const).map(([val, label]) => (
-              <button key={val} onClick={() => setTab(val)}
-                className={`flex-1 py-2.5 text-sm font-medium transition-colors ${tab === val ? 'text-accent border-b-2 border-accent bg-accent/5' : 'text-text-secondary hover:bg-bg-hover'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
+          <div className="px-6 py-5 space-y-4 max-h-[calc(100vh-16rem)] overflow-y-auto">
+            {/* Ore da contratto */}
+            <div className="p-4 rounded-xl bg-accent/5 border border-accent/20">
+              <label className="block text-sm font-semibold text-text-primary mb-1.5">Ore settimanali da contratto</label>
+              <div className="flex items-center gap-3">
+                <input type="number" min="0" max="60" step="0.5" value={contractHours} onChange={e => setContractHours(e.target.value)}
+                  placeholder="es. 40"
+                  className="w-28 px-3 py-2.5 rounded-xl bg-bg-secondary border border-border text-lg font-semibold text-text-primary text-center placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
+                <span className="text-sm text-text-secondary">ore / settimana</span>
+              </div>
+              {Number(contractHours) > 0 && (
+                <p className={`text-xs mt-2 font-medium ${
+                  plannedHours === Number(contractHours) ? 'text-success'
+                    : plannedHours > Number(contractHours) ? 'text-error' : 'text-warning'
+                }`}>
+                  Turni pianificati: {plannedHours.toFixed(1).replace('.0', '')}h
+                  {plannedHours === Number(contractHours) ? ' — in linea col contratto ✓'
+                    : plannedHours > Number(contractHours) ? ` — ${(plannedHours - Number(contractHours)).toFixed(1).replace('.0', '')}h in più del contratto`
+                    : ` — mancano ${(Number(contractHours) - plannedHours).toFixed(1).replace('.0', '')}h da pianificare`}
+                </p>
+              )}
+              <p className="text-xs text-text-muted mt-1">I turni si impostano nella tab &quot;Turni&quot; → Pianificazione Turni</p>
+            </div>
 
-          <div className="px-6 py-5 space-y-3 max-h-[calc(100vh-18rem)] overflow-y-auto">
-            {tab === 'hours' && (
-              <>
-                {DAYS.map((dayName, i) => {
-                  const d = i + 1;
-                  const s = week[d];
-                  const dayHours = shiftTotalMinutes(s) / 60;
-                  return (
-                    <div key={d} className={`rounded-xl border p-3 transition-colors ${s.isWorking ? 'bg-success/5 border-success/20' : 'bg-bg-tertiary border-border/30'}`}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <button onClick={() => setDay(d, { isWorking: !s.isWorking, startTime: s.startTime || '09:00', endTime: s.endTime || '18:00' })}
-                            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${s.isWorking ? 'bg-success' : 'bg-bg-hover'}`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${s.isWorking ? 'left-6' : 'left-1'}`} />
-                          </button>
-                          <span className="text-sm font-medium text-text-primary w-20">{dayName}</span>
-                        </div>
-                        {s.isWorking ? (
-                          <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                            <select value={s.startTime} onChange={e => setDay(d, { startTime: e.target.value })}
-                              className="px-2 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none focus:border-accent/50 appearance-none">
-                              {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                            <span className="text-xs text-text-muted">→</span>
-                            <select value={s.endTime} onChange={e => setDay(d, { endTime: e.target.value })}
-                              className="px-2 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none focus:border-accent/50 appearance-none">
-                              {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                            <button onClick={() => s.breakStart ? setDay(d, { breakStart: undefined, breakEnd: undefined }) : setDay(d, { breakStart: '13:00', breakEnd: '14:00' })}
-                              className={`px-2 py-1.5 rounded-lg text-xs border transition-colors ${s.breakStart ? 'bg-warning/10 border-warning/30 text-warning' : 'bg-bg-tertiary border-border text-text-muted hover:border-border-light'}`}
-                              title="Pausa">☕</button>
-                            <span className="text-xs font-semibold text-success w-10 text-right">{dayHours.toFixed(1).replace('.0', '')}h</span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-text-muted font-medium">Riposo</span>
-                        )}
-                      </div>
-                      {s.isWorking && s.breakStart && (
-                        <div className="flex items-center gap-1.5 mt-2 pl-14">
-                          <span className="text-xs text-warning">☕ Pausa</span>
-                          <select value={s.breakStart} onChange={e => setDay(d, { breakStart: e.target.value })}
-                            className="px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none appearance-none">
-                            {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
-                          </select>
-                          <span className="text-xs text-text-muted">→</span>
-                          <select value={s.breakEnd} onChange={e => setDay(d, { breakEnd: e.target.value })}
-                            className="px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none appearance-none">
-                            {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
-                          </select>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                <div className="text-center p-3 rounded-xl bg-accent/5 border border-accent/20">
-                  <p className="text-sm text-accent font-semibold">Totale: {totalWeekHours.toFixed(1).replace('.0', '')} ore a settimana</p>
-                  <p className="text-xs text-text-muted mt-0.5">Domenica il centro è chiuso</p>
-                </div>
-              </>
-            )}
-
-            {tab === 'info' && (
-              <>
+            <>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Nome *</label>
                     <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all" /></div>
@@ -496,8 +441,7 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
                   <div className="flex gap-2 flex-wrap">{COLORS.map(c => <button key={c} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 ring-offset-bg-secondary ring-accent scale-110' : 'hover:scale-105'}`} style={{ backgroundColor: c }} />)}</div></div>
                 <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Specializzazioni</label>
                   <div className="flex flex-wrap gap-2">{SPECIALIZATIONS.map(sp => <button key={sp.value} onClick={() => toggleSpec(sp.value)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${specs.includes(sp.value) ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-bg-tertiary text-text-secondary border border-border hover:border-border-light'}`}>{sp.label}</button>)}</div></div>
-              </>
-            )}
+            </>
           </div>
 
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-bg-tertiary/30">
@@ -684,7 +628,17 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
                     );
                   })}
                   <td className="px-3 py-3 text-center">
-                    <span className="text-sm font-semibold text-text-primary">{weekHours.toFixed(0)}h</span>
+                    {op.contractHours ? (
+                      <div title={`Contratto: ${op.contractHours}h a settimana`}>
+                        <span className={`text-sm font-semibold ${
+                          weekHours === op.contractHours ? 'text-success'
+                            : weekHours > op.contractHours ? 'text-error' : 'text-warning'
+                        }`}>{weekHours.toFixed(1).replace('.0', '')}h</span>
+                        <p className="text-[10px] text-text-muted">su {op.contractHours}h</p>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-semibold text-text-primary">{weekHours.toFixed(1).replace('.0', '')}h</span>
+                    )}
                   </td>
                 </tr>
               );
@@ -752,28 +706,23 @@ export default function StaffPage() {
         <>
           {/* Staff cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            {staffList.map(op => {
-              let weekHours = 0;
-              for (let d = 1; d <= 6; d++) {
-                const s = op.schedule?.[d];
-                if (s?.isWorking) weekHours += shiftTotalMinutes({ isWorking: true, startTime: s.startTime, endTime: s.endTime, breakStart: s.breakStart, breakEnd: s.breakEnd }) / 60;
-              }
-              return (
-                <div key={op.id} onClick={() => setDetailOpId(op.id)} className="bg-bg-secondary border border-border rounded-2xl p-5 hover:border-accent/40 hover:shadow-lg transition-all cursor-pointer group text-center relative">
-                  <button onClick={(e) => {
-                    e.stopPropagation();
-                    if (window.confirm('Sei sicuro di voler eliminare questo collaboratore?')) {
-                      deleteOperator(op.id);
-                    }
-                  }} className="absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-lg font-bold mx-auto mb-3" style={{ backgroundColor: op.color }}>{getInitials(op.firstName, op.lastName)}</div>
-                  <h4 className="text-sm font-semibold text-text-primary">{op.firstName} {op.lastName}</h4>
-                  <div className="flex flex-wrap gap-1 justify-center mt-2">{op.specializations.slice(0, 2).map(s => <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-muted">{specLabel(s)}</span>)}</div>
-                  <p className="text-xs text-text-muted mt-2">Commissione: {op.commission}%</p>
-                  <p className="text-xs font-semibold text-accent mt-1">{weekHours.toFixed(1).replace('.0', '')}h / settimana</p>
-                </div>
-              );
-            })}
+            {staffList.map(op => (
+              <div key={op.id} onClick={() => setDetailOpId(op.id)} className="bg-bg-secondary border border-border rounded-2xl p-5 hover:border-accent/40 hover:shadow-lg transition-all cursor-pointer group text-center relative">
+                <button onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm('Sei sicuro di voler eliminare questo collaboratore?')) {
+                    deleteOperator(op.id);
+                  }
+                }} className="absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+                <div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-lg font-bold mx-auto mb-3" style={{ backgroundColor: op.color }}>{getInitials(op.firstName, op.lastName)}</div>
+                <h4 className="text-sm font-semibold text-text-primary">{op.firstName} {op.lastName}</h4>
+                <div className="flex flex-wrap gap-1 justify-center mt-2">{op.specializations.slice(0, 2).map(s => <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-muted">{specLabel(s)}</span>)}</div>
+                <p className="text-xs text-text-muted mt-2">Commissione: {op.commission}%</p>
+                <p className={`text-xs font-semibold mt-1 ${op.contractHours ? 'text-accent' : 'text-text-muted'}`}>
+                  {op.contractHours ? `Contratto: ${op.contractHours}h / sett.` : 'Ore contratto da impostare'}
+                </p>
+              </div>
+            ))}
           </div>
 
           {/* Commissions */}

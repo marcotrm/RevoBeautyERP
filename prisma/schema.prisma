@@ -76,6 +76,7 @@ model Operator {
   specializations String[] @default([])
   locationIds     String[] @default([])
   schedule        Json     @default("{}")
+  contractHours   Float    @default(0)
   isActive        Boolean  @default(true)
   phone           String?
   email           String?
