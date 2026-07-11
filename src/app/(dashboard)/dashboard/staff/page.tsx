@@ -66,7 +66,7 @@ function buildDefaultShifts(operators: Operator[]): WeekShifts {
       if (op.schedule) {
         const dayKey = (d + 1) as 1|2|3|4|5|6;
         const s = op.schedule[dayKey];
-        if (s) { shifts[op.id][d] = { isWorking: s.isWorking, startTime: s.startTime || '09:00', endTime: s.endTime || '18:00' }; continue; }
+        if (s) { shifts[op.id][d] = { isWorking: s.isWorking, startTime: s.startTime || '09:00', endTime: s.endTime || '18:00', breakStart: s.breakStart, breakEnd: s.breakEnd }; continue; }
       }
       // defaults: Sat off, rest working
       shifts[op.id][d] = d === 5 ? { isWorking: false, startTime: '', endTime: '' } : { isWorking: true, startTime: '09:00', endTime: '18:00' };
@@ -481,10 +481,10 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
     setShifts(prev => {
       const nextOpShifts = { ...(prev[opId] || {}), [day]: entry };
       // Persiste nella scheda operatrice (giorni 1=Lun .. 6=Sab) così l'agenda lo rispetta
-      const schedule: Record<number, { isWorking: boolean; startTime: string; endTime: string }> = {};
+      const schedule: Record<number, { isWorking: boolean; startTime: string; endTime: string; breakStart?: string; breakEnd?: string }> = {};
       for (let d = 0; d < 6; d++) {
         const s = nextOpShifts[d] || { isWorking: true, startTime: '09:00', endTime: '18:00' };
-        schedule[d + 1] = { isWorking: s.isWorking, startTime: s.startTime, endTime: s.endTime };
+        schedule[d + 1] = { isWorking: s.isWorking, startTime: s.startTime, endTime: s.endTime, ...(s.breakStart && s.breakEnd ? { breakStart: s.breakStart, breakEnd: s.breakEnd } : {}) };
       }
       updateOperator(opId, { schedule });
       return { ...prev, [opId]: nextOpShifts };
