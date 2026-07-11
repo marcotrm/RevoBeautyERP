@@ -184,6 +184,107 @@ function NewCampaignModal({ onClose, onSave }: { onClose: () => void; onSave: (c
   );
 }
 
+/* ========== TEST NOTIFICHE ========== */
+interface ChannelStatus { configured: boolean; missing: string[]; from?: string }
+interface TestStatus { email: ChannelStatus; whatsapp: ChannelStatus; sms: ChannelStatus }
+
+function TestNotificationsPanel() {
+  const [status, setStatus] = useState<TestStatus | null>(null);
+  const [testEmail, setTestEmail] = useState('');
+  const [testPhone, setTestPhone] = useState('');
+  const [sending, setSending] = useState<'email' | 'whatsapp' | null>(null);
+  const [results, setResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
+
+  React.useEffect(() => {
+    fetch('/api/marketing/test-send').then(r => r.json()).then(setStatus).catch(() => setStatus(null));
+  }, []);
+
+  const sendTest = async (channel: 'email' | 'whatsapp') => {
+    const to = channel === 'email' ? testEmail.trim() : testPhone.trim();
+    if (!to) return;
+    setSending(channel);
+    try {
+      const res = await fetch('/api/marketing/test-send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel, to }),
+      });
+      const data = await res.json();
+      setResults(prev => ({ ...prev, [channel]: data.ok
+        ? { ok: true, msg: channel === 'email' ? 'Email inviata! Controlla la casella (anche spam).' : 'WhatsApp inviato! Controlla il telefono.' }
+        : { ok: false, msg: data.error || 'Invio fallito' } }));
+    } catch {
+      setResults(prev => ({ ...prev, [channel]: { ok: false, msg: 'Errore di rete' } }));
+    }
+    setSending(null);
+  };
+
+  const badge = (ch?: ChannelStatus) => ch?.configured
+    ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-success/10 text-success">Configurato</span>
+    : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-warning/10 text-warning">Da configurare</span>;
+
+  return (
+    <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+        <Send className="w-4 h-4 text-accent" />
+        <h3 className="text-base font-display font-semibold text-text-primary">Prova Notifiche</h3>
+        <span className="text-xs text-text-muted ml-1">verifica che i canali di invio funzionino davvero</span>
+      </div>
+      <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Email */}
+        <div className="p-4 rounded-xl bg-bg-tertiary/50 border border-border/50 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2"><Mail className="w-4 h-4 text-blue-500" /><span className="text-sm font-semibold text-text-primary">Email</span></div>
+            {badge(status?.email)}
+          </div>
+          {status?.email.configured ? (
+            <>
+              <input type="email" value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="la-tua@email.it"
+                className="w-full px-3 py-2 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
+              <button onClick={() => sendTest('email')} disabled={sending === 'email' || !testEmail.trim()}
+                className="w-full py-2 rounded-xl gradient-accent text-white text-xs font-medium disabled:opacity-50 transition-all">
+                {sending === 'email' ? 'Invio...' : 'Invia email di prova'}
+              </button>
+            </>
+          ) : (
+            <p className="text-xs text-text-muted">Manca <code className="text-warning">{status?.email.missing.join(', ') || 'RESEND_API_KEY'}</code> su Railway. Serve un account Resend col dominio revobeauty.it verificato.</p>
+          )}
+          {results.email && <p className={`text-xs font-medium ${results.email.ok ? 'text-success' : 'text-error'}`}>{results.email.msg}</p>}
+        </div>
+
+        {/* WhatsApp */}
+        <div className="p-4 rounded-xl bg-bg-tertiary/50 border border-border/50 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2"><MessageSquare className="w-4 h-4 text-green-500" /><span className="text-sm font-semibold text-text-primary">WhatsApp</span></div>
+            {badge(status?.whatsapp)}
+          </div>
+          {status?.whatsapp.configured ? (
+            <>
+              <input type="tel" value={testPhone} onChange={e => setTestPhone(e.target.value)} placeholder="333 1234567"
+                className="w-full px-3 py-2 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
+              <button onClick={() => sendTest('whatsapp')} disabled={sending === 'whatsapp' || !testPhone.trim()}
+                className="w-full py-2 rounded-xl gradient-accent text-white text-xs font-medium disabled:opacity-50 transition-all">
+                {sending === 'whatsapp' ? 'Invio...' : 'Invia WhatsApp di prova'}
+              </button>
+            </>
+          ) : (
+            <p className="text-xs text-text-muted">Mancano <code className="text-warning">{status?.whatsapp.missing.join(', ') || 'variabili Evolution'}</code> su Railway (stessa infrastruttura degli allarmi distributori).</p>
+          )}
+          {results.whatsapp && <p className={`text-xs font-medium ${results.whatsapp.ok ? 'text-success' : 'text-error'}`}>{results.whatsapp.msg}</p>}
+        </div>
+
+        {/* SMS */}
+        <div className="p-4 rounded-xl bg-bg-tertiary/50 border border-border/50 space-y-3 opacity-60">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2"><PhoneIcon className="w-4 h-4 text-pink-500" /><span className="text-sm font-semibold text-text-primary">SMS</span></div>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-bg-tertiary text-text-muted">Prossimamente</span>
+          </div>
+          <p className="text-xs text-text-muted">Gli SMS hanno un costo per messaggio: conviene partire con WhatsApp ed email, che sono gratuiti.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MarketingPage() {
   const [campaigns, setCampaigns] = useState(defaultCampaigns);
   const [automations, setAutomations] = useState(defaultAutomations);
@@ -221,6 +322,9 @@ export default function MarketingPage() {
         <div className="bg-bg-secondary border border-border rounded-2xl p-5"><p className="text-sm text-text-secondary">Conversioni</p><p className="text-2xl font-display font-bold text-accent mt-1">{totalConverted}</p><p className="text-xs text-text-muted mt-1">prenotazioni generate</p></div>
         <div className="bg-bg-secondary border border-border rounded-2xl p-5"><p className="text-sm text-text-secondary">Campagne Attive</p><p className="text-2xl font-display font-bold text-text-primary mt-1">{campaigns.filter(c => c.status === 'active').length}</p></div>
       </div>
+
+      {/* Test notifiche */}
+      <TestNotificationsPanel />
 
       {/* Campaigns */}
       <div>
