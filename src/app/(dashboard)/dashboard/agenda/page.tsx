@@ -764,6 +764,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   const [selectedServices, setSelectedServices] = useState<AppointmentService[]>([]);
   const [selectedOperatorId, setSelectedOperatorId] = useState('');
   const [startTime, setStartTime] = useState('09:00');
+  const [apptDate, setApptDate] = useState(() => fmtDate(selectedDate));
   const [notes, setNotes] = useState('');
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   const [treatmentQuery, setTreatmentQuery] = useState('');
@@ -792,19 +793,21 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
         setTreatmentQuery('');
         setSelectedOperatorId(editingAppointment.operatorId);
         setStartTime(editingAppointment.startTime);
+        setApptDate(editingAppointment.date);
         setNotes(editingAppointment.notes || '');
       } else if (slotInfo) {
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
         setSelectedServices([]); setTreatmentQuery('');
         setSelectedOperatorId(slotInfo.operatorId);
         setStartTime(slotInfo.time);
+        setApptDate(fmtDate(selectedDate));
         setNotes('');
       } else {
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
         setSelectedServices([]); setTreatmentQuery('');
         const firstWorking = operators.find(o => operatorWorksOn(o, selectedDate)) || operators[0];
         setSelectedOperatorId(firstWorking?.id || '');
-        setStartTime('09:00'); setNotes('');
+        setStartTime('09:00'); setApptDate(fmtDate(selectedDate)); setNotes('');
       }
       setShowClientDropdown(false);
       setTreatmentOpen(false);
@@ -889,7 +892,8 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   }, [startTime, selectedServices, totalDuration]);
 
   const selectedOperator = operators.find(o => o.id === selectedOperatorId);
-  const dateStr = fmtDate(selectedDate);
+  const dateStr = apptDate;
+  const apptDateObj = useMemo(() => { const [y, m, d] = apptDate.split('-').map(Number); return new Date(y, m - 1, d); }, [apptDate]);
   const canSave = selectedClientId && selectedServices.length > 0 && selectedOperatorId && startTime;
 
   const handleSave = () => {
@@ -1157,7 +1161,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
               <label className="block text-sm font-medium text-text-secondary mb-1.5">Operatrice *</label>
               <div className="grid grid-cols-5 gap-2">
                 {operators.map(op => {
-                  const off = !operatorWorksOn(op, selectedDate);
+                  const off = !operatorWorksOn(op, apptDateObj);
                   return (
                   <button key={op.id} type="button" disabled={off} onClick={() => !off && setSelectedOperatorId(op.id)}
                     title={off ? 'A riposo in questa data' : ''}
@@ -1173,7 +1177,8 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1.5">Data</label>
-                <input type="date" value={dateStr} readOnly className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none transition-all" />
+                <input type="date" value={apptDate} onChange={e => e.target.value && setApptDate(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all cursor-pointer" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1.5">Ora Inizio *</label>
