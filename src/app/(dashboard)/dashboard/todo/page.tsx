@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckSquare, Square, Plus, Trash2, Flag, Calendar as CalendarIcon, X } from 'lucide-react';
+import { CheckSquare, Square, Plus, Trash2, Flag, Calendar as CalendarIcon, X, User } from 'lucide-react';
 import { TodoItem } from '@/types';
 import { getTodos, createTodo, updateTodo, deleteTodo } from '@/app/actions/todo';
+import { useOperatorStore } from '@/stores/useOperatorStore';
 
 const PRIORITIES: { value: TodoItem['priority']; label: string; color: string; bg: string }[] = [
   { value: 'high', label: 'Alta', color: '#EF4444', bg: 'bg-error/10 text-error border-error/30' },
@@ -32,17 +33,21 @@ export default function TodoPage() {
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState<TodoItem['priority']>('normal');
   const [dueDate, setDueDate] = useState('');
+  const [assignee, setAssignee] = useState('');
   const [filter, setFilter] = useState<'all' | 'todo' | 'done'>('todo');
+
+  const { operators, fetchOperators } = useOperatorStore();
 
   useEffect(() => {
     getTodos().then(t => { setTodos(t); setLoading(false); }).catch(() => setLoading(false));
-  }, []);
+    fetchOperators();
+  }, [fetchOperators]);
 
   const add = async () => {
     if (!title.trim()) return;
     const optimisticTitle = title.trim();
-    setTitle(''); setDueDate('');
-    const created = await createTodo({ title: optimisticTitle, priority, dueDate: dueDate || undefined });
+    setTitle(''); setDueDate(''); setAssignee('');
+    const created = await createTodo({ title: optimisticTitle, priority, dueDate: dueDate || undefined, assignee: assignee || undefined });
     setTodos(prev => [created, ...prev]);
   };
 
@@ -115,9 +120,19 @@ export default function TodoPage() {
           </div>
           <div className="flex items-center gap-1.5">
             <CalendarIcon className="w-3.5 h-3.5 text-text-muted" />
+            <span className="text-xs text-text-muted">Entro il:</span>
             <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
               className="px-2.5 py-1 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none focus:border-accent/50" />
             {dueDate && <button onClick={() => setDueDate('')} className="text-text-muted hover:text-error"><X className="w-3.5 h-3.5" /></button>}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <User className="w-3.5 h-3.5 text-text-muted" />
+            <span className="text-xs text-text-muted">Assegna a:</span>
+            <select value={assignee} onChange={e => setAssignee(e.target.value)}
+              className="px-2.5 py-1 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none focus:border-accent/50 appearance-none">
+              <option value="">Chiunque</option>
+              {operators.map(op => <option key={op.id} value={`${op.firstName} ${op.lastName}`}>{op.firstName} {op.lastName}</option>)}
+            </select>
           </div>
         </div>
       </div>
@@ -155,10 +170,19 @@ export default function TodoPage() {
                   </button>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm ${t.done ? 'line-through text-text-muted' : 'text-text-primary font-medium'}`}>{t.title}</p>
-                    {due && !t.done && (
-                      <span className={`inline-flex items-center gap-1 text-[11px] mt-0.5 ${due.tone}`}>
-                        <CalendarIcon className="w-3 h-3" /> {due.label}{due.note ? ` · ${due.note}` : ''}
-                      </span>
+                    {!t.done && (due || t.assignee) && (
+                      <div className="flex items-center gap-2.5 mt-0.5 flex-wrap">
+                        {t.assignee && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-accent font-medium">
+                            <User className="w-3 h-3" /> {t.assignee}
+                          </span>
+                        )}
+                        {due && (
+                          <span className={`inline-flex items-center gap-1 text-[11px] ${due.tone}`}>
+                            <CalendarIcon className="w-3 h-3" /> {due.label}{due.note ? ` · ${due.note}` : ''}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                   {!t.done && (
