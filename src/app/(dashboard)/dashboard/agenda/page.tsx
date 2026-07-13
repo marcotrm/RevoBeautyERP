@@ -591,6 +591,95 @@ function MonthView({ selectedDate, allAppointments, operatorColorById, onAppoint
   );
 }
 
+/* ========== BLOCK MODAL (blocca una fascia oraria da/a) ========== */
+function BlockModal({ operatorName, dateLabel, defaultStart, defaultEnd, onClose, onSave }: {
+  operatorName: string; dateLabel: string; defaultStart: string; defaultEnd: string;
+  onClose: () => void; onSave: (start: string, end: string, reason: string) => void;
+}) {
+  const [start, setStart] = useState(defaultStart);
+  const [end, setEnd] = useState(defaultEnd);
+  const [reason, setReason] = useState('Pausa');
+
+  const times = useMemo(() => {
+    const arr: string[] = [];
+    for (let t = START_HOUR * 60; t <= END_HOUR * 60; t += 15) {
+      arr.push(`${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`);
+    }
+    return arr;
+  }, []);
+
+  const valid = timeToMinutes(end) > timeToMinutes(start);
+  const durationLabel = valid ? (() => {
+    const mins = timeToMinutes(end) - timeToMinutes(start);
+    const h = Math.floor(mins / 60), m = mins % 60;
+    return `${h > 0 ? `${h}h ` : ''}${m > 0 ? `${m}min` : ''}`.trim();
+  })() : '';
+
+  const PRESETS = ['Pausa', 'Chiuso', 'Riunione', 'Formazione', 'Ferie'];
+
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+        <div className="w-full max-w-sm bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-full bg-slate-500/15 flex items-center justify-center"><Lock className="w-4 h-4 text-slate-500" /></div>
+              <div>
+                <h3 className="text-base font-display font-semibold text-text-primary">Blocca fascia oraria</h3>
+                <p className="text-xs text-text-muted">{operatorName} • {dateLabel}</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="px-6 py-5 space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">Dalle</label>
+                <select value={start} onChange={e => setStart(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 appearance-none">
+                  {times.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">Alle</label>
+                <select value={end} onChange={e => setEnd(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 appearance-none">
+                  {times.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+            {!valid && <p className="text-xs text-error">L&apos;orario di fine deve essere dopo quello di inizio.</p>}
+            {valid && <p className="text-xs text-accent font-medium">Durata blocco: {durationLabel}</p>}
+
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Motivo</label>
+              <input type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder="Es. Pausa, Chiuso..."
+                className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {PRESETS.map(p => (
+                  <button key={p} onClick={() => setReason(p)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${reason === p ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-bg-tertiary text-text-secondary border border-border hover:border-border-light'}`}>
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-bg-tertiary/30">
+            <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Annulla</button>
+            <button onClick={() => { if (valid) { onSave(start, end, reason.trim() || 'Bloccato'); onClose(); } }} disabled={!valid}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${valid ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
+              <Lock className="w-4 h-4" /> Blocca
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
 /* ========== MINI DATE PICKER (salto rapido a un giorno/mese) ========== */
 function MiniDatePicker({ selectedDate, onPick, onClose }: {
   selectedDate: Date; onPick: (d: Date) => void; onClose: () => void;
@@ -1424,6 +1513,7 @@ export default function AgendaPage() {
   const fetchTreatments = useTreatmentStore(s => s.fetchTreatments);
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [blockModal, setBlockModal] = useState<{ operatorId: string; operatorName: string; start: string; end: string } | null>(null);
 
   useEffect(() => {
     fetchAppointments();
@@ -1539,19 +1629,13 @@ export default function AgendaPage() {
 
   const handleSlotBlock = useCallback((operatorId: string, hour: number) => {
     const op = operators.find(o => o.id === operatorId);
-    const reason = window.prompt(
-      `Blocca la fascia ${String(hour).padStart(2, '0')}:00 – ${String(hour + 1).padStart(2, '0')}:00 di ${op?.firstName || 'questa operatrice'}.\n\nMotivo (es. Pausa, Chiuso, Riunione):`,
-      'Pausa'
-    );
-    if (reason === null) return; // annullato
-    addBlock({
+    setBlockModal({
       operatorId,
-      date: dateStr,
-      startTime: `${String(hour).padStart(2, '0')}:00`,
-      endTime: `${String(hour + 1).padStart(2, '0')}:00`,
-      reason: reason.trim() || 'Bloccato',
+      operatorName: op ? `${op.firstName} ${op.lastName}` : 'Operatrice',
+      start: `${String(hour).padStart(2, '0')}:00`,
+      end: `${String(Math.min(hour + 1, END_HOUR)).padStart(2, '0')}:00`,
     });
-  }, [operators, dateStr, addBlock]);
+  }, [operators]);
 
   const handleRemoveBlock = useCallback((block: AgendaBlock) => {
     if (window.confirm(`Sbloccare la fascia ${block.startTime}–${block.endTime}${block.reason ? ` (${block.reason})` : ''}?`)) {
@@ -1697,6 +1781,20 @@ export default function AgendaPage() {
       </AnimatePresence>
       <AnimatePresence>
         {showWaitlistPanel && <WaitlistPanel onClose={() => setShowWaitlistPanel(false)} onOpenNew={() => { setShowWaitlistPanel(false); handleOpenWaitlistModal(); }} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {blockModal && (
+          <BlockModal
+            operatorName={blockModal.operatorName}
+            dateLabel={formatDateLong(dateStr)}
+            defaultStart={blockModal.start}
+            defaultEnd={blockModal.end}
+            onClose={() => setBlockModal(null)}
+            onSave={(start, end, reason) => {
+              addBlock({ operatorId: blockModal.operatorId, date: dateStr, startTime: start, endTime: end, reason });
+            }}
+          />
+        )}
       </AnimatePresence>
     </div>
   );
