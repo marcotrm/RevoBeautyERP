@@ -161,6 +161,15 @@ export interface Equipment {
 // --- Appointments ---
 export type AppointmentStatus = 'confirmed' | 'pending' | 'in_progress' | 'in_cabin' | 'completed' | 'no_show' | 'cancelled' | 'waitlist';
 
+export interface AppointmentService {
+  treatmentId: string;
+  treatmentName: string;
+  treatmentCategory: TreatmentCategory;
+  duration: number; // minuti
+  price: number;
+  gender?: 'male' | 'female';
+}
+
 export interface Appointment {
   id: string;
   clientId: string;
@@ -178,6 +187,7 @@ export interface Appointment {
   duration: number; // minutes
   status: AppointmentStatus;
   price: number;
+  services?: AppointmentService[]; // dettaglio dei trattamenti quando ce n'è più d'uno
   notes?: string;
   isLocked: boolean;
   color: string;

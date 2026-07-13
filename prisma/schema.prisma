@@ -134,6 +134,7 @@ model Appointment {
   duration          Int
   status            String   @default("confirmed")
   price             Float
+  services          Json?
   notes             String?
   isLocked          Boolean  @default(false)
   color             String

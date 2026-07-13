@@ -11,7 +11,7 @@ export async function getAppointments() {
       { startTime: 'asc' }
     ]
   });
-  return appointments as Appointment[];
+  return appointments as unknown as Appointment[];
 }
 
 export async function createAppointment(data: Omit<Appointment, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>) {
@@ -63,27 +63,31 @@ export async function createAppointment(data: Omit<Appointment, 'id' | 'createdA
     });
   }
 
+  const { services, ...rest } = data;
   const appointment = await prisma.appointment.create({
     data: {
-      ...data,
+      ...rest,
+      services: services ? JSON.parse(JSON.stringify(services)) : undefined,
       clientId: targetClientId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       createdBy: 'dino',
     }
   });
-  return appointment as Appointment;
+  return appointment as unknown as Appointment;
 }
 
 export async function updateAppointmentAction(id: string, updates: Partial<Appointment>) {
+  const { services, ...rest } = updates;
   const appointment = await prisma.appointment.update({
     where: { id },
     data: {
-      ...updates,
+      ...rest,
+      ...(services !== undefined ? { services: services ? JSON.parse(JSON.stringify(services)) : null } : {}),
       updatedAt: new Date().toISOString()
     }
   });
-  return appointment as Appointment;
+  return appointment as unknown as Appointment;
 }
 
 export async function deleteAppointmentAction(id: string) {

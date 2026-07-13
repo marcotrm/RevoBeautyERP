@@ -9,7 +9,7 @@ import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { usePackageStore } from '@/stores/usePackageStore';
 import { useWaitlistStore, WaitlistEntry } from '@/stores/useWaitlistStore';
-import { Appointment, Operator, Treatment } from '@/types';
+import { Appointment, AppointmentService, Operator, Treatment } from '@/types';
 import {
   ChevronLeft, ChevronRight, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
@@ -544,7 +544,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedClientName, setSelectedClientName] = useState('');
-  const [selectedTreatmentId, setSelectedTreatmentId] = useState('');
+  const [selectedServices, setSelectedServices] = useState<AppointmentService[]>([]);
   const [selectedOperatorId, setSelectedOperatorId] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [notes, setNotes] = useState('');
@@ -558,28 +558,43 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       if (editingAppointment) {
         setSelectedClientId(editingAppointment.clientId);
         setSelectedClientName(editingAppointment.clientName);
-        setSelectedTreatmentId(editingAppointment.treatmentId);
-        setTreatmentQuery(editingAppointment.treatmentName || '');
+        // Ricostruisci la lista: usa services se presente, altrimenti il singolo trattamento salvato
+        if (editingAppointment.services && editingAppointment.services.length > 0) {
+          setSelectedServices(editingAppointment.services);
+        } else {
+          const t = treatments.find(tr => tr.id === editingAppointment.treatmentId);
+          setSelectedServices([{
+            treatmentId: editingAppointment.treatmentId,
+            treatmentName: editingAppointment.treatmentName,
+            treatmentCategory: editingAppointment.treatmentCategory,
+            duration: editingAppointment.duration,
+            price: editingAppointment.price,
+            gender: t && t.priceMale != null && t.priceMale === editingAppointment.price && t.priceMale !== t.priceFemale ? 'male' : 'female',
+          }]);
+        }
+        setTreatmentQuery('');
         setSelectedOperatorId(editingAppointment.operatorId);
         setStartTime(editingAppointment.startTime);
         setNotes(editingAppointment.notes || '');
       } else if (slotInfo) {
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
-        setSelectedTreatmentId(''); setTreatmentQuery('');
+        setSelectedServices([]); setTreatmentQuery('');
         setSelectedOperatorId(slotInfo.operatorId);
         setStartTime(slotInfo.time);
         setNotes('');
       } else {
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
-        setSelectedTreatmentId(''); setTreatmentQuery('');
+        setSelectedServices([]); setTreatmentQuery('');
         const firstWorking = operators.find(o => operatorWorksOn(o, selectedDate)) || operators[0];
         setSelectedOperatorId(firstWorking?.id || '');
         setStartTime('09:00'); setNotes('');
       }
       setShowClientDropdown(false);
       setTreatmentOpen(false);
-      // In modifica: deduci il sesso dal prezzo salvato, altrimenti default Donna
-      if (editingAppointment) {
+      // Deduci il sesso dal primo trattamento salvato, altrimenti default Donna
+      if (editingAppointment?.services?.[0]?.gender) {
+        setGender(editingAppointment.services[0].gender);
+      } else if (editingAppointment) {
         const t = treatments.find(tr => tr.id === editingAppointment.treatmentId);
         setGender(t && t.priceMale != null && t.priceMale === editingAppointment.price && t.priceMale !== t.priceFemale ? 'male' : 'female');
       } else {
@@ -610,12 +625,6 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   }, [selectedClientName, allPkgData]);
 
   const selectedClient = useMemo(() => allClients.find(c => c.id === selectedClientId), [selectedClientId, allClients]);
-  const selectedTreatment = useMemo(() => treatments.find(t => t.id === selectedTreatmentId), [selectedTreatmentId, treatments]);
-  
-  const customTreatmentData = useMemo(() => {
-    if (!selectedClient || !selectedTreatmentId) return null;
-    return selectedClient.customTreatments?.find(ct => ct.treatmentId === selectedTreatmentId) || null;
-  }, [selectedClient, selectedTreatmentId]);
 
   // Sceglie automaticamente il listino uomo/donna in base al cliente selezionato
   // (campo genere della scheda se presente, altrimenti dal nome). Modificabile a mano.
@@ -631,41 +640,55 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   const genderPrice = (t: Treatment) => gender === 'male' ? (t.priceMale ?? t.priceFemale ?? t.price) : (t.priceFemale ?? t.price);
   const genderDuration = (t: Treatment) => gender === 'male' ? (t.durationMale ?? t.durationFemale ?? t.duration) : (t.durationFemale ?? t.duration);
 
-  const effectiveDuration = customTreatmentData ? customTreatmentData.duration : (selectedTreatment ? genderDuration(selectedTreatment) : 0);
-  const effectivePrice = customTreatmentData ? customTreatmentData.price : (selectedTreatment ? genderPrice(selectedTreatment) : 0);
-
-  useEffect(() => {
-    if (customTreatmentData?.notes && !editingAppointment) {
-      setNotes(prev => {
-        if (!prev.includes(customTreatmentData.notes!)) {
-          return prev ? prev + '\n' + customTreatmentData.notes : customTreatmentData.notes || '';
-        }
-        return prev;
-      });
+  // Aggiunge un trattamento alla lista (con prezzo/durata del sesso corrente,
+  // rispettando eventuali trattamenti personalizzati del cliente)
+  const addService = (t: Treatment) => {
+    const custom = selectedClient?.customTreatments?.find(ct => ct.treatmentId === t.id) || null;
+    const service: AppointmentService = {
+      treatmentId: t.id,
+      treatmentName: t.name,
+      treatmentCategory: t.category,
+      duration: custom ? custom.duration : genderDuration(t),
+      price: custom ? custom.price : genderPrice(t),
+      gender,
+    };
+    setSelectedServices(prev => [...prev, service]);
+    setTreatmentQuery('');
+    setTreatmentOpen(false);
+    if (custom?.notes) {
+      setNotes(prev => prev.includes(custom.notes!) ? prev : (prev ? prev + '\n' + custom.notes : custom.notes || ''));
     }
-  }, [customTreatmentData, editingAppointment]);
+  };
+  const removeService = (index: number) => setSelectedServices(prev => prev.filter((_, i) => i !== index));
+
+  const totalDuration = useMemo(() => selectedServices.reduce((s, x) => s + x.duration, 0), [selectedServices]);
+  const totalPrice = useMemo(() => selectedServices.reduce((s, x) => s + x.price, 0), [selectedServices]);
 
   const endTime = useMemo(() => {
-    if (!selectedTreatment) return startTime;
+    if (selectedServices.length === 0) return startTime;
     const [h, m] = startTime.split(':').map(Number);
-    const total = h * 60 + m + effectiveDuration;
+    const total = h * 60 + m + totalDuration;
     return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
-  }, [startTime, selectedTreatment, effectiveDuration]);
+  }, [startTime, selectedServices, totalDuration]);
 
   const selectedOperator = operators.find(o => o.id === selectedOperatorId);
   const dateStr = fmtDate(selectedDate);
-  const canSave = selectedClientId && selectedTreatmentId && selectedOperatorId && startTime;
+  const canSave = selectedClientId && selectedServices.length > 0 && selectedOperatorId && startTime;
 
   const handleSave = () => {
-    if (!canSave || !selectedTreatment || !selectedOperator) return;
+    if (!canSave || selectedServices.length === 0 || !selectedOperator) return;
+    const first = selectedServices[0];
+    const firstTreatment = treatments.find(t => t.id === first.treatmentId);
     const data = {
       clientId: selectedClientId, clientName: selectedClientName,
-      treatmentId: selectedTreatmentId, treatmentName: selectedTreatment.name,
-      treatmentCategory: selectedTreatment.category,
+      treatmentId: first.treatmentId,
+      treatmentName: selectedServices.map(s => s.treatmentName).join(' + '),
+      treatmentCategory: first.treatmentCategory,
       operatorId: selectedOperatorId, operatorName: `${selectedOperator.firstName} ${selectedOperator.lastName}`,
-      date: dateStr, startTime, endTime, duration: effectiveDuration,
-      price: effectivePrice, status: 'confirmed' as const,
-      color: selectedTreatment.color, locationId: 'loc1', notes, isLocked: false,
+      date: dateStr, startTime, endTime, duration: totalDuration,
+      price: totalPrice, status: 'confirmed' as const,
+      services: selectedServices,
+      color: selectedOperator.color || firstTreatment?.color || '#A855F7', locationId: 'loc1', notes, isLocked: false,
     };
     if (editingAppointment) updateAppointment(editingAppointment.id, data);
     else addAppointment(data);
@@ -673,24 +696,24 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   };
 
   const isOccupied = useMemo(() => {
-    if (!selectedTreatment || !selectedOperatorId) return false;
+    if (selectedServices.length === 0 || !selectedOperatorId) return false;
     const eStart = timeToMinutes(startTime);
-    const eEnd = eStart + effectiveDuration;
+    const eEnd = eStart + totalDuration;
     return appointments.some(a =>
       a.date === dateStr && a.operatorId === selectedOperatorId &&
       a.id !== editingAppointment?.id &&
       a.status !== 'cancelled' && a.status !== 'no_show' &&
       !(timeToMinutes(a.endTime) <= eStart || timeToMinutes(a.startTime) >= eEnd)
     );
-  }, [startTime, selectedTreatment, dateStr, selectedOperatorId, appointments, editingAppointment, effectiveDuration]);
+  }, [startTime, selectedServices, dateStr, selectedOperatorId, appointments, editingAppointment, totalDuration]);
 
   const handleWaitlist = () => {
     closeAppointmentModal();
     onOpenWaitlist({
       clientName: selectedClientName,
-      treatmentId: selectedTreatmentId,
-      treatmentName: selectedTreatment?.name,
-      duration: effectiveDuration,
+      treatmentId: selectedServices[0]?.treatmentId,
+      treatmentName: selectedServices.map(s => s.treatmentName).join(' + '),
+      duration: totalDuration,
       date: dateStr,
       startTime,
       operatorId: selectedOperatorId,
@@ -788,12 +811,8 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                           cp.packageName.toLowerCase().includes(t.name.toLowerCase()) ||
                           t.name.toLowerCase().includes(cp.packageName.toLowerCase().split(' ').slice(0, 2).join(' '))
                         );
-                        if (matchingTreatment) {
-                          setSelectedTreatmentId(matchingTreatment.id);
-                        } else {
-                          // If no matching treatment, use first one
-                          setSelectedTreatmentId(treatments[0]?.id || '');
-                        }
+                        const t = matchingTreatment || treatments[0];
+                        if (t) addService(t);
                         setNotes(`📦 Seduta da pacchetto: ${cp.packageName} (${remaining} rimanenti)`);
                       }}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent text-white text-[10px] font-bold hover:bg-accent/90 transition-colors whitespace-nowrap cursor-pointer z-10">
@@ -806,10 +825,10 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
               </div>
             )}
 
-            {/* Treatment */}
+            {/* Treatments (uno o più) */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium text-text-secondary">Trattamento *</label>
+                <label className="block text-sm font-medium text-text-secondary">Trattamenti *</label>
                 <div className="flex rounded-lg border border-border overflow-hidden text-xs font-medium">
                   <button type="button" onClick={() => setGender('female')}
                     className={`px-2.5 py-1 transition-colors ${gender === 'female' ? 'bg-accent text-white' : 'text-text-secondary hover:bg-bg-hover'}`}>♀ Donna</button>
@@ -817,12 +836,28 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                     className={`px-2.5 py-1 transition-colors ${gender === 'male' ? 'bg-accent text-white' : 'text-text-secondary hover:bg-bg-hover'}`}>♂ Uomo</button>
                 </div>
               </div>
+
+              {/* Lista trattamenti aggiunti */}
+              {selectedServices.length > 0 && (
+                <div className="space-y-1.5 mb-2">
+                  {selectedServices.map((s, i) => (
+                    <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-accent/5 border border-accent/20">
+                      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-bold flex-shrink-0">{i + 1}</span>
+                      <span className="text-sm text-text-primary flex-1 truncate">{s.treatmentName}</span>
+                      <span className="text-xs text-text-muted flex-shrink-0">{s.gender === 'male' ? '♂' : '♀'} {s.duration}min · {formatCurrency(s.price)}</span>
+                      <button type="button" onClick={() => removeService(i)} className="p-1 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-colors flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Ricerca per aggiungere un altro trattamento */}
               <div className="relative">
                 <input type="text" value={treatmentQuery}
-                  onChange={e => { setTreatmentQuery(e.target.value); setSelectedTreatmentId(''); setTreatmentOpen(true); }}
+                  onChange={e => { setTreatmentQuery(e.target.value); setTreatmentOpen(true); }}
                   onFocus={() => setTreatmentOpen(true)}
                   onBlur={() => setTimeout(() => setTreatmentOpen(false), 150)}
-                  placeholder="Cerca o scrivi il trattamento..."
+                  placeholder={selectedServices.length > 0 ? 'Aggiungi un altro trattamento...' : 'Cerca o scrivi il trattamento...'}
                   className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
                 {treatmentOpen && (() => {
                   const q = treatmentQuery.trim().toLowerCase();
@@ -837,11 +872,12 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                         const pr = ct ? ct.price : genderPrice(t);
                         return (
                           <button key={t.id} type="button" onMouseDown={e => e.preventDefault()}
-                            onClick={() => { setSelectedTreatmentId(t.id); setTreatmentQuery(t.name); setTreatmentOpen(false); }}
-                            className={`w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-hover transition-colors ${selectedTreatmentId === t.id ? 'bg-accent/10' : ''}`}>
+                            onClick={() => addService(t)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-hover transition-colors">
                             <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
                             <span className="text-sm text-text-primary flex-1 truncate">{t.name}{ct ? ' ✨' : ''}</span>
                             <span className="text-xs text-text-muted flex-shrink-0">{dur}min · {formatCurrency(pr)}</span>
+                            <Plus className="w-3.5 h-3.5 text-accent flex-shrink-0" />
                           </button>
                         );
                       })}
@@ -849,22 +885,12 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                   );
                 })()}
               </div>
-              {selectedTreatment && (
-                <div className="mt-2 space-y-1.5">
-                  <div className="flex items-center gap-2 text-xs text-text-muted">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: selectedTreatment.color }} />
-                    <span className={customTreatmentData ? "line-through opacity-50" : ""}>{gender === 'male' ? '♂' : '♀'} {genderDuration(selectedTreatment)} min • {formatCurrency(genderPrice(selectedTreatment))}</span>
-                    {customTreatmentData && <span>(Standard)</span>}
-                  </div>
-                  {customTreatmentData && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-accent/10 border border-accent/20 rounded-xl">
-                      <Settings className="w-4 h-4 text-accent" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-accent">Personalizzazione Cliente Applicata</p>
-                        <p className="text-[11px] text-text-primary font-medium">{effectiveDuration} min • {formatCurrency(effectivePrice)}</p>
-                      </div>
-                    </div>
-                  )}
+
+              {/* Totale quando c'è più di un trattamento */}
+              {selectedServices.length > 1 && (
+                <div className="flex items-center justify-between mt-2 px-3 py-2 rounded-xl bg-accent/10 border border-accent/20">
+                  <span className="text-xs font-semibold text-accent">{selectedServices.length} trattamenti</span>
+                  <span className="text-sm font-bold text-accent">{totalDuration} min • {formatCurrency(totalPrice)}</span>
                 </div>
               )}
             </div>
@@ -899,10 +925,10 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                 </select>
               </div>
             </div>
-            {selectedTreatment && (
+            {selectedServices.length > 0 && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/5 border border-accent/10">
                 <Clock className="w-4 h-4 text-accent" />
-                <span className="text-sm text-text-secondary">Fine prevista: <strong className="text-text-primary">{endTime}</strong> ({effectiveDuration} min)</span>
+                <span className="text-sm text-text-secondary">Fine prevista: <strong className="text-text-primary">{endTime}</strong> ({totalDuration} min) • <strong className="text-text-primary">{formatCurrency(totalPrice)}</strong></span>
               </div>
             )}
             {isOccupied && !editingAppointment && (
@@ -924,7 +950,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
           </div>
           <div className="px-6 py-4 border-t border-border bg-bg-tertiary/30 flex justify-between gap-2 flex-shrink-0">
             {isOccupied && !editingAppointment ? (
-              <button onClick={handleWaitlist} disabled={!selectedClientName || !selectedTreatmentId} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-warning/10 text-warning text-sm font-medium hover:bg-warning/20 transition-colors">
+              <button onClick={handleWaitlist} disabled={!selectedClientName || selectedServices.length === 0} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-warning/10 text-warning text-sm font-medium hover:bg-warning/20 transition-colors">
                 <ListTodo className="w-4 h-4" /> Metti in Lista d'Attesa
               </button>
             ) : <div />}
