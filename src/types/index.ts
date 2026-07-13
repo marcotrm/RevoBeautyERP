@@ -199,6 +199,8 @@ export interface Appointment {
   price: number;
   services?: AppointmentService[]; // dettaglio dei trattamenti quando ce n'è più d'uno
   notes?: string;
+  cancelReason?: string; // motivo dell'annullamento (per storico/classificazione cliente)
+  cancelledAt?: string; // quando è stato annullato
   isLocked: boolean;
   color: string;
   createdAt: string;

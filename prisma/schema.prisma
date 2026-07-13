@@ -151,6 +151,8 @@ model Appointment {
   price             Float
   services          Json?
   notes             String?
+  cancelReason      String?
+  cancelledAt       String?
   isLocked          Boolean  @default(false)
   color             String
   createdAt         String

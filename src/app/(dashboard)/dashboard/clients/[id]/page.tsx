@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useClientStore } from '@/stores/useClientStore';
 import { usePriceListStore } from '@/stores/usePriceListStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
-import { mockAppointments } from '@/lib/mock-data';
+import { useAgendaStore } from '@/stores/useAgendaStore';
 import {
   ArrowLeft, Phone, Mail, Calendar, MapPin,
   Heart, Star, Crown, Gift, CreditCard,
@@ -33,12 +33,14 @@ export default function ClientDetailPage() {
   const { clients, updateClient, fetchClients } = useClientStore();
   const { priceLists } = usePriceListStore();
   const { treatments, fetchTreatments } = useTreatmentStore();
+  const { appointments, fetchAppointments } = useAgendaStore();
   const [activeTab, setActiveTab] = useState('profile');
 
   useEffect(() => {
     fetchClients();
     fetchTreatments();
-  }, [fetchClients, fetchTreatments]);
+    fetchAppointments();
+  }, [fetchClients, fetchTreatments, fetchAppointments]);
   
   // Custom treatments state
   const [isCustomTreatmentModalOpen, setIsCustomTreatmentModalOpen] = useState(false);
@@ -53,10 +55,26 @@ export default function ClientDetailPage() {
     [clients, params.id]
   );
 
-  const clientAppointments = useMemo(
-    () => mockAppointments.filter(a => a.clientId === params.id),
-    [params.id]
-  );
+  // Appuntamenti reali del cliente (match per id o per nome, tolleranti all'ordine)
+  const clientAppointments = useMemo(() => {
+    if (!client) return [] as typeof appointments;
+    const fullName = `${client.firstName} ${client.lastName}`.trim().toLowerCase();
+    return appointments.filter(a =>
+      a.clientId === params.id ||
+      (a.clientName || '').trim().toLowerCase() === fullName
+    );
+  }, [appointments, params.id, client]);
+
+  // Statistiche disdette / no-show per classificare il cliente
+  const cancelStats = useMemo(() => {
+    const cancelled = clientAppointments.filter(a => a.status === 'cancelled');
+    const noShow = clientAppointments.filter(a => a.status === 'no_show');
+    const completed = clientAppointments.filter(a => a.status === 'completed').length;
+    const total = clientAppointments.length;
+    const badCount = cancelled.length + noShow.length;
+    const rate = total > 0 ? Math.round((badCount / total) * 100) : 0;
+    return { cancelled, noShow, completed, total, badCount, rate };
+  }, [clientAppointments]);
 
   if (!client) {
     return (
@@ -170,6 +188,11 @@ export default function ClientDetailPage() {
                     <Crown className="w-3.5 h-3.5" /> VIP {client.vipLevel === 3 ? 'Gold' : 'Silver'}
                   </span>
                 )}
+                {cancelStats.badCount >= 3 && (
+                  <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-error/10 border border-error/25 text-error text-xs font-bold shadow-sm" title="Cliente che disdice/non si presenta spesso">
+                    <AlertTriangle className="w-3.5 h-3.5" /> Disdette frequenti
+                  </span>
+                )}
               </div>
               
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 mt-3">
@@ -238,6 +261,57 @@ export default function ClientDetailPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Affidabilità appuntamenti (disdette / no-show) */}
+      {cancelStats.total > 0 && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+          className={`rounded-2xl border p-5 ${cancelStats.badCount >= 3 ? 'bg-error/5 border-error/25' : cancelStats.badCount > 0 ? 'bg-warning/5 border-warning/25' : 'bg-bg-secondary border-border'}`}>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className={`w-4 h-4 ${cancelStats.badCount >= 3 ? 'text-error' : cancelStats.badCount > 0 ? 'text-warning' : 'text-text-muted'}`} />
+              <h3 className="text-base font-display font-semibold text-text-primary">Affidabilità appuntamenti</h3>
+            </div>
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${cancelStats.badCount >= 3 ? 'bg-error/15 text-error' : cancelStats.badCount > 0 ? 'bg-warning/15 text-warning' : 'bg-success/15 text-success'}`}>
+              {cancelStats.badCount === 0 ? 'Cliente affidabile' : `${cancelStats.rate}% mancati`}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-4">
+            <div className="text-center bg-bg-tertiary/40 rounded-xl p-3">
+              <p className="text-lg font-display font-bold text-text-primary">{cancelStats.total}</p>
+              <p className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Totali</p>
+            </div>
+            <div className="text-center bg-bg-tertiary/40 rounded-xl p-3">
+              <p className="text-lg font-display font-bold text-success">{cancelStats.completed}</p>
+              <p className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Completati</p>
+            </div>
+            <div className="text-center bg-bg-tertiary/40 rounded-xl p-3">
+              <p className="text-lg font-display font-bold text-error">{cancelStats.cancelled.length}</p>
+              <p className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Disdette</p>
+            </div>
+            <div className="text-center bg-bg-tertiary/40 rounded-xl p-3">
+              <p className="text-lg font-display font-bold text-error">{cancelStats.noShow.length}</p>
+              <p className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">No-Show</p>
+            </div>
+          </div>
+          {cancelStats.badCount >= 3 && (
+            <p className="text-xs text-error mt-3">⚠️ Questo cliente ha disdetto o non si è presentato {cancelStats.badCount} volte. Valuta di chiedere un acconto alla prenotazione.</p>
+          )}
+          {cancelStats.cancelled.some(a => a.cancelReason) && (
+            <div className="mt-3 pt-3 border-t border-border/50">
+              <p className="text-xs font-semibold text-text-secondary mb-1.5">Motivi disdette recenti</p>
+              <div className="space-y-1">
+                {cancelStats.cancelled.filter(a => a.cancelReason).slice(-5).reverse().map(a => (
+                  <div key={a.id} className="flex items-center gap-2 text-xs text-text-muted">
+                    <span className="text-text-secondary font-medium">{formatDate(a.date)}</span>
+                    <span>·</span>
+                    <span>{a.cancelReason}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </motion.div>
+      )}
 
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-bg-secondary border border-border rounded-2xl p-1.5 overflow-x-auto">

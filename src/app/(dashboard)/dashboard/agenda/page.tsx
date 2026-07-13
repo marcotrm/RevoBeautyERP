@@ -1253,13 +1253,16 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   );
 }
 /* ========== DETAIL PANEL ========== */
-function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }: {
+function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWithReason, onDelete }: {
   appointment: Appointment; onClose: () => void; onEdit: (a: Appointment) => void;
   onStatusChange: (id: string, status: Appointment['status']) => void;
+  onCancelWithReason: (id: string, reason: string) => void;
   onDelete: (id: string) => void;
 }) {
   const router = useRouter();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [reasonText, setReasonText] = useState('');
   const [scaledPkgId, setScaledPkgId] = useState<string | null>(null);
   const [showDebtModal, setShowDebtModal] = useState(false);
   const usePackageSession = usePackageStore(s => s.useSession);
@@ -1446,20 +1449,31 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
                 </>
               )}
 
-              <button onClick={() => { onStatusChange(appointment.id, 'cancelled'); onClose(); }}
-                className={`col-span-2 py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'cancelled' ? 'bg-bg-tertiary text-text-muted ring-1 ring-border' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
-                <span className="flex items-center justify-center gap-1.5"><Ban className="w-3.5 h-3.5" /> Annulla</span>
+              <button onClick={() => { setReasonText(appointment.cancelReason || ''); setCancelOpen(true); }}
+                className={`col-span-2 py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'cancelled' ? 'bg-error/15 text-error ring-1 ring-error/30' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
+                <span className="flex items-center justify-center gap-1.5"><Ban className="w-3.5 h-3.5" /> {appointment.status === 'cancelled' ? 'Annullato — modifica motivo' : 'Annulla appuntamento'}</span>
               </button>
             </div>
 
-            {/* Delete */}
+            {/* Motivo annullamento già registrato */}
+            {appointment.status === 'cancelled' && appointment.cancelReason && (
+              <div className="mt-2 flex items-start gap-2 px-3 py-2 rounded-xl bg-error/5 border border-error/15">
+                <Ban className="w-4 h-4 text-error flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-error">Motivo annullamento</p>
+                  <p className="text-xs text-text-secondary">{appointment.cancelReason}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Elimina definitivamente (solo per errori di inserimento) */}
             {!['in_progress', 'in_cabin'].includes(appointment.status) && (
               <div className="pt-3 border-t border-border mt-4">
                 {confirmDelete ? (
                   <div className="flex items-center gap-2">
                     <button onClick={() => { onDelete(appointment.id); onClose(); }}
                       className="flex-1 py-2.5 rounded-xl bg-error text-white text-sm font-medium hover:bg-error/90 transition-colors">
-                      Conferma Eliminazione
+                      Sì, elimina senza traccia
                     </button>
                     <button onClick={() => setConfirmDelete(false)}
                       className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
@@ -1468,16 +1482,48 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
                   </div>
                 ) : (
                   <button onClick={() => setConfirmDelete(true)}
-                    className="w-full py-2.5 rounded-xl border border-error/20 text-error text-sm font-medium hover:bg-error/5 transition-colors">
-                    Elimina Appuntamento
+                    className="w-full py-2 rounded-xl text-text-muted text-xs font-medium hover:text-error hover:bg-error/5 transition-colors">
+                    Elimina definitivamente (errore di inserimento)
                   </button>
                 )}
+                <p className="text-[10px] text-text-muted text-center mt-1">Per le disdette usa &quot;Annulla&quot;: resta nello storico del cliente.</p>
               </div>
             )}
           </div>
           )}
         </div>
       </motion.div>
+
+      {/* Modale motivo annullamento */}
+      {cancelOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setCancelOpen(false)} />
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="relative bg-bg-secondary border border-border rounded-2xl shadow-2xl p-6 w-full max-w-md z-10">
+            <div className="flex items-center gap-3 mb-1 text-error">
+              <Ban className="w-5 h-5" />
+              <h3 className="text-lg font-display font-bold text-text-primary">Annulla appuntamento</h3>
+            </div>
+            <p className="text-sm text-text-secondary mb-4">{appointment.clientName} • {appointment.startTime}. Indica il motivo (resta nello storico del cliente).</p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {['Disdetta del cliente', 'Disdetta last-minute', 'Non si è presentato', 'Malattia', 'Ha spostato l\'appuntamento', 'Chiusura salone'].map(r => (
+                <button key={r} onClick={() => setReasonText(r)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${reasonText === r ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-bg-tertiary text-text-secondary border border-border hover:border-border-light'}`}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            <textarea value={reasonText} onChange={e => setReasonText(e.target.value)} rows={2} placeholder="Oppure scrivi un motivo..."
+              className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all resize-none mb-4" />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setCancelOpen(false)} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Indietro</button>
+              <button onClick={() => { onCancelWithReason(appointment.id, reasonText.trim() || 'Nessun motivo indicato'); setCancelOpen(false); onClose(); }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-error text-white text-sm font-medium hover:bg-error/90 transition-colors">
+                <Ban className="w-4 h-4" /> Conferma annullamento
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {showDebtModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -1805,6 +1851,7 @@ export default function AgendaPage() {
       <AnimatePresence>
         {selectedApt && <DetailPanel appointment={selectedApt} onClose={() => setSelectedApt(null)} onEdit={handleEdit}
           onStatusChange={(id, status) => updateAppointment(id, { status })}
+          onCancelWithReason={(id, reason) => updateAppointment(id, { status: 'cancelled', cancelReason: reason, cancelledAt: new Date().toISOString() })}
           onDelete={(id) => deleteAppointment(id)} />}
       </AnimatePresence>
 
