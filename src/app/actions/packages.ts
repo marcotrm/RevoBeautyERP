@@ -18,6 +18,29 @@ function toClientPackage(cp: {
   };
 }
 
+// Registra un incasso in cassa (POS) collegato a un pacchetto, così il pagamento
+// compare tra le transazioni del giorno come qualsiasi altro incasso.
+async function recordPosPayment(params: {
+  clientName: string; amount: number; method: string; operator: string; label: string;
+}) {
+  if (!params.amount || params.amount <= 0) return;
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const time = now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
+  await prisma.posTransaction.create({
+    data: {
+      date: today,
+      time,
+      clientName: params.clientName,
+      items: [params.label],
+      total: params.amount,
+      paymentMethod: params.method,
+      operator: params.operator,
+      isRefund: false,
+    },
+  });
+}
+
 export async function getPackages() {
   const packages = await prisma.package.findMany({ orderBy: { name: 'asc' } });
   return packages as unknown as PackageItem[];
@@ -76,6 +99,15 @@ export async function activatePackage(
 
   await prisma.package.update({ where: { id: pkg.id }, data: { sold: { increment: 1 } } });
 
+  // Incasso iniziale in cassa (l'acconto o l'intero importo pagato subito)
+  await recordPosPayment({
+    clientName,
+    amount: firstPayment,
+    method: paymentMethod,
+    operator,
+    label: `Pacchetto: ${pkg.name}`,
+  });
+
   return toClientPackage(created);
 }
 
@@ -94,6 +126,15 @@ export async function addPayment(cpId: string, amount: number, method: PackagePa
       paymentPlan: newRemaining <= 0 ? 'full' : cp.paymentPlan,
       payments: JSON.parse(JSON.stringify([...payments, { id: `pay-${Date.now()}`, date: today, amount, method, operator, note }])),
     },
+  });
+
+  // Registra anche il saldo/acconto successivo in cassa
+  await recordPosPayment({
+    clientName: cp.clientName,
+    amount,
+    method,
+    operator,
+    label: `Saldo pacchetto: ${cp.packageName}`,
   });
 
   return toClientPackage(updated);
