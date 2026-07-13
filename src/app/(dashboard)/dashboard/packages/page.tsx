@@ -654,6 +654,7 @@ export default function PackagesPage() {
   const [filter, setFilter] = useState<'all' | 'active' | 'expiring' | 'completed'>('all');
   const [search, setSearch] = useState('');
   const [confirmDeleteCpId, setConfirmDeleteCpId] = useState<string | null>(null);
+  const [confirmDeletePkgId, setConfirmDeletePkgId] = useState<string | null>(null);
 
   const filteredClientPkgs = useMemo(() => {
     let list = [...clientPkgs];
@@ -703,7 +704,7 @@ export default function PackagesPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           {packages.map(pkg => (
             <div key={pkg.id} className="bg-bg-secondary border border-border rounded-2xl p-5 hover:border-border-light transition-all group relative">
-              <button onClick={() => deletePackage(pkg.id)} className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5" /></button>
+              <button onClick={() => setConfirmDeletePkgId(pkg.id)} className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5" /></button>
               <div className="p-2.5 rounded-xl w-fit mb-3" style={{ backgroundColor: `${pkg.color}15`, color: pkg.color }}><Package className="w-5 h-5" /></div>
               <h4 className="text-sm font-semibold text-text-primary mb-1 line-clamp-2">{pkg.name}</h4>
               <div className="flex items-baseline gap-1 mb-1">
@@ -714,6 +715,19 @@ export default function PackagesPage() {
                 className="w-full py-2 rounded-xl bg-accent/10 text-accent text-xs font-semibold hover:bg-accent/20 transition-colors">
                 Vendi a Cliente
               </button>
+
+              {/* Conferma eliminazione pacchetto */}
+              {confirmDeletePkgId === pkg.id && (
+                <div className="absolute inset-0 rounded-2xl bg-bg-secondary/95 backdrop-blur-sm flex flex-col items-center justify-center gap-3 p-4 text-center z-10 border border-error/30">
+                  <Trash2 className="w-6 h-6 text-error" />
+                  <p className="text-sm font-semibold text-text-primary">Eliminare &quot;{pkg.name}&quot;?</p>
+                  <p className="text-xs text-text-muted -mt-1">Il pacchetto sparisce dal catalogo. I pacchetti già venduti ai clienti restano.</p>
+                  <div className="flex gap-2 mt-1">
+                    <button onClick={() => setConfirmDeletePkgId(null)} className="px-4 py-2 rounded-xl border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors">Annulla</button>
+                    <button onClick={() => { deletePackage(pkg.id); setConfirmDeletePkgId(null); }} className="px-4 py-2 rounded-xl bg-error text-white text-xs font-medium hover:bg-error/90 transition-colors">Elimina</button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
           <button onClick={() => setShowAddModal(true)} className="flex flex-col items-center justify-center gap-2 p-5 rounded-2xl border-2 border-dashed border-border hover:border-accent/30 transition-all cursor-pointer min-h-[180px] group">
