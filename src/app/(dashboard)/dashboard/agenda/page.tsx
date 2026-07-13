@@ -752,6 +752,7 @@ function MiniDatePicker({ selectedDate, onPick, onClose }: {
 
 /* ========== APPOINTMENT MODAL ========== */
 function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partial<WaitlistEntry>) => void }) {
+  const router = useRouter();
   const addClient = useClientStore(s => s.addClient);
   const [showAddClientModal, setShowAddClientModal] = useState(false);
   const treatments = useTreatmentStore(s => s.treatments);
@@ -1048,13 +1049,19 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
 
             {/* Treatments (uno o più) */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center justify-between mb-1.5 gap-2 flex-wrap">
                 <label className="block text-sm font-medium text-text-secondary">Trattamenti *</label>
-                <div className="flex rounded-lg border border-border overflow-hidden text-xs font-medium">
-                  <button type="button" onClick={() => setGender('female')}
-                    className={`px-2.5 py-1 transition-colors ${gender === 'female' ? 'bg-accent text-white' : 'text-text-secondary hover:bg-bg-hover'}`}>♀ Donna</button>
-                  <button type="button" onClick={() => setGender('male')}
-                    className={`px-2.5 py-1 transition-colors ${gender === 'male' ? 'bg-accent text-white' : 'text-text-secondary hover:bg-bg-hover'}`}>♂ Uomo</button>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => { closeAppointmentModal(); router.push('/dashboard/packages'); }}
+                    className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 transition-colors font-medium bg-accent/10 px-2 py-1 rounded-md">
+                    <Package className="w-3.5 h-3.5" /> Vendi pacchetto
+                  </button>
+                  <div className="flex rounded-lg border border-border overflow-hidden text-xs font-medium">
+                    <button type="button" onClick={() => setGender('female')}
+                      className={`px-2.5 py-1 transition-colors ${gender === 'female' ? 'bg-accent text-white' : 'text-text-secondary hover:bg-bg-hover'}`}>♀ Donna</button>
+                    <button type="button" onClick={() => setGender('male')}
+                      className={`px-2.5 py-1 transition-colors ${gender === 'male' ? 'bg-accent text-white' : 'text-text-secondary hover:bg-bg-hover'}`}>♂ Uomo</button>
+                  </div>
                 </div>
               </div>
 
