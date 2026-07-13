@@ -9,7 +9,7 @@ import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { usePackageStore } from '@/stores/usePackageStore';
 import { useWaitlistStore, WaitlistEntry } from '@/stores/useWaitlistStore';
-import { Appointment, AppointmentService, Operator, Treatment } from '@/types';
+import { Appointment, AppointmentService, AgendaBlock, Operator, Treatment } from '@/types';
 import {
   ChevronLeft, ChevronRight, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
@@ -180,16 +180,38 @@ function NowLine() {
 }
 
 /* ========== DAY VIEW ========== */
-function DayView({ appointments, operators, selectedDate, onAppointmentClick, onWaitlistAdd, onSlotClick, onDropAppointment }: {
-  appointments: Appointment[]; operators: Operator[]; selectedDate: Date;
+function DayView({ appointments, blocks, operators, selectedDate, onAppointmentClick, onWaitlistAdd, onSlotClick, onSlotBlock, onRemoveBlock, onDropAppointment }: {
+  appointments: Appointment[]; blocks: AgendaBlock[]; operators: Operator[]; selectedDate: Date;
   onAppointmentClick: (a: Appointment) => void;
   onWaitlistAdd?: (a: Appointment) => void;
   onSlotClick: (operatorId: string, hour: number) => void;
+  onSlotBlock: (operatorId: string, hour: number) => void;
+  onRemoveBlock: (block: AgendaBlock) => void;
   onDropAppointment: (aptId: string, operatorId: string, newStart: string, duration: number) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const hours = Array.from({ length: TOTAL_HOURS }, (_, i) => START_HOUR + i);
   const [dragOver, setDragOver] = useState<{ operatorId: string; time: string } | null>(null);
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Distingue click singolo (nuovo appuntamento) da doppio click (blocca fascia)
+  const handleSlotClickDelayed = (operatorId: string, hour: number) => {
+    if (clickTimer.current) return; // già in attesa: il secondo click del doppio è gestito da onDoubleClick
+    clickTimer.current = setTimeout(() => {
+      clickTimer.current = null;
+      onSlotClick(operatorId, hour);
+    }, 230);
+  };
+  const handleSlotDoubleClick = (operatorId: string, hour: number) => {
+    if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null; }
+    onSlotBlock(operatorId, hour);
+  };
+
+  const blocksByOperator = useMemo(() => {
+    const map: Record<string, AgendaBlock[]> = {};
+    operators.forEach(op => { map[op.id] = blocks.filter(b => b.operatorId === op.id); });
+    return map;
+  }, [blocks, operators]);
 
   const byOperator = useMemo(() => {
     const map: Record<string, Appointment[]> = {};
@@ -256,14 +278,21 @@ function DayView({ appointments, operators, selectedDate, onAppointmentClick, on
               onDragLeave={() => setDragOver(null)}
               onDrop={e => !off && handleDrop(e, operator.id, e.currentTarget)}>
               {hours.map(hour => (
-                <div key={hour} onClick={off ? undefined : () => onSlotClick(operator.id, hour)}
+                <div key={hour}
+                  onClick={off ? undefined : () => handleSlotClickDelayed(operator.id, hour)}
+                  onDoubleClick={off ? undefined : () => handleSlotDoubleClick(operator.id, hour)}
                   className={`border-b-2 border-border relative transition-colors group/slot ${off ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-accent/[0.03]'}`}
                   style={{ height: `${HOUR_HEIGHT}px` }}>
                   <div className="absolute left-0 right-0 border-b border-dashed border-border/60" style={{ top: `${HOUR_HEIGHT / 2}px` }} />
                   {!off && (
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/slot:opacity-100 transition-opacity pointer-events-none">
-                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-accent/10 text-accent text-[10px] font-medium">
-                        <Plus className="w-3 h-3" /> {String(hour).padStart(2,'0')}:00
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-accent/10 text-accent text-[10px] font-medium">
+                          <Plus className="w-3 h-3" /> {String(hour).padStart(2,'0')}:00 appuntamento
+                        </div>
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-bg-tertiary text-text-muted text-[9px]">
+                          <Lock className="w-2.5 h-2.5" /> doppio click = blocca
+                        </div>
                       </div>
                     </div>
                   )}
@@ -280,6 +309,32 @@ function DayView({ appointments, operators, selectedDate, onAppointmentClick, on
                   </div>
                 </div>
               )}
+              {/* Fasce bloccate */}
+              {!off && (blocksByOperator[operator.id] || []).map(block => {
+                const bStart = timeToMinutes(block.startTime) - START_HOUR * 60;
+                const bEnd = timeToMinutes(block.endTime) - START_HOUR * 60;
+                const top = (bStart / 60) * HOUR_HEIGHT;
+                const h = Math.max(((bEnd - bStart) / 60) * HOUR_HEIGHT - 2, 24);
+                return (
+                  <div key={block.id}
+                    onClick={(e) => { e.stopPropagation(); onRemoveBlock(block); }}
+                    className="absolute left-1 right-1 rounded-lg z-20 cursor-pointer group/block overflow-hidden border border-slate-400/40 flex flex-col items-center justify-center text-center"
+                    style={{
+                      top: `${top}px`, height: `${h}px`,
+                      backgroundColor: 'rgba(100,116,139,0.14)',
+                      backgroundImage: 'repeating-linear-gradient(45deg, rgba(100,116,139,0.22) 0, rgba(100,116,139,0.22) 8px, transparent 8px, transparent 16px)',
+                    }}
+                    title="Clicca per sbloccare questa fascia">
+                    <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                      <Lock className="w-3 h-3" />
+                      <span className="text-[11px] font-bold">{block.reason || 'Bloccato'}</span>
+                    </div>
+                    <span className="text-[9px] text-slate-500">{block.startTime}–{block.endTime}</span>
+                    <span className="hidden group-hover/block:flex items-center gap-0.5 text-[9px] text-error mt-0.5"><X className="w-2.5 h-2.5" /> sblocca</span>
+                  </div>
+                );
+              })}
+
               {/* Drop ghost preview */}
               {dragOver && dragOver.operatorId === operator.id && (
                 <div className="absolute left-1 right-1 rounded-lg border-2 border-dashed border-accent/50 bg-accent/10 pointer-events-none z-30 flex items-center justify-center"
@@ -542,7 +597,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   const [showAddClientModal, setShowAddClientModal] = useState(false);
   const treatments = useTreatmentStore(s => s.treatments);
   const operators = useOperatorStore(s => s.operators);
-  const { isAppointmentModalOpen, editingAppointment, closeAppointmentModal, addAppointment, updateAppointment, selectedDate, slotInfo, appointments } = useAgendaStore();
+  const { isAppointmentModalOpen, editingAppointment, closeAppointmentModal, addAppointment, updateAppointment, selectedDate, slotInfo, appointments, blocks } = useAgendaStore();
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedClientName, setSelectedClientName] = useState('');
@@ -701,13 +756,18 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     if (selectedServices.length === 0 || !selectedOperatorId) return false;
     const eStart = timeToMinutes(startTime);
     const eEnd = eStart + totalDuration;
-    return appointments.some(a =>
+    const overlapsAppt = appointments.some(a =>
       a.date === dateStr && a.operatorId === selectedOperatorId &&
       a.id !== editingAppointment?.id &&
       a.status !== 'cancelled' && a.status !== 'no_show' &&
       !(timeToMinutes(a.endTime) <= eStart || timeToMinutes(a.startTime) >= eEnd)
     );
-  }, [startTime, selectedServices, dateStr, selectedOperatorId, appointments, editingAppointment, totalDuration]);
+    const overlapsBlock = blocks.some(b =>
+      b.date === dateStr && b.operatorId === selectedOperatorId &&
+      !(timeToMinutes(b.endTime) <= eStart || timeToMinutes(b.startTime) >= eEnd)
+    );
+    return overlapsAppt || overlapsBlock;
+  }, [startTime, selectedServices, dateStr, selectedOperatorId, appointments, blocks, editingAppointment, totalDuration]);
 
   const handleWaitlist = () => {
     closeAppointmentModal();
@@ -1281,10 +1341,11 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
 /* ========== MAIN PAGE ========== */
 export default function AgendaPage() {
   const {
-    appointments, selectedDate, view, selectedOperatorIds,
+    appointments, blocks, selectedDate, view, selectedOperatorIds,
     setView, goToToday, goToPrev, goToNext, setSelectedDate,
     openAppointmentModal, isAppointmentModalOpen, moveAppointment,
     updateAppointment, deleteAppointment, addAppointment, fetchAppointments,
+    fetchBlocks, addBlock, removeBlock,
     setSelectedOperatorIds,
   } = useAgendaStore();
   const operators = useOperatorStore(s => s.operators);
@@ -1295,10 +1356,11 @@ export default function AgendaPage() {
 
   useEffect(() => {
     fetchAppointments();
+    fetchBlocks();
     fetchOperators();
     fetchClients();
     fetchTreatments();
-  }, [fetchAppointments, fetchOperators, fetchClients, fetchTreatments]);
+  }, [fetchAppointments, fetchBlocks, fetchOperators, fetchClients, fetchTreatments]);
 
   // Mantiene il filtro operatrici allineato alle operatrici esistenti:
   // rimuove gli id di operatrici eliminate e mostra automaticamente le nuove.
@@ -1371,6 +1433,11 @@ export default function AgendaPage() {
     [appointments, dateStr]
   );
 
+  const todayBlocks = useMemo(
+    () => blocks.filter(b => b.date === dateStr),
+    [blocks, dateStr]
+  );
+
   const handleAppointmentClick = useCallback((apt: Appointment) => setSelectedApt(apt), []);
 
   const handleWaitlistAdd = useCallback((apt: Appointment) => {
@@ -1398,6 +1465,28 @@ export default function AgendaPage() {
   const totalApts = todayAppointments.length;
   const completedApts = todayAppointments.filter(a => a.status === 'completed').length;
   const revenue = todayAppointments.filter(a => a.status !== 'cancelled' && a.status !== 'no_show').reduce((s, a) => s + a.price, 0);
+
+  const handleSlotBlock = useCallback((operatorId: string, hour: number) => {
+    const op = operators.find(o => o.id === operatorId);
+    const reason = window.prompt(
+      `Blocca la fascia ${String(hour).padStart(2, '0')}:00 – ${String(hour + 1).padStart(2, '0')}:00 di ${op?.firstName || 'questa operatrice'}.\n\nMotivo (es. Pausa, Chiuso, Riunione):`,
+      'Pausa'
+    );
+    if (reason === null) return; // annullato
+    addBlock({
+      operatorId,
+      date: dateStr,
+      startTime: `${String(hour).padStart(2, '0')}:00`,
+      endTime: `${String(hour + 1).padStart(2, '0')}:00`,
+      reason: reason.trim() || 'Bloccato',
+    });
+  }, [operators, dateStr, addBlock]);
+
+  const handleRemoveBlock = useCallback((block: AgendaBlock) => {
+    if (window.confirm(`Sbloccare la fascia ${block.startTime}–${block.endTime}${block.reason ? ` (${block.reason})` : ''}?`)) {
+      removeBlock(block.id);
+    }
+  }, [removeBlock]);
 
   // Header label
   const headerLabel = useMemo(() => {
@@ -1463,7 +1552,8 @@ export default function AgendaPage() {
 
       {/* Views */}
       {view === 'day' && (
-        <DayView appointments={todayAppointments} operators={visibleOperators} selectedDate={selectedDate} onAppointmentClick={handleAppointmentClick} onWaitlistAdd={handleWaitlistAdd}
+        <DayView appointments={todayAppointments} blocks={todayBlocks} operators={visibleOperators} selectedDate={selectedDate} onAppointmentClick={handleAppointmentClick} onWaitlistAdd={handleWaitlistAdd}
+          onSlotBlock={handleSlotBlock} onRemoveBlock={handleRemoveBlock}
           onSlotClick={(operatorId, hour) => {
             // Parte dal primo orario libero all'interno/dopo la fascia cliccata
             let startMin = hour * 60;

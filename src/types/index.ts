@@ -161,6 +161,16 @@ export interface Equipment {
 // --- Appointments ---
 export type AppointmentStatus = 'confirmed' | 'pending' | 'in_progress' | 'in_cabin' | 'completed' | 'no_show' | 'cancelled' | 'waitlist';
 
+export interface AgendaBlock {
+  id: string;
+  operatorId: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // "HH:mm"
+  endTime: string; // "HH:mm"
+  reason?: string;
+  createdAt: string;
+}
+
 export interface AppointmentService {
   treatmentId: string;
   treatmentName: string;

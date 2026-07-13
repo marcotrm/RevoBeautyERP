@@ -89,6 +89,21 @@ model Operator {
 }
 
 // ============================================================
+// AGENDA BLOCKS (fasce orarie bloccate: pause, chiusure)
+// ============================================================
+model AgendaBlock {
+  id         String  @id @default(cuid())
+  operatorId String
+  date       String
+  startTime  String
+  endTime    String
+  reason     String?
+  createdAt  String
+
+  @@map("agenda_blocks")
+}
+
+// ============================================================
 // TREATMENTS
 // ============================================================
 model Treatment {

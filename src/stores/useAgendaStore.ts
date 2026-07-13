@@ -1,14 +1,16 @@
 'use client';
 
 import { create } from 'zustand';
-import { Appointment } from '@/types';
+import { Appointment, AgendaBlock } from '@/types';
 import { mockOperators } from '@/lib/mock-data';
 import { getAppointments, createAppointment, updateAppointmentAction, deleteAppointmentAction } from '@/app/actions/agenda';
+import { getBlocks, createBlock, deleteBlock } from '@/app/actions/blocks';
 
 type AgendaView = 'day' | 'week' | 'month';
 
 interface AgendaStore {
   appointments: Appointment[];
+  blocks: AgendaBlock[];
   selectedDate: Date;
   view: AgendaView;
   selectedOperatorIds: string[];
@@ -19,6 +21,9 @@ interface AgendaStore {
   isLoading: boolean;
 
   fetchAppointments: () => Promise<void>;
+  fetchBlocks: () => Promise<void>;
+  addBlock: (block: Omit<AgendaBlock, 'id' | 'createdAt'>) => Promise<void>;
+  removeBlock: (id: string) => Promise<void>;
   setSelectedDate: (date: Date) => void;
   setView: (view: AgendaView) => void;
   goToToday: () => void;
@@ -39,6 +44,7 @@ interface AgendaStore {
 
 export const useAgendaStore = create<AgendaStore>((set, get) => ({
   appointments: [],
+  blocks: [],
   selectedDate: new Date(),
   view: 'day',
   selectedOperatorIds: mockOperators.map(op => op.id),
@@ -56,6 +62,35 @@ export const useAgendaStore = create<AgendaStore>((set, get) => ({
     } catch (e) {
       console.error(e);
       set({ isLoading: false });
+    }
+  },
+
+  fetchBlocks: async () => {
+    try {
+      const data = await getBlocks();
+      set({ blocks: data });
+    } catch (e) {
+      console.error(e);
+    }
+  },
+
+  addBlock: async (blockData) => {
+    try {
+      const newBlock = await createBlock(blockData);
+      set((state) => ({ blocks: [...state.blocks, newBlock] }));
+    } catch (error) {
+      console.error('Failed to add block', error);
+      throw error;
+    }
+  },
+
+  removeBlock: async (id) => {
+    try {
+      await deleteBlock(id);
+      set((state) => ({ blocks: state.blocks.filter((b) => b.id !== id) }));
+    } catch (error) {
+      console.error('Failed to remove block', error);
+      throw error;
     }
   },
 
