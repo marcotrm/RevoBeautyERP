@@ -13,7 +13,7 @@ import { Appointment, Operator, Treatment } from '@/types';
 import {
   ChevronLeft, ChevronRight, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
-  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings
+  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon
 } from 'lucide-react';
 import {
   formatDateLong, timeToMinutes, getStatusLabel,
@@ -57,7 +57,8 @@ function operatorWorksOn(op: Operator, date: Date): boolean {
   return day.isWorking !== false;
 }
 
-function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle }: { appointment: Appointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties }) {
+function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, color }: { appointment: Appointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties; color?: string }) {
+  const blockColor = color || appointment.color;
   const startMin = timeToMinutes(appointment.startTime) - START_HOUR * 60;
   const endMin = timeToMinutes(appointment.endTime) - START_HOUR * 60;
   const top = (startMin / 60) * HOUR_HEIGHT;
@@ -76,7 +77,7 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle }:
       onDragStart={handleDragStart}
       onClick={(e) => { e.stopPropagation(); onClick(appointment); }}
       className={`appointment-block group ${appointment.isLocked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${appointment.status === 'in_cabin' ? 'animate-[pulse_1.5s_ease-in-out_infinite] ring-2 ring-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.3)]' : ''}`}
-      style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${appointment.color}18`, borderLeftColor: appointment.color, ...overlapStyle }}
+      style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${blockColor}22`, borderLeftColor: blockColor, ...overlapStyle }}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1 min-w-0">
@@ -121,15 +122,25 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle }:
 
 function OperatorColumnHeader({ operator, off }: { operator: Operator; off?: boolean }) {
   return (
-    <div className="sticky top-0 z-20 bg-bg-secondary border-b border-border px-3 py-3 flex items-center gap-2.5">
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ${off ? 'opacity-50' : ''}`} style={{ backgroundColor: operator.color }}>
+    <div
+      className="sticky top-0 z-20 border-b-2 px-3 py-3 flex items-center gap-2.5"
+      style={{
+        backgroundColor: off ? undefined : `${operator.color}14`,
+        borderBottomColor: off ? 'var(--border)' : operator.color,
+      }}
+    >
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ${off ? 'opacity-40 grayscale' : 'shadow-sm'}`} style={{ backgroundColor: operator.color }}>
         {getInitials(operator.firstName, operator.lastName)}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-text-primary truncate">{operator.firstName}</p>
+        <p className={`text-sm font-semibold truncate ${off ? 'text-text-muted' : 'text-text-primary'}`}>{operator.firstName}</p>
         <p className="text-[11px] text-text-muted truncate">{operator.lastName}</p>
       </div>
-      {off && <span className="px-2 py-0.5 rounded-full bg-bg-tertiary text-text-muted text-[10px] font-semibold border border-border flex-shrink-0">Riposo</span>}
+      {off && (
+        <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400 text-[10px] font-bold border border-amber-300/50 flex-shrink-0">
+          <Moon className="w-3 h-3" /> RIPOSO
+        </span>
+      )}
     </div>
   );
 }
@@ -235,7 +246,10 @@ function DayView({ appointments, operators, selectedDate, onAppointmentClick, on
           return (
           <div key={operator.id} className="flex-1 min-w-[160px] border-r border-border/50 last:border-r-0 relative">
             <OperatorColumnHeader operator={operator} off={off} />
-            <div className={`relative ${off ? 'bg-bg-tertiary/20' : ''}`}
+            <div className="relative"
+              style={off ? {
+                backgroundImage: 'repeating-linear-gradient(45deg, rgba(148,163,184,0.10) 0, rgba(148,163,184,0.10) 10px, rgba(148,163,184,0.02) 10px, rgba(148,163,184,0.02) 20px)',
+              } : { backgroundColor: `${operator.color}08` }}
               onDragOver={e => !off && handleDragOver(e, operator.id, e.currentTarget)}
               onDragLeave={() => setDragOver(null)}
               onDrop={e => !off && handleDrop(e, operator.id, e.currentTarget)}>
@@ -254,8 +268,14 @@ function DayView({ appointments, operators, selectedDate, onAppointmentClick, on
                 </div>
               ))}
               {off && (
-                <div className="absolute inset-0 top-8 flex items-start justify-center pt-4 pointer-events-none z-10">
-                  <span className="px-3 py-1 rounded-full bg-bg-secondary text-text-muted text-xs font-semibold border border-border shadow-sm">Giorno di riposo</span>
+                <div className="absolute inset-0 flex items-start justify-center pt-12 pointer-events-none z-10">
+                  <div className="flex flex-col items-center gap-2 px-4 py-3 rounded-2xl bg-bg-secondary/95 border border-amber-300/40 shadow-md backdrop-blur-sm">
+                    <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-500/15 flex items-center justify-center">
+                      <Moon className="w-5 h-5 text-amber-500" />
+                    </div>
+                    <span className="text-xs font-bold text-amber-600 dark:text-amber-400">Giorno di riposo</span>
+                    <span className="text-[10px] text-text-muted">{operator.firstName} non è in servizio</span>
+                  </div>
                 </div>
               )}
               {/* Drop ghost preview */}
@@ -304,12 +324,13 @@ function DayView({ appointments, operators, selectedDate, onAppointmentClick, on
                     } : {};
 
                     return (
-                      <AppointmentBlock 
-                        key={apt.id} 
-                        appointment={apt} 
-                        onClick={onAppointmentClick} 
-                        onWaitlistAdd={onWaitlistAdd} 
+                      <AppointmentBlock
+                        key={apt.id}
+                        appointment={apt}
+                        onClick={onAppointmentClick}
+                        onWaitlistAdd={onWaitlistAdd}
                         overlapStyle={overlapStyle}
+                        color={operator.color}
                       />
                     );
                   });
@@ -326,8 +347,9 @@ function DayView({ appointments, operators, selectedDate, onAppointmentClick, on
 }
 
 /* ========== WEEK VIEW ========== */
-function WeekView({ selectedDate, allAppointments, onAppointmentClick, onDayClick }: {
+function WeekView({ selectedDate, allAppointments, operatorColorById, onAppointmentClick, onDayClick }: {
   selectedDate: Date; allAppointments: Appointment[];
+  operatorColorById?: Record<string, string>;
   onAppointmentClick: (a: Appointment) => void; onDayClick: (d: Date) => void;
 }) {
   const weekDates = useMemo(() => {
@@ -394,12 +416,13 @@ function WeekView({ selectedDate, allAppointments, onAppointmentClick, onDayClic
                   const endMin = timeToMinutes(apt.endTime) - START_HOUR * 60;
                   const top = (startMin / 60) * 48;
                   const height = Math.max(((endMin - startMin) / 60) * 48 - 1, 18);
+                  const c = operatorColorById?.[apt.operatorId] || apt.color;
                   return (
                     <div
                       key={apt.id}
                       onClick={() => onAppointmentClick(apt)}
                       className="absolute left-1 right-1 rounded-md px-1.5 py-0.5 cursor-pointer overflow-hidden hover:brightness-110 transition-all border-l-2"
-                      style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${apt.color}20`, borderLeftColor: apt.color }}
+                      style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${c}20`, borderLeftColor: c }}
                     >
                       <p className="text-[10px] font-semibold text-text-primary truncate">{apt.clientName}</p>
                       {height > 24 && <p className="text-[9px] text-text-muted truncate">{apt.startTime}</p>}
@@ -416,8 +439,9 @@ function WeekView({ selectedDate, allAppointments, onAppointmentClick, onDayClic
 }
 
 /* ========== MONTH VIEW ========== */
-function MonthView({ selectedDate, allAppointments, onAppointmentClick, onDayClick }: {
+function MonthView({ selectedDate, allAppointments, operatorColorById, onAppointmentClick, onDayClick }: {
   selectedDate: Date; allAppointments: Appointment[];
+  operatorColorById?: Record<string, string>;
   onAppointmentClick: (a: Appointment) => void; onDayClick: (d: Date) => void;
 }) {
   const { year, month, weeks } = useMemo(() => {
@@ -482,17 +506,20 @@ function MonthView({ selectedDate, allAppointments, onAppointmentClick, onDayCli
                     {cell.date.getDate()}
                   </span>
                   <div className="mt-1 space-y-0.5">
-                    {dayApts.slice(0, 3).map(apt => (
+                    {dayApts.slice(0, 3).map(apt => {
+                      const c = operatorColorById?.[apt.operatorId] || apt.color;
+                      return (
                       <div
                         key={apt.id}
                         onClick={(e) => { e.stopPropagation(); onAppointmentClick(apt); }}
-                        className="flex items-center gap-1 px-1 py-0.5 rounded text-[10px] truncate cursor-pointer hover:brightness-125"
-                        style={{ backgroundColor: `${apt.color}20`, color: apt.color }}
+                        className="flex items-center gap-1 px-1 py-0.5 rounded text-[10px] truncate cursor-pointer hover:brightness-125 border-l-2"
+                        style={{ backgroundColor: `${c}20`, color: c, borderLeftColor: c }}
                       >
                         <span className="font-medium">{apt.startTime}</span>
                         <span className="truncate text-text-secondary">{apt.clientName}</span>
                       </div>
-                    ))}
+                      );
+                    })}
                     {dayApts.length > 3 && (
                       <p className="text-[10px] text-text-muted px-1">+{dayApts.length - 3} altri</p>
                     )}
@@ -1290,6 +1317,12 @@ export default function AgendaPage() {
     [selectedOperatorIds, operators]
   );
 
+  const operatorColorById = useMemo(() => {
+    const map: Record<string, string> = {};
+    operators.forEach(op => { map[op.id] = op.color; });
+    return map;
+  }, [operators]);
+
   const dateStr = fmtDate(selectedDate);
 
   const todayAppointments = useMemo(
@@ -1414,10 +1447,10 @@ export default function AgendaPage() {
           }} />
       )}
       {view === 'week' && (
-        <WeekView selectedDate={selectedDate} allAppointments={appointments} onAppointmentClick={handleAppointmentClick} onDayClick={handleDayClick} />
+        <WeekView selectedDate={selectedDate} allAppointments={appointments} operatorColorById={operatorColorById} onAppointmentClick={handleAppointmentClick} onDayClick={handleDayClick} />
       )}
       {view === 'month' && (
-        <MonthView selectedDate={selectedDate} allAppointments={appointments} onAppointmentClick={handleAppointmentClick} onDayClick={handleDayClick} />
+        <MonthView selectedDate={selectedDate} allAppointments={appointments} operatorColorById={operatorColorById} onAppointmentClick={handleAppointmentClick} onDayClick={handleDayClick} />
       )}
 
       {/* Detail Panel */}
