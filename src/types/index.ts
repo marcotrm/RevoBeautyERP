@@ -161,6 +161,17 @@ export interface Equipment {
 // --- Appointments ---
 export type AppointmentStatus = 'confirmed' | 'pending' | 'in_progress' | 'in_cabin' | 'completed' | 'no_show' | 'cancelled' | 'waitlist';
 
+export interface TodoItem {
+  id: string;
+  title: string;
+  done: boolean;
+  priority: 'low' | 'normal' | 'high';
+  dueDate?: string;
+  assignee?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
 export interface AgendaBlock {
   id: string;
   operatorId: string;

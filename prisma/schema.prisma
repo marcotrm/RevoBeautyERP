@@ -89,6 +89,22 @@ model Operator {
 }
 
 // ============================================================
+// TO-DO (cose da fare)
+// ============================================================
+model TodoItem {
+  id         String  @id @default(cuid())
+  title      String
+  done       Boolean @default(false)
+  priority   String  @default("normal") // low | normal | high
+  dueDate    String?
+  assignee   String?
+  createdAt  String
+  completedAt String?
+
+  @@map("todo_items")
+}
+
+// ============================================================
 // AGENDA BLOCKS (fasce orarie bloccate: pause, chiusure)
 // ============================================================
 model AgendaBlock {
