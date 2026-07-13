@@ -6,8 +6,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Euro, CreditCard } from 'lucide-react';
-import { REVENUE_DATA, REVENUE_BY_MONTH, REVENUE_BY_PAYMENT } from '@/lib/reports-mock-data';
+import { TrendingUp, TrendingDown } from 'lucide-react';
+import type { Analytics } from '@/app/actions/analytics';
 import { formatCurrency } from '@/lib/helpers';
 
 function CustomTooltip({ active, payload, label }: any) {
@@ -26,24 +26,30 @@ function CustomTooltip({ active, payload, label }: any) {
   );
 }
 
-export default function RevenueTab() {
+export default function RevenueTab({ data }: { data: Analytics }) {
+  const REVENUE_DATA = data.revenue;
+  const REVENUE_BY_MONTH = data.revenueByMonth;
+  const REVENUE_BY_PAYMENT = data.revenueByPayment;
+  const growthGood = REVENUE_DATA.growthPercentage >= 0;
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       {/* Top KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Fatturato Oggi', value: REVENUE_DATA.daily, trend: '+5%', isGood: true },
-          { label: 'Questa Settimana', value: REVENUE_DATA.weekly, trend: '+12%', isGood: true },
-          { label: 'Questo Mese', value: REVENUE_DATA.monthly, trend: '+14%', isGood: true },
-          { label: 'Ticket Medio', value: REVENUE_DATA.avgTicket, trend: '-2%', isGood: false },
+          { label: 'Fatturato Oggi', value: REVENUE_DATA.daily, trend: null, isGood: true },
+          { label: 'Ultimi 7 giorni', value: REVENUE_DATA.weekly, trend: null, isGood: true },
+          { label: 'Questo Mese', value: REVENUE_DATA.monthly, trend: `${growthGood ? '+' : ''}${REVENUE_DATA.growthPercentage}% vs mese scorso`, isGood: growthGood },
+          { label: 'Ticket Medio', value: REVENUE_DATA.avgTicket, trend: null, isGood: true },
         ].map((kpi, i) => (
           <div key={i} className="bg-bg-secondary border border-border rounded-2xl p-5 hover:border-accent/30 transition-colors">
             <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">{kpi.label}</p>
             <p className="text-2xl font-display font-bold text-text-primary mt-2">{formatCurrency(kpi.value)}</p>
-            <p className={`text-xs font-bold mt-2 flex items-center gap-1 ${kpi.isGood ? 'text-success' : 'text-error'}`}>
-              {kpi.isGood ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-              {kpi.trend}
-            </p>
+            {kpi.trend && (
+              <p className={`text-xs font-bold mt-2 flex items-center gap-1 ${kpi.isGood ? 'text-success' : 'text-error'}`}>
+                {kpi.isGood ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                {kpi.trend}
+              </p>
+            )}
           </div>
         ))}
       </div>
@@ -52,12 +58,7 @@ export default function RevenueTab() {
         {/* Main Chart */}
         <div className="lg:col-span-2 bg-bg-secondary border border-border rounded-2xl p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-base font-display font-semibold text-text-primary">Fatturato vs Costi (Ultimi 6 Mesi)</h3>
-            <select className="px-3 py-1.5 bg-bg-tertiary border border-border rounded-lg text-xs text-text-primary focus:outline-none">
-              <option>Fatturato Totale</option>
-              <option>Per Cabina</option>
-              <option>Per Operatrice</option>
-            </select>
+            <h3 className="text-base font-display font-semibold text-text-primary">Fatturato (Ultimi 6 Mesi)</h3>
           </div>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -73,7 +74,6 @@ export default function RevenueTab() {
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#8B92A5' }} tickFormatter={(v) => `€${v/1000}k`} />
                 <Tooltip content={<CustomTooltip />} />
                 <Area type="monotone" name="Fatturato" dataKey="revenue" stroke="#A855F7" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
-                <Area type="monotone" name="Costi" dataKey="costs" stroke="#EC4899" strokeWidth={2} fillOpacity={0} strokeDasharray="5 5" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

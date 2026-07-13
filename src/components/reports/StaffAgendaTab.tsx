@@ -2,21 +2,24 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, UserCheck, XCircle, Clock, Percent, Euro } from 'lucide-react';
-import { STAFF_DATA, AGENDA_CABIN_DATA } from '@/lib/reports-mock-data';
+import { Calendar, UserCheck, XCircle, Percent, Ban } from 'lucide-react';
+import type { Analytics } from '@/app/actions/analytics';
 import { formatCurrency } from '@/lib/helpers';
 
-export default function StaffAgendaTab() {
+export default function StaffAgendaTab({ data }: { data: Analytics }) {
+  const STAFF_DATA = data.staff;
+  const AGENDA = data.agenda;
+  const STAFF_HOURS = data.staffHours;
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         {[
-          { label: 'Totali', value: AGENDA_CABIN_DATA.totalAppointments, icon: Calendar },
-          { label: 'Completati', value: AGENDA_CABIN_DATA.completed, icon: UserCheck, color: 'text-success' },
-          { label: 'Cancellati', value: AGENDA_CABIN_DATA.cancelled, icon: XCircle, color: 'text-error' },
-          { label: 'Spostati', value: AGENDA_CABIN_DATA.moved, icon: Clock, color: 'text-warning' },
-          { label: 'Tasso Canc.', value: AGENDA_CABIN_DATA.cancelRate, icon: Percent, color: 'text-error' },
-          { label: 'Riempimento', value: AGENDA_CABIN_DATA.fillRate, icon: Percent, color: 'text-accent' },
+          { label: 'Totali', value: AGENDA.totalAppointments, icon: Calendar },
+          { label: 'Completati', value: AGENDA.completed, icon: UserCheck, color: 'text-success' },
+          { label: 'Annullati', value: AGENDA.cancelled, icon: XCircle, color: 'text-error' },
+          { label: 'No-Show', value: AGENDA.noShow, icon: Ban, color: 'text-error' },
+          { label: 'Tasso Canc.', value: `${AGENDA.cancelRate}%`, icon: Percent, color: 'text-error' },
+          { label: 'Completamento', value: `${AGENDA.completionRate}%`, icon: Percent, color: 'text-accent' },
         ].map((kpi, i) => (
           <div key={i} className="bg-bg-secondary border border-border rounded-2xl p-4 flex flex-col items-center justify-center text-center">
             <kpi.icon className={`w-5 h-5 mb-2 ${kpi.color || 'text-text-secondary'}`} />
@@ -43,7 +46,9 @@ export default function StaffAgendaTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
-                {STAFF_DATA.map(staff => (
+                {STAFF_DATA.length === 0 ? (
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-text-muted">Nessuna operatrice registrata</td></tr>
+                ) : STAFF_DATA.map(staff => (
                   <tr key={staff.id} className="hover:bg-bg-tertiary/50 transition-colors">
                     <td className="px-4 py-3 text-sm font-semibold text-text-primary">{staff.name}</td>
                     <td className="px-4 py-3 text-sm font-bold text-text-primary text-right">{formatCurrency(staff.revenue)}</td>
@@ -63,27 +68,26 @@ export default function StaffAgendaTab() {
           </div>
         </div>
 
-        {/* Cabins Usage */}
+        {/* Ore lavorate vs contratto */}
         <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden flex flex-col">
           <div className="p-5 border-b border-border bg-bg-tertiary/30">
-            <h3 className="text-base font-display font-bold text-text-primary">Utilizzo Cabine</h3>
+            <h3 className="text-base font-display font-bold text-text-primary">Ore erogate vs contratto</h3>
+            <p className="text-xs text-text-muted mt-0.5">Ore di trattamenti completati sul totale ore da contratto</p>
           </div>
           <div className="p-5 space-y-5">
-            {AGENDA_CABIN_DATA.cabins.map((cabin, i) => (
+            {STAFF_HOURS.length === 0 ? (
+              <p className="text-sm text-text-muted text-center py-4">Nessuna operatrice registrata</p>
+            ) : STAFF_HOURS.map((s, i) => (
               <div key={i}>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-sm font-bold text-text-primary">{cabin.name}</span>
+                  <span className="text-sm font-bold text-text-primary">{s.name}</span>
                   <span className="text-xs font-bold text-text-secondary">
-                    {cabin.usedHours}h occ. / {cabin.freeHours}h libere
+                    {s.workedHours}h {s.contract > 0 ? `/ ${s.contract}h` : ''}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-[11px] mb-2">
-                  <span className="text-text-muted font-medium">Fatturato Generato: <span className="text-text-primary font-bold">{formatCurrency(cabin.revenue)}</span></span>
-                  <span className="text-accent font-bold">Sat. {cabin.usePercent}%</span>
-                </div>
                 <div className="w-full h-2 bg-bg-tertiary rounded-full overflow-hidden flex">
-                  <div className="h-full bg-accent" style={{ width: `${cabin.usePercent}%` }} />
-                  <div className="h-full bg-border" style={{ width: `${100 - cabin.usePercent}%` }} />
+                  <div className="h-full bg-accent" style={{ width: `${s.usePercent}%` }} />
+                  <div className="h-full bg-border" style={{ width: `${100 - s.usePercent}%` }} />
                 </div>
               </div>
             ))}

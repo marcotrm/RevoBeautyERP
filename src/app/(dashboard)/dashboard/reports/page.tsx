@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, Filter, Sparkles, Euro, Users, Activity, Briefcase } from 'lucide-react';
 import AIInsightsTab from '@/components/reports/AIInsightsTab';
@@ -8,6 +8,7 @@ import RevenueTab from '@/components/reports/RevenueTab';
 import TreatmentsTab from '@/components/reports/TreatmentsTab';
 import ClientsTab from '@/components/reports/ClientsTab';
 import StaffAgendaTab from '@/components/reports/StaffAgendaTab';
+import { getAnalytics, type Analytics } from '@/app/actions/analytics';
 
 type TabId = 'ai' | 'revenue' | 'clients' | 'treatments' | 'staff';
 
@@ -22,6 +23,12 @@ const TABS = [
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('ai');
   const [showFilters, setShowFilters] = useState(false);
+  const [data, setData] = useState<Analytics | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getAnalytics().then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -29,14 +36,9 @@ export default function ReportsPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 className="text-2xl font-display font-bold text-text-primary">Business Intelligence</h2>
-          <p className="text-sm text-text-secondary mt-1">Dati, statistiche e suggerimenti AI per far crescere il tuo centro.</p>
+          <p className="text-sm text-text-secondary mt-1">Dati reali del tuo centro, aggiornati in tempo reale.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select className="px-3 py-2 rounded-xl bg-bg-secondary border border-border text-sm font-medium text-text-primary focus:outline-none focus:border-accent/50 appearance-none">
-            <option>Tutta la catena RevoBeauty</option>
-            <option>Milano Centro</option>
-            <option>Roma Eur</option>
-          </select>
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-colors text-sm font-medium ${
@@ -96,11 +98,20 @@ export default function ReportsPage() {
 
       {/* Tab Content */}
       <div className="pt-2">
-        {activeTab === 'ai' && <AIInsightsTab />}
-        {activeTab === 'revenue' && <RevenueTab />}
-        {activeTab === 'clients' && <ClientsTab />}
-        {activeTab === 'treatments' && <TreatmentsTab />}
-        {activeTab === 'staff' && <StaffAgendaTab />}
+        {loading || !data ? (
+          <div className="flex flex-col items-center justify-center py-24 text-text-muted">
+            <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mb-3" />
+            <p className="text-sm">Calcolo dei dati reali in corso...</p>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'ai' && <AIInsightsTab data={data} />}
+            {activeTab === 'revenue' && <RevenueTab data={data} />}
+            {activeTab === 'clients' && <ClientsTab data={data} />}
+            {activeTab === 'treatments' && <TreatmentsTab data={data} />}
+            {activeTab === 'staff' && <StaffAgendaTab data={data} />}
+          </>
+        )}
       </div>
     </div>
   );

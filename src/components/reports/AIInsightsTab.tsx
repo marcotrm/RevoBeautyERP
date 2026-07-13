@@ -3,9 +3,10 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, TrendingUp, AlertTriangle, Lightbulb, Users, Info, ShieldCheck, CheckCircle2 } from 'lucide-react';
-import { AI_INSIGHTS } from '@/lib/reports-mock-data';
+import type { Analytics } from '@/app/actions/analytics';
 
-export default function AIInsightsTab() {
+export default function AIInsightsTab({ data }: { data: Analytics }) {
+  const AI_INSIGHTS = data.ai;
   const [actionStates, setActionStates] = useState<Record<number, 'idle' | 'loading' | 'done'>>({});
 
   const handleAction = (index: number) => {

@@ -3,10 +3,12 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Users, UserCheck, UserMinus, UserX, Crown } from 'lucide-react';
-import { CLIENTS_DATA } from '@/lib/reports-mock-data';
+import type { Analytics } from '@/app/actions/analytics';
 import { formatCurrency } from '@/lib/helpers';
 
-export default function ClientsTab() {
+export default function ClientsTab({ data }: { data: Analytics }) {
+  const CLIENTS_DATA = data.clients;
+  const maxSeg = Math.max(1, ...CLIENTS_DATA.segments.map(s => s.count));
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -29,21 +31,18 @@ export default function ClientsTab() {
         {/* Top Clients Table */}
         <div className="lg:col-span-2 bg-bg-secondary border border-border rounded-2xl overflow-hidden flex flex-col">
           <div className="p-5 border-b border-border flex items-center justify-between bg-bg-tertiary/30">
-            <h3 className="text-base font-display font-bold text-text-primary">Classifica Clienti (Top 100)</h3>
-            <select className="px-3 py-1.5 bg-bg-secondary border border-border rounded-lg text-xs text-text-primary focus:outline-none">
-              <option>Per Fatturato</option>
-              <option>Per Frequenza</option>
-              <option>Per Appuntamenti</option>
-            </select>
+            <h3 className="text-base font-display font-bold text-text-primary">Migliori Clienti (per spesa)</h3>
           </div>
           <div className="overflow-x-auto">
+            {CLIENTS_DATA.topSpenders.length === 0 ? (
+              <p className="text-sm text-text-muted text-center py-10">Nessun dato cliente ancora disponibile.</p>
+            ) : (
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr>
                   <th className="px-5 py-3 text-[11px] font-bold text-text-muted uppercase tracking-wider">Cliente</th>
                   <th className="px-5 py-3 text-[11px] font-bold text-text-muted uppercase tracking-wider text-right">Spesa Totale</th>
                   <th className="px-5 py-3 text-[11px] font-bold text-text-muted uppercase tracking-wider text-right">Appuntamenti</th>
-                  <th className="px-5 py-3 text-[11px] font-bold text-text-muted uppercase tracking-wider hidden sm:table-cell">Frequenza</th>
                   <th className="px-5 py-3 text-[11px] font-bold text-text-muted uppercase tracking-wider hidden md:table-cell">Tratt. Preferito</th>
                 </tr>
               </thead>
@@ -58,39 +57,32 @@ export default function ClientsTab() {
                     </td>
                     <td className="px-5 py-4 text-sm font-bold text-text-primary text-right">{formatCurrency(c.totalSpent)}</td>
                     <td className="px-5 py-4 text-sm text-text-secondary text-right">{c.appointments}</td>
-                    <td className="px-5 py-4 text-sm text-text-secondary hidden sm:table-cell">{c.frequency}</td>
                     <td className="px-5 py-4 text-sm text-text-secondary hidden md:table-cell truncate max-w-[150px]">{c.favorite}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            )}
           </div>
         </div>
 
-        {/* Acquisition Channels */}
+        {/* Segmenti clienti (reali) */}
         <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden flex flex-col">
           <div className="p-5 border-b border-border bg-bg-tertiary/30">
-            <h3 className="text-base font-display font-bold text-text-primary">Canali di Acquisizione</h3>
+            <h3 className="text-base font-display font-bold text-text-primary">Segmenti Clientela</h3>
           </div>
           <div className="p-5 space-y-4">
-            {CLIENTS_DATA.acquisitionChannels.map(channel => (
-              <div key={channel.name}>
+            {CLIENTS_DATA.segments.map(seg => (
+              <div key={seg.name}>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: channel.color }} />
-                    {channel.name}
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: seg.color }} />
+                    {seg.name}
                   </span>
-                  <span className="text-xs font-bold text-text-secondary">{channel.count} clienti</span>
-                </div>
-                <div className="flex items-center justify-between text-xs mb-2">
-                  <span className="text-text-muted">Fatturato: <span className="text-text-primary font-bold">{formatCurrency(channel.revenue)}</span></span>
-                  <span className="text-success font-bold">ROI: {channel.roi}</span>
+                  <span className="text-xs font-bold text-text-secondary">{seg.count} clienti</span>
                 </div>
                 <div className="w-full h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
-                  <div 
-                    className="h-full rounded-full" 
-                    style={{ backgroundColor: channel.color, width: `${(channel.count / CLIENTS_DATA.newClients) * 100}%` }}
-                  />
+                  <div className="h-full rounded-full" style={{ backgroundColor: seg.color, width: `${(seg.count / maxSeg) * 100}%` }} />
                 </div>
               </div>
             ))}

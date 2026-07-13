@@ -3,10 +3,12 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown, Package, Activity } from 'lucide-react';
-import { TREATMENTS_DATA, PACKAGES_DATA } from '@/lib/reports-mock-data';
+import type { Analytics } from '@/app/actions/analytics';
 import { formatCurrency } from '@/lib/helpers';
 
-export default function TreatmentsTab() {
+export default function TreatmentsTab({ data }: { data: Analytics }) {
+  const TREATMENTS_DATA = data.treatments;
+  const PACKAGES_DATA = data.packages;
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
