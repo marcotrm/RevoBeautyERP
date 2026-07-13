@@ -591,6 +591,76 @@ function MonthView({ selectedDate, allAppointments, operatorColorById, onAppoint
   );
 }
 
+/* ========== MINI DATE PICKER (salto rapido a un giorno/mese) ========== */
+function MiniDatePicker({ selectedDate, onPick, onClose }: {
+  selectedDate: Date; onPick: (d: Date) => void; onClose: () => void;
+}) {
+  const [viewMonth, setViewMonth] = useState(() => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const selStr = fmtDate(selectedDate);
+
+  const cells = useMemo(() => {
+    const y = viewMonth.getFullYear(), m = viewMonth.getMonth();
+    const startOffset = (new Date(y, m, 1).getDay() + 6) % 7; // Lun=0
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const arr: (Date | null)[] = [];
+    for (let i = 0; i < startOffset; i++) arr.push(null);
+    for (let d = 1; d <= daysInMonth; d++) arr.push(new Date(y, m, d));
+    while (arr.length % 7 !== 0) arr.push(null);
+    return arr;
+  }, [viewMonth]);
+
+  const changeMonth = (delta: number) => setViewMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
+
+  return (
+    <>
+      <div className="fixed inset-0 z-[55]" onClick={onClose} />
+      <div className="absolute top-full left-0 mt-2 z-[56] w-72 bg-bg-secondary border border-border rounded-2xl shadow-2xl p-3"
+        onClick={e => e.stopPropagation()}>
+        {/* Header mese con navigazione */}
+        <div className="flex items-center justify-between mb-2">
+          <button onClick={() => changeMonth(-1)} className="p-1.5 rounded-lg hover:bg-bg-hover text-text-secondary"><ChevronLeft className="w-4 h-4" /></button>
+          <span className="text-sm font-semibold text-text-primary capitalize">{MONTH_NAMES_IT[viewMonth.getMonth()]} {viewMonth.getFullYear()}</span>
+          <button onClick={() => changeMonth(1)} className="p-1.5 rounded-lg hover:bg-bg-hover text-text-secondary"><ChevronRight className="w-4 h-4" /></button>
+        </div>
+        {/* Salto rapido ai mesi */}
+        <div className="grid grid-cols-6 gap-1 mb-2 pb-2 border-b border-border/50">
+          {MONTH_NAMES_IT.map((mn, i) => (
+            <button key={i} onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), i, 1))}
+              className={`text-[10px] py-1 rounded-md transition-colors ${i === viewMonth.getMonth() ? 'bg-accent text-white font-bold' : 'text-text-secondary hover:bg-bg-hover'}`}>
+              {mn.slice(0, 3)}
+            </button>
+          ))}
+        </div>
+        {/* Giorni settimana */}
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {WEEK_DAYS_IT.map(d => <div key={d} className="text-center text-[10px] font-semibold text-text-muted">{d.charAt(0)}</div>)}
+        </div>
+        {/* Griglia giorni */}
+        <div className="grid grid-cols-7 gap-1">
+          {cells.map((d, i) => {
+            if (!d) return <div key={i} />;
+            const isToday = d.getTime() === today.getTime();
+            const isSel = fmtDate(d) === selStr;
+            return (
+              <button key={i} onClick={() => { onPick(d); onClose(); }}
+                className={`h-8 rounded-lg text-xs font-medium transition-all ${
+                  isSel ? 'bg-accent text-white font-bold' : isToday ? 'bg-accent/10 text-accent ring-1 ring-accent/30' : 'text-text-primary hover:bg-bg-hover'
+                }`}>
+                {d.getDate()}
+              </button>
+            );
+          })}
+        </div>
+        <button onClick={() => { onPick(new Date()); onClose(); }}
+          className="w-full mt-2 py-1.5 rounded-lg bg-bg-tertiary text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+          Vai a Oggi
+        </button>
+      </div>
+    </>
+  );
+}
+
 /* ========== APPOINTMENT MODAL ========== */
 function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partial<WaitlistEntry>) => void }) {
   const addClient = useClientStore(s => s.addClient);
@@ -1353,6 +1423,7 @@ export default function AgendaPage() {
   const fetchClients = useClientStore(s => s.fetchClients);
   const fetchTreatments = useTreatmentStore(s => s.fetchTreatments);
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     fetchAppointments();
@@ -1508,7 +1579,21 @@ export default function AgendaPage() {
           <button onClick={goToPrev} className="p-2 rounded-xl hover:bg-bg-hover border border-border text-text-secondary transition-colors"><ChevronLeft className="w-4 h-4" /></button>
           <button onClick={goToToday} className="px-3 py-2 rounded-xl hover:bg-bg-hover border border-border text-sm font-medium text-text-primary transition-colors">Oggi</button>
           <button onClick={goToNext} className="p-2 rounded-xl hover:bg-bg-hover border border-border text-text-secondary transition-colors"><ChevronRight className="w-4 h-4" /></button>
-          <h2 className="text-base font-display font-semibold text-text-primary ml-2 capitalize">{headerLabel}</h2>
+          <div className="relative ml-2">
+            <button onClick={() => setShowDatePicker(v => !v)}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-bg-hover transition-colors group"
+              title="Clicca per scegliere la data">
+              <h2 className="text-base font-display font-semibold text-text-primary capitalize">{headerLabel}</h2>
+              <CalendarDays className="w-4 h-4 text-text-muted group-hover:text-accent transition-colors" />
+            </button>
+            {showDatePicker && (
+              <MiniDatePicker
+                selectedDate={selectedDate}
+                onPick={(d) => { setSelectedDate(d); if (view === 'month') setView('day'); }}
+                onClose={() => setShowDatePicker(false)}
+              />
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {view === 'day' && (
