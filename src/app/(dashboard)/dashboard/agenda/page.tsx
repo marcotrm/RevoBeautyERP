@@ -912,10 +912,12 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     closeAppointmentModal();
   };
 
-  const isOccupied = useMemo(() => {
-    if (selectedServices.length === 0 || !selectedOperatorId) return false;
-    const eStart = timeToMinutes(startTime);
-    const eEnd = eStart + totalDuration;
+  // Verifica se una data ora di inizio è libera per l'operatrice (considera durata, appuntamenti e blocchi)
+  const slotIsFree = useCallback((startMin: number, duration: number) => {
+    if (!selectedOperatorId) return true;
+    const eStart = startMin;
+    const eEnd = startMin + duration;
+    if (eEnd > END_HOUR * 60) return false; // sfora l'orario di chiusura
     const overlapsAppt = appointments.some(a =>
       a.date === dateStr && a.operatorId === selectedOperatorId &&
       a.id !== editingAppointment?.id &&
@@ -926,8 +928,36 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       b.date === dateStr && b.operatorId === selectedOperatorId &&
       !(timeToMinutes(b.endTime) <= eStart || timeToMinutes(b.startTime) >= eEnd)
     );
-    return overlapsAppt || overlapsBlock;
-  }, [startTime, selectedServices, dateStr, selectedOperatorId, appointments, blocks, editingAppointment, totalDuration]);
+    return !overlapsAppt && !overlapsBlock;
+  }, [selectedOperatorId, dateStr, appointments, blocks, editingAppointment]);
+
+  // Orari di inizio effettivamente selezionabili (nascondiamo quelli occupati)
+  const availableStartTimes = useMemo(() => {
+    const dur = totalDuration || 15;
+    const list: string[] = [];
+    for (let t = START_HOUR * 60; t < END_HOUR * 60; t += 15) {
+      // In modifica, mantieni sempre disponibile l'orario attuale dell'appuntamento
+      const isCurrent = editingAppointment && t === timeToMinutes(startTime);
+      if (isCurrent || slotIsFree(t, dur)) {
+        list.push(`${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`);
+      }
+    }
+    return list;
+  }, [totalDuration, slotIsFree, editingAppointment, startTime]);
+
+  // Se l'orario selezionato non è più disponibile (es. dopo aver scelto operatrice/trattamento), passa al primo libero
+  useEffect(() => {
+    if (availableStartTimes.length === 0) return;
+    if (!availableStartTimes.includes(startTime)) {
+      setStartTime(availableStartTimes[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableStartTimes]);
+
+  const isOccupied = useMemo(() => {
+    if (selectedServices.length === 0 || !selectedOperatorId) return false;
+    return !slotIsFree(timeToMinutes(startTime), totalDuration);
+  }, [startTime, selectedServices, selectedOperatorId, slotIsFree, totalDuration]);
 
   const handleWaitlist = () => {
     closeAppointmentModal();
@@ -1147,10 +1177,16 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
               </div>
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1.5">Ora Inizio *</label>
-                <select value={startTime} onChange={e => setStartTime(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
-                  {Array.from({ length: (END_HOUR - START_HOUR) * 4 }, (_, i) => { const t = START_HOUR*60+i*15; const h=String(Math.floor(t/60)).padStart(2,'0'); const m=String(t%60).padStart(2,'0'); return <option key={i} value={`${h}:${m}`}>{h}:{m}</option>; })}
-                </select>
+                {availableStartTimes.length === 0 ? (
+                  <div className="w-full px-3 py-2.5 rounded-xl bg-error/5 border border-error/20 text-sm text-error">
+                    Nessun orario libero
+                  </div>
+                ) : (
+                  <select value={startTime} onChange={e => setStartTime(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
+                    {availableStartTimes.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                )}
               </div>
             </div>
             {selectedServices.length > 0 && (
