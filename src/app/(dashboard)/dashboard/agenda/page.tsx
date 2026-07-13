@@ -71,12 +71,14 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
     e.dataTransfer.effectAllowed = 'move';
   };
 
+  const isFrozen = appointment.isLocked || appointment.status === 'completed';
+
   return (
     <div
-      draggable={!appointment.isLocked}
+      draggable={!isFrozen}
       onDragStart={handleDragStart}
       onClick={(e) => { e.stopPropagation(); onClick(appointment); }}
-      className={`appointment-block group ${appointment.isLocked ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${appointment.status === 'in_cabin' ? 'animate-[pulse_1.5s_ease-in-out_infinite] ring-2 ring-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.3)]' : ''}`}
+      className={`appointment-block group ${isFrozen ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${appointment.status === 'in_cabin' ? 'animate-[pulse_1.5s_ease-in-out_infinite] ring-2 ring-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.3)]' : ''}`}
       style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${blockColor}22`, borderLeftColor: blockColor, ...overlapStyle }}
     >
       <div className="flex items-center justify-between">
@@ -153,8 +155,8 @@ function TimeGutter() {
         <Clock className="w-4 h-4 text-text-muted" />
       </div>
       {hours.map((hour) => (
-        <div key={hour} className="relative border-b border-border/50" style={{ height: `${HOUR_HEIGHT}px` }}>
-          <span className="absolute -top-2.5 right-2 text-[11px] font-medium text-text-muted">{String(hour).padStart(2,'0')}:00</span>
+        <div key={hour} className="relative border-b-2 border-border" style={{ height: `${HOUR_HEIGHT}px` }}>
+          <span className="absolute -top-2.5 right-2 text-[11px] font-semibold text-text-secondary">{String(hour).padStart(2,'0')}:00</span>
         </div>
       ))}
     </div>
@@ -255,9 +257,9 @@ function DayView({ appointments, operators, selectedDate, onAppointmentClick, on
               onDrop={e => !off && handleDrop(e, operator.id, e.currentTarget)}>
               {hours.map(hour => (
                 <div key={hour} onClick={off ? undefined : () => onSlotClick(operator.id, hour)}
-                  className={`border-b border-border/30 relative transition-colors group/slot ${off ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-accent/[0.03]'}`}
+                  className={`border-b-2 border-border relative transition-colors group/slot ${off ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-accent/[0.03]'}`}
                   style={{ height: `${HOUR_HEIGHT}px` }}>
-                  <div className="absolute left-0 right-0 border-b border-border/15" style={{ top: `${HOUR_HEIGHT / 2}px` }} />
+                  <div className="absolute left-0 right-0 border-b border-dashed border-border/60" style={{ top: `${HOUR_HEIGHT / 2}px` }} />
                   {!off && (
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/slot:opacity-100 transition-opacity pointer-events-none">
                       <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-accent/10 text-accent text-[10px] font-medium">
@@ -1137,8 +1139,20 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
           )}
 
           {/* Action Buttons */}
+          {appointment.status === 'completed' ? (
+            /* Appuntamento chiuso e pagato: NESSUNA modifica possibile (protezione anti-frode) */
+            <div className="flex items-start gap-3 px-4 py-4 rounded-2xl bg-success/5 border border-success/20">
+              <div className="w-9 h-9 rounded-full bg-success/15 flex items-center justify-center flex-shrink-0">
+                <Lock className="w-4 h-4 text-success" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-text-primary">Appuntamento completato e pagato</p>
+                <p className="text-xs text-text-muted mt-0.5">L&apos;appuntamento è chiuso e non può più essere modificato, annullato o eliminato.</p>
+              </div>
+            </div>
+          ) : (
           <div className="space-y-2">
-            {!['in_progress', 'in_cabin', 'completed'].includes(appointment.status) && (
+            {!['in_progress', 'in_cabin'].includes(appointment.status) && (
               <button onClick={() => onEdit(appointment)} className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-medium hover:opacity-90 transition-opacity">
                 Modifica Appuntamento
               </button>
@@ -1164,7 +1178,7 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
                   </button>
                 </>
               )}
-              
+
               <button onClick={() => { onStatusChange(appointment.id, 'cancelled'); onClose(); }}
                 className={`col-span-2 py-2.5 rounded-xl text-sm font-medium transition-colors ${appointment.status === 'cancelled' ? 'bg-bg-tertiary text-text-muted ring-1 ring-border' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
                 <span className="flex items-center justify-center gap-1.5"><Ban className="w-3.5 h-3.5" /> Annulla</span>
@@ -1172,7 +1186,7 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
             </div>
 
             {/* Delete */}
-            {!['in_progress', 'in_cabin', 'completed'].includes(appointment.status) && (
+            {!['in_progress', 'in_cabin'].includes(appointment.status) && (
               <div className="pt-3 border-t border-border mt-4">
                 {confirmDelete ? (
                   <div className="flex items-center gap-2">
@@ -1194,6 +1208,7 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onDelete }:
               </div>
             )}
           </div>
+          )}
         </div>
       </motion.div>
 
