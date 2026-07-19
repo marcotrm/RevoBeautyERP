@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -8,6 +8,12 @@ import {
   LayoutDashboard, Receipt, ShoppingCart, TrendingUp,
   Target, FileBarChart, Zap, Wallet, Flag,
 } from 'lucide-react';
+import { useFixedCostStore } from '@/stores/useFixedCostStore';
+import { useVariableCostStore } from '@/stores/useVariableCostStore';
+import { useInvestmentStore } from '@/stores/useInvestmentStore';
+import { useCashFlowStore } from '@/stores/useCashFlowStore';
+import { useGoalStore } from '@/stores/useGoalStore';
+import { useFinancialStore } from '@/stores/useFinancialStore';
 
 const adminNav = [
   { href: '/dashboard/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -24,6 +30,23 @@ const adminNav = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+
+  // Carica dal DB condiviso tutti i dati di Amministrazione (una volta per sessione admin)
+  const fetchFixedCosts = useFixedCostStore(s => s.fetchFixedCosts);
+  const fetchVariableCosts = useVariableCostStore(s => s.fetchVariableCosts);
+  const fetchInvestments = useInvestmentStore(s => s.fetchInvestments);
+  const fetchCashFlow = useCashFlowStore(s => s.fetchCashFlow);
+  const fetchGoals = useGoalStore(s => s.fetchGoals);
+  const fetchFinancials = useFinancialStore(s => s.fetchFinancials);
+
+  useEffect(() => {
+    fetchFixedCosts();
+    fetchVariableCosts();
+    fetchInvestments();
+    fetchCashFlow();
+    fetchGoals();
+    fetchFinancials();
+  }, [fetchFixedCosts, fetchVariableCosts, fetchInvestments, fetchCashFlow, fetchGoals, fetchFinancials]);
 
   return (
     <div className="space-y-4">

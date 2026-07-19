@@ -89,6 +89,21 @@ model Operator {
 }
 
 // ============================================================
+// AMMINISTRAZIONE (costi fissi/variabili, investimenti, cash flow, obiettivi, financials)
+// Record condivisi salvati come JSON, distinti per "kind".
+// ============================================================
+model AdminEntry {
+  rowId     String @id
+  kind      String
+  entityId  String
+  data      Json
+  createdAt String
+
+  @@index([kind])
+  @@map("admin_entries")
+}
+
+// ============================================================
 // MAGAZZINO (prodotti)
 // ============================================================
 model Product {
