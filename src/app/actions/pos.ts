@@ -37,6 +37,11 @@ export async function getTodayTransactions() {
   return transactions.map(toTransactionRecord);
 }
 
+export async function deleteTransaction(id: string) {
+  await prisma.posTransaction.delete({ where: { id } });
+  return true;
+}
+
 export async function createTransaction(data: Omit<TransactionRecord, 'id'>) {
   const today = new Date().toISOString().split('T')[0];
   const created = await prisma.posTransaction.create({

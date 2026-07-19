@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getTodayTransactions, createTransaction, TransactionRecord } from '@/app/actions/pos';
+import { getTodayTransactions, createTransaction, deleteTransaction, TransactionRecord } from '@/app/actions/pos';
 
 export type { TransactionRecord };
 
@@ -8,6 +8,7 @@ interface PosStore {
   isLoading: boolean;
   fetchTransactions: () => Promise<void>;
   addTransaction: (tx: Omit<TransactionRecord, 'id'>) => Promise<TransactionRecord>;
+  removeTransaction: (id: string) => Promise<void>;
 }
 
 export const usePosStore = create<PosStore>()((set) => ({
@@ -32,6 +33,16 @@ export const usePosStore = create<PosStore>()((set) => ({
       return created;
     } catch (error) {
       console.error('Failed to add transaction', error);
+      throw error;
+    }
+  },
+
+  removeTransaction: async (id) => {
+    try {
+      await deleteTransaction(id);
+      set((state) => ({ transactions: state.transactions.filter(t => t.id !== id) }));
+    } catch (error) {
+      console.error('Failed to delete transaction', error);
       throw error;
     }
   },

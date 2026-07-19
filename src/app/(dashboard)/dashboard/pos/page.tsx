@@ -397,7 +397,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
 function POSPageInner() {
   const { addPayment } = usePackageStore();
   const { products } = useProductStore();
-  const { transactions, fetchTransactions, addTransaction } = usePosStore();
+  const { transactions, fetchTransactions, addTransaction, removeTransaction } = usePosStore();
   const fetchClients = useClientStore(s => s.fetchClients);
   const fetchTreatments = useTreatmentStore(s => s.fetchTreatments);
   const [showSaleModal, setShowSaleModal] = useState(false);
@@ -511,7 +511,7 @@ function POSPageInner() {
         </div>
         <div className="divide-y divide-border/30">
           {transactions.map(tx => (
-            <div key={tx.id} className={`flex items-center gap-4 px-5 py-3.5 hover:bg-bg-hover transition-colors cursor-pointer ${tx.total < 0 ? 'bg-error/[0.03]' : ''}`}>
+            <div key={tx.id} className={`flex items-center gap-4 px-5 py-3.5 hover:bg-bg-hover transition-colors group ${tx.total < 0 ? 'bg-error/[0.03]' : ''}`}>
               <div className={`p-2 rounded-lg ${tx.total < 0 ? 'bg-error/10 text-error' : 'bg-accent/10 text-accent'}`}>
                 {tx.total < 0 ? <Banknote className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
               </div>
@@ -521,6 +521,11 @@ function POSPageInner() {
                 <p className={`text-sm font-semibold ${tx.total < 0 ? 'text-error' : 'text-text-primary'}`}>{tx.total < 0 ? '-' : ''}{formatCurrency(Math.abs(tx.total))}</p>
                 <p className="text-[11px] text-text-muted">{tx.method} • {tx.time}</p>
               </div>
+              <button onClick={() => { if (window.confirm(`Eliminare questa transazione di ${formatCurrency(Math.abs(tx.total))} (${tx.client})? L'incasso verrà ricalcolato.`)) removeTransaction(tx.id); }}
+                title="Elimina transazione"
+                className="p-2 rounded-lg text-text-muted hover:text-error hover:bg-error/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0">
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           ))}
           {transactions.length === 0 && (
