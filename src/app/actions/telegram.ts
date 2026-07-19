@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { getTelegramConfig, sendTelegram, type TelegramConfig } from '@/lib/telegram';
+import { sendDailyReports } from '@/lib/reports-telegram';
 
 const ROW_ID = 'integration:telegram';
 
@@ -16,6 +17,14 @@ export async function saveTelegramConfig(cfg: TelegramConfig) {
     create: { rowId: ROW_ID, kind: 'integration', entityId: 'telegram', data: cfg as object, createdAt: new Date().toISOString() },
   });
   return { ok: true };
+}
+
+// Invia subito un report (per il tasto "Invia ora"), ignorando gli orari.
+export async function sendReportNow(which: 'incassi' | 'staff'): Promise<{ ok: boolean; error?: string }> {
+  const cfg = await getTelegramConfig();
+  if (!cfg.enabled || !cfg.botToken || !cfg.chatId) return { ok: false, error: 'Configura prima Telegram (token + chat)' };
+  const res = await sendDailyReports({ which, force: true });
+  return res.sent.length > 0 ? { ok: true } : { ok: false, error: 'Invio fallito' };
 }
 
 export async function testTelegram(): Promise<{ ok: boolean; error?: string }> {

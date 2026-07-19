@@ -4,6 +4,8 @@ export interface TelegramConfig {
   enabled: boolean;
   botToken: string;
   chatId: string;
+  reportIncassi?: boolean; // report incassi serali alle 20:00
+  reportStaff?: boolean;   // classifica estetiste alle 20:00
 }
 
 const ROW_ID = 'integration:telegram';
@@ -12,9 +14,9 @@ export async function getTelegramConfig(): Promise<TelegramConfig> {
   try {
     const row = await prisma.adminEntry.findUnique({ where: { rowId: ROW_ID } });
     const d = (row?.data as Partial<TelegramConfig>) || {};
-    return { enabled: !!d.enabled, botToken: d.botToken || '', chatId: d.chatId || '' };
+    return { enabled: !!d.enabled, botToken: d.botToken || '', chatId: d.chatId || '', reportIncassi: !!d.reportIncassi, reportStaff: !!d.reportStaff };
   } catch {
-    return { enabled: false, botToken: '', chatId: '' };
+    return { enabled: false, botToken: '', chatId: '', reportIncassi: false, reportStaff: false };
   }
 }
 

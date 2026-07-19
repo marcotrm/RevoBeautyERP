@@ -2,13 +2,16 @@
 
 import React, { useEffect, useState } from 'react';
 import { Send, Loader2, CheckCircle2, ChevronDown } from 'lucide-react';
-import { loadTelegramConfig, saveTelegramConfig, testTelegram, listTelegramChats, type TelegramChat } from '@/app/actions/telegram';
+import { loadTelegramConfig, saveTelegramConfig, testTelegram, listTelegramChats, sendReportNow, type TelegramChat } from '@/app/actions/telegram';
 
 export default function TelegramAgentConfig() {
   const [open, setOpen] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [botToken, setBotToken] = useState('');
   const [chatId, setChatId] = useState('');
+  const [reportIncassi, setReportIncassi] = useState(false);
+  const [reportStaff, setReportStaff] = useState(false);
+  const [sendingReport, setSendingReport] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -17,14 +20,19 @@ export default function TelegramAgentConfig() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
-    loadTelegramConfig().then(c => { setEnabled(c.enabled); setBotToken(c.botToken); setChatId(c.chatId); setLoaded(true); }).catch(() => setLoaded(true));
+    loadTelegramConfig().then(c => { setEnabled(c.enabled); setBotToken(c.botToken); setChatId(c.chatId); setReportIncassi(!!c.reportIncassi); setReportStaff(!!c.reportStaff); setLoaded(true); }).catch(() => setLoaded(true));
   }, []);
 
-  const save = async (nextEnabled?: boolean) => {
+  const save = async (overrides?: Partial<{ enabled: boolean; reportIncassi: boolean; reportStaff: boolean }>) => {
     setSaving(true);
-    const cfg = { enabled: nextEnabled ?? enabled, botToken: botToken.trim(), chatId: chatId.trim() };
+    const cfg = {
+      enabled: overrides?.enabled ?? enabled,
+      botToken: botToken.trim(), chatId: chatId.trim(),
+      reportIncassi: overrides?.reportIncassi ?? reportIncassi,
+      reportStaff: overrides?.reportStaff ?? reportStaff,
+    };
     await saveTelegramConfig(cfg);
-    setEnabled(cfg.enabled);
+    setEnabled(cfg.enabled); setReportIncassi(cfg.reportIncassi); setReportStaff(cfg.reportStaff);
     setSaving(false);
     setMsg({ ok: true, text: 'Impostazioni salvate' });
     setTimeout(() => setMsg(null), 3000);
@@ -63,11 +71,51 @@ export default function TelegramAgentConfig() {
         <div className="px-4 pb-4 space-y-3 border-t border-border/30 pt-3">
           {/* Attivo */}
           <div className="flex items-center justify-between p-3 rounded-xl bg-bg-secondary border border-border/50">
-            <span className="text-sm font-medium text-text-primary">Notifiche attive</span>
-            <button onClick={() => save(!enabled)} disabled={!loaded || saving}
-              className={`relative w-12 h-6 rounded-full transition-colors ${enabled ? 'bg-success' : 'bg-bg-hover'}`}>
+            <div>
+              <span className="text-sm font-medium text-text-primary">Notifica ad ogni incasso</span>
+              <p className="text-[11px] text-text-muted">Un messaggio Telegram appena entra un pagamento</p>
+            </div>
+            <button onClick={() => save({ enabled: !enabled })} disabled={!loaded || saving}
+              className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${enabled ? 'bg-success' : 'bg-bg-hover'}`}>
               <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${enabled ? 'left-7' : 'left-1'}`} />
             </button>
+          </div>
+
+          {/* Report serali alle 20:00 */}
+          <div className="p-3 rounded-xl bg-bg-secondary border border-border/50 space-y-3">
+            <p className="text-xs font-semibold text-text-secondary">📊 Report automatici alle 20:00</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <span className="text-sm font-medium text-text-primary">Report incassi della serata</span>
+                <p className="text-[11px] text-text-muted">Totale, contanti vs POS, clienti paganti con importi</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button onClick={async () => { setSendingReport('incassi'); const r = await sendReportNow('incassi'); setSendingReport(null); setMsg(r.ok ? { ok: true, text: 'Report incassi inviato' } : { ok: false, text: r.error || 'Errore' }); setTimeout(() => setMsg(null), 4000); }}
+                  disabled={sendingReport !== null} className="text-[11px] px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-text-secondary hover:bg-bg-hover disabled:opacity-50">
+                  {sendingReport === 'incassi' ? '...' : 'Invia ora'}
+                </button>
+                <button onClick={() => save({ reportIncassi: !reportIncassi })} disabled={saving}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${reportIncassi ? 'bg-success' : 'bg-bg-hover'}`}>
+                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${reportIncassi ? 'left-6' : 'left-1'}`} />
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-3">
+              <div className="min-w-0">
+                <span className="text-sm font-medium text-text-primary">Classifica estetiste</span>
+                <p className="text-[11px] text-text-muted">Chi ha incassato di più oggi, in classifica</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button onClick={async () => { setSendingReport('staff'); const r = await sendReportNow('staff'); setSendingReport(null); setMsg(r.ok ? { ok: true, text: 'Classifica inviata' } : { ok: false, text: r.error || 'Errore' }); setTimeout(() => setMsg(null), 4000); }}
+                  disabled={sendingReport !== null} className="text-[11px] px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-text-secondary hover:bg-bg-hover disabled:opacity-50">
+                  {sendingReport === 'staff' ? '...' : 'Invia ora'}
+                </button>
+                <button onClick={() => save({ reportStaff: !reportStaff })} disabled={saving}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${reportStaff ? 'bg-success' : 'bg-bg-hover'}`}>
+                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${reportStaff ? 'left-6' : 'left-1'}`} />
+                </button>
+              </div>
+            </div>
           </div>
 
           <div>
