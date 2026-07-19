@@ -290,6 +290,7 @@ export default function InventoryPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('Tutti');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
@@ -313,6 +314,25 @@ export default function InventoryPage() {
 
   const lowStock = products.filter(p => p.stock <= p.minStock).length;
   const totalValue = products.reduce((s, p) => s + p.costPrice * p.stock, 0);
+
+  const allSelected = filtered.length > 0 && filtered.every(p => selected.has(p.id));
+  const toggleAll = () => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allSelected) filtered.forEach(p => next.delete(p.id));
+      else filtered.forEach(p => next.add(p.id));
+      return next;
+    });
+  };
+  const toggleOne = (id: string) => {
+    setSelected(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  };
+  const deleteSelected = async () => {
+    if (selected.size === 0) return;
+    if (!window.confirm(`Eliminare ${selected.size} prodotti selezionati?`)) return;
+    for (const id of selected) { await deleteProduct(id); }
+    setSelected(new Set());
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -359,12 +379,32 @@ export default function InventoryPage() {
         </div>
       </div>
 
+      {/* Barra azioni selezione */}
+      <AnimatePresence>
+        {selected.size > 0 && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-accent/10 border border-accent/25">
+            <span className="text-sm font-medium text-accent">{selected.size} selezionati</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setSelected(new Set())} className="px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors">Deseleziona</button>
+              <button onClick={deleteSelected} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-error text-white text-xs font-medium hover:bg-error/90 transition-colors">
+                <Trash2 className="w-3.5 h-3.5" /> Elimina selezionati
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Products Table */}
       <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
+                <th className="w-10 px-4 py-3">
+                  <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                    className="w-4 h-4 rounded border-border accent-accent cursor-pointer" title="Seleziona tutti" />
+                </th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Prodotto</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider hidden md:table-cell">Codici (SKU/Barcode)</th>
                 <th className="text-right px-5 py-3 text-xs font-semibold text-text-muted uppercase tracking-wider">Prezzo</th>
@@ -377,8 +417,13 @@ export default function InventoryPage() {
             <tbody className="divide-y divide-border/30">
               {filtered.map(product => {
                 const isLow = product.stock <= product.minStock;
+                const isSel = selected.has(product.id);
                 return (
-                  <tr key={product.id} className="hover:bg-bg-hover transition-colors group">
+                  <tr key={product.id} className={`transition-colors group ${isSel ? 'bg-accent/5' : 'hover:bg-bg-hover'}`}>
+                    <td className="px-4 py-3.5">
+                      <input type="checkbox" checked={isSel} onChange={() => toggleOne(product.id)}
+                        className="w-4 h-4 rounded border-border accent-accent cursor-pointer" />
+                    </td>
                     <td className="px-5 py-3.5"><div><p className="text-sm font-medium text-text-primary">{product.name}</p><p className="text-xs text-text-muted">{product.brand} • {product.category}</p></div></td>
                     <td className="px-5 py-3.5 hidden md:table-cell"><span className="text-xs text-text-secondary font-mono">{product.sku}</span>{product.barcode && <p className="text-[10px] text-text-muted font-mono">{product.barcode}</p>}</td>
                     <td className="px-5 py-3.5 text-right"><span className="text-sm font-medium text-text-primary">{formatCurrency(product.price)}</span></td>
