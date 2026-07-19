@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  AlertTriangle, Plus, Search, Trash2, X, CheckCircle, Package, FileText, Upload, Loader2,
+  AlertTriangle, Plus, Search, Trash2, X, CheckCircle, Package, FileText, Upload, Loader2, Pencil,
 } from 'lucide-react';
 import { useProductStore } from '@/stores/useProductStore';
 import { formatCurrency, generateId } from '@/lib/helpers';
@@ -184,16 +184,16 @@ function InvoiceImportModal({ onClose, onImport }: { onClose: () => void; onImpo
   );
 }
 
-function AddProductModal({ onClose, onSave }: { onClose: () => void; onSave: (p: Product) => void }) {
-  const [name, setName] = useState('');
-  const [brand, setBrand] = useState('');
-  const [category, setCategory] = useState('Viso');
-  const [barcode, setBarcode] = useState('');
-  const [sku, setSku] = useState('');
-  const [price, setPrice] = useState('');
-  const [costPrice, setCostPrice] = useState('');
-  const [stock, setStock] = useState('');
-  const [minStock, setMinStock] = useState('5');
+function AddProductModal({ onClose, onSave, editing }: { onClose: () => void; onSave: (p: Product) => void; editing?: Product }) {
+  const [name, setName] = useState(editing?.name || '');
+  const [brand, setBrand] = useState(editing?.brand || '');
+  const [category, setCategory] = useState(editing?.category || 'Viso');
+  const [barcode, setBarcode] = useState(editing?.barcode || '');
+  const [sku, setSku] = useState(editing?.sku || '');
+  const [price, setPrice] = useState(editing ? String(editing.price) : '');
+  const [costPrice, setCostPrice] = useState(editing ? String(editing.costPrice) : '');
+  const [stock, setStock] = useState(editing ? String(editing.stock) : '');
+  const [minStock, setMinStock] = useState(editing ? String(editing.minStock) : '5');
 
   const canSave = name.trim() && price && stock;
   const margin = price && costPrice ? Math.round(((Number(price) - Number(costPrice)) / Number(price)) * 100) : null;
@@ -201,7 +201,7 @@ function AddProductModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
   const handleSave = () => {
     if (!canSave) return;
     onSave({
-      id: generateId(),
+      id: editing?.id || generateId(),
       name: name.trim(),
       brand: brand.trim() || 'Generico',
       category,
@@ -211,8 +211,8 @@ function AddProductModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
       costPrice: Number(costPrice) || 0,
       stock: Number(stock),
       minStock: Number(minStock) || 5,
-      locationId: 'loc-1',
-      isActive: true,
+      locationId: editing?.locationId || 'loc-1',
+      isActive: editing?.isActive ?? true,
     });
     onClose();
   };
@@ -224,7 +224,7 @@ function AddProductModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
         transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
         <div className="w-full max-w-lg bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-            <h3 className="text-lg font-display font-semibold text-text-primary">Aggiungi Prodotto</h3>
+            <h3 className="text-lg font-display font-semibold text-text-primary">{editing ? 'Modifica Prodotto' : 'Aggiungi Prodotto'}</h3>
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
           </div>
           <div className="px-6 py-5 space-y-4 max-h-[calc(100vh-14rem)] overflow-y-auto">
@@ -275,7 +275,7 @@ function AddProductModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
             <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Annulla</button>
             <button onClick={handleSave} disabled={!canSave}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${canSave ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
-              <CheckCircle className="w-4 h-4" /> Aggiungi
+              <CheckCircle className="w-4 h-4" /> {editing ? 'Salva Modifiche' : 'Aggiungi'}
             </button>
           </div>
         </div>
@@ -285,9 +285,10 @@ function AddProductModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
 }
 
 export default function InventoryPage() {
-  const { products, addProduct, deleteProduct, fetchProducts, importProducts } = useProductStore();
+  const { products, addProduct, updateProduct, deleteProduct, fetchProducts, importProducts } = useProductStore();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('Tutti');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -387,6 +388,12 @@ export default function InventoryPage() {
             <span className="text-sm font-medium text-accent">{selected.size} selezionati</span>
             <div className="flex items-center gap-2">
               <button onClick={() => setSelected(new Set())} className="px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors">Deseleziona</button>
+              {selected.size === 1 && (
+                <button onClick={() => { const p = products.find(x => x.id === [...selected][0]); if (p) setEditingProduct(p); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/15 text-accent text-xs font-medium hover:bg-accent/25 transition-colors">
+                  <Pencil className="w-3.5 h-3.5" /> Modifica
+                </button>
+              )}
               <button onClick={deleteSelected} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-error text-white text-xs font-medium hover:bg-error/90 transition-colors">
                 <Trash2 className="w-3.5 h-3.5" /> Elimina selezionati
               </button>
@@ -435,7 +442,10 @@ export default function InventoryPage() {
                       </span>
                     </td>
                     <td className="px-2 py-3.5">
-                      <button onClick={() => { if(window.confirm('Eliminare prodotto?')) deleteProduct(product.id); }} className="p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                        <button onClick={() => setEditingProduct(product)} title="Modifica" className="p-1.5 rounded-lg hover:bg-accent/10 text-text-muted hover:text-accent transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => { if(window.confirm('Eliminare prodotto?')) deleteProduct(product.id); }} title="Elimina" className="p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -456,6 +466,7 @@ export default function InventoryPage() {
       </div>
 
       <AnimatePresence>{showAddModal && <AddProductModal onClose={() => setShowAddModal(false)} onSave={(p) => { addProduct(p); setShowAddModal(false); }} />}</AnimatePresence>
+      <AnimatePresence>{editingProduct && <AddProductModal editing={editingProduct} onClose={() => setEditingProduct(null)} onSave={(p) => { updateProduct(p.id, p); setEditingProduct(null); setSelected(new Set()); }} />}</AnimatePresence>
       <AnimatePresence>{showImportModal && <InvoiceImportModal onClose={() => setShowImportModal(false)} onImport={handleImport} />}</AnimatePresence>
     </motion.div>
   );
