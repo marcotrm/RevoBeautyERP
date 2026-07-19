@@ -1,37 +1,28 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Download, FileText, Calendar, Filter, Users, Scissors, DollarSign } from 'lucide-react';
+import { Download, Users, Scissors } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { FIXED_COST_CATEGORY_LABELS, getFixedCostsByCategory, FIXED_COST_CATEGORY_COLORS } from '@/lib/admin-data';
 import { formatCurrency } from '@/lib/helpers';
 import { useFixedCostStore } from '@/stores/useFixedCostStore';
 import { useFinancialStore } from '@/stores/useFinancialStore';
+import { getAnalytics, type Analytics } from '@/app/actions/analytics';
 
 const PERIODS = ['Mensile', 'Trimestrale', 'Annuale'];
-
-const topTreatments = [
-  { name: 'Laser epilazione', revenue: 8500, margin: 72, count: 85 },
-  { name: 'Criolipolisi', revenue: 6200, margin: 68, count: 31 },
-  { name: 'Radiofrequenza viso', revenue: 5100, margin: 75, count: 68 },
-  { name: 'Pulizia viso premium', revenue: 3800, margin: 80, count: 95 },
-  { name: 'Massaggio corpo', revenue: 3200, margin: 65, count: 64 },
-];
-
-const topStaff = [
-  { name: 'Sara Rossi', revenue: 9800, treatments: 92 },
-  { name: 'Valentina Bianchi', revenue: 8200, treatments: 78 },
-  { name: 'Chiara Moretti', revenue: 7100, treatments: 72 },
-  { name: 'Francesca Romano', revenue: 5900, treatments: 58 },
-  { name: 'Alessia Conti', revenue: 4800, treatments: 42 },
-];
 
 export default function AdminReportsPage() {
   const [period, setPeriod] = useState('Mensile');
   const { fixedCosts: mockFixedCosts } = useFixedCostStore();
   const { monthlyFinancials: mockMonthlyFinancials } = useFinancialStore();
-  
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+
+  useEffect(() => { getAnalytics().then(setAnalytics).catch(() => {}); }, []);
+
+  const topTreatments = (analytics?.treatments.topSold || []).map(t => ({ name: t.name, revenue: t.revenue, count: t.count }));
+  const topStaff = (analytics?.staff || []).filter(s => s.revenue > 0 || s.appointments > 0).map(s => ({ name: s.name, revenue: s.revenue, treatments: s.completed }));
+
   const byCategory = getFixedCostsByCategory(mockFixedCosts);
   const costRanking = Object.entries(byCategory).sort((a, b) => b[1] - a[1]).map(([cat, val]) => ({
     name: FIXED_COST_CATEGORY_LABELS[cat], value: Math.round(val), color: FIXED_COST_CATEGORY_COLORS[cat],
@@ -113,16 +104,16 @@ export default function AdminReportsPage() {
               <tr className="border-b border-border">
                 <th className="text-left px-5 py-2.5 text-[10px] font-semibold text-text-muted uppercase">Trattamento</th>
                 <th className="text-right px-3 py-2.5 text-[10px] font-semibold text-text-muted uppercase">Fatturato</th>
-                <th className="text-right px-3 py-2.5 text-[10px] font-semibold text-text-muted uppercase">Margine</th>
                 <th className="text-right px-5 py-2.5 text-[10px] font-semibold text-text-muted uppercase">N°</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/30">
-              {topTreatments.map(t => (
+              {topTreatments.length === 0 ? (
+                <tr><td colSpan={3} className="px-5 py-8 text-center text-sm text-text-muted">Nessun dato ancora</td></tr>
+              ) : topTreatments.map(t => (
                 <tr key={t.name} className="hover:bg-bg-hover transition-colors">
                   <td className="px-5 py-3 text-sm font-medium text-text-primary">{t.name}</td>
                   <td className="px-3 py-3 text-sm font-semibold text-text-primary text-right">{formatCurrency(t.revenue)}</td>
-                  <td className="px-3 py-3 text-right"><span className="text-xs px-2 py-0.5 rounded-full bg-success/10 text-success font-semibold">{t.margin}%</span></td>
                   <td className="px-5 py-3 text-sm text-text-secondary text-right">{t.count}</td>
                 </tr>
               ))}
@@ -137,6 +128,7 @@ export default function AdminReportsPage() {
             <h3 className="text-base font-display font-semibold text-text-primary">Dipendente più Produttivo</h3>
           </div>
           <div className="divide-y divide-border/30">
+            {topStaff.length === 0 && <div className="px-5 py-8 text-center text-sm text-text-muted">Nessun dato ancora</div>}
             {topStaff.map((s, i) => (
               <div key={s.name} className="flex items-center gap-3 px-5 py-3 hover:bg-bg-hover transition-colors">
                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${i === 0 ? 'bg-accent' : 'bg-bg-tertiary text-text-muted'}`}>{i + 1}</span>

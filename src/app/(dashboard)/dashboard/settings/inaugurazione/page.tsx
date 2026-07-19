@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { treatmentLabel, TREATMENTS } from '@/lib/inaugurazione';
 import { PartyPopper, CheckCircle2, Clock, Users, Mail, Phone, RefreshCw } from 'lucide-react';
 import DeleteLeadButton from './DeleteLeadButton';
+import ImportToClientsButton from './ImportToClientsButton';
 
 // Pagina protetta dal gate client-side del layout dashboard (come il resto dell'ERP).
 export const dynamic = 'force-dynamic';
@@ -65,13 +66,16 @@ export default async function InaugurazionePage({
             <p className="text-sm text-text-muted">Contatti dal coupon “Nuova Apertura” del sito</p>
           </div>
         </div>
-        <Link
-          href="/dashboard/settings/inaugurazione"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors text-sm font-medium"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Aggiorna
-        </Link>
+        <div className="flex items-center gap-2">
+          <ImportToClientsButton />
+          <Link
+            href="/dashboard/settings/inaugurazione"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors text-sm font-medium"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Aggiorna
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}

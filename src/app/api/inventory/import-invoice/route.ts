@@ -1,3 +1,4 @@
+import '@/lib/pdf-polyfill';
 import { PDFParse } from 'pdf-parse';
 
 export const runtime = 'nodejs';

@@ -13,7 +13,7 @@ const categories = ['Tutti', 'Viso', 'Corpo', 'Laser', 'Unghie', 'Capelli'];
 const PRODUCT_CATEGORIES = ['Viso', 'Corpo', 'Laser', 'Unghie', 'Capelli'];
 
 interface InvoiceRow { code: string; name: string; qty: number; unit: number; total: number; }
-interface ReviewRow { name: string; sku: string; category: string; stock: number; costPrice: number; price: number; }
+interface ReviewRow { name: string; sku: string; brand: string; category: string; stock: number; costPrice: number; price: number; }
 
 /* ========== MODALE REVISIONE IMPORT FATTURA ========== */
 function InvoiceImportModal({ onClose, onImport }: { onClose: () => void; onImport: (rows: ReviewRow[]) => Promise<void> }) {
@@ -44,9 +44,10 @@ function InvoiceImportModal({ onClose, onImport }: { onClose: () => void; onImpo
       if (!res.ok || data.error) { setError(data.error || 'Errore nella lettura'); setLoading(false); return; }
       const parsed: InvoiceRow[] = data.rows || [];
       if (parsed.length === 0) { setError('Nessuna riga prodotto riconosciuta.'); setLoading(false); return; }
-      setSupplier(data.supplier || '');
+      const sup = data.supplier || '';
+      setSupplier(sup);
       setRows(parsed.map(r => ({
-        name: r.name, sku: r.code, category: 'Viso',
+        name: r.name, sku: r.code, brand: sup, category: 'Viso',
         stock: r.qty, costPrice: r.unit,
         price: Math.round(r.unit * (1 + markup / 100) * 100) / 100,
       })));
@@ -294,7 +295,7 @@ export default function InventoryPage() {
 
   const handleImport = async (rows: ReviewRow[]) => {
     await importProducts(rows.map(r => ({
-      name: r.name, brand: '', category: r.category, sku: r.sku, barcode: undefined,
+      name: r.name, brand: r.brand || '', category: r.category, sku: r.sku, barcode: undefined,
       price: r.price, costPrice: r.costPrice, stock: r.stock, minStock: 5,
       locationId: 'loc1', isActive: true,
     })));
