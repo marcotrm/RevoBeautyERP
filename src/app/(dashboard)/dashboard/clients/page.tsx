@@ -8,7 +8,7 @@ import Link from 'next/link';
 import {
   Search, Plus, Users, Crown,
   UserPlus, Clock, Phone, Mail,
-  ChevronRight, Heart, Download, X, CheckCircle, BarChart3, Trash2, Tag,
+  ChevronRight, Heart, Download, X, CheckCircle, BarChart3, Trash2, Tag, Pencil,
 } from 'lucide-react';
 import { formatCurrency, getInitials } from '@/lib/helpers';
 import AddClientModal from '@/components/AddClientModal';
@@ -36,10 +36,10 @@ function VIPBadge({ level }: { level: number }) {
   return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${colors[level]}15`, color: colors[level] }}>{labels[level]}</span>;
 }
 
-function ClientRow({ client, checked, onToggle }: { client: Client; checked: boolean; onToggle: (id: string) => void }) {
+function ClientRow({ client, checked, onToggle, onEdit }: { client: Client; checked: boolean; onToggle: (id: string) => void; onEdit: (c: Client) => void }) {
   const daysSinceVisit = client.lastVisit ? Math.floor((Date.now() - new Date(client.lastVisit).getTime()) / (1000 * 60 * 60 * 24)) : null;
   return (
-    <motion.div variants={item} className={`flex items-center gap-2 pl-3.5 ${checked ? 'bg-accent/5' : ''}`}>
+    <motion.div variants={item} className={`flex items-center gap-2 pl-3.5 pr-2 group/row ${checked ? 'bg-accent/5' : ''}`}>
       <input type="checkbox" checked={checked} onChange={() => onToggle(client.id)}
         className="w-4 h-4 rounded border-border accent-accent cursor-pointer flex-shrink-0" />
       <Link href={`/dashboard/clients/${client.id}`} className="flex items-center gap-4 p-3.5 rounded-xl hover:bg-bg-hover border border-transparent hover:border-border transition-all duration-200 group flex-1 min-w-0">
@@ -74,6 +74,10 @@ function ClientRow({ client, checked, onToggle }: { client: Client; checked: boo
         </div>
         <ChevronRight className="w-4 h-4 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
       </Link>
+      <button onClick={() => onEdit(client)} title="Modifica cliente"
+        className="p-2 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10 transition-all opacity-0 group-hover/row:opacity-100 flex-shrink-0">
+        <Pencil className="w-4 h-4" />
+      </button>
     </motion.div>
   );
 }
@@ -91,6 +95,7 @@ export default function ClientsPage() {
 
   // Selezione singola e di massa
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
   const toggleOne = (id: string) => setSelected(prev => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -174,6 +179,12 @@ export default function ClientsPage() {
           <div className="flex items-center justify-between gap-3 flex-wrap px-3.5 py-2.5 border-b border-border bg-accent/5">
             <span className="text-xs font-semibold text-accent">{selected.size} selezionat{selected.size === 1 ? 'o' : 'i'}</span>
             <div className="flex items-center gap-2">
+              {selected.size === 1 && (
+                <button onClick={() => { const c = clients.find(x => x.id === [...selected][0]); if (c) setEditingClient(c); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/15 border border-accent/25 text-accent text-xs font-medium hover:bg-accent/25 transition-all">
+                  <Pencil className="w-3.5 h-3.5" /> Modifica
+                </button>
+              )}
               <button onClick={bulkTag} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border text-text-primary text-xs font-medium hover:bg-bg-hover transition-all">
                 <Tag className="w-3.5 h-3.5" /> Aggiungi tag
               </button>
@@ -191,7 +202,7 @@ export default function ClientsPage() {
           </div>
         </div>
         <motion.div variants={container} initial="hidden" animate="show" className="divide-y divide-border/30">
-          {filteredClients.map(client => <ClientRow key={client.id} client={client} checked={selected.has(client.id)} onToggle={toggleOne} />)}
+          {filteredClients.map(client => <ClientRow key={client.id} client={client} checked={selected.has(client.id)} onToggle={toggleOne} onEdit={setEditingClient} />)}
         </motion.div>
         {filteredClients.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16">
@@ -204,6 +215,7 @@ export default function ClientsPage() {
       <p className="text-xs text-text-muted text-center">{filteredClients.length} risultati su {totalClients} clienti</p>
 
       <AnimatePresence>{showModal && <AddClientModal onClose={() => setShowModal(false)} onSave={data => { addClient(data); setShowModal(false); }} />}</AnimatePresence>
+      <AnimatePresence>{editingClient && <AddClientModal initialData={editingClient} onClose={() => setEditingClient(null)} onSave={data => { updateClient(editingClient.id, data); setEditingClient(null); clearSelection(); }} />}</AnimatePresence>
     </div>
   );
 }
