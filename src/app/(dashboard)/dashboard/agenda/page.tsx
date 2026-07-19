@@ -1255,7 +1255,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
 /* ========== DETAIL PANEL ========== */
 function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWithReason, onDelete }: {
   appointment: Appointment; onClose: () => void; onEdit: (a: Appointment) => void;
-  onStatusChange: (id: string, status: Appointment['status']) => void;
+  onStatusChange: (id: string, status: Appointment['status'], extra?: Partial<Appointment>) => void;
   onCancelWithReason: (id: string, reason: string) => void;
   onDelete: (id: string) => void;
 }) {
@@ -1287,9 +1287,18 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
 
   const packagesWithDebt = clientPkgs.filter(cp => cp.remainingBalance > 0);
 
+  const fmtClock = (iso?: string) => iso ? new Date(iso).toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' }) : '';
+  const cabinMinutes = appointment.checkInAt && appointment.checkOutAt
+    ? Math.max(1, Math.round((Date.parse(appointment.checkOutAt) - Date.parse(appointment.checkInAt)) / 60000))
+    : null;
+
   const processCheckout = () => {
     const isPackageSession = appointment.notes?.includes('📦 Seduta da pacchetto');
-    onStatusChange(appointment.id, 'completed');
+    const checkOutAt = new Date().toISOString();
+    const cabinMinutes = appointment.checkInAt
+      ? Math.max(1, Math.round((Date.parse(checkOutAt) - Date.parse(appointment.checkInAt)) / 60000))
+      : undefined;
+    onStatusChange(appointment.id, 'completed', { checkOutAt });
 
     if (isPackageSession) {
       const matchingPkg = clientPkgs.find(cp =>
@@ -1310,6 +1319,7 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
         price: String(appointment.price),
         operator: appointment.operatorName,
       });
+      if (cabinMinutes) params.set('cabinMinutes', String(cabinMinutes));
       router.push(`/dashboard/pos?${params.toString()}`);
     }
   };
@@ -1357,6 +1367,23 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
               <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Prezzo</p><p className="text-sm font-medium text-text-primary">{formatCurrency(appointment.price)}</p></div>
             </div>
             <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Operatrice</p><p className="text-sm font-medium text-text-primary">{appointment.operatorName}</p></div>
+
+            {(appointment.checkInAt || appointment.checkOutAt) && (
+              <div className="p-3 rounded-xl bg-pink-500/5 border border-pink-500/15">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-3.5 h-3.5 text-pink-400" />
+                  <p className="text-xs font-semibold text-pink-400">Tempo in cabina</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-[11px] text-text-muted">Check-in</p><p className="text-sm font-medium text-text-primary">{fmtClock(appointment.checkInAt) || '—'}</p></div>
+                  <div><p className="text-[11px] text-text-muted">Check-out</p><p className="text-sm font-medium text-text-primary">{fmtClock(appointment.checkOutAt) || (appointment.status === 'in_cabin' ? 'in corso…' : '—')}</p></div>
+                </div>
+                {cabinMinutes !== null && (
+                  <p className="mt-2 text-sm font-bold text-text-primary">⏱️ {cabinMinutes} min effettivi <span className="text-xs font-normal text-text-muted">(previsti {appointment.duration} min)</span></p>
+                )}
+              </div>
+            )}
+
             {appointment.notes && <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Note Appuntamento</p><p className="text-sm text-text-primary">{appointment.notes}</p></div>}
             
             {clientData?.notes && (
@@ -1438,7 +1465,7 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
                 </button>
               ) : (
                 <>
-                  <button onClick={() => { onStatusChange(appointment.id, 'in_cabin'); onClose(); }}
+                  <button onClick={() => { onStatusChange(appointment.id, 'in_cabin', { checkInAt: new Date().toISOString() }); onClose(); }}
                     className="py-2.5 rounded-xl text-sm font-medium transition-colors bg-pink-500/10 text-pink-400 hover:bg-pink-500/20">
                     <span className="flex items-center justify-center gap-1.5"><Play className="w-3.5 h-3.5" /> Check-in</span>
                   </button>
@@ -1855,7 +1882,7 @@ export default function AgendaPage() {
       {/* Detail Panel */}
       <AnimatePresence>
         {selectedApt && <DetailPanel appointment={selectedApt} onClose={() => setSelectedApt(null)} onEdit={handleEdit}
-          onStatusChange={(id, status) => updateAppointment(id, { status })}
+          onStatusChange={(id, status, extra) => updateAppointment(id, { status, ...extra })}
           onCancelWithReason={(id, reason) => updateAppointment(id, { status: 'cancelled', cancelReason: reason, cancelledAt: new Date().toISOString() })}
           onDelete={(id) => deleteAppointment(id)} />}
       </AnimatePresence>

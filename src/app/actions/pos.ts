@@ -14,6 +14,7 @@ export interface TransactionRecord {
   time: string;
   operator: string;
   productLines?: ProductLine[]; // prodotti venduti (per scaricare/ricaricare il magazzino)
+  cabinMinutes?: number; // minuti trascorsi in cabina (check-in → check-out), solo per la notifica
 }
 
 function toTransactionRecord(tx: {
@@ -77,7 +78,7 @@ export async function createTransaction(data: Omit<TransactionRecord, 'id'>) {
   }
   // Notifica Telegram su ogni incasso (non blocca la vendita se fallisce)
   if (created.total > 0) {
-    notifyIncasso({ amount: created.total, client: created.clientName, items: data.items, method: created.paymentMethod, operator: created.operator }).catch(() => {});
+    notifyIncasso({ amount: created.total, client: created.clientName, items: data.items, method: created.paymentMethod, operator: created.operator, cabinMinutes: data.cabinMinutes }).catch(() => {});
   }
   return toTransactionRecord(created);
 }

@@ -212,6 +212,8 @@ export interface Appointment {
   notes?: string;
   cancelReason?: string; // motivo dell'annullamento (per storico/classificazione cliente)
   cancelledAt?: string; // quando è stato annullato
+  checkInAt?: string; // ISO — inizio trattamento in cabina (check-in)
+  checkOutAt?: string; // ISO — fine trattamento in cabina (check-out)
   isLocked: boolean;
   color: string;
   createdAt: string;

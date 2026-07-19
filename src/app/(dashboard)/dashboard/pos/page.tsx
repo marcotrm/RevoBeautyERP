@@ -36,7 +36,7 @@ const PAYMENT_METHODS = [
 
 function NewSaleModal({ onClose, onComplete, initialData }: {
   onClose: () => void; onComplete: (tx: Omit<TransactionRecord, 'id'>, debtPkgId?: string) => void;
-  initialData?: { client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string } | null;
+  initialData?: { client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string; cabinMinutes?: number } | null;
 }) {
   const treatments = useTreatmentStore(s => s.treatments);
   const products = useProductStore(s => s.products);
@@ -168,6 +168,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       operator: initialData?.operator || 'Staff',
       // Solo i prodotti (non trattamenti/pacchetti) scaricano il magazzino
       productLines: cart.filter(i => i.type === 'product').map(i => ({ productId: i.id, qty: i.qty })),
+      cabinMinutes: initialData?.cabinMinutes,
     }, initialData?.debtPkgId);
     setStep('done');
   };
@@ -403,7 +404,7 @@ function POSPageInner() {
   const fetchClients = useClientStore(s => s.fetchClients);
   const fetchTreatments = useTreatmentStore(s => s.fetchTreatments);
   const [showSaleModal, setShowSaleModal] = useState(false);
-  const [saleInitialData, setSaleInitialData] = useState<{ client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string } | null>(null);
+  const [saleInitialData, setSaleInitialData] = useState<{ client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string; cabinMinutes?: number } | null>(null);
   const [showCloseCassa, setShowCloseCassa] = useState(false);
   const [showLastReceipt, setShowLastReceipt] = useState(false);
   const [showRefund, setShowRefund] = useState(false);
@@ -424,11 +425,13 @@ function POSPageInner() {
     const price = searchParams.get('price');
     const operator = searchParams.get('operator');
     const debtPkgId = searchParams.get('debtPkgId');
+    const cabinMinutes = searchParams.get('cabinMinutes');
     if (client && treatment) {
       setSaleInitialData({
         client, treatmentName: treatment, treatmentId: treatmentId || '',
         price: Number(price) || 0, operator: operator || 'Staff',
         debtPkgId: debtPkgId || undefined,
+        cabinMinutes: cabinMinutes ? Number(cabinMinutes) : undefined,
       });
       setShowSaleModal(true);
     }

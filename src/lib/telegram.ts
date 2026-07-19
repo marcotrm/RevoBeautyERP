@@ -47,7 +47,7 @@ export async function sendTelegram(text: string): Promise<{ ok: boolean; error?:
 
 // Notifica di incasso — chiamata a ogni transazione di cassa (vendite, pacchetti, ecc.)
 export async function notifyIncasso(params: {
-  amount: number; client?: string | null; items?: string; method?: string; operator?: string;
+  amount: number; client?: string | null; items?: string; method?: string; operator?: string; cabinMinutes?: number;
 }): Promise<void> {
   if (!params.amount || params.amount <= 0) return;
   const cfg = await getTelegramConfig();
@@ -60,6 +60,7 @@ export async function notifyIncasso(params: {
     params.items ? `🧾 ${params.items}` : '',
     params.method ? `💳 ${params.method}` : '',
     params.operator ? `💇‍♀️ ${params.operator}` : '',
+    params.cabinMinutes && params.cabinMinutes > 0 ? `⏱️ Tempo in cabina: ${params.cabinMinutes} min` : '',
     `🕒 ${now}`,
   ].filter(Boolean);
   await sendTelegram(lines.join('\n'));

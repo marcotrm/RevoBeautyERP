@@ -219,6 +219,8 @@ model Appointment {
   notes             String?
   cancelReason      String?
   cancelledAt       String?
+  checkInAt         String?
+  checkOutAt        String?
   isLocked          Boolean  @default(false)
   color             String
   createdAt         String
