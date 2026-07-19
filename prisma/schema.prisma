@@ -89,6 +89,27 @@ model Operator {
 }
 
 // ============================================================
+// MAGAZZINO (prodotti)
+// ============================================================
+model Product {
+  id         String  @id @default(cuid())
+  name       String
+  brand      String  @default("")
+  category   String  @default("Viso")
+  sku        String  @default("")
+  barcode    String?
+  price      Float   @default(0)
+  costPrice  Float   @default(0)
+  stock      Int     @default(0)
+  minStock   Int     @default(5)
+  locationId String  @default("loc1")
+  isActive   Boolean @default(true)
+  createdAt  String  @default("")
+
+  @@map("products")
+}
+
+// ============================================================
 // SPESE SOCI (anticipi dei soci, dare/avere)
 // ============================================================
 model PartnerExpense {
