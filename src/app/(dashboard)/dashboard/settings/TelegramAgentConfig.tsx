@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Send, Loader2, CheckCircle2, ChevronDown } from 'lucide-react';
-import { loadTelegramConfig, saveTelegramConfig, testTelegram, detectTelegramChatId } from '@/app/actions/telegram';
+import { loadTelegramConfig, saveTelegramConfig, testTelegram, listTelegramChats, type TelegramChat } from '@/app/actions/telegram';
 
 export default function TelegramAgentConfig() {
   const [open, setOpen] = useState(false);
@@ -13,6 +13,7 @@ export default function TelegramAgentConfig() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [detecting, setDetecting] = useState(false);
+  const [chats, setChats] = useState<TelegramChat[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
@@ -75,23 +76,39 @@ export default function TelegramAgentConfig() {
               className="w-full px-3 py-2.5 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 font-mono" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1.5">Chat ID <span className="font-normal text-text-muted">(numero corto, NON il token)</span></label>
-            <div className="flex gap-2">
-              <input type="text" value={chatId} onChange={e => setChatId(e.target.value)} placeholder="Es. 123456789"
-                className="flex-1 px-3 py-2.5 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 font-mono" />
-              <button onClick={async () => {
-                setDetecting(true);
-                const r = await detectTelegramChatId(botToken);
-                setDetecting(false);
-                if (r.ok && r.chatId) { setChatId(r.chatId); setMsg({ ok: true, text: `Trovato: ${r.name || r.chatId}` }); }
-                else setMsg({ ok: false, text: r.error || 'Non trovato' });
-                setTimeout(() => setMsg(null), 6000);
-              }} disabled={detecting || !botToken}
-                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-accent/15 text-accent text-sm font-medium hover:bg-accent/25 disabled:opacity-50 whitespace-nowrap">
-                {detecting ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Rileva
-              </button>
+            <label className="block text-sm font-medium text-text-secondary mb-1.5">Dove ricevere le notifiche</label>
+            <button onClick={async () => {
+              setDetecting(true);
+              const r = await listTelegramChats(botToken);
+              setDetecting(false);
+              if (r.ok && r.chats) { setChats(r.chats); setMsg(null); }
+              else { setChats([]); setMsg({ ok: false, text: r.error || 'Non trovato' }); setTimeout(() => setMsg(null), 7000); }
+            }} disabled={detecting || !botToken}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-accent/15 text-accent text-sm font-medium hover:bg-accent/25 disabled:opacity-50">
+              {detecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Trova le mie chat Telegram
+            </button>
+
+            {chats.length > 0 && (
+              <div className="mt-2 space-y-1.5">
+                <p className="text-[11px] text-text-muted">Tocca dove vuoi ricevere gli incassi:</p>
+                {chats.map(c => (
+                  <button key={c.id} onClick={() => { setChatId(c.id); setMsg({ ok: true, text: `Selezionato: ${c.name}` }); setTimeout(() => setMsg(null), 4000); }}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-left transition-colors ${chatId === c.id ? 'bg-accent/15 border-accent/40' : 'bg-bg-secondary border-border hover:border-border-light'}`}>
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-medium text-text-primary truncate">{c.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-muted flex-shrink-0">{c.type}</span>
+                    </span>
+                    {chatId === c.id && <CheckCircle2 className="w-4 h-4 text-accent flex-shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-2">
+              <input type="text" value={chatId} onChange={e => setChatId(e.target.value)} placeholder="Chat ID (compilato automaticamente)"
+                className="w-full px-3 py-2 rounded-xl bg-bg-secondary border border-border text-xs text-text-muted placeholder-text-muted focus:outline-none focus:border-accent/50 font-mono" />
             </div>
-            <p className="text-[11px] text-text-muted mt-1">Apri il tuo bot su Telegram, scrivigli &quot;ciao&quot;, poi premi <b>Rileva</b>.</p>
+            <p className="text-[11px] text-text-muted mt-1">Per un <b>gruppo</b>: scrivi <code>/id</code> nel gruppo, poi premi &quot;Trova le mie chat&quot;.</p>
           </div>
 
           <div className="flex items-center gap-2">

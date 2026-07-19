@@ -23,24 +23,33 @@ export async function testTelegram(): Promise<{ ok: boolean; error?: string }> {
   return sendTelegram(`✅ <b>RevoBeauty — Test Telegram</b>\nSe leggi questo messaggio, le notifiche di incasso funzionano!\n🕒 ${now}`);
 }
 
-// Rileva automaticamente il Chat ID leggendo l'ultimo messaggio ricevuto dal bot.
-// L'utente deve prima aprire una chat col proprio bot e scrivergli qualcosa.
-export async function detectTelegramChatId(botToken: string): Promise<{ ok: boolean; chatId?: string; name?: string; error?: string }> {
+export interface TelegramChat { id: string; name: string; type: 'privato' | 'gruppo' | 'canale' }
+
+// Elenca tutte le chat (personale + gruppi) che hanno scritto al bot di recente,
+// così l'utente sceglie con un tocco dove ricevere le notifiche.
+export async function listTelegramChats(botToken: string): Promise<{ ok: boolean; chats?: TelegramChat[]; error?: string }> {
   const token = (botToken || '').trim();
   if (!token) return { ok: false, error: 'Inserisci prima il Bot Token' };
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.ok) return { ok: false, error: 'Bot Token non valido' };
-    const updates: Array<{ message?: { chat?: { id?: number; first_name?: string; title?: string } } }> = data.result || [];
-    // Prendi l'ultimo messaggio con una chat
-    for (let i = updates.length - 1; i >= 0; i--) {
-      const chat = updates[i]?.message?.chat;
-      if (chat?.id != null) {
-        return { ok: true, chatId: String(chat.id), name: chat.title || chat.first_name || '' };
-      }
+    type Chat = { id?: number; type?: string; first_name?: string; last_name?: string; title?: string };
+    const updates: Array<{ message?: { chat?: Chat }; my_chat_member?: { chat?: Chat }; channel_post?: { chat?: Chat } }> = data.result || [];
+    const map = new Map<string, TelegramChat>();
+    for (const u of updates) {
+      const chat = u.message?.chat || u.my_chat_member?.chat || u.channel_post?.chat;
+      if (!chat?.id) continue;
+      const id = String(chat.id);
+      const type: TelegramChat['type'] = chat.type === 'private' ? 'privato' : chat.type === 'channel' ? 'canale' : 'gruppo';
+      const name = chat.title || `${chat.first_name || ''} ${chat.last_name || ''}`.trim() || id;
+      map.set(id, { id, name, type });
     }
-    return { ok: false, error: 'Nessun messaggio trovato. Apri il tuo bot su Telegram e scrivigli "ciao", poi riprova.' };
+    const chats = Array.from(map.values());
+    if (chats.length === 0) {
+      return { ok: false, error: 'Nessuna chat trovata. Scrivi "ciao" al bot (o "/id" nel gruppo), poi riprova.' };
+    }
+    return { ok: true, chats };
   } catch {
     return { ok: false, error: 'Connessione a Telegram fallita' };
   }
