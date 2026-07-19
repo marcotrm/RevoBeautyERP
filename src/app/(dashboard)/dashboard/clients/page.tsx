@@ -8,7 +8,7 @@ import Link from 'next/link';
 import {
   Search, Plus, Users, Crown,
   UserPlus, Clock, Phone, Mail,
-  ChevronRight, Heart, Download, X, CheckCircle, BarChart3, Trash2, Tag, Pencil,
+  ChevronRight, Heart, Download, X, CheckCircle, BarChart3, Trash2, Tag, Pencil, AlertTriangle,
 } from 'lucide-react';
 import { formatCurrency, getInitials } from '@/lib/helpers';
 import AddClientModal from '@/components/AddClientModal';
@@ -36,10 +36,18 @@ function VIPBadge({ level }: { level: number }) {
   return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${colors[level]}15`, color: colors[level] }}>{labels[level]}</span>;
 }
 
+function isIncompleteClient(c: Client): boolean {
+  // Anagrafica considerata incompleta se mancano dati anagrafici chiave
+  return !c.birthDate || !c.address || !c.email;
+}
+
 function ClientRow({ client, checked, onToggle, onEdit }: { client: Client; checked: boolean; onToggle: (id: string) => void; onEdit: (c: Client) => void }) {
   const daysSinceVisit = client.lastVisit ? Math.floor((Date.now() - new Date(client.lastVisit).getTime()) / (1000 * 60 * 60 * 24)) : null;
+  const incomplete = isIncompleteClient(client);
   return (
-    <motion.div variants={item} className={`flex items-center gap-2 pl-3.5 pr-2 group/row ${checked ? 'bg-accent/5' : ''}`}>
+    <motion.div variants={item}
+      style={incomplete ? { borderLeft: '3px solid #F59E0B' } : undefined}
+      className={`flex items-center gap-2 pl-3.5 pr-2 group/row ${checked ? 'bg-accent/5' : incomplete ? 'bg-warning/[0.04]' : ''}`}>
       <input type="checkbox" checked={checked} onChange={() => onToggle(client.id)}
         className="w-4 h-4 rounded border-border accent-accent cursor-pointer flex-shrink-0" />
       <Link href={`/dashboard/clients/${client.id}`} className="flex items-center gap-4 p-3.5 rounded-xl hover:bg-bg-hover border border-transparent hover:border-border transition-all duration-200 group flex-1 min-w-0">
@@ -51,6 +59,11 @@ function ClientRow({ client, checked, onToggle, onEdit }: { client: Client; chec
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium text-text-primary truncate">{client.firstName} {client.lastName}</p>
             <VIPBadge level={client.vipLevel} />
+            {incomplete && (
+              <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/20 whitespace-nowrap">
+                <AlertTriangle className="w-2.5 h-2.5" /> Dati incompleti
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 mt-0.5">
             <span className="flex items-center gap-1 text-xs text-text-secondary"><Phone className="w-3 h-3" /> {client.phone}</span>
@@ -123,6 +136,7 @@ export default function ClientsPage() {
   };
 
   const totalClients = clients.length;
+  const incompleteCount = clients.filter(isIncompleteClient).length;
   const vipClients = clients.filter(c => c.vipLevel >= 2).length;
   const totalRevenue = clients.reduce((sum, c) => sum + c.totalSpent, 0);
 
@@ -131,7 +145,7 @@ export default function ClientsPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-display font-bold text-text-primary">Clienti</h2>
-          <p className="text-sm text-text-secondary">{totalClients} clienti registrati • {vipClients} VIP</p>
+          <p className="text-sm text-text-secondary">{totalClients} clienti registrati • {vipClients} VIP{incompleteCount > 0 && <span className="text-warning"> • {incompleteCount} da completare</span>}</p>
         </div>
         <div className="flex items-center gap-2">
           <Link href="/dashboard/clients/analytics" className="flex items-center gap-2 px-3 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 hover:scale-105 transition-all">
