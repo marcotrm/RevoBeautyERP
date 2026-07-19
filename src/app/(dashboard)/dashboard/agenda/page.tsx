@@ -13,7 +13,7 @@ import { Appointment, AppointmentService, AgendaBlock, Operator, Treatment } fro
 import {
   ChevronLeft, ChevronRight, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
-  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon
+  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone
 } from 'lucide-react';
 import {
   formatDateLong, timeToMinutes, getStatusLabel,
@@ -1800,6 +1800,11 @@ export default function AgendaPage() {
             <span className="hidden sm:inline">Clienti in attesa</span>
             {matchingWaitlists.length > 0 && <span className="bg-white text-warning w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold">{matchingWaitlists.length}</span>}
           </button>
+
+          <a href="/agenda-mobile" target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all" title="Apri la versione da cellulare">
+            <Smartphone className="w-4 h-4" /><span className="hidden sm:inline">Versione mobile</span>
+          </a>
 
           <button onClick={() => setShowAddClientModal(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all">
