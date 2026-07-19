@@ -149,7 +149,13 @@ export default function TodoPage() {
             <select value={assignee} onChange={e => setAssignee(e.target.value)}
               className="px-2.5 py-1 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none focus:border-accent/50 appearance-none">
               <option value="">Chiunque</option>
-              {operators.map(op => <option key={op.id} value={`${op.firstName} ${op.lastName}`}>{op.firstName} {op.lastName}</option>)}
+              <optgroup label="Soci">
+                <option value="Dino">Dino</option>
+                <option value="Francesco">Francesco</option>
+              </optgroup>
+              <optgroup label="Estetiste">
+                {operators.map(op => <option key={op.id} value={`${op.firstName} ${op.lastName}`}>{op.firstName} {op.lastName}</option>)}
+              </optgroup>
             </select>
           </div>
         </div>
@@ -210,7 +216,13 @@ export default function TodoPage() {
                           <select value={edit.assignee} onChange={e => setEdit(prev => ({ ...prev, assignee: e.target.value }))}
                             className="px-2.5 py-1 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none focus:border-accent/50 appearance-none">
                             <option value="">Chiunque</option>
-                            {operators.map(op => <option key={op.id} value={`${op.firstName} ${op.lastName}`}>{op.firstName} {op.lastName}</option>)}
+                            <optgroup label="Soci">
+                              <option value="Dino">Dino</option>
+                              <option value="Francesco">Francesco</option>
+                            </optgroup>
+                            <optgroup label="Estetiste">
+                              {operators.map(op => <option key={op.id} value={`${op.firstName} ${op.lastName}`}>{op.firstName} {op.lastName}</option>)}
+                            </optgroup>
                           </select>
                         </div>
                         <div className="flex items-center gap-2 ml-auto">
