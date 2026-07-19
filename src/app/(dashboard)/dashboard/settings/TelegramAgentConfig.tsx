@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Send, Loader2, CheckCircle2, ChevronDown } from 'lucide-react';
-import { loadTelegramConfig, saveTelegramConfig, testTelegram } from '@/app/actions/telegram';
+import { loadTelegramConfig, saveTelegramConfig, testTelegram, detectTelegramChatId } from '@/app/actions/telegram';
 
 export default function TelegramAgentConfig() {
   const [open, setOpen] = useState(false);
@@ -12,6 +12,7 @@ export default function TelegramAgentConfig() {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [detecting, setDetecting] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
@@ -74,9 +75,23 @@ export default function TelegramAgentConfig() {
               className="w-full px-3 py-2.5 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 font-mono" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1.5">Chat ID</label>
-            <input type="text" value={chatId} onChange={e => setChatId(e.target.value)} placeholder="Es. 123456789 o -100123..."
-              className="w-full px-3 py-2.5 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 font-mono" />
+            <label className="block text-sm font-medium text-text-secondary mb-1.5">Chat ID <span className="font-normal text-text-muted">(numero corto, NON il token)</span></label>
+            <div className="flex gap-2">
+              <input type="text" value={chatId} onChange={e => setChatId(e.target.value)} placeholder="Es. 123456789"
+                className="flex-1 px-3 py-2.5 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 font-mono" />
+              <button onClick={async () => {
+                setDetecting(true);
+                const r = await detectTelegramChatId(botToken);
+                setDetecting(false);
+                if (r.ok && r.chatId) { setChatId(r.chatId); setMsg({ ok: true, text: `Trovato: ${r.name || r.chatId}` }); }
+                else setMsg({ ok: false, text: r.error || 'Non trovato' });
+                setTimeout(() => setMsg(null), 6000);
+              }} disabled={detecting || !botToken}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-accent/15 text-accent text-sm font-medium hover:bg-accent/25 disabled:opacity-50 whitespace-nowrap">
+                {detecting ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Rileva
+              </button>
+            </div>
+            <p className="text-[11px] text-text-muted mt-1">Apri il tuo bot su Telegram, scrivigli &quot;ciao&quot;, poi premi <b>Rileva</b>.</p>
           </div>
 
           <div className="flex items-center gap-2">
