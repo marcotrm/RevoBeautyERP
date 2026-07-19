@@ -8,7 +8,7 @@ import { Suspense } from 'react';
 import {
   CreditCard, Receipt, Calculator,
   Banknote, ArrowRight, Plus, X, CheckCircle,
-  Trash2, Search,
+  Trash2, Search, Smartphone,
 } from 'lucide-react';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { useClientStore } from '@/stores/useClientStore';
@@ -467,9 +467,15 @@ function POSPageInner() {
           <h2 className="text-xl font-display font-bold text-text-primary">Punto Cassa</h2>
           <p className="text-sm text-text-secondary">Gestisci vendite e pagamenti</p>
         </div>
-        <button onClick={() => { setSaleInitialData(null); setShowSaleModal(true); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105">
-          <Plus className="w-4 h-4" /> Nuova Vendita
-        </button>
+        <div className="flex items-center gap-2">
+          <a href="/dashboard-mobile" target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all" title="Vedi i dati dal cellulare">
+            <Smartphone className="w-4 h-4" /><span className="hidden sm:inline">Versione mobile</span>
+          </a>
+          <button onClick={() => { setSaleInitialData(null); setShowSaleModal(true); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105">
+            <Plus className="w-4 h-4" /> Nuova Vendita
+          </button>
+        </div>
       </div>
 
       {/* Quick Actions */}

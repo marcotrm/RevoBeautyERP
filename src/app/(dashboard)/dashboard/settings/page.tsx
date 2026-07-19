@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
+import TelegramAgentConfig from './TelegramAgentConfig';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings, Building2, Clock, Palette, Shield,
@@ -642,6 +643,9 @@ function AIAgentsSection() {
       </div>
 
       <div className="space-y-3">
+        {/* Agente Telegram — incassi (configurabile e attivo) */}
+        <TelegramAgentConfig />
+
         {AI_AGENTS.map(agent => {
           const Icon = agent.icon;
           const st = AGENT_STATUS[agent.status];
@@ -670,10 +674,14 @@ function AIAgentsSection() {
         })}
       </div>
 
-      <div className="flex items-center gap-2 p-3 rounded-xl bg-accent/5 border border-accent/15">
-        <Bot className="w-4 h-4 text-accent flex-shrink-0" />
-        <p className="text-xs text-text-secondary">Questa è la base: da qui attiveremo e configureremo gli agenti uno alla volta. Dimmi da quale vuoi partire.</p>
-      </div>
+      <a href="/dashboard/admin/automations" className="flex items-center gap-3 p-4 rounded-xl bg-bg-tertiary/50 border border-border/30 hover:border-accent/40 transition-colors">
+        <div className="w-10 h-10 rounded-xl bg-warning/15 text-warning flex items-center justify-center flex-shrink-0"><Zap className="w-5 h-5" /></div>
+        <div className="flex-1">
+          <p className="text-sm font-medium text-text-primary">Automazioni finanziarie</p>
+          <p className="text-xs text-text-muted mt-0.5">Promemoria scadenze, stipendi, tasse e alert su costi/margini.</p>
+        </div>
+        <span className="text-xs text-accent font-medium">Apri →</span>
+      </a>
     </div>
   );
 }

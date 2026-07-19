@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import {
   TrendingUp, TrendingDown, Calendar, Users, Euro,
   Activity, ArrowRight, Clock, UserPlus, CreditCard,
-  CalendarPlus, UserX, CalendarX, CheckCircle, Package,
+  CalendarPlus, UserX, CalendarX, CheckCircle, Package, Smartphone,
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -299,13 +299,19 @@ export default function DashboardPage() {
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
       {/* Welcome */}
-      <motion.div variants={item}>
-        <h2 className="text-2xl font-display font-bold text-text-primary">
-          {getGreeting()}, {user?.firstName} ✨
-        </h2>
-        <p className="text-text-secondary mt-1">
-          Ecco il riepilogo della tua giornata
-        </p>
+      <motion.div variants={item} className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-display font-bold text-text-primary">
+            {getGreeting()}, {user?.firstName} ✨
+          </h2>
+          <p className="text-text-secondary mt-1">
+            Ecco il riepilogo della tua giornata
+          </p>
+        </div>
+        <a href="/dashboard-mobile" target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all" title="Vedi i dati dal cellulare">
+          <Smartphone className="w-4 h-4" /> Versione mobile
+        </a>
       </motion.div>
 
       {/* KPI Cards */}

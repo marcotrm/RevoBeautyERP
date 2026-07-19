@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { PackageItem, ClientPackage, PackagePayment } from '@/stores/usePackageStore';
+import { notifyIncasso } from '@/lib/telegram';
 
 function toClientPackage(cp: {
   id: string; clientName: string; packageName: string; packageColor: string;
@@ -39,6 +40,7 @@ async function recordPosPayment(params: {
       isRefund: false,
     },
   });
+  notifyIncasso({ amount: params.amount, client: params.clientName, items: params.label, method: params.method, operator: params.operator }).catch(() => {});
 }
 
 export async function getPackages() {

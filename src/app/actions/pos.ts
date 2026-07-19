@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { notifyIncasso } from '@/lib/telegram';
 
 export interface TransactionRecord {
   id: string;
@@ -50,5 +51,9 @@ export async function createTransaction(data: Omit<TransactionRecord, 'id'>) {
       isRefund: data.total < 0,
     },
   });
+  // Notifica Telegram su ogni incasso (non blocca la vendita se fallisce)
+  if (created.total > 0) {
+    notifyIncasso({ amount: created.total, client: created.clientName, items: data.items, method: created.paymentMethod, operator: created.operator }).catch(() => {});
+  }
   return toTransactionRecord(created);
 }
