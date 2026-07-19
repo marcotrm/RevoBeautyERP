@@ -89,6 +89,20 @@ model Operator {
 }
 
 // ============================================================
+// SPESE SOCI (anticipi dei soci, dare/avere)
+// ============================================================
+model PartnerExpense {
+  id          String @id @default(cuid())
+  partner     String
+  amount      Float
+  description String
+  date        String
+  createdAt   String
+
+  @@map("partner_expenses")
+}
+
+// ============================================================
 // TO-DO (cose da fare)
 // ============================================================
 model TodoItem {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Wallet, ArrowRightLeft, Plus, Trash2, User, CheckCircle, Calendar, X } from 'lucide-react';
 import { usePartnerExpenseStore, PartnerExpense } from '@/stores/usePartnerExpenseStore';
@@ -17,8 +17,10 @@ const item = {
 };
 
 export default function PartnerExpensesPage() {
-  const { expenses, addExpense, deleteExpense, clearExpenses } = usePartnerExpenseStore();
+  const { expenses, addExpense, deleteExpense, clearExpenses, fetchExpenses } = usePartnerExpenseStore();
   const [showAddModal, setShowAddModal] = useState(false);
+
+  useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
   const [partner, setPartner] = useState<'Dino' | 'Francesco'>('Dino');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
