@@ -54,6 +54,35 @@ export async function POST(request: Request) {
     return Response.json({ success: false, message: 'Errore nel salvataggio' }, { status: 500, headers });
   }
 
+  // Registra automaticamente il contatto anche in anagrafica Clienti (senza duplicati),
+  // così è già disponibile per essere selezionato.
+  try {
+    const normPhone = (p: string) => (p || '').replace(/[^\d]/g, '').slice(-9);
+    const emailLc = (email || '').toLowerCase();
+    const clients = await prisma.client.findMany({ select: { phone: true, email: true } });
+    const already = clients.some(c =>
+      (normPhone(c.phone) && normPhone(c.phone) === normPhone(phone)) ||
+      (c.email && emailLc && c.email.toLowerCase() === emailLc)
+    );
+    if (!already) {
+      await prisma.client.create({
+        data: {
+          firstName: firstName || 'Cliente',
+          lastName: lastName || '',
+          email: email || null,
+          phone: phone || '',
+          notes: `Da inaugurazione — interessata a ${treatmentLabel(treatment)}`,
+          tags: ['Inaugurazione'],
+          marketingConsent: true,
+          createdAt: now.split('T')[0],
+        },
+      });
+    }
+  } catch (err) {
+    console.error('[inaugurazione/lead] auto-create client failed', err);
+    // non blocchiamo la registrazione del lead
+  }
+
   // Invio email di conferma (double opt-in). Il salvataggio è già avvenuto:
   // anche se l'email fallisce, il lead resta tracciato come "non confermato".
   const email_result = await sendEmail({
