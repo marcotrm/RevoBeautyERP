@@ -61,6 +61,20 @@ export default function AddClientModal({
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
           </div>
           <div className="px-6 py-5 space-y-4 flex-1 overflow-y-auto">
+            {/* Avviso campi mancanti per profilo completo */}
+            {(() => {
+              const missing: string[] = [];
+              if (!email.trim()) missing.push('Email');
+              if (!birthDate) missing.push('Data di nascita');
+              if (!address.trim()) missing.push('Indirizzo');
+              if (missing.length === 0) return null;
+              return (
+                <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl bg-warning/10 border border-warning/25">
+                  <span className="text-warning text-sm mt-0.5">⚠️</span>
+                  <p className="text-xs text-text-secondary">Per il profilo completo manca: <strong className="text-warning">{missing.join(', ')}</strong>. Sono i campi evidenziati in giallo.</p>
+                </div>
+              );
+            })()}
             {/* Nome + Cognome */}
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Nome *</label>
@@ -72,13 +86,13 @@ export default function AddClientModal({
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Telefono *</label>
                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+39 333..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
-              <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Email</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@esempio.it" className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+              <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Email {!email.trim() && <span className="text-warning text-xs font-normal">• da completare</span>}</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@esempio.it" className={`w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all ${!email.trim() ? 'border-warning/50 bg-warning/[0.04]' : 'border-border'}`} /></div>
             </div>
             {/* Data nascita + Genere */}
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Data di Nascita</label>
-                <input type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all" /></div>
+              <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Data di Nascita {!birthDate && <span className="text-warning text-xs font-normal">• da completare</span>}</label>
+                <input type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} className={`w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all ${!birthDate ? 'border-warning/50 bg-warning/[0.04]' : 'border-border'}`} /></div>
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Genere</label>
                 <div className="flex gap-2">
                   {([['F', 'Donna'], ['M', 'Uomo'], ['other', 'Altro']] as const).map(([val, label]) => (
@@ -88,8 +102,8 @@ export default function AddClientModal({
             </div>
             {/* Indirizzo + Città */}
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Indirizzo</label>
-                <input type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder="Via..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+              <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Indirizzo {!address.trim() && <span className="text-warning text-xs font-normal">• da completare</span>}</label>
+                <input type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder="Via..." className={`w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all ${!address.trim() ? 'border-warning/50 bg-warning/[0.04]' : 'border-border'}`} /></div>
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Città</label>
                 <input type="text" value={city} onChange={e => setCity(e.target.value)} placeholder="Milano..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
             </div>
