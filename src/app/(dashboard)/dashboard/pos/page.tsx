@@ -166,6 +166,8 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       method: finalMethod,
       time: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`,
       operator: initialData?.operator || 'Staff',
+      // Solo i prodotti (non trattamenti/pacchetti) scaricano il magazzino
+      productLines: cart.filter(i => i.type === 'product').map(i => ({ productId: i.id, qty: i.qty })),
     }, initialData?.debtPkgId);
     setStep('done');
   };

@@ -313,6 +313,7 @@ model PosTransaction {
   time          String
   clientName    String?
   items         Json     @default("[]")
+  productLines  Json?    // [{ productId, qty }] per lo scarico/ricarico magazzino
   total         Float
   paymentMethod String
   operator      String
