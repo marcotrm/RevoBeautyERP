@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckSquare, Square, Plus, Trash2, Flag, Calendar as CalendarIcon, X, User } from 'lucide-react';
+import { CheckSquare, Square, Plus, Trash2, Flag, Calendar as CalendarIcon, X, User, Pencil, Check } from 'lucide-react';
 import { TodoItem } from '@/types';
 import { getTodos, createTodo, updateTodo, deleteTodo } from '@/app/actions/todo';
 import { useOperatorStore } from '@/stores/useOperatorStore';
@@ -36,6 +36,10 @@ export default function TodoPage() {
   const [assignee, setAssignee] = useState('');
   const [filter, setFilter] = useState<'all' | 'todo' | 'done'>('todo');
 
+  // Modifica in linea
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [edit, setEdit] = useState<{ title: string; priority: TodoItem['priority']; dueDate: string; assignee: string }>({ title: '', priority: 'normal', dueDate: '', assignee: '' });
+
   const { operators, fetchOperators } = useOperatorStore();
 
   useEffect(() => {
@@ -59,6 +63,20 @@ export default function TodoPage() {
   const remove = async (id: string) => {
     setTodos(prev => prev.filter(x => x.id !== id));
     await deleteTodo(id);
+  };
+
+  const startEdit = (t: TodoItem) => {
+    setEditingId(t.id);
+    setEdit({ title: t.title, priority: t.priority, dueDate: t.dueDate || '', assignee: t.assignee || '' });
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || !edit.title.trim()) return;
+    const id = editingId;
+    const updates = { title: edit.title.trim(), priority: edit.priority, dueDate: edit.dueDate, assignee: edit.assignee };
+    setTodos(prev => prev.map(x => x.id === id ? { ...x, ...updates } : x));
+    setEditingId(null);
+    await updateTodo(id, updates);
   };
 
   const changePriority = async (t: TodoItem) => {
@@ -163,38 +181,88 @@ export default function TodoPage() {
               const due = fmtDue(t.dueDate);
               return (
                 <motion.div key={t.id} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }}
-                  className={`group flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors ${t.done ? 'bg-bg-tertiary/40 border-border/40' : 'bg-bg-secondary border-border hover:border-border-light'}`}
+                  className={`group rounded-xl border transition-colors ${t.done ? 'bg-bg-tertiary/40 border-border/40' : 'bg-bg-secondary border-border hover:border-border-light'}`}
                   style={{ borderLeft: `3px solid ${t.done ? 'var(--border)' : pm.color}` }}>
-                  <button onClick={() => toggle(t)} className="flex-shrink-0">
-                    {t.done ? <CheckSquare className="w-5 h-5 text-success" /> : <Square className="w-5 h-5 text-text-muted hover:text-accent transition-colors" />}
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm ${t.done ? 'line-through text-text-muted' : 'text-text-primary font-medium'}`}>{t.title}</p>
-                    {!t.done && (due || t.assignee) && (
-                      <div className="flex items-center gap-2.5 mt-0.5 flex-wrap">
-                        {t.assignee && (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-accent font-medium">
-                            <User className="w-3 h-3" /> {t.assignee}
-                          </span>
-                        )}
-                        {due && (
-                          <span className={`inline-flex items-center gap-1 text-[11px] ${due.tone}`}>
-                            <CalendarIcon className="w-3 h-3" /> {due.label}{due.note ? ` · ${due.note}` : ''}
-                          </span>
+                  {editingId === t.id ? (
+                    /* --- Modalità modifica --- */
+                    <div className="p-4 space-y-3">
+                      <input type="text" value={edit.title} autoFocus
+                        onChange={e => setEdit(prev => ({ ...prev, title: e.target.value }))}
+                        onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
+                        className="w-full px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50" />
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="flex items-center gap-1.5">
+                          {PRIORITIES.map(p => (
+                            <button key={p.value} onClick={() => setEdit(prev => ({ ...prev, priority: p.value }))}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${edit.priority === p.value ? p.bg : 'bg-bg-tertiary text-text-secondary border-border hover:border-border-light'}`}>
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <CalendarIcon className="w-3.5 h-3.5 text-text-muted" />
+                          <input type="date" value={edit.dueDate} onChange={e => setEdit(prev => ({ ...prev, dueDate: e.target.value }))}
+                            className="px-2.5 py-1 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none focus:border-accent/50" />
+                          {edit.dueDate && <button onClick={() => setEdit(prev => ({ ...prev, dueDate: '' }))} className="text-text-muted hover:text-error"><X className="w-3.5 h-3.5" /></button>}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-text-muted" />
+                          <select value={edit.assignee} onChange={e => setEdit(prev => ({ ...prev, assignee: e.target.value }))}
+                            className="px-2.5 py-1 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none focus:border-accent/50 appearance-none">
+                            <option value="">Chiunque</option>
+                            {operators.map(op => <option key={op.id} value={`${op.firstName} ${op.lastName}`}>{op.firstName} {op.lastName}</option>)}
+                          </select>
+                        </div>
+                        <div className="flex items-center gap-2 ml-auto">
+                          <button onClick={() => setEditingId(null)} className="px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors">Annulla</button>
+                          <button onClick={saveEdit} disabled={!edit.title.trim()}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium transition-all ${edit.title.trim() ? 'gradient-accent' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
+                            <Check className="w-3.5 h-3.5" /> Salva
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* --- Vista normale --- */
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      <button onClick={() => toggle(t)} className="flex-shrink-0">
+                        {t.done ? <CheckSquare className="w-5 h-5 text-success" /> : <Square className="w-5 h-5 text-text-muted hover:text-accent transition-colors" />}
+                      </button>
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => !t.done && startEdit(t)}>
+                        <p className={`text-sm ${t.done ? 'line-through text-text-muted' : 'text-text-primary font-medium'}`}>{t.title}</p>
+                        {!t.done && (due || t.assignee) && (
+                          <div className="flex items-center gap-2.5 mt-0.5 flex-wrap">
+                            {t.assignee && (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-accent font-medium">
+                                <User className="w-3 h-3" /> {t.assignee}
+                              </span>
+                            )}
+                            {due && (
+                              <span className={`inline-flex items-center gap-1 text-[11px] ${due.tone}`}>
+                                <CalendarIcon className="w-3 h-3" /> {due.label}{due.note ? ` · ${due.note}` : ''}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                  {!t.done && (
-                    <button onClick={() => changePriority(t)} title="Cambia priorità"
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border transition-colors ${pm.bg}`}>
-                      <Flag className="w-3 h-3" /> {pm.label}
-                    </button>
+                      {!t.done && (
+                        <button onClick={() => changePriority(t)} title="Cambia priorità"
+                          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border transition-colors ${pm.bg}`}>
+                          <Flag className="w-3 h-3" /> {pm.label}
+                        </button>
+                      )}
+                      {!t.done && (
+                        <button onClick={() => startEdit(t)} title="Modifica"
+                          className="p-1.5 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0">
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button onClick={() => remove(t.id)} title="Elimina"
+                        className="p-1.5 rounded-lg text-text-muted hover:text-error hover:bg-error/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   )}
-                  <button onClick={() => remove(t.id)}
-                    className="p-1.5 rounded-lg text-text-muted hover:text-error hover:bg-error/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
                 </motion.div>
               );
             })}
