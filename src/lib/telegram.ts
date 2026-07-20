@@ -66,6 +66,24 @@ export async function notifyIncasso(params: {
   await sendTelegram(lines.join('\n'));
 }
 
+// Notifica quando qualcuno si iscrive all'inaugurazione (coupon dal sito).
+export async function notifyNuovaIscrizione(params: {
+  name?: string; phone?: string; email?: string; treatment?: string;
+}): Promise<void> {
+  const cfg = await getTelegramConfig();
+  if (!cfg.enabled) return;
+  const now = new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' });
+  const lines = [
+    `🎉 <b>Nuova iscrizione inaugurazione</b>`,
+    params.name ? `👤 ${params.name}` : '',
+    params.phone ? `📞 ${params.phone}` : '',
+    params.email ? `📧 ${params.email}` : '',
+    params.treatment ? `💆 ${params.treatment}` : '',
+    `🕒 ${now}`,
+  ].filter(Boolean);
+  await sendTelegram(lines.join('\n'));
+}
+
 // Notifica quando un appuntamento viene annullato — per tenere sempre aggiornati i soci.
 export async function notifyCancellazione(params: {
   client?: string | null; treatment?: string; operator?: string; date?: string; time?: string; reason?: string | null;

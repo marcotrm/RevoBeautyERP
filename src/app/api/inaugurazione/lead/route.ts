@@ -8,6 +8,7 @@ import {
   treatmentLabel,
 } from '@/lib/inaugurazione';
 import { sendEmail, confirmEmailHtml } from '@/lib/mail';
+import { notifyNuovaIscrizione } from '@/lib/telegram';
 
 export const runtime = 'nodejs';
 
@@ -82,6 +83,14 @@ export async function POST(request: Request) {
     console.error('[inaugurazione/lead] auto-create client failed', err);
     // non blocchiamo la registrazione del lead
   }
+
+  // Notifica Telegram: nuova iscrizione (non blocca la registrazione se fallisce)
+  notifyNuovaIscrizione({
+    name: `${firstName} ${lastName}`.trim(),
+    phone,
+    email,
+    treatment: treatmentLabel(treatment),
+  }).catch(() => {});
 
   // Invio email di conferma (double opt-in). Il salvataggio è già avvenuto:
   // anche se l'email fallisce, il lead resta tracciato come "non confermato".
