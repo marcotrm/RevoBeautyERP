@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { notifyIncasso } from '@/lib/telegram';
+import { todayRome } from '@/lib/date';
 
 export interface ProductLine { productId: string; qty: number }
 
@@ -33,7 +34,7 @@ function toTransactionRecord(tx: {
 }
 
 export async function getTodayTransactions() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayRome();
   const transactions = await prisma.posTransaction.findMany({
     where: { date: today },
     orderBy: { id: 'desc' },
@@ -55,7 +56,7 @@ export async function deleteTransaction(id: string) {
 }
 
 export async function createTransaction(data: Omit<TransactionRecord, 'id'>) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayRome();
   const lines = data.productLines || [];
   const created = await prisma.posTransaction.create({
     data: {
