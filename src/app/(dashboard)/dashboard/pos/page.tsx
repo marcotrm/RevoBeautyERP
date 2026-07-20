@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { usePosStore, TransactionRecord } from '@/stores/usePosStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -410,6 +410,7 @@ function POSPageInner() {
   const [showRefund, setShowRefund] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
+  const autoOpenedRef = useRef(false);
   const todayTotal = transactions.reduce((s, t) => s + t.total, 0);
 
   useEffect(() => {
@@ -418,8 +419,9 @@ function POSPageInner() {
     fetchTreatments();
   }, [fetchTransactions, fetchClients, fetchTreatments]);
 
-  // Auto-open from agenda
+  // Auto-open from agenda — una sola volta per caricamento pagina
   useEffect(() => {
+    if (autoOpenedRef.current) return;
     const client = searchParams.get('client');
     const treatment = searchParams.get('treatment');
     const treatmentId = searchParams.get('treatmentId');
@@ -428,6 +430,7 @@ function POSPageInner() {
     const debtPkgId = searchParams.get('debtPkgId');
     const cabinMinutes = searchParams.get('cabinMinutes');
     if (client && treatment) {
+      autoOpenedRef.current = true;
       setSaleInitialData({
         client, treatmentName: treatment, treatmentId: treatmentId || '',
         price: Number(price) || 0, operator: operator || 'Staff',
