@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePosStore, TransactionRecord } from '@/stores/usePosStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import {
   CreditCard, Receipt, Calculator,
@@ -409,6 +409,7 @@ function POSPageInner() {
   const [showLastReceipt, setShowLastReceipt] = useState(false);
   const [showRefund, setShowRefund] = useState(false);
   const searchParams = useSearchParams();
+  const router = useRouter();
   const todayTotal = transactions.reduce((s, t) => s + t.total, 0);
 
   useEffect(() => {
@@ -434,8 +435,10 @@ function POSPageInner() {
         cabinMinutes: cabinMinutes ? Number(cabinMinutes) : undefined,
       });
       setShowSaleModal(true);
+      // Pulisco l'URL: così un refresh non riapre il popup di pagamento
+      router.replace('/dashboard/pos');
     }
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   const handleNewSale = async (tx: Omit<TransactionRecord, 'id'>, debtPkgId?: string) => {
     const created = await addTransaction(tx);
