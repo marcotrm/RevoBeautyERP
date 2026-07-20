@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { Appointment } from '@/types';
 import { mockOperators, mockTreatments, mockClients } from '@/lib/mock-data';
+import { notifyCancellazione } from '@/lib/telegram';
 
 export async function getAppointments() {
   const appointments = await prisma.appointment.findMany({
@@ -79,6 +80,10 @@ export async function createAppointment(data: Omit<Appointment, 'id' | 'createdA
 
 export async function updateAppointmentAction(id: string, updates: Partial<Appointment>) {
   const { services, ...rest } = updates;
+  // Solo se stiamo passando ad "annullato": leggo lo stato precedente per notificare una volta sola
+  const prev = updates.status === 'cancelled'
+    ? await prisma.appointment.findUnique({ where: { id }, select: { status: true } })
+    : null;
   const appointment = await prisma.appointment.update({
     where: { id },
     data: {
@@ -87,6 +92,17 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
       updatedAt: new Date().toISOString()
     }
   });
+  // Notifica Telegram all'annullamento (non alla modifica del solo motivo)
+  if (updates.status === 'cancelled' && prev?.status !== 'cancelled') {
+    notifyCancellazione({
+      client: appointment.clientName,
+      treatment: appointment.treatmentName,
+      operator: appointment.operatorName,
+      date: appointment.date,
+      time: appointment.startTime,
+      reason: appointment.cancelReason,
+    }).catch(() => {});
+  }
   return appointment as unknown as Appointment;
 }
 

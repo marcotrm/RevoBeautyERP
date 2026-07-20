@@ -65,3 +65,27 @@ export async function notifyIncasso(params: {
   ].filter(Boolean);
   await sendTelegram(lines.join('\n'));
 }
+
+// Notifica quando un appuntamento viene annullato — per tenere sempre aggiornati i soci.
+export async function notifyCancellazione(params: {
+  client?: string | null; treatment?: string; operator?: string; date?: string; time?: string; reason?: string | null;
+}): Promise<void> {
+  const cfg = await getTelegramConfig();
+  if (!cfg.enabled) return;
+  const now = new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' });
+  // date arriva come YYYY-MM-DD -> DD/MM/YYYY
+  const dateFmt = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
+    ? params.date.split('-').reverse().join('/')
+    : (params.date || '');
+  const when = [dateFmt, params.time].filter(Boolean).join(' alle ');
+  const lines = [
+    `❌ <b>Appuntamento annullato</b>`,
+    params.client ? `👤 ${params.client}` : '',
+    params.treatment ? `🧾 ${params.treatment}` : '',
+    params.operator ? `💇‍♀️ ${params.operator}` : '',
+    when ? `📅 ${when}` : '',
+    params.reason ? `📝 Motivo: ${params.reason}` : '',
+    `🕒 ${now}`,
+  ].filter(Boolean);
+  await sendTelegram(lines.join('\n'));
+}
