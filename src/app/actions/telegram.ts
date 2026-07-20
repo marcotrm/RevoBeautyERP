@@ -1,8 +1,9 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { getTelegramConfig, sendTelegram, type TelegramConfig } from '@/lib/telegram';
+import { getTelegramConfig, sendTelegram, notifyIncasso, notifyNuovaIscrizione, notifyCancellazione, type TelegramConfig } from '@/lib/telegram';
 import { sendDailyReports } from '@/lib/reports-telegram';
+import { todayRome } from '@/lib/date';
 
 const ROW_ID = 'integration:telegram';
 
@@ -30,6 +31,24 @@ export async function sendReportNow(which: 'incassi' | 'staff'): Promise<{ ok: b
 export async function testTelegram(): Promise<{ ok: boolean; error?: string }> {
   const now = new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' });
   return sendTelegram(`✅ <b>RevoBeauty — Test Telegram</b>\nSe leggi questo messaggio, le notifiche di incasso funzionano!\n🕒 ${now}`);
+}
+
+// Invia un messaggio di prova per una specifica automazione (con dati fittizi).
+export async function testNotifica(which: 'incasso' | 'iscrizione' | 'annullamento'): Promise<{ ok: boolean; error?: string }> {
+  const cfg = await getTelegramConfig();
+  if (!cfg.enabled || !cfg.botToken || !cfg.chatId) return { ok: false, error: 'Configura prima Telegram (token + chat)' };
+  try {
+    if (which === 'incasso') {
+      await notifyIncasso({ amount: 14.9, client: 'Cliente di prova', items: 'Cera glutei', method: 'Contanti', operator: 'Michela Tedesco', cabinMinutes: 15 });
+    } else if (which === 'iscrizione') {
+      await notifyNuovaIscrizione({ name: 'Mario Rossi (prova)', phone: '333 1234567', email: 'mario.rossi@example.com', treatment: 'Lampada' });
+    } else {
+      await notifyCancellazione({ client: 'Cliente di prova', treatment: 'Cera glutei', operator: 'Michela Tedesco', date: todayRome(), time: '10:00', reason: 'messaggio di prova' });
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'Invio fallito' };
+  }
 }
 
 export interface TelegramChat { id: string; name: string; type: 'privato' | 'gruppo' | 'canale' }

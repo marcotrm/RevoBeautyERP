@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Send, Loader2, CheckCircle2, ChevronDown } from 'lucide-react';
-import { loadTelegramConfig, saveTelegramConfig, testTelegram, listTelegramChats, sendReportNow, type TelegramChat } from '@/app/actions/telegram';
+import { loadTelegramConfig, saveTelegramConfig, testTelegram, testNotifica, listTelegramChats, sendReportNow, type TelegramChat } from '@/app/actions/telegram';
 
 export default function TelegramAgentConfig() {
   const [open, setOpen] = useState(false);
@@ -12,6 +12,7 @@ export default function TelegramAgentConfig() {
   const [reportIncassi, setReportIncassi] = useState(false);
   const [reportStaff, setReportStaff] = useState(false);
   const [sendingReport, setSendingReport] = useState<string | null>(null);
+  const [testingEvent, setTestingEvent] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -46,6 +47,20 @@ export default function TelegramAgentConfig() {
     setMsg(res.ok ? { ok: true, text: 'Messaggio di prova inviato! Controlla Telegram.' } : { ok: false, text: res.error || 'Invio fallito' });
     setTimeout(() => setMsg(null), 5000);
   };
+
+  const doTestEvent = async (which: 'incasso' | 'iscrizione' | 'annullamento', label: string) => {
+    setTestingEvent(which);
+    const res = await testNotifica(which);
+    setTestingEvent(null);
+    setMsg(res.ok ? { ok: true, text: `Prova "${label}" inviata! Controlla Telegram.` } : { ok: false, text: res.error || 'Invio fallito' });
+    setTimeout(() => setMsg(null), 5000);
+  };
+
+  const EVENTS: { key: 'incasso' | 'iscrizione' | 'annullamento'; icon: string; title: string; desc: string }[] = [
+    { key: 'incasso', icon: '💰', title: 'Nuovo incasso', desc: 'Ad ogni pagamento in cassa (con tempo in cabina)' },
+    { key: 'iscrizione', icon: '🎉', title: 'Nuova iscrizione inaugurazione', desc: 'Quando qualcuno compila il coupon dal sito' },
+    { key: 'annullamento', icon: '❌', title: 'Appuntamento annullato', desc: 'Quando un appuntamento viene annullato' },
+  ];
 
   const status = enabled && botToken && chatId
     ? { label: 'Attivo', cls: 'bg-success/10 text-success' }
@@ -116,6 +131,25 @@ export default function TelegramAgentConfig() {
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* Notifiche eventi — attive quando le notifiche sono accese */}
+          <div className="p-3 rounded-xl bg-bg-secondary border border-border/50 space-y-3">
+            <p className="text-xs font-semibold text-text-secondary">🔔 Notifiche istantanee</p>
+            {EVENTS.map((ev, i) => (
+              <div key={ev.key} className={`flex items-center justify-between gap-2 ${i > 0 ? 'border-t border-border/40 pt-3' : ''}`}>
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-text-primary">{ev.icon} {ev.title}</span>
+                  <p className="text-[11px] text-text-muted">{ev.desc}</p>
+                </div>
+                <button onClick={() => doTestEvent(ev.key, ev.title)}
+                  disabled={testingEvent !== null || !enabled || !botToken || !chatId}
+                  className="text-[11px] px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-text-secondary hover:bg-bg-hover disabled:opacity-50 flex-shrink-0">
+                  {testingEvent === ev.key ? '...' : 'Invia prova'}
+                </button>
+              </div>
+            ))}
+            <p className="text-[11px] text-text-muted">Sono attive quando l&apos;interruttore &quot;Notifica ad ogni incasso&quot; qui sopra è acceso.</p>
           </div>
 
           <div>
