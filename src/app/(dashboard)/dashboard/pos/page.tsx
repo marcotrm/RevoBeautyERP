@@ -8,8 +8,9 @@ import { Suspense } from 'react';
 import {
   CreditCard, Receipt, Calculator,
   Banknote, ArrowRight, Plus, X, CheckCircle,
-  Trash2, Search, Smartphone,
+  Trash2, Search, Smartphone, Lock, Vault, ArrowDownToLine,
 } from 'lucide-react';
+import { getCassaforte, closeCassa, withdrawCassa, CassaMovementRecord } from '@/app/actions/cassaforte';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { useClientStore } from '@/stores/useClientStore';
 import { formatCurrency } from '@/lib/helpers';
@@ -397,6 +398,63 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   );
 }
 
+function WithdrawModal({ balance, onClose, onDone }: { balance: number; onClose: () => void; onDone: () => void }) {
+  const [amount, setAmount] = useState(balance.toFixed(2));
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleWithdraw = async () => {
+    const amt = Number(amount.replace(',', '.'));
+    if (!amt || amt <= 0) { setError('Inserisci un importo valido'); return; }
+    if (amt > balance + 0.001) { setError('Importo superiore al saldo in cassaforte'); return; }
+    setSaving(true);
+    const res = await withdrawCassa(amt, note);
+    setSaving(false);
+    if (res.ok) onDone();
+    else setError(res.error === 'insufficient' ? 'Importo superiore al saldo' : 'Importo non valido');
+  };
+
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+        <div className="w-full max-w-md bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+            <h3 className="text-lg font-display font-semibold text-text-primary">Preleva contanti</h3>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="px-6 py-5 space-y-4">
+            <div className="flex justify-between px-3 py-2.5 rounded-xl bg-bg-tertiary/50">
+              <span className="text-sm text-text-secondary">Saldo in cassaforte</span>
+              <span className="text-sm font-bold text-accent">{formatCurrency(balance)}</span>
+            </div>
+            <div>
+              <label className="text-xs text-text-muted mb-1 block">Importo da prelevare</label>
+              <input type="text" inputMode="decimal" value={amount} onChange={e => { setAmount(e.target.value); setError(''); }}
+                className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-text-primary focus:border-accent outline-none" />
+              <button onClick={() => setAmount(balance.toFixed(2))} className="mt-1.5 text-xs text-accent hover:underline">Preleva tutto ({formatCurrency(balance)})</button>
+            </div>
+            <div>
+              <label className="text-xs text-text-muted mb-1 block">Nota (facoltativa)</label>
+              <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="es. ritiro settimanale, versamento in banca…"
+                className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-text-primary focus:border-accent outline-none" />
+            </div>
+            {error && <p className="text-sm text-error">{error}</p>}
+          </div>
+          <div className="px-6 py-4 border-t border-border bg-bg-tertiary/30">
+            <button onClick={handleWithdraw} disabled={saving}
+              className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100">
+              {saving ? 'Prelievo in corso…' : 'Conferma prelievo'}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
 function POSPageInner() {
   const { addPayment } = usePackageStore();
   const { products } = useProductStore();
@@ -412,10 +470,38 @@ function POSPageInner() {
   const autoOpenedRef = useRef(false);
   const todayTotal = transactions.reduce((s, t) => s + t.total, 0);
 
+  // Cassaforte
+  const [safeBalance, setSafeBalance] = useState(0);
+  const [safeMovements, setSafeMovements] = useState<CassaMovementRecord[]>([]);
+  const [closeState, setCloseState] = useState<'idle' | 'saving' | 'done' | 'already'>('idle');
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const todayRomeStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const closedToday = safeMovements.some(m => m.type === 'deposit' && m.date === todayRomeStr);
+
+  const refreshSafe = async () => {
+    const s = await getCassaforte();
+    setSafeBalance(s.balance);
+    setSafeMovements(s.movements);
+  };
+
+  const handleCloseCassa = async () => {
+    setCloseState('saving');
+    const res = await closeCassa();
+    if (res.ok) {
+      await refreshSafe();
+      setCloseState('done');
+    } else if (res.error === 'already_closed') {
+      setCloseState('already');
+    } else {
+      setCloseState('idle');
+    }
+  };
+
   useEffect(() => {
     fetchTransactions();
     fetchClients();
     fetchTreatments();
+    refreshSafe();
   }, [fetchTransactions, fetchClients, fetchTreatments]);
 
   // Auto-open dalla vendita in arrivo dall'agenda — via memoria di sessione,
@@ -496,7 +582,7 @@ function POSPageInner() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Nuova Vendita', icon: Plus, color: '#A855F7', action: () => { setSaleInitialData(null); setShowSaleModal(true); } },
-          { label: 'Chiudi Cassa', icon: Calculator, color: '#F59E0B', action: () => setShowCloseCassa(true) },
+          { label: 'Chiudi Cassa', icon: Calculator, color: '#F59E0B', action: () => { setCloseState('idle'); setShowCloseCassa(true); } },
           { label: 'Ultimo Scontrino', icon: Receipt, color: '#3B82F6', action: () => setShowLastReceipt(true) },
           { label: 'Rimborso', icon: Banknote, color: '#EF4444', action: () => setShowRefund(true) },
         ].map((qa) => {
@@ -548,7 +634,58 @@ function POSPageInner() {
         </div>
       </div>
 
+      {/* ===== CASSAFORTE ===== */}
+      <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-accent/10 text-accent"><Vault className="w-5 h-5" /></div>
+            <div>
+              <h3 className="text-base font-display font-semibold text-text-primary flex items-center gap-1.5">Cassaforte <Lock className="w-3.5 h-3.5 text-text-muted" /></h3>
+              <p className="text-xs text-text-muted">Contanti versati alle chiusure di cassa — bloccati fino al prelievo</p>
+            </div>
+          </div>
+          <button onClick={() => setShowWithdraw(true)} disabled={safeBalance <= 0}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-tertiary border border-border text-sm font-medium text-text-primary hover:bg-bg-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+            <ArrowDownToLine className="w-4 h-4" /> Preleva contanti
+          </button>
+        </div>
+
+        <div className="px-5 py-5 border-b border-border text-center bg-accent/[0.03]">
+          <p className="text-xs text-text-muted uppercase tracking-wider mb-1">Contanti in cassaforte</p>
+          <p className="text-3xl font-display font-bold text-accent">{formatCurrency(safeBalance)}</p>
+        </div>
+
+        <div className="divide-y divide-border/30 max-h-80 overflow-y-auto">
+          {safeMovements.map(m => (
+            <div key={m.id} className="flex items-center gap-4 px-5 py-3.5">
+              <div className={`p-2 rounded-lg ${m.type === 'withdraw' ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'}`}>
+                {m.type === 'withdraw' ? <ArrowDownToLine className="w-4 h-4" /> : <Vault className="w-4 h-4" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-text-primary">{m.type === 'withdraw' ? 'Prelievo contanti' : 'Chiusura cassa'}</p>
+                <p className="text-xs text-text-muted truncate">
+                  {m.date.split('-').reverse().join('/')}
+                  {m.type === 'deposit' ? ` • ${m.txCount} transazioni` : (m.note ? ` • ${m.note}` : '')}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className={`text-sm font-semibold ${m.type === 'withdraw' ? 'text-warning' : 'text-success'}`}>{m.type === 'withdraw' ? '−' : '+'} {formatCurrency(m.cash)}</p>
+                {m.type === 'deposit' && <p className="text-[11px] text-text-muted">incasso {formatCurrency(m.total)}</p>}
+              </div>
+            </div>
+          ))}
+          {safeMovements.length === 0 && (
+            <div className="text-center py-10"><p className="text-text-muted text-sm">Nessun movimento. Chiudi la cassa per versare i contanti qui.</p></div>
+          )}
+        </div>
+      </div>
+
       {/* MODALS */}
+      <AnimatePresence>{showWithdraw && (
+        <WithdrawModal balance={safeBalance} onClose={() => setShowWithdraw(false)}
+          onDone={async () => { await refreshSafe(); setShowWithdraw(false); }} />
+      )}</AnimatePresence>
+
       <AnimatePresence>{showSaleModal && <NewSaleModal onClose={() => { setShowSaleModal(false); setSaleInitialData(null); }} onComplete={handleNewSale} initialData={saleInitialData} />}</AnimatePresence>
 
       {/* Chiudi Cassa Modal */}
@@ -578,11 +715,37 @@ function POSPageInner() {
                   <span className="text-sm font-semibold text-text-primary">Transazioni totali</span>
                   <span className="text-sm font-bold text-accent">{transactions.length}</span>
                 </div>
+
+                {/* Anteprima versamento in cassaforte */}
+                <div className="flex items-center justify-between px-3 py-3 rounded-xl bg-accent/5 border border-accent/20">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-text-primary"><Vault className="w-4 h-4 text-accent" /> Contanti in cassaforte</span>
+                  <span className="text-sm font-bold text-accent">+ {formatCurrency(cashCount)}</span>
+                </div>
+
+                {(closeState === 'done') && (
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-success/10 text-success text-sm font-medium">
+                    <CheckCircle className="w-4 h-4" /> Cassa chiusa: {formatCurrency(cashCount)} versati in cassaforte.
+                  </div>
+                )}
+                {(closeState === 'already' || (closedToday && closeState === 'idle')) && (
+                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-warning/10 text-warning text-sm font-medium">
+                    <Lock className="w-4 h-4" /> La cassa di oggi è già stata chiusa. I contanti sono già in cassaforte.
+                  </div>
+                )}
               </div>
               <div className="px-6 py-4 border-t border-border bg-bg-tertiary/30">
-                <button onClick={() => setShowCloseCassa(false)} className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:scale-105 transition-all">
-                  ✓ Conferma Chiusura Cassa
-                </button>
+                {closeState === 'done' ? (
+                  <button onClick={() => setShowCloseCassa(false)} className="w-full py-2.5 rounded-xl bg-bg-tertiary text-text-primary text-sm font-medium hover:bg-bg-hover transition-all">
+                    Chiudi
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleCloseCassa}
+                    disabled={closeState === 'saving' || closedToday}
+                    className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed">
+                    {closeState === 'saving' ? 'Chiusura in corso…' : closedToday ? 'Cassa già chiusa oggi' : '✓ Conferma e versa in cassaforte'}
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>

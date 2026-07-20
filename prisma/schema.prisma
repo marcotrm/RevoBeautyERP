@@ -326,6 +326,27 @@ model PosTransaction {
 }
 
 // ============================================================
+// CASSAFORTE (movimenti: chiusure di cassa = versamenti, prelievi)
+// I versamenti sono bloccati (non modificabili). Saldo = versamenti - prelievi.
+// ============================================================
+model CassaMovement {
+  id        String  @id @default(cuid())
+  type      String  // 'deposit' (chiusura cassa) | 'withdraw' (prelievo)
+  date      String  // giorno italiano YYYY-MM-DD
+  cash      Float   @default(0) // contanti (l'importo che entra/esce dalla cassaforte)
+  card      Float   @default(0)
+  satispay  Float   @default(0)
+  bonifico  Float   @default(0)
+  total     Float   @default(0) // incasso totale della giornata (solo per i versamenti)
+  txCount   Int     @default(0)
+  note      String?
+  createdAt String
+
+  @@index([type])
+  @@map("cassa_movements")
+}
+
+// ============================================================
 // CHAT MESSAGES (chat clienti <-> operatrici)
 // ============================================================
 model ChatMessage {
