@@ -4,12 +4,14 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Clock, Plus, Euro, X, CheckCircle, Trash2, ChevronLeft, ChevronRight, Smartphone,
+  Sparkles, Wand2, AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTimeClockStore } from '@/stores/useTimeClockStore';
 import { useOperatorStore } from '@/stores/useOperatorStore';
 import { getInitials } from '@/lib/helpers';
 import { Operator, TreatmentCategory } from '@/types';
+import { generateShifts, type AgentConfig, type ShiftEntry, type WeekShifts } from '@/lib/shiftAgent';
 
 const SPECIALIZATIONS: { value: TreatmentCategory; label: string }[] = [
   { value: 'facial', label: 'Viso' }, { value: 'body', label: 'Corpo' },
@@ -28,15 +30,7 @@ const TIME_SLOTS = Array.from({ length: 25 }, (_, i) => {
   return `${String(h).padStart(2, '0')}:${m}`;
 });
 
-interface ShiftEntry {
-  isWorking: boolean;
-  startTime: string;
-  endTime: string;
-  breakStart?: string;
-  breakEnd?: string;
-}
-
-type WeekShifts = Record<string, Record<number, ShiftEntry>>; // operatorId -> dayIndex -> shift
+// ShiftEntry e WeekShifts sono ora definiti in '@/lib/shiftAgent' (condivisi con l'Agente Turni)
 
 function getMonday(d: Date): Date {
   const date = new Date(d);
@@ -457,11 +451,174 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
   );
 }
 
+/* ========== AGENTE TURNI (generatore automatico) ========== */
+function ShiftAgentModal({ operators, onClose, onApply }: {
+  operators: Operator[];
+  onClose: () => void;
+  onApply: (shifts: WeekShifts) => void;
+}) {
+  const [openDays, setOpenDays] = useState<boolean[]>([true, true, true, true, true, true]);
+  const [openTime, setOpenTime] = useState('09:00');
+  const [closeTime, setCloseTime] = useState('19:00');
+  const [minCoverage, setMinCoverage] = useState(2);
+  const [lunchBreak, setLunchBreak] = useState(true);
+  const [breakStart, setBreakStart] = useState('13:00');
+  const [breakEnd, setBreakEnd] = useState('14:00');
+  const [defaultHours, setDefaultHours] = useState(38);
+  const [notes, setNotes] = useState('');
+  const [preview, setPreview] = useState<ReturnType<typeof generateShifts> | null>(null);
+
+  const config: AgentConfig = { openDays, openTime, closeTime, minCoverage, lunchBreak, breakStart, breakEnd, defaultHours, notes };
+
+  const handleGenerate = () => {
+    setPreview(generateShifts(config, operators.map(o => ({
+      id: o.id, firstName: o.firstName, lastName: o.lastName, contractHours: o.contractHours,
+    }))));
+  };
+  const handleApply = () => { if (preview) { onApply(preview.shifts); onClose(); } };
+
+  const toggleDay = (d: number) => setOpenDays(prev => prev.map((v, i) => (i === d ? !v : v)));
+  const inputCls = 'w-full px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none';
+
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+        <div className="w-full max-w-2xl bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center gradient-accent text-white"><Sparkles className="w-5 h-5" /></div>
+              <div>
+                <h3 className="text-base font-display font-semibold text-text-primary">Agente Turni</h3>
+                <p className="text-xs text-text-muted">Genera i turni della settimana in base alle esigenze</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
+          </div>
+
+          <div className="px-6 py-5 space-y-5 overflow-y-auto">
+            {/* Giorni di apertura */}
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">Giorni di apertura</label>
+              <div className="flex flex-wrap gap-1.5">
+                {DAYS_SHORT.map((d, i) => (
+                  <button key={i} onClick={() => toggleDay(i)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${openDays[i] ? 'bg-accent/10 border-accent/30 text-accent' : 'bg-bg-tertiary border-border text-text-muted'}`}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Orari & copertura */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1.5">Apertura</label>
+                <select value={openTime} onChange={e => setOpenTime(e.target.value)} className={inputCls}>{TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}</select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1.5">Chiusura</label>
+                <select value={closeTime} onChange={e => setCloseTime(e.target.value)} className={inputCls}>{TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}</select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1.5">Min. in servizio</label>
+                <select value={minCoverage} onChange={e => setMinCoverage(Number(e.target.value))} className={inputCls}>{[0, 1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}</select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1.5">Ore default</label>
+                <input type="number" min={0} max={60} value={defaultHours} onChange={e => setDefaultHours(Number(e.target.value))} className={inputCls} />
+              </div>
+            </div>
+
+            {/* Pausa pranzo */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-warning/5 border border-warning/15">
+              <div className="flex items-center gap-2">
+                <span className="text-base">☕</span>
+                <span className="text-sm font-medium text-text-primary">Pausa pranzo (turno spezzato)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {lunchBreak && (
+                  <>
+                    <select value={breakStart} onChange={e => setBreakStart(e.target.value)} className="px-2 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none appearance-none">{TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                    <span className="text-text-muted text-xs">→</span>
+                    <select value={breakEnd} onChange={e => setBreakEnd(e.target.value)} className="px-2 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none appearance-none">{TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                  </>
+                )}
+                <button onClick={() => setLunchBreak(v => !v)} className={`relative w-12 h-6 rounded-full transition-colors ${lunchBreak ? 'bg-warning' : 'bg-bg-hover'}`}>
+                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${lunchBreak ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Esigenze a testo libero */}
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Esigenze (scrivi liberamente)</label>
+              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={4}
+                placeholder={'Es:\nMichela riposo lunedì, part-time max 24h\nChiuso mercoledì\nRosaria non può il giovedì, solo mattina\nVeronica ferie venerdì'}
+                className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/50 transition-all resize-none" />
+              <p className="text-[11px] text-text-muted mt-1.5">L&apos;agente riconosce: riposo/ferie in un giorno, chiusure, &quot;max Nh&quot; / part-time, &quot;solo mattina/pomeriggio&quot;. Riferisci ogni riga a un nome.</p>
+            </div>
+
+            {/* Anteprima */}
+            {preview && (
+              <div className="rounded-xl border border-border overflow-hidden">
+                <div className="px-4 py-2.5 bg-bg-tertiary/50 border-b border-border flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-accent" />
+                  <span className="text-sm font-semibold text-text-primary">Anteprima proposta</span>
+                </div>
+                <div className="divide-y divide-border/30 max-h-52 overflow-y-auto">
+                  {preview.perOperator.map(p => {
+                    const off = p.hours < p.target - 1 ? 'text-warning' : p.hours > p.target + 1 ? 'text-error' : 'text-success';
+                    return (
+                      <div key={p.id} className="flex items-center justify-between px-4 py-2.5">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-text-primary truncate">{p.name}</p>
+                          <p className="text-[11px] text-text-muted">Riposo: {p.restDays.length ? p.restDays.map(d => DAYS_SHORT[d]).join(', ') : '—'}</p>
+                        </div>
+                        <span className={`text-sm font-semibold ${off}`}>{p.hours}h <span className="text-text-muted font-normal">/ {p.target}h</span></span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {preview.warnings.length > 0 && (
+                  <div className="px-4 py-3 bg-bg-tertiary/30 border-t border-border space-y-1">
+                    {preview.warnings.map((w, i) => (
+                      <p key={i} className={`text-[11px] flex items-start gap-1.5 ${w.startsWith('⚠') ? 'text-warning' : 'text-text-muted'}`}>
+                        {w.startsWith('⚠') && <AlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />}
+                        <span>{w.replace(/^[⚠✓]\s*/, '')}</span>
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-2 px-6 py-4 border-t border-border bg-bg-tertiary/30">
+            <button onClick={handleGenerate} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-accent/30 bg-accent/10 text-accent text-sm font-medium hover:bg-accent/15 transition-all">
+              <Wand2 className="w-4 h-4" /> {preview ? 'Rigenera' : 'Genera turni'}
+            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Annulla</button>
+              <button onClick={handleApply} disabled={!preview}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:scale-105 transition-all disabled:opacity-40 disabled:hover:scale-100">
+                <CheckCircle className="w-4 h-4" /> Applica turni
+              </button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
 /* ========== WEEKLY SHIFT PLANNER ========== */
 function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [shifts, setShifts] = useState<WeekShifts>(() => buildDefaultShifts(operators));
   const [editModal, setEditModal] = useState<{ operatorId: string; dayIndex: number } | null>(null);
+  const [showAgent, setShowAgent] = useState(false);
   const updateOperator = useOperatorStore(s => s.updateOperator);
 
   const monday = getMonday(new Date());
@@ -478,16 +635,32 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
   }, [shifts]);
 
   const updateShift = useCallback((opId: string, day: number, entry: ShiftEntry) => {
-    setShifts(prev => {
-      const nextOpShifts = { ...(prev[opId] || {}), [day]: entry };
-      // Persiste nella scheda operatrice (giorni 1=Lun .. 6=Sab) così l'agenda lo rispetta
+    const nextOpShifts = { ...(shifts[opId] || {}), [day]: entry };
+    // Persiste nella scheda operatrice (giorni 1=Lun .. 6=Sab) così l'agenda lo rispetta.
+    // updateOperator resta fuori dall'updater di setShifts (dev'essere puro).
+    const schedule: Record<number, { isWorking: boolean; startTime: string; endTime: string; breakStart?: string; breakEnd?: string }> = {};
+    for (let d = 0; d < 6; d++) {
+      const s = nextOpShifts[d] || { isWorking: true, startTime: '09:00', endTime: '18:00' };
+      schedule[d + 1] = { isWorking: s.isWorking, startTime: s.startTime, endTime: s.endTime, ...(s.breakStart && s.breakEnd ? { breakStart: s.breakStart, breakEnd: s.breakEnd } : {}) };
+    }
+    updateOperator(opId, { schedule });
+    setShifts(prev => ({ ...prev, [opId]: { ...(prev[opId] || {}), [day]: entry } }));
+  }, [shifts, updateOperator]);
+
+  // Applica una settimana intera generata dall'Agente Turni e la persiste su ogni operatrice
+  const applyGenerated = useCallback((generated: WeekShifts) => {
+    Object.entries(generated).forEach(([opId, opDays]) => {
       const schedule: Record<number, { isWorking: boolean; startTime: string; endTime: string; breakStart?: string; breakEnd?: string }> = {};
       for (let d = 0; d < 6; d++) {
-        const s = nextOpShifts[d] || { isWorking: true, startTime: '09:00', endTime: '18:00' };
+        const s = opDays[d] || { isWorking: false, startTime: '', endTime: '' };
         schedule[d + 1] = { isWorking: s.isWorking, startTime: s.startTime, endTime: s.endTime, ...(s.breakStart && s.breakEnd ? { breakStart: s.breakStart, breakEnd: s.breakEnd } : {}) };
       }
       updateOperator(opId, { schedule });
-      return { ...prev, [opId]: nextOpShifts };
+    });
+    setShifts(prev => {
+      const next: WeekShifts = { ...prev };
+      Object.entries(generated).forEach(([opId, opDays]) => { next[opId] = { ...opDays }; });
+      return next;
     });
   }, [updateOperator]);
 
@@ -536,6 +709,10 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
           <h3 className="text-base font-display font-semibold text-text-primary">Pianificazione Turni</h3>
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={() => setShowAgent(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:scale-105 transition-all">
+            <Sparkles className="w-4 h-4" /> Agente Turni
+          </button>
           <div className="flex items-center gap-1.5 text-xs text-text-muted mr-2">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-success" /> In servizio: {workingToday}</span>
             <span className="text-text-muted">•</span>
@@ -657,6 +834,13 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
             shift={getShift(editModal.operatorId, editModal.dayIndex)}
             onClose={() => setEditModal(null)}
             onSave={(entry) => updateShift(editModal.operatorId, editModal.dayIndex, entry)}
+          />
+        )}
+        {showAgent && (
+          <ShiftAgentModal
+            operators={operators}
+            onClose={() => setShowAgent(false)}
+            onApply={applyGenerated}
           />
         )}
       </AnimatePresence>
