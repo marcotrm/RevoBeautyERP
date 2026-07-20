@@ -644,10 +644,16 @@ function POSPageInner() {
               <p className="text-xs text-text-muted">Contanti versati alle chiusure di cassa — bloccati fino al prelievo</p>
             </div>
           </div>
-          <button onClick={() => setShowWithdraw(true)} disabled={safeBalance <= 0}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-tertiary border border-border text-sm font-medium text-text-primary hover:bg-bg-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-            <ArrowDownToLine className="w-4 h-4" /> Preleva contanti
-          </button>
+          <div className="flex items-center gap-2">
+            <a href="/cassaforte-mobile" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-tertiary border border-border text-sm font-medium text-text-primary hover:bg-bg-hover transition-all" title="Vedi la cassaforte dal cellulare, aggiornata live">
+              <Smartphone className="w-4 h-4" /><span className="hidden sm:inline">Versione mobile</span>
+            </a>
+            <button onClick={() => setShowWithdraw(true)} disabled={safeBalance <= 0}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-tertiary border border-border text-sm font-medium text-text-primary hover:bg-bg-hover transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+              <ArrowDownToLine className="w-4 h-4" /> Preleva contanti
+            </button>
+          </div>
         </div>
 
         <div className="px-5 py-5 border-b border-border text-center bg-accent/[0.03]">
