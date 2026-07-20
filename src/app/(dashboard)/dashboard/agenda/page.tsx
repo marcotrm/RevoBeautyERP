@@ -1312,15 +1312,17 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
       onClose();
     } else {
       onClose();
-      const params = new URLSearchParams({
-        client: appointment.clientName,
-        treatment: appointment.treatmentName,
-        treatmentId: appointment.treatmentId,
-        price: String(appointment.price),
-        operator: appointment.operatorName,
-      });
-      if (cabinMinutes) params.set('cabinMinutes', String(cabinMinutes));
-      router.push(`/dashboard/pos?${params.toString()}`);
+      try {
+        sessionStorage.setItem('revo_pos_autosale', JSON.stringify({
+          client: appointment.clientName,
+          treatment: appointment.treatmentName,
+          treatmentId: appointment.treatmentId,
+          price: appointment.price,
+          operator: appointment.operatorName,
+          cabinMinutes,
+        }));
+      } catch { /* no-op */ }
+      router.push('/dashboard/pos');
     }
   };
 
@@ -1584,14 +1586,16 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
                   <div className="mt-3 flex items-center gap-2">
                     <button onClick={() => {
                       setShowDebtModal(false);
-                      const params = new URLSearchParams({
-                        client: appointment.clientName,
-                        treatment: `Rata Pacchetto: ${pkg.packageName}`,
-                        price: String(pkg.remainingBalance),
-                        operator: appointment.operatorName || 'Staff',
-                        debtPkgId: pkg.id,
-                      });
-                      router.push(`/dashboard/pos?${params.toString()}`);
+                      try {
+                        sessionStorage.setItem('revo_pos_autosale', JSON.stringify({
+                          client: appointment.clientName,
+                          treatment: `Rata Pacchetto: ${pkg.packageName}`,
+                          price: pkg.remainingBalance,
+                          operator: appointment.operatorName || 'Staff',
+                          debtPkgId: pkg.id,
+                        }));
+                      } catch { /* no-op */ }
+                      router.push('/dashboard/pos');
                     }} className="flex-1 py-1.5 rounded-lg bg-accent/10 text-accent text-xs font-semibold hover:bg-accent/20 transition-colors flex items-center justify-center gap-1">
                       <Euro className="w-3.5 h-3.5" /> Registra Pagamento
                     </button>

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { usePosStore, TransactionRecord } from '@/stores/usePosStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
 import {
   CreditCard, Receipt, Calculator,
@@ -408,7 +408,6 @@ function POSPageInner() {
   const [showCloseCassa, setShowCloseCassa] = useState(false);
   const [showLastReceipt, setShowLastReceipt] = useState(false);
   const [showRefund, setShowRefund] = useState(false);
-  const searchParams = useSearchParams();
   const router = useRouter();
   const autoOpenedRef = useRef(false);
   const todayTotal = transactions.reduce((s, t) => s + t.total, 0);
@@ -419,29 +418,33 @@ function POSPageInner() {
     fetchTreatments();
   }, [fetchTransactions, fetchClients, fetchTreatments]);
 
-  // Auto-open from agenda — una sola volta per caricamento pagina
+  // Auto-open dalla vendita in arrivo dall'agenda — via memoria di sessione,
+  // così l'URL resta sempre pulito e il popup NON si riapre al refresh o rientrando in cassa.
   useEffect(() => {
     if (autoOpenedRef.current) return;
-    const client = searchParams.get('client');
-    const treatment = searchParams.get('treatment');
-    const treatmentId = searchParams.get('treatmentId');
-    const price = searchParams.get('price');
-    const operator = searchParams.get('operator');
-    const debtPkgId = searchParams.get('debtPkgId');
-    const cabinMinutes = searchParams.get('cabinMinutes');
-    if (client && treatment) {
-      autoOpenedRef.current = true;
-      setSaleInitialData({
-        client, treatmentName: treatment, treatmentId: treatmentId || '',
-        price: Number(price) || 0, operator: operator || 'Staff',
-        debtPkgId: debtPkgId || undefined,
-        cabinMinutes: cabinMinutes ? Number(cabinMinutes) : undefined,
-      });
-      setShowSaleModal(true);
-      // Pulisco l'URL: così un refresh non riapre il popup di pagamento
+    autoOpenedRef.current = true;
+    let raw: string | null = null;
+    try { raw = sessionStorage.getItem('revo_pos_autosale'); } catch {}
+    if (raw) {
+      try { sessionStorage.removeItem('revo_pos_autosale'); } catch {}
+      try {
+        const d = JSON.parse(raw);
+        if (d?.client && d?.treatment) {
+          setSaleInitialData({
+            client: d.client, treatmentName: d.treatment, treatmentId: d.treatmentId || '',
+            price: Number(d.price) || 0, operator: d.operator || 'Staff',
+            debtPkgId: d.debtPkgId || undefined,
+            cabinMinutes: d.cabinMinutes ? Number(d.cabinMinutes) : undefined,
+          });
+          setShowSaleModal(true);
+        }
+      } catch { /* payload non valido: ignoro */ }
+    }
+    // Ripulisco eventuali parametri legacy rimasti nell'URL dal vecchio meccanismo
+    if (typeof window !== 'undefined' && window.location.search) {
       router.replace('/dashboard/pos');
     }
-  }, [searchParams, router]);
+  }, [router]);
 
   const handleNewSale = async (tx: Omit<TransactionRecord, 'id'>, debtPkgId?: string) => {
     const created = await addTransaction(tx);
