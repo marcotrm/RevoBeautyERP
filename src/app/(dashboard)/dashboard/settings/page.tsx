@@ -15,6 +15,7 @@ import { formatCurrency, getCategoryLabel } from '@/lib/helpers';
 import { Treatment, TreatmentCategory } from '@/types';
 import { Tag } from 'lucide-react';
 import { PriceListsSection } from './PriceListsSection';
+import C95Config from './C95Config';
 
 const settingSections = [
   { id: 'general', label: 'Centro', icon: Building2, description: 'Nome, indirizzo, contatti' },
@@ -809,6 +810,7 @@ export default function SettingsPage() {
                 </div>
                 <span className="text-xs text-accent font-medium">Vai →</span>
               </a>
+              <C95Config />
               <div className="bg-bg-secondary border border-border rounded-2xl p-6 space-y-4">
                 <h3 className="text-lg font-display font-semibold text-text-primary">Integrazioni</h3>
                 {[

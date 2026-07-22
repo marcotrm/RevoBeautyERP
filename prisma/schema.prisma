@@ -322,6 +322,15 @@ model PosTransaction {
   isRefund      Boolean  @default(false)
   refundReason  String?
 
+  // C95 — scontrino fiscale elettronico
+  c95Status      String? // pending | emitted | failed | uncertain | voided
+  c95Emitted     Boolean @default(false)
+  c95IdScontrino String?
+  c95Gid         String?
+  c95Idtrx       String?
+  c95Progressivo String?
+  c95Error       String?
+
   @@map("pos_transactions")
 }
 

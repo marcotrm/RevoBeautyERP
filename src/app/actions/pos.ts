@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { notifyIncasso } from '@/lib/telegram';
 import { todayRome } from '@/lib/date';
+import { emitC95Receipt, voidC95Receipt, getC95Config } from '@/lib/c95';
 
 export interface ProductLine { productId: string; qty: number }
 
@@ -51,6 +52,14 @@ export async function deleteTransaction(id: string) {
       await prisma.product.update({ where: { id: l.productId }, data: { stock: { increment: l.qty } } }).catch(() => {});
     }
   }
+  // Se è stato emesso uno scontrino fiscale C95, va annullato prima di cancellare la transazione
+  // locale — altrimenti resta un documento fiscale AdE senza corrispondenza.
+  if (tx?.c95Emitted && tx.c95IdScontrino) {
+    const voided = await voidC95Receipt({ idScontrino: tx.c95IdScontrino, idtrx: tx.c95Idtrx || undefined });
+    if (!voided.ok) {
+      throw new Error(`Impossibile cancellare: annullo scontrino fiscale fallito (${voided.error}). Verifica su C95 prima di riprovare.`);
+    }
+  }
   await prisma.posTransaction.delete({ where: { id } });
   return true;
 }
@@ -80,6 +89,33 @@ export async function createTransaction(data: Omit<TransactionRecord, 'id'>) {
   // Notifica Telegram su ogni incasso (non blocca la vendita se fallisce)
   if (created.total > 0) {
     notifyIncasso({ amount: created.total, client: created.clientName, items: data.items, method: created.paymentMethod, operator: created.operator, cabinMinutes: data.cabinMinutes }).catch(() => {});
+  }
+  // Emissione scontrino fiscale elettronico C95 (solo incassi, non resi/storni). Non blocca
+  // la vendita se C95 non è configurato o fallisce: lo stato resta tracciato sulla transazione.
+  if (created.total > 0 && !created.isRefund) {
+    try {
+      const c95Cfg = await getC95Config();
+      if (!c95Cfg.enabled) return toTransactionRecord(created);
+      const result = await emitC95Receipt({
+        amount: created.total,
+        paymentMethod: created.paymentMethod,
+        lines: [{ descrizione: data.items.slice(0, 100) || 'Servizi/prodotti', prezzoUnitario: created.total, quantita: 1 }],
+      });
+      await prisma.posTransaction.update({
+        where: { id: created.id },
+        data: {
+          c95Status: result.status,
+          c95Emitted: result.status === 'emitted',
+          c95IdScontrino: result.idScontrino,
+          c95Gid: result.gid,
+          c95Idtrx: result.idtrx,
+          c95Progressivo: result.progressivo,
+          c95Error: result.error,
+        },
+      });
+    } catch {
+      // integrazione non configurata o errore imprevisto: la vendita resta valida comunque
+    }
   }
   return toTransactionRecord(created);
 }
