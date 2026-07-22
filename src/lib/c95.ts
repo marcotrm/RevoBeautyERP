@@ -5,6 +5,7 @@ export interface C95Config {
   apiUsername: string;
   apiPassword: string;
   idMittente: string;
+  partitaIva: string; // P.IVA del centro, usata solo per risolvere idMittente automaticamente dopo il login
   baseUrl: string; // https://app.c95.it/webservice/RestAPI.asmx (prod) oppure https://testdomain.c95.it/webservice/RestAPI.asmx (test)
   deviceId: string;
   deviceName: string;
@@ -22,6 +23,7 @@ const defaults: C95Config = {
   apiUsername: '',
   apiPassword: '',
   idMittente: '',
+  partitaIva: '',
   baseUrl: DEFAULT_BASE_URL,
   deviceId: '',
   deviceName: '',
@@ -111,6 +113,125 @@ async function getToken(cfg: C95Config): Promise<{ token: string; cfg: C95Config
   const updated: C95Config = { ...cfg, token, tokenExpiresAt: expiresAt };
   await saveC95ConfigInternal(updated);
   return { token, cfg: updated };
+}
+
+// Login "grezzo": posta a /login e torna l'intero corpo della risposta (token, userId,
+// qrCode.anag.piva, appTemplate, ...) — serve per risolvere id_mittente automaticamente.
+async function rawLogin(cfg: C95Config): Promise<Record<string, unknown>> {
+  const body = await c95Post(cfg.baseUrl, 'login', {
+    username: cfg.apiUsername,
+    password: cfg.apiPassword,
+    source: 'API',
+  });
+  const err = isErrorResponse(body);
+  if (err) throw new Error(`C95 login: ${err} (verifica di usare le credenziali API, non quelle del portale)`);
+  if (!body.token) throw new Error('C95 login: token non ricevuto');
+  return body;
+}
+
+function normalizePiva(piva: string | null | undefined): string {
+  return String(piva ?? '').replace(/\D/g, '');
+}
+
+interface DomainUser {
+  userId: string;
+  email?: string | null;
+  denominazione?: string | null;
+  piva?: string | null;
+}
+
+function normalizeUserRecord(row: Record<string, unknown>): DomainUser {
+  const anag = (row.anag as Record<string, unknown>) || (row.qrCode as Record<string, unknown> | undefined)?.anag as Record<string, unknown> | undefined;
+  const piva = (row.partitaIVA ?? row.partitaIva ?? row.piva ?? row.Piva ?? anag?.piva) as string | undefined;
+  return {
+    userId: String(row.userId ?? row.UserId ?? row.id ?? ''),
+    email: (row.email ?? row.Email) as string | undefined,
+    denominazione: (row.denominazione ?? row.denom ?? row.Denominazione) as string | undefined,
+    piva: piva ? String(piva) : null,
+  };
+}
+
+// Estrae ricorsivamente eventuali sotto-account da una risposta getUsersDomain (forma non documentata/variabile).
+function extractDomainUsers(response: unknown, seen = new Set<unknown>()): DomainUser[] {
+  if (!response || typeof response !== 'object' || seen.has(response)) return [];
+  seen.add(response);
+  const row = response as Record<string, unknown>;
+  const users: DomainUser[] = [];
+  const topId = row.userId ?? row.UserId ?? row.id;
+  if (typeof topId === 'string' && /^[0-9a-f-]{36}$/i.test(topId)) {
+    users.push(normalizeUserRecord(row));
+  }
+  for (const [key, value] of Object.entries(row)) {
+    if (!value || typeof value !== 'object') continue;
+    const childId = (value as Record<string, unknown>).userId ?? (value as Record<string, unknown>).UserId ?? (value as Record<string, unknown>).id;
+    const looksLikeUser = childId && (!Number.isNaN(Number(key)) || 'email' in (value as object) || 'Email' in (value as object) || 'partitaIVA' in (value as object) || 'partitaIva' in (value as object));
+    if (childId && looksLikeUser) {
+      users.push(normalizeUserRecord(value as Record<string, unknown>));
+    } else {
+      users.push(...extractDomainUsers(value, seen));
+    }
+  }
+  const byId = new Map<string, DomainUser>();
+  for (const u of users) if (u.userId) byId.set(u.userId, u);
+  return [...byId.values()];
+}
+
+export interface ResolveIdMittenteResult {
+  idMittente: string | null;
+  source: 'login_piva_match' | 'domain_piva' | 'login_esercente' | 'domain_single' | 'login_with_candidates' | 'login_fallback' | 'ambiguous' | 'not_found';
+  message: string;
+  candidates?: DomainUser[];
+}
+
+// Risolve id_mittente a partire da userId/token del login, replicando la stessa strategia
+// usata in SvaPro (C95AccountResolver): login diretto vs admin di dominio con sotto-account.
+async function resolveIdMittente(cfg: C95Config, token: string, loginBody: Record<string, unknown>): Promise<ResolveIdMittenteResult> {
+  const loginUserId = String(loginBody.userId ?? '');
+  const targetPiva = normalizePiva(cfg.partitaIva);
+  const qrCode = loginBody.qrCode as Record<string, unknown> | undefined;
+  const anag = qrCode?.anag as Record<string, unknown> | undefined;
+  const loginPiva = anag?.piva as string | undefined;
+
+  if (targetPiva && loginPiva && normalizePiva(loginPiva) === targetPiva) {
+    return { idMittente: loginUserId, source: 'login_piva_match', message: 'Account API corrisponde alla P.IVA configurata' };
+  }
+
+  let users: DomainUser[] = [];
+  try {
+    const domain = await c95Post(cfg.baseUrl, 'getUsersDomain', { token, idMittente: loginUserId });
+    users = extractDomainUsers(domain);
+  } catch {
+    // getUsersDomain non sempre disponibile — si prosegue con il fallback sul login
+  }
+
+  if (targetPiva && users.length) {
+    const matches = users.filter((u) => normalizePiva(u.piva) === targetPiva);
+    if (matches.length === 1) {
+      const m = matches[0];
+      return { idMittente: m.userId, source: 'domain_piva', message: `Trovato account dominio per P.IVA: ${m.denominazione || m.email || m.userId}` };
+    }
+    if (matches.length > 1) {
+      return { idMittente: null, source: 'ambiguous', message: 'Più account con la stessa P.IVA — seleziona id_mittente manualmente', candidates: matches };
+    }
+    return { idMittente: null, source: 'not_found', message: `Nessun sotto-account dominio con P.IVA ${cfg.partitaIva}. Verifica la P.IVA o chiedi id_mittente a C95.`, candidates: users };
+  }
+
+  const appTemplate = String(loginBody.appTemplate ?? '');
+  if (/ESERCENTE/i.test(appTemplate) && !users.length) {
+    return { idMittente: loginUserId, source: 'login_esercente', message: 'Account esercente (login diretto, non admin dominio)' };
+  }
+
+  const others = users.filter((u) => u.userId !== loginUserId);
+  if (others.length === 1) {
+    const m = others[0];
+    return { idMittente: m.userId, source: 'domain_single', message: `Unico sotto-account dominio: ${m.denominazione || m.email || m.userId}` };
+  }
+
+  if (users.length) {
+    return { idMittente: loginUserId, source: 'login_with_candidates', message: 'ATTENZIONE: id_mittente dal login potrebbe essere admin dominio. Imposta la P.IVA e ripeti, oppure scegli un account tra i candidati.', candidates: users };
+  }
+
+  return { idMittente: loginUserId, source: 'login_fallback', message: 'id_mittente ricavato dal login API. Se l\'emissione fallisce, verifica che non sia l\'admin dominio.' };
 }
 
 // CLOUD mode: le credenziali AdE restano su C95, non ne serve una copia qui.
@@ -262,16 +383,41 @@ export async function voidC95Receipt(params: { idScontrino: string; idtrx?: stri
   return { ok: true };
 }
 
-// Test di connessione: verifica solo che login funzioni con le credenziali salvate.
-export async function testC95Connection(): Promise<{ ok: boolean; error?: string }> {
+export interface TestConnectionResult {
+  ok: boolean;
+  error?: string;
+  idMittente?: string;
+  message?: string;
+  candidates?: DomainUser[];
+}
+
+// Test di connessione: fa login con username/password API e, se manca, risolve automaticamente
+// id_mittente (stessa strategia di SvaPro: match per P.IVA, sotto-account di dominio, o login diretto).
+export async function testC95Connection(): Promise<TestConnectionResult> {
   const cfg = await getC95Config();
-  if (!cfg.apiUsername || !cfg.apiPassword || !cfg.idMittente) {
-    return { ok: false, error: 'Compila username, password e ID mittente' };
+  if (!cfg.apiUsername || !cfg.apiPassword) {
+    return { ok: false, error: 'Compila username e password API' };
   }
+  let loginBody: Record<string, unknown>;
   try {
-    await getToken({ ...cfg, token: undefined, tokenExpiresAt: undefined });
-    return { ok: true };
+    loginBody = await rawLogin(cfg);
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Connessione fallita' };
   }
+  const token = String(loginBody.token);
+  const expiresAt = new Date(Date.now() + 20 * 60 * 60 * 1000).toISOString();
+
+  if (cfg.idMittente) {
+    await saveC95ConfigInternal({ ...cfg, token, tokenExpiresAt: expiresAt });
+    return { ok: true, idMittente: cfg.idMittente, message: 'Connessione riuscita' };
+  }
+
+  const resolved = await resolveIdMittente(cfg, token, loginBody);
+  const updated: C95Config = { ...cfg, token, tokenExpiresAt: expiresAt, idMittente: resolved.idMittente || '' };
+  await saveC95ConfigInternal(updated);
+
+  if (!resolved.idMittente) {
+    return { ok: false, error: resolved.message, candidates: resolved.candidates };
+  }
+  return { ok: true, idMittente: resolved.idMittente, message: resolved.message, candidates: resolved.candidates };
 }
