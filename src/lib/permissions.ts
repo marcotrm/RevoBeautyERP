@@ -2,7 +2,7 @@
 // I permessi sono definiti in useRolesStore (PERMISSION_MODULES) e assegnati
 // ai ruoli/account in Impostazioni → Ruoli e Permessi / Account Gestionale.
 
-import { RoleConfig } from '@/stores/useRolesStore';
+import { RoleConfig } from '@/lib/rolesConfig';
 
 // menu id (Sidebar) -> permesso richiesto per vedere la voce
 export const MENU_PERMISSIONS: Record<string, string> = {

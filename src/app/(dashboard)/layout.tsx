@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Lock } from 'lucide-react';
+import { Lock, Loader2 } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import { useUIStore } from '@/stores/useUIStore';
@@ -14,6 +14,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { sidebarCollapsed } = useUIStore();
   const { isAuthenticated, user, logout } = useAuthStore();
   const roles = useRolesStore(s => s.roles);
+  const rolesLoaded = useRolesStore(s => s.loaded);
+  const fetchRoles = useRolesStore(s => s.fetchRoles);
   const router = useRouter();
   const pathname = usePathname();
   const [isHydrated, setIsHydrated] = useState(false);
@@ -32,7 +34,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [isHydrated, isAuthenticated, router]);
 
+  // Carica i ruoli/permessi dal DB così valgono su tutti i dispositivi
+  useEffect(() => {
+    if (isHydrated && isAuthenticated && !rolesLoaded) fetchRoles();
+  }, [isHydrated, isAuthenticated, rolesLoaded, fetchRoles]);
+
   if (!isHydrated || !isAuthenticated) return null;
+
+  // Finché i permessi non sono caricati non decidere l'accesso (evita falsi "negato")
+  if (!rolesLoaded) {
+    return (
+      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-accent" />
+      </div>
+    );
+  }
 
   const role = roles.find(r => r.id === user?.role);
   const requiredPerm = permissionForPath(pathname);

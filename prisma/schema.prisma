@@ -393,3 +393,32 @@ model InaugurationLead {
   @@index([email])
   @@map("inauguration_leads")
 }
+
+// ============================================================
+// ACCOUNT GESTIONALE (accessi al gestionale + ruoli/permessi)
+// Condivisi via DB così valgono su tutti i dispositivi.
+// ============================================================
+model AppRole {
+  id          String  @id @default(cuid())
+  name        String
+  color       String
+  isSystem    Boolean @default(false)
+  permissions Json    @default("{}")
+  sortOrder   Int     @default(0)
+
+  @@map("app_roles")
+}
+
+model AppUser {
+  id        String  @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String  @unique
+  password  String
+  roleId    String
+  active    Boolean @default(true)
+  createdAt String
+
+  @@index([email])
+  @@map("app_users")
+}

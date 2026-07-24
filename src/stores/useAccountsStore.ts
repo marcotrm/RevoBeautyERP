@@ -1,60 +1,61 @@
 'use client';
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import {
+  GestionaleAccount,
+  getAccounts,
+  createAccount as createAccountAction,
+  updateAccount as updateAccountAction,
+  deleteAccount as deleteAccountAction,
+  toggleAccountActive,
+} from '@/app/actions/accounts';
 
-export interface GestionaleAccount {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-  roleId: string;
-  active: boolean;
-  createdAt: string;
-}
-
-const SEED_ACCOUNTS: GestionaleAccount[] = [
-  { id: 'acc-dino', firstName: 'Dino', lastName: 'Caruso', email: 'dino@revobeauty.it', password: 'password123', roleId: 'owner', active: true, createdAt: '2024-01-01' },
-  { id: 'acc-francesco', firstName: 'Francesco', lastName: '', email: 'francesco@revobeauty.it', password: 'password123', roleId: 'owner', active: true, createdAt: '2024-01-01' },
-  { id: 'acc-staff', firstName: 'Staff', lastName: 'Member', email: 'staff@revobeauty.it', password: 'password123', roleId: 'estetista', active: true, createdAt: '2024-01-01' },
-];
+export type { GestionaleAccount };
 
 interface AccountsStore {
   accounts: GestionaleAccount[];
-  addAccount: (data: Omit<GestionaleAccount, 'id' | 'createdAt'>) => void;
-  updateAccount: (id: string, data: Partial<Omit<GestionaleAccount, 'id' | 'createdAt'>>) => void;
-  deleteAccount: (id: string) => void;
-  toggleActive: (id: string) => void;
+  loaded: boolean;
+  isLoading: boolean;
+  fetchAccounts: () => Promise<void>;
+  addAccount: (data: Omit<GestionaleAccount, 'id' | 'createdAt'>) => Promise<void>;
+  updateAccount: (id: string, data: Partial<Omit<GestionaleAccount, 'id' | 'createdAt'>>) => Promise<void>;
+  deleteAccount: (id: string) => Promise<void>;
+  toggleActive: (id: string) => Promise<void>;
 }
 
-export const useAccountsStore = create<AccountsStore>()(
-  persist(
-    (set) => ({
-      accounts: SEED_ACCOUNTS,
+export const useAccountsStore = create<AccountsStore>()((set) => ({
+  accounts: [],
+  loaded: false,
+  isLoading: false,
 
-      addAccount: (data) => set(state => ({
-        accounts: [...state.accounts, {
-          ...data,
-          id: `acc-${Date.now()}`,
-          createdAt: new Date().toISOString().slice(0, 10),
-        }],
-      })),
-
-      updateAccount: (id, data) => set(state => ({
-        accounts: state.accounts.map(a => a.id === id ? { ...a, ...data } : a),
-      })),
-
-      deleteAccount: (id) => set(state => ({
-        accounts: state.accounts.filter(a => a.id !== id),
-      })),
-
-      toggleActive: (id) => set(state => ({
-        accounts: state.accounts.map(a => a.id === id ? { ...a, active: !a.active } : a),
-      })),
-    }),
-    {
-      name: 'revo_gestionale_accounts',
+  fetchAccounts: async () => {
+    set({ isLoading: true });
+    try {
+      const data = await getAccounts();
+      set({ accounts: data, loaded: true, isLoading: false });
+    } catch (e) {
+      console.error('Failed to fetch accounts', e);
+      set({ isLoading: false });
     }
-  )
-);
+  },
+
+  addAccount: async (data) => {
+    const account = await createAccountAction(data);
+    set((s) => ({ accounts: [...s.accounts, account] }));
+  },
+
+  updateAccount: async (id, data) => {
+    const account = await updateAccountAction(id, data);
+    set((s) => ({ accounts: s.accounts.map((a) => (a.id === id ? account : a)) }));
+  },
+
+  deleteAccount: async (id) => {
+    await deleteAccountAction(id);
+    set((s) => ({ accounts: s.accounts.filter((a) => a.id !== id) }));
+  },
+
+  toggleActive: async (id) => {
+    const account = await toggleAccountActive(id);
+    set((s) => ({ accounts: s.accounts.map((a) => (a.id === id ? account : a)) }));
+  },
+}));

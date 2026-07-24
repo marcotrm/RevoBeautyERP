@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePersistedState } from '@/hooks/usePersistedState';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -387,18 +387,23 @@ function NotificationsSection({ toggleStates, handleToggle }: { toggleStates: Re
 }
 
 function RolesPermissionsSection() {
-  const { roles: rolesData, addRole: addRoleToStore, deleteRole, togglePermission, toggleGroupAll } = useRolesStore();
-  const accounts = useAccountsStore(s => s.accounts);
+  const { roles: rolesData, loaded, fetchRoles, addRole: addRoleToStore, deleteRole, togglePermission, toggleGroupAll } = useRolesStore();
+  const { accounts, loaded: accountsLoaded, fetchAccounts } = useAccountsStore();
   const [expandedRole, setExpandedRole] = useState<string | null>(null);
   const [showNewRole, setShowNewRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
 
-  const addRole = () => {
+  useEffect(() => {
+    if (!loaded) fetchRoles();
+    if (!accountsLoaded) fetchAccounts();
+  }, [loaded, accountsLoaded, fetchRoles, fetchAccounts]);
+
+  const addRole = async () => {
     if (!newRoleName.trim()) return;
-    const id = addRoleToStore(newRoleName);
+    const id = await addRoleToStore(newRoleName);
     setNewRoleName('');
     setShowNewRole(false);
-    setExpandedRole(id);
+    if (id) setExpandedRole(id);
   };
 
   const getUserCount = (roleId: string) => accounts.filter(a => a.roleId === roleId).length;

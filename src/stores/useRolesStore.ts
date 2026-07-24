@@ -1,115 +1,97 @@
 'use client';
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import {
+  RoleConfig, PERMISSION_MODULES, PERMISSION_GROUPS, ROLE_COLORS, PermissionModule,
+} from '@/lib/rolesConfig';
+import {
+  getRoles, createRole as createRoleAction, updateRolePermissions, deleteRole as deleteRoleAction,
+} from '@/app/actions/roles';
 
-export interface PermissionModule {
-  id: string;
-  label: string;
-  group: string;
-}
-
-export const PERMISSION_MODULES: PermissionModule[] = [
-  { id: 'dashboard', label: 'Dashboard', group: 'Principale' },
-  { id: 'agenda_view', label: 'Agenda (Visualizza)', group: 'Principale' },
-  { id: 'agenda_edit', label: 'Agenda (Modifica)', group: 'Principale' },
-  { id: 'clients_view', label: 'Clienti (Visualizza)', group: 'CRM' },
-  { id: 'clients_edit', label: 'Clienti (Modifica)', group: 'CRM' },
-  { id: 'clients_delete', label: 'Clienti (Elimina)', group: 'CRM' },
-  { id: 'pos', label: 'Cassa / POS', group: 'Vendite' },
-  { id: 'packages', label: 'Pacchetti', group: 'Vendite' },
-  { id: 'inventory_view', label: 'Magazzino (Visualizza)', group: 'Magazzino' },
-  { id: 'inventory_edit', label: 'Magazzino (Modifica)', group: 'Magazzino' },
-  { id: 'marketing', label: 'Marketing', group: 'Marketing' },
-  { id: 'reports', label: 'Report', group: 'Analisi' },
-  { id: 'admin_dashboard', label: 'Amministrazione Dashboard', group: 'Amministrazione' },
-  { id: 'admin_costs', label: 'Costi Fissi / Variabili', group: 'Amministrazione' },
-  { id: 'admin_investments', label: 'Investimenti', group: 'Amministrazione' },
-  { id: 'admin_breakeven', label: 'Punto di Pareggio', group: 'Amministrazione' },
-  { id: 'admin_cashflow', label: 'Cash Flow', group: 'Amministrazione' },
-  { id: 'admin_goals', label: 'Obiettivi', group: 'Amministrazione' },
-  { id: 'admin_reports', label: 'Report Amministrativi', group: 'Amministrazione' },
-  { id: 'admin_automations', label: 'Automazioni', group: 'Amministrazione' },
-  { id: 'staff_view', label: 'Staff (Visualizza)', group: 'Staff' },
-  { id: 'staff_edit', label: 'Staff (Modifica)', group: 'Staff' },
-  { id: 'settings', label: 'Impostazioni', group: 'Sistema' },
-  { id: 'roles', label: 'Ruoli e Permessi', group: 'Sistema' },
-];
-
-export const PERMISSION_GROUPS = [...new Set(PERMISSION_MODULES.map(m => m.group))];
-
-export interface RoleConfig {
-  id: string;
-  name: string;
-  color: string;
-  isSystem: boolean; // system roles can't be deleted
-  permissions: Record<string, boolean>;
-}
-
-const ALL_ON = Object.fromEntries(PERMISSION_MODULES.map(m => [m.id, true]));
-
-export const ROLE_COLORS = ['#EF4444', '#A855F7', '#3B82F6', '#22C55E', '#F59E0B', '#EC4899', '#14B8A6', '#6366F1', '#F97316'];
-
-const DEFAULT_ROLES: RoleConfig[] = [
-  { id: 'admin', name: 'Amministratore', color: '#EF4444', isSystem: true, permissions: { ...ALL_ON } },
-  { id: 'owner', name: 'Proprietario', color: '#A855F7', isSystem: true, permissions: { ...ALL_ON } },
-  { id: 'manager', name: 'Manager', color: '#3B82F6', isSystem: false,
-    permissions: Object.fromEntries(PERMISSION_MODULES.map(m => [m.id, !['roles', 'settings', 'clients_delete'].includes(m.id)])) },
-  { id: 'reception', name: 'Reception', color: '#22C55E', isSystem: false,
-    permissions: Object.fromEntries(PERMISSION_MODULES.map(m => [m.id, ['dashboard', 'agenda_view', 'agenda_edit', 'clients_view', 'clients_edit', 'pos', 'packages'].includes(m.id)])) },
-  { id: 'estetista', name: 'Estetista', color: '#F59E0B', isSystem: false,
-    permissions: Object.fromEntries(PERMISSION_MODULES.map(m => [m.id, ['dashboard', 'agenda_view', 'clients_view'].includes(m.id)])) },
-  { id: 'warehouse', name: 'Magazziniere', color: '#EC4899', isSystem: false,
-    permissions: Object.fromEntries(PERMISSION_MODULES.map(m => [m.id, ['dashboard', 'inventory_view', 'inventory_edit'].includes(m.id)])) },
-];
+// Re-export per compatibilità con gli import esistenti
+export type { RoleConfig, PermissionModule };
+export { PERMISSION_MODULES, PERMISSION_GROUPS, ROLE_COLORS };
 
 interface RolesStore {
   roles: RoleConfig[];
-  addRole: (name: string) => string;
-  deleteRole: (roleId: string) => void;
-  togglePermission: (roleId: string, permId: string) => void;
-  toggleGroupAll: (roleId: string, group: string, value: boolean) => void;
+  loaded: boolean;
+  isLoading: boolean;
+  fetchRoles: () => Promise<void>;
+  addRole: (name: string) => Promise<string | null>;
+  deleteRole: (roleId: string) => Promise<void>;
+  togglePermission: (roleId: string, permId: string) => Promise<void>;
+  toggleGroupAll: (roleId: string, group: string, value: boolean) => Promise<void>;
 }
 
-export const useRolesStore = create<RolesStore>()(
-  persist(
-    (set, get) => ({
-      roles: DEFAULT_ROLES,
-
-      addRole: (name) => {
-        const id = `role-${Date.now()}`;
-        const color = ROLE_COLORS[get().roles.length % ROLE_COLORS.length];
-        set(state => ({
-          roles: [...state.roles, {
-            id, name: name.trim(), color, isSystem: false,
-            permissions: Object.fromEntries(PERMISSION_MODULES.map(m => [m.id, false])),
-          }],
-        }));
-        return id;
-      },
-
-      deleteRole: (roleId) => set(state => ({ roles: state.roles.filter(r => r.id !== roleId) })),
-
-      togglePermission: (roleId, permId) => set(state => ({
-        roles: state.roles.map(r => r.id === roleId
-          ? { ...r, permissions: { ...r.permissions, [permId]: !r.permissions[permId] } }
-          : r),
-      })),
-
-      toggleGroupAll: (roleId, group, value) => {
-        const groupIds = PERMISSION_MODULES.filter(m => m.group === group).map(m => m.id);
-        set(state => ({
-          roles: state.roles.map(r => {
-            if (r.id !== roleId) return r;
-            const updated = { ...r.permissions };
-            groupIds.forEach(id => { updated[id] = value; });
-            return { ...r, permissions: updated };
-          }),
-        }));
-      },
-    }),
-    {
-      name: 'revo_roles_config',
+// Persiste su DB la mappa permessi aggiornata di un ruolo (usa lo stato corrente).
+async function persistPermissions(get: () => RolesStore, roleId: string) {
+  const role = get().roles.find((r) => r.id === roleId);
+  if (role) {
+    try {
+      await updateRolePermissions(roleId, role.permissions);
+    } catch (e) {
+      console.error('Failed to persist permissions', e);
     }
-  )
-);
+  }
+}
+
+export const useRolesStore = create<RolesStore>()((set, get) => ({
+  roles: [],
+  loaded: false,
+  isLoading: false,
+
+  fetchRoles: async () => {
+    set({ isLoading: true });
+    try {
+      const data = await getRoles();
+      set({ roles: data, loaded: true, isLoading: false });
+    } catch (e) {
+      console.error('Failed to fetch roles', e);
+      set({ isLoading: false });
+    }
+  },
+
+  addRole: async (name) => {
+    if (!name.trim()) return null;
+    try {
+      const role = await createRoleAction(name);
+      set((s) => ({ roles: [...s.roles, role] }));
+      return role.id;
+    } catch (e) {
+      console.error('Failed to create role', e);
+      return null;
+    }
+  },
+
+  deleteRole: async (roleId) => {
+    try {
+      await deleteRoleAction(roleId);
+      set((s) => ({ roles: s.roles.filter((r) => r.id !== roleId) }));
+    } catch (e) {
+      console.error('Failed to delete role', e);
+    }
+  },
+
+  togglePermission: async (roleId, permId) => {
+    // update ottimistico
+    set((s) => ({
+      roles: s.roles.map((r) =>
+        r.id === roleId ? { ...r, permissions: { ...r.permissions, [permId]: !r.permissions[permId] } } : r,
+      ),
+    }));
+    await persistPermissions(get, roleId);
+  },
+
+  toggleGroupAll: async (roleId, group, value) => {
+    const groupIds = PERMISSION_MODULES.filter((m) => m.group === group).map((m) => m.id);
+    set((s) => ({
+      roles: s.roles.map((r) => {
+        if (r.id !== roleId) return r;
+        const updated = { ...r.permissions };
+        groupIds.forEach((id) => { updated[id] = value; });
+        return { ...r, permissions: updated };
+      }),
+    }));
+    await persistPermissions(get, roleId);
+  },
+}));

@@ -4,8 +4,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User } from '@/types';
 import { mockCurrentUser } from '@/lib/mock-data';
-import { useAccountsStore } from '@/stores/useAccountsStore';
 import { useRolesStore } from '@/stores/useRolesStore';
+import { authenticate } from '@/app/actions/accounts';
 
 interface AuthStore {
   user: User | null;
@@ -26,19 +26,20 @@ export const useAuthStore = create<AuthStore>()(
       currentLocationId: 'loc1',
 
       login: async (email: string, password: string) => {
-        // Accounts are managed in Impostazioni > Account Gestionale
-        const account = useAccountsStore.getState().accounts.find(
-          a => a.email.toLowerCase() === email.toLowerCase() && a.password === password && a.active
-        );
-
-        if (account) {
-          set({
-            user: { ...mockCurrentUser, id: account.id, email: account.email, firstName: account.firstName, lastName: account.lastName, role: account.roleId },
-            isAuthenticated: true,
-          });
-          return true;
+        // Autenticazione lato server contro il DB (account condivisi tra i dispositivi).
+        // Gli account si gestiscono in Impostazioni > Account Gestionale.
+        try {
+          const account = await authenticate(email, password);
+          if (account) {
+            set({
+              user: { ...mockCurrentUser, id: account.id, email: account.email, firstName: account.firstName, lastName: account.lastName, role: account.roleId },
+              isAuthenticated: true,
+            });
+            return true;
+          }
+        } catch (e) {
+          console.error('Login failed', e);
         }
-
         return false;
       },
 

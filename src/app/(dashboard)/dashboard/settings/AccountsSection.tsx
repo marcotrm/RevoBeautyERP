@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Edit2, Trash2, CheckCircle, X, Search, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Plus, Edit2, Trash2, CheckCircle, X, Search, Eye, EyeOff, ShieldCheck, Loader2 } from 'lucide-react';
 import { useAccountsStore, GestionaleAccount } from '@/stores/useAccountsStore';
 import { useRolesStore } from '@/stores/useRolesStore';
 import { getInitials } from '@/lib/helpers';
@@ -21,8 +21,8 @@ const emptyForm = (defaultRoleId: string): FormState => ({
 });
 
 export function AccountsSection() {
-  const { accounts, addAccount, updateAccount, deleteAccount, toggleActive } = useAccountsStore();
-  const roles = useRolesStore(s => s.roles);
+  const { accounts, loaded, isLoading, fetchAccounts, addAccount, updateAccount, deleteAccount, toggleActive } = useAccountsStore();
+  const { roles, loaded: rolesLoaded, fetchRoles } = useRolesStore();
   const [search, setSearch] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
@@ -30,6 +30,12 @@ export function AccountsSection() {
   const [editingAccount, setEditingAccount] = useState<GestionaleAccount | null>(null);
   const [formData, setFormData] = useState<FormState>(emptyForm(roles[0]?.id ?? ''));
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!loaded) fetchAccounts();
+    if (!rolesLoaded) fetchRoles();
+  }, [loaded, rolesLoaded, fetchAccounts, fetchRoles]);
 
   const filtered = accounts.filter(a =>
     `${a.firstName} ${a.lastName} ${a.email}`.toLowerCase().includes(search.toLowerCase())
@@ -53,7 +59,7 @@ export function AccountsSection() {
     setShowModal(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.firstName.trim() || !formData.email.trim() || !formData.password.trim() || !formData.roleId) {
       setError('Compila nome, email, password e permesso.');
       return;
@@ -66,12 +72,29 @@ export function AccountsSection() {
       return;
     }
 
-    if (editingAccount) {
-      updateAccount(editingAccount.id, { ...formData });
-    } else {
-      addAccount({ ...formData });
+    setSaving(true);
+    setError('');
+    try {
+      if (editingAccount) {
+        await updateAccount(editingAccount.id, { ...formData });
+      } else {
+        await addAccount({ ...formData });
+      }
+      setShowModal(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Errore durante il salvataggio.');
+    } finally {
+      setSaving(false);
     }
-    setShowModal(false);
+  };
+
+  const handleDelete = async (account: GestionaleAccount) => {
+    if (!confirm(`Eliminare l'account di ${account.firstName}?`)) return;
+    try {
+      await deleteAccount(account.id);
+    } catch {
+      alert('Errore durante l\'eliminazione.');
+    }
   };
 
   return (
@@ -98,7 +121,12 @@ export function AccountsSection() {
 
       {/* List */}
       <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden divide-y divide-border/30">
-        {filtered.length === 0 && (
+        {isLoading && !loaded && (
+          <div className="px-6 py-10 flex items-center justify-center gap-2 text-sm text-text-muted">
+            <Loader2 className="w-4 h-4 animate-spin" /> Caricamento account...
+          </div>
+        )}
+        {loaded && filtered.length === 0 && (
           <div className="px-6 py-10 text-center text-sm text-text-muted">Nessun account trovato.</div>
         )}
         {filtered.map(account => {
@@ -135,7 +163,7 @@ export function AccountsSection() {
                 <Edit2 className="w-4 h-4" />
               </button>
               <button
-                onClick={() => { if (confirm(`Eliminare l'account di ${account.firstName}?`)) deleteAccount(account.id); }}
+                onClick={() => handleDelete(account)}
                 className="p-2 rounded-lg bg-bg-tertiary text-text-muted hover:text-error hover:bg-error/10 transition-colors flex-shrink-0"
               >
                 <Trash2 className="w-4 h-4" />
@@ -214,8 +242,9 @@ export function AccountsSection() {
                 </div>
 
                 <div className="px-6 py-4 border-t border-border bg-bg-tertiary/30 flex-shrink-0">
-                  <button onClick={handleSave} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:scale-105 transition-all">
-                    <CheckCircle className="w-4 h-4" /> {editingAccount ? 'Salva Modifiche' : 'Crea Account'}
+                  <button onClick={handleSave} disabled={saving} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:scale-105 transition-all disabled:opacity-60 disabled:hover:scale-100">
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                    {editingAccount ? 'Salva Modifiche' : 'Crea Account'}
                   </button>
                 </div>
               </div>
