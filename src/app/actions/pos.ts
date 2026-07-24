@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { notifyIncasso } from '@/lib/telegram';
 import { todayRome } from '@/lib/date';
-import { emitC95Receipt, voidC95Receipt, getC95Config } from '@/lib/c95';
+import { emitC95Receipt, voidC95Receipt, resoParzialeC95Receipt, recoverC95Idtrx, getC95Config } from '@/lib/c95';
 
 export interface ProductLine { productId: string; qty: number }
 
@@ -64,7 +64,7 @@ export async function deleteTransaction(id: string) {
   return true;
 }
 
-export async function createTransaction(data: Omit<TransactionRecord, 'id'>) {
+export async function createTransaction(data: Omit<TransactionRecord, 'id'>, originalTxId?: string) {
   const today = todayRome();
   const lines = data.productLines || [];
   const created = await prisma.posTransaction.create({
@@ -115,6 +115,36 @@ export async function createTransaction(data: Omit<TransactionRecord, 'id'>) {
       });
     } catch {
       // integrazione non configurata o errore imprevisto: la vendita resta valida comunque
+    }
+  }
+  // Rimborso: se lo scontrino originale era stato emesso su C95, registra il RESO verso AdE
+  // (reso totale se l'importo coincide col documento originale, altrimenti reso parziale).
+  // Best-effort come l'emissione: un errore fiscale non blocca il rimborso, resta tracciato.
+  if (created.total < 0 && originalTxId) {
+    try {
+      const c95Cfg = await getC95Config();
+      if (!c95Cfg.enabled) return toTransactionRecord(created);
+      const original = await prisma.posTransaction.findUnique({ where: { id: originalTxId } });
+      if (original?.c95Emitted && original.c95IdScontrino) {
+        const idtrx = original.c95Idtrx || (await recoverC95Idtrx(original.c95IdScontrino)) || undefined;
+        const refundAmount = Math.abs(created.total);
+        const isTotal = Math.abs(refundAmount - original.total) < 0.01;
+        const result = isTotal
+          ? await voidC95Receipt({ idScontrino: original.c95IdScontrino, idtrx, tipo: 'R' })
+          : await resoParzialeC95Receipt({
+              idScontrino: original.c95IdScontrino,
+              idtrx,
+              lines: [{ descrizione: data.items.slice(0, 100) || 'Reso', prezzoUnitario: refundAmount, quantita: 1 }],
+            });
+        await prisma.posTransaction.update({
+          where: { id: created.id },
+          data: result.ok
+            ? { c95Status: isTotal ? 'reso_totale' : 'reso_parziale', c95IdScontrino: original.c95IdScontrino, c95Idtrx: idtrx }
+            : { c95Status: 'failed', c95Error: result.error },
+        });
+      }
+    } catch {
+      // il rimborso locale resta valido; il reso fiscale andrà gestito a mano su C95
     }
   }
   return toTransactionRecord(created);

@@ -549,7 +549,7 @@ function POSPageInner() {
       method: tx.method,
       time: `${new Date().getHours().toString().padStart(2, '0')}:${new Date().getMinutes().toString().padStart(2, '0')}`,
       operator: tx.operator,
-    });
+    }, tx.id);
     setShowRefund(false);
   };
 

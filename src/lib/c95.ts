@@ -341,10 +341,11 @@ export interface VoidReceiptResult {
   error?: string;
 }
 
-// Annulla ("reso/annullo totale") uno scontrino già emesso. Va chiamato PRIMA di cancellare
-// localmente una transazione che è stata fiscalmente emessa, altrimenti resta un documento
-// AdE emesso senza corrispondenza locale.
-export async function voidC95Receipt(params: { idScontrino: string; idtrx?: string }): Promise<VoidReceiptResult> {
+// Annullo ('A', default) o reso totale ('R') di uno scontrino già emesso — valori Tipo
+// allineati alla normativa AdE (docs SvaPro ANNULLO_RESO_API.md). L'annullo va chiamato
+// PRIMA di cancellare localmente una transazione emessa, altrimenti resta un documento
+// AdE senza corrispondenza locale; il reso totale è per i rimborsi al cliente.
+export async function voidC95Receipt(params: { idScontrino: string; idtrx?: string; tipo?: 'A' | 'R' }): Promise<VoidReceiptResult> {
   const cfg = await getC95Config();
   if (!cfg.enabled) return { ok: false, error: 'Integrazione C95 non attiva' };
 
@@ -366,7 +367,7 @@ export async function voidC95Receipt(params: { idScontrino: string; idtrx?: stri
     idMittente: cfg.idMittente,
     ...adeFields(),
     IdScontrino: params.idScontrino,
-    Tipo: 'A',
+    Tipo: params.tipo || 'A',
     deviceId,
     deviceName,
   };
@@ -381,6 +382,74 @@ export async function voidC95Receipt(params: { idScontrino: string; idtrx?: stri
   const err = isErrorResponse(body);
   if (err) return { ok: false, error: err };
   return { ok: true };
+}
+
+// Reso parziale: righe rese (prodList) di uno scontrino già emesso, quando l'importo
+// rimborsato è inferiore al totale del documento originale.
+export async function resoParzialeC95Receipt(params: { idScontrino: string; idtrx?: string; lines: C95Line[] }): Promise<VoidReceiptResult> {
+  const cfg = await getC95Config();
+  if (!cfg.enabled) return { ok: false, error: 'Integrazione C95 non attiva' };
+
+  let token: string;
+  let liveCfg: C95Config;
+  try {
+    const t = await getToken(cfg);
+    token = t.token;
+    liveCfg = t.cfg;
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Login C95 fallito' };
+  }
+
+  const payload: Record<string, unknown> = {
+    token,
+    idMittente: cfg.idMittente,
+    ...adeFields(),
+    idScontrino: params.idScontrino,
+    idtrx: params.idtrx || '',
+    prodList: {
+      list: params.lines.map((l) => ({
+        aliquotaIVA: l.aliquotaIVA ?? cfg.vatRate,
+        descrizioneProdotto: l.descrizione,
+        natura: '',
+        prezzoUnitario: Math.round(l.prezzoUnitario * 100) / 100,
+        quantita: Math.round(l.quantita * 1000) / 1000,
+        riferimentoNormativo: '',
+      })),
+    },
+    deviceId: cfg.deviceId || 'API_STORE_1',
+    deviceName: cfg.deviceName || 'Cassa Revobeauty',
+  };
+
+  let body: Record<string, unknown>;
+  try {
+    body = await c95Post(liveCfg.baseUrl, 'creaResoParzialeDocumentoCommerciale', payload);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Errore di rete verso C95' };
+  }
+  const err = isErrorResponse(body);
+  if (err) return { ok: false, error: err };
+  return { ok: true };
+}
+
+// Idtrx del documento (serve per annullo/reso): se non archiviato lo recupera con
+// dettaglioDocumentoCommerciale, come ensureC95Idtrx in SvaPro.
+export async function recoverC95Idtrx(idScontrino: string): Promise<string | null> {
+  const cfg = await getC95Config();
+  if (!cfg.enabled) return null;
+  try {
+    const { token, cfg: liveCfg } = await getToken(cfg);
+    const body = await c95Post(liveCfg.baseUrl, 'dettaglioDocumentoCommerciale', {
+      token,
+      idMittente: cfg.idMittente,
+      deviceId: cfg.deviceId || 'API_STORE_1',
+      deviceName: cfg.deviceName || 'Cassa Revobeauty',
+      IdScontrino: idScontrino,
+    });
+    const idtrx = body.idtrx ?? body.Idtrx ?? body.idTrx;
+    return idtrx != null && String(idtrx) !== '' ? String(idtrx) : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface TestConnectionResult {

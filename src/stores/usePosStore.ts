@@ -7,7 +7,7 @@ interface PosStore {
   transactions: TransactionRecord[];
   isLoading: boolean;
   fetchTransactions: () => Promise<void>;
-  addTransaction: (tx: Omit<TransactionRecord, 'id'>) => Promise<TransactionRecord>;
+  addTransaction: (tx: Omit<TransactionRecord, 'id'>, originalTxId?: string) => Promise<TransactionRecord>;
   removeTransaction: (id: string) => Promise<void>;
 }
 
@@ -26,9 +26,9 @@ export const usePosStore = create<PosStore>()((set) => ({
     }
   },
 
-  addTransaction: async (tx) => {
+  addTransaction: async (tx, originalTxId) => {
     try {
-      const created = await createTransaction(tx);
+      const created = await createTransaction(tx, originalTxId);
       set((state) => ({ transactions: [created, ...state.transactions] }));
       return created;
     } catch (error) {
