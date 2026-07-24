@@ -5,16 +5,19 @@ import { usePersistedState } from '@/hooks/usePersistedState';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Settings, Building2, Clock, Palette, Shield,
-  Bell, Globe, CreditCard,
+  Bell, Globe, CreditCard, Users,
   ChevronRight, Save, Plus, Search, X, CheckCircle,
   Sparkles,
 } from 'lucide-react';
 import { useThemeStore } from '@/stores/useThemeStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
+import { useRolesStore, PERMISSION_MODULES, PERMISSION_GROUPS } from '@/stores/useRolesStore';
+import { useAccountsStore } from '@/stores/useAccountsStore';
 import { formatCurrency, getCategoryLabel } from '@/lib/helpers';
 import { Treatment, TreatmentCategory } from '@/types';
 import { Tag } from 'lucide-react';
 import { PriceListsSection } from './PriceListsSection';
+import { AccountsSection } from './AccountsSection';
 import C95Config from './C95Config';
 
 const settingSections = [
@@ -23,6 +26,7 @@ const settingSections = [
   { id: 'hours', label: 'Orari', icon: Clock, description: 'Orari apertura e chiusura' },
   { id: 'appearance', label: 'Aspetto', icon: Palette, description: 'Tema, colori, logo' },
   { id: 'notifications', label: 'Notifiche', icon: Bell, description: 'Email, SMS, push' },
+  { id: 'accounts', label: 'Account Gestionale', icon: Users, description: 'Crea accessi staff e assegna i permessi' },
   { id: 'roles', label: 'Ruoli e Permessi', icon: Shield, description: 'Accessi e autorizzazioni' },
   { id: 'billing', label: 'Fatturazione', icon: CreditCard, description: 'Dati fiscali, scontrini' },
   { id: 'integrations', label: 'Integrazioni', icon: Globe, description: 'API, webhook, servizi' },
@@ -382,103 +386,24 @@ function NotificationsSection({ toggleStates, handleToggle }: { toggleStates: Re
   );
 }
 
-const PERMISSION_MODULES = [
-  { id: 'dashboard', label: 'Dashboard', group: 'Principale' },
-  { id: 'agenda_view', label: 'Agenda (Visualizza)', group: 'Principale' },
-  { id: 'agenda_edit', label: 'Agenda (Modifica)', group: 'Principale' },
-  { id: 'clients_view', label: 'Clienti (Visualizza)', group: 'CRM' },
-  { id: 'clients_edit', label: 'Clienti (Modifica)', group: 'CRM' },
-  { id: 'clients_delete', label: 'Clienti (Elimina)', group: 'CRM' },
-  { id: 'pos', label: 'Cassa / POS', group: 'Vendite' },
-  { id: 'packages', label: 'Pacchetti', group: 'Vendite' },
-  { id: 'inventory_view', label: 'Magazzino (Visualizza)', group: 'Magazzino' },
-  { id: 'inventory_edit', label: 'Magazzino (Modifica)', group: 'Magazzino' },
-  { id: 'marketing', label: 'Marketing', group: 'Marketing' },
-  { id: 'reports', label: 'Report', group: 'Analisi' },
-  { id: 'admin_dashboard', label: 'Amministrazione Dashboard', group: 'Amministrazione' },
-  { id: 'admin_costs', label: 'Costi Fissi / Variabili', group: 'Amministrazione' },
-  { id: 'admin_investments', label: 'Investimenti', group: 'Amministrazione' },
-  { id: 'admin_breakeven', label: 'Punto di Pareggio', group: 'Amministrazione' },
-  { id: 'admin_cashflow', label: 'Cash Flow', group: 'Amministrazione' },
-  { id: 'admin_goals', label: 'Obiettivi', group: 'Amministrazione' },
-  { id: 'admin_reports', label: 'Report Amministrativi', group: 'Amministrazione' },
-  { id: 'admin_automations', label: 'Automazioni', group: 'Amministrazione' },
-  { id: 'staff_view', label: 'Staff (Visualizza)', group: 'Staff' },
-  { id: 'staff_edit', label: 'Staff (Modifica)', group: 'Staff' },
-  { id: 'settings', label: 'Impostazioni', group: 'Sistema' },
-  { id: 'roles', label: 'Ruoli e Permessi', group: 'Sistema' },
-];
-
-const PERMISSION_GROUPS = [...new Set(PERMISSION_MODULES.map(m => m.group))];
-
-interface RoleConfig {
-  id: string;
-  name: string;
-  color: string;
-  users: number;
-  isSystem: boolean; // system roles can't be deleted
-  permissions: Record<string, boolean>;
-}
-
-const ALL_ON = Object.fromEntries(PERMISSION_MODULES.map(m => [m.id, true]));
-
-const DEFAULT_ROLES: RoleConfig[] = [
-  { id: 'admin', name: 'Amministratore', color: '#EF4444', users: 1, isSystem: true, permissions: { ...ALL_ON } },
-  { id: 'owner', name: 'Proprietario', color: '#A855F7', users: 1, isSystem: true, permissions: { ...ALL_ON } },
-  { id: 'manager', name: 'Manager', color: '#3B82F6', users: 2, isSystem: false,
-    permissions: Object.fromEntries(PERMISSION_MODULES.map(m => [m.id, !['roles', 'settings', 'clients_delete'].includes(m.id)])) },
-  { id: 'reception', name: 'Reception', color: '#22C55E', users: 3, isSystem: false,
-    permissions: Object.fromEntries(PERMISSION_MODULES.map(m => [m.id, ['dashboard', 'agenda_view', 'agenda_edit', 'clients_view', 'clients_edit', 'pos', 'packages'].includes(m.id)])) },
-  { id: 'estetista', name: 'Estetista', color: '#F59E0B', users: 5, isSystem: false,
-    permissions: Object.fromEntries(PERMISSION_MODULES.map(m => [m.id, ['dashboard', 'agenda_view', 'clients_view'].includes(m.id)])) },
-  { id: 'warehouse', name: 'Magazziniere', color: '#EC4899', users: 1, isSystem: false,
-    permissions: Object.fromEntries(PERMISSION_MODULES.map(m => [m.id, ['dashboard', 'inventory_view', 'inventory_edit'].includes(m.id)])) },
-];
-
-const ROLE_COLORS = ['#EF4444', '#A855F7', '#3B82F6', '#22C55E', '#F59E0B', '#EC4899', '#14B8A6', '#6366F1', '#F97316'];
-
 function RolesPermissionsSection() {
-  const [rolesData, setRoles] = useState<RoleConfig[]>(DEFAULT_ROLES);
+  const { roles: rolesData, addRole: addRoleToStore, deleteRole, togglePermission, toggleGroupAll } = useRolesStore();
+  const accounts = useAccountsStore(s => s.accounts);
   const [expandedRole, setExpandedRole] = useState<string | null>(null);
   const [showNewRole, setShowNewRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
 
-  const togglePermission = (roleId: string, permId: string) => {
-    setRoles(prev => prev.map(r => {
-      if (r.id !== roleId) return r;
-      return { ...r, permissions: { ...r.permissions, [permId]: !r.permissions[permId] } };
-    }));
-  };
-
-  const toggleGroupAll = (roleId: string, group: string, value: boolean) => {
-    const groupIds = PERMISSION_MODULES.filter(m => m.group === group).map(m => m.id);
-    setRoles(prev => prev.map(r => {
-      if (r.id !== roleId) return r;
-      const updated = { ...r.permissions };
-      groupIds.forEach(id => { updated[id] = value; });
-      return { ...r, permissions: updated };
-    }));
-  };
-
   const addRole = () => {
     if (!newRoleName.trim()) return;
-    const id = `role-${Date.now()}`;
-    const color = ROLE_COLORS[(rolesData.length) % ROLE_COLORS.length];
-    setRoles(prev => [...prev, {
-      id, name: newRoleName.trim(), color, users: 0, isSystem: false,
-      permissions: Object.fromEntries(PERMISSION_MODULES.map(m => [m.id, false])),
-    }]);
+    const id = addRoleToStore(newRoleName);
     setNewRoleName('');
     setShowNewRole(false);
     setExpandedRole(id);
   };
 
-  const deleteRole = (roleId: string) => {
-    setRoles(prev => prev.filter(r => r.id !== roleId));
-    if (expandedRole === roleId) setExpandedRole(null);
-  };
+  const getUserCount = (roleId: string) => accounts.filter(a => a.roleId === roleId).length;
 
-  const getActiveCount = (r: RoleConfig) => Object.values(r.permissions).filter(Boolean).length;
+  const getActiveCount = (r: typeof rolesData[number]) => Object.values(r.permissions).filter(Boolean).length;
 
   return (
     <div className="space-y-4">
@@ -521,7 +446,7 @@ function RolesPermissionsSection() {
                       <p className="text-sm font-semibold text-text-primary">{role.name}</p>
                       {role.id === 'admin' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-error/10 text-error">SUPER</span>}
                       <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-muted">
-                        {role.users} {role.users === 1 ? 'utente' : 'utenti'}
+                        {getUserCount(role.id)} {getUserCount(role.id) === 1 ? 'utente' : 'utenti'}
                       </span>
                     </div>
                     <p className="text-xs text-text-secondary mt-0.5">
@@ -753,6 +678,11 @@ export default function SettingsPage() {
             {/* NOTIFICHE */}
             {activeSection === 'notifications' && (
               <NotificationsSection toggleStates={toggleStates} handleToggle={handleToggle} />
+            )}
+
+            {/* ACCOUNT GESTIONALE */}
+            {activeSection === 'accounts' && (
+              <AccountsSection />
             )}
 
             {/* RUOLI E PERMESSI */}

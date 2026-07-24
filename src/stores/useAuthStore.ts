@@ -2,8 +2,10 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, UserRole } from '@/types';
+import { User } from '@/types';
 import { mockCurrentUser } from '@/lib/mock-data';
+import { useAccountsStore } from '@/stores/useAccountsStore';
+import { useRolesStore } from '@/stores/useRolesStore';
 
 interface AuthStore {
   user: User | null;
@@ -16,16 +18,6 @@ interface AuthStore {
   hasPermission: (permission: string) => boolean;
 }
 
-const rolePermissions: Record<UserRole, string[]> = {
-  super_admin: ['*'],
-  owner: ['*'],
-  manager: ['agenda', 'clients', 'pos', 'inventory', 'marketing', 'reports', 'staff', 'settings'],
-  receptionist: ['agenda', 'clients', 'pos'],
-  operator: ['agenda', 'clients.view'],
-  commercial: ['clients', 'marketing', 'reports'],
-  warehouse: ['inventory'],
-};
-
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
@@ -34,34 +26,19 @@ export const useAuthStore = create<AuthStore>()(
       currentLocationId: 'loc1',
 
       login: async (email: string, password: string) => {
-        // Predefined accounts
-        const accounts = [
-          { email: 'dino@revobeauty.it', password: 'password123', firstName: 'Dino', lastName: 'Caruso', role: 'owner' },
-          { email: 'francesco@revobeauty.it', password: 'password123', firstName: 'Francesco', lastName: '', role: 'owner' },
-          { email: 'staff@revobeauty.it', password: 'password123', firstName: 'Staff', lastName: 'Member', role: 'operator' }
-        ];
-
-        const account = accounts.find(a => a.email.toLowerCase() === email.toLowerCase() && a.password === password);
+        // Accounts are managed in Impostazioni > Account Gestionale
+        const account = useAccountsStore.getState().accounts.find(
+          a => a.email.toLowerCase() === email.toLowerCase() && a.password === password && a.active
+        );
 
         if (account) {
           set({
-            user: { ...mockCurrentUser, id: `user-${account.firstName.toLowerCase()}`, email: account.email, firstName: account.firstName, lastName: account.lastName, role: account.role as UserRole },
+            user: { ...mockCurrentUser, id: account.id, email: account.email, firstName: account.firstName, lastName: account.lastName, role: account.roleId },
             isAuthenticated: true,
           });
           return true;
         }
-        
-        // Fallback for any other test email (bypass password)
-        if (email && password && !accounts.find(a => a.email.toLowerCase() === email.toLowerCase())) {
-          const userRole = email.includes('staff') ? 'operator' : 'owner';
-          const name = email.includes('staff') ? 'Staff Member' : 'Test User';
-          set({
-            user: { ...mockCurrentUser, email, firstName: name.split(' ')[0], lastName: name.split(' ')[1] || '', role: userRole as UserRole },
-            isAuthenticated: true,
-          });
-          return true;
-        }
-        
+
         return false;
       },
 
@@ -88,9 +65,9 @@ export const useAuthStore = create<AuthStore>()(
       hasPermission: (permission: string) => {
         const { user } = get();
         if (!user) return false;
-        const perms = rolePermissions[user.role];
-        if (perms.includes('*')) return true;
-        return perms.some(p => permission.startsWith(p));
+        const role = useRolesStore.getState().roles.find(r => r.id === user.role);
+        if (!role) return false;
+        return !!role.permissions[permission];
       },
     }),
     {

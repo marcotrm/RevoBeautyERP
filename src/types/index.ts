@@ -10,7 +10,8 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: UserRole;
+  /** id of a RoleConfig from useRolesStore (e.g. 'owner', 'manager', or a custom role id) */
+  role: string;
   avatar?: string;
   phone?: string;
   locationIds: string[];

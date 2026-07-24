@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUIStore } from '@/stores/useUIStore';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useRolesStore } from '@/stores/useRolesStore';
 import { mockLocations, mockNotifications } from '@/lib/mock-data';
 import {
   Search, Bell, Menu, ChevronDown,
@@ -31,6 +32,8 @@ export default function Topbar() {
   const pathname = usePathname();
   const { setSidebarMobileOpen, setCommandPaletteOpen, sidebarCollapsed } = useUIStore();
   const { user, currentLocationId, setCurrentLocation, logout } = useAuthStore();
+  const roles = useRolesStore(s => s.roles);
+  const roleName = roles.find(r => r.id === user?.role)?.name ?? user?.role;
   const [showNotifications, setShowNotifications] = React.useState(false);
   const [showLocationPicker, setShowLocationPicker] = React.useState(false);
   const [showUserMenu, setShowUserMenu] = React.useState(false);
@@ -238,7 +241,7 @@ export default function Topbar() {
                   >
                     <div className="p-3 border-b border-border">
                       <p className="text-sm font-semibold text-text-primary">{user.firstName} {user.lastName}</p>
-                      <p className="text-xs text-text-muted capitalize">{user.role}</p>
+                      <p className="text-xs text-text-muted capitalize">{roleName}</p>
                     </div>
                     <div className="p-2">
                       <button className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-bg-hover text-sm text-text-secondary transition-colors">

@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUIStore } from '@/stores/useUIStore';
 import { useThemeStore } from '@/stores/useThemeStore';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useRolesStore } from '@/stores/useRolesStore';
 import {
   Calendar, Users, ShoppingBag, Package, BarChart3,
   Megaphone, Settings, ChevronLeft, ChevronRight,
@@ -38,6 +39,8 @@ export default function Sidebar() {
   const { sidebarCollapsed, toggleSidebar, sidebarMobileOpen, setSidebarMobileOpen } = useUIStore();
   const { isDark, toggleTheme, logoUrl } = useThemeStore();
   const { user, logout } = useAuthStore();
+  const roles = useRolesStore(s => s.roles);
+  const roleName = roles.find(r => r.id === user?.role)?.name ?? user?.role;
 
   const LogoIcon = () => logoUrl ? (
     <img src={logoUrl} alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
@@ -210,7 +213,7 @@ export default function Sidebar() {
                   <p className="text-sm font-medium text-text-primary truncate">
                     {user.firstName} {user.lastName}
                   </p>
-                  <p className="text-xs text-text-muted truncate capitalize">{user.role}</p>
+                  <p className="text-xs text-text-muted truncate">{roleName}</p>
                 </div>
               )}
               {!sidebarCollapsed && (
