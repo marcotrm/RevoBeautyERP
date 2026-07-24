@@ -8,6 +8,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { useThemeStore } from '@/stores/useThemeStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRolesStore } from '@/stores/useRolesStore';
+import { MENU_PERMISSIONS, roleHasPermission } from '@/lib/permissions';
 import {
   Calendar, Users, ShoppingBag, Package, BarChart3,
   Megaphone, Settings, ChevronLeft, ChevronRight,
@@ -40,7 +41,13 @@ export default function Sidebar() {
   const { isDark, toggleTheme, logoUrl } = useThemeStore();
   const { user, logout } = useAuthStore();
   const roles = useRolesStore(s => s.roles);
-  const roleName = roles.find(r => r.id === user?.role)?.name ?? user?.role;
+  const role = roles.find(r => r.id === user?.role);
+  const roleName = role?.name ?? user?.role;
+
+  // Mostra solo le voci per cui il ruolo dell'utente ha il permesso
+  const visibleMenuItems = menuItems.filter(item =>
+    roleHasPermission(role, MENU_PERMISSIONS[item.id] ?? null)
+  );
 
   const LogoIcon = () => logoUrl ? (
     <img src={logoUrl} alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
@@ -112,8 +119,8 @@ export default function Sidebar() {
 
         {/* Nav */}
         <nav className="flex-1 py-3 px-2 overflow-y-auto space-y-0.5">
-          {menuItems.map((item) => {
-            const activeItem = [...menuItems]
+          {visibleMenuItems.map((item) => {
+            const activeItem = [...visibleMenuItems]
               .sort((a, b) => b.href.length - a.href.length)
               .find(mi => pathname === mi.href || (mi.href !== '/dashboard' && pathname?.startsWith(mi.href + '/')));
             
