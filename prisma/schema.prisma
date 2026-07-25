@@ -39,13 +39,47 @@ model Client {
   referredBy       String?
   customTreatments Json     @default("[]")
   priceListId      String?
+  medicalRecord    Json?    // anamnesi / scheda tecnica estetica
 
   appointments     Appointment[]
   clientPackages   ClientPackage[]
   giftCardsPurchased GiftCard[] @relation("GiftCardBuyer")
   mobileAccount    MobileAccount?
+  photos           ClientPhoto[]
+  consents         ClientConsent[]
 
   @@map("clients")
+}
+
+// Foto (prima/dopo) e documenti del cliente — immagine in base64 compressa lato client.
+model ClientPhoto {
+  id        String  @id @default(cuid())
+  clientId  String
+  kind      String  @default("before") // before | after | document
+  data      String  // data URL base64
+  label     String?
+  treatment String?
+  createdAt String
+
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("client_photos")
+}
+
+// Consensi firmati del cliente (privacy, trattamento, ...) con firma opzionale.
+model ClientConsent {
+  id            String  @id @default(cuid())
+  clientId      String
+  title         String
+  signatureData String? // firma disegnata in base64 (opzionale)
+  signedAt      String
+  notes         String?
+
+  client        Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("client_consents")
 }
 
 // ============================================================

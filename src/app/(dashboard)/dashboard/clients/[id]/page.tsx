@@ -10,20 +10,21 @@ import { useAgendaStore } from '@/stores/useAgendaStore';
 import {
   ArrowLeft, Phone, Mail, Calendar, MapPin,
   Heart, Star, Crown, Gift, CreditCard,
-  FileText, Camera, Clock, TrendingUp,
+  FileText, Clock, TrendingUp,
   Edit, MoreHorizontal, Shield, AlertTriangle,
   CheckCircle, User, Cake, Tag, Settings, Plus, Trash2,
 } from 'lucide-react';
 import { formatCurrency, getInitials, formatDate, getStatusLabel, getStatusColor, getCategoryLabel, generateId } from '@/lib/helpers';
 import Link from 'next/link';
 import AddClientModal from '@/components/AddClientModal';
+import ClientRecordTab from './ClientRecordTab';
 
 const tabs = [
   { id: 'profile', label: 'Profilo', icon: User },
   { id: 'timeline', label: 'Cronologia', icon: Clock },
   { id: 'treatments', label: 'Riepilogo', icon: Heart },
   { id: 'custom_treatments', label: 'Trattamenti Personalizzati', icon: Settings },
-  { id: 'documents', label: 'Documenti', icon: FileText },
+  { id: 'documents', label: 'Scheda estetica', icon: FileText },
   { id: 'loyalty', label: 'Fidelity', icon: Star },
 ];
 
@@ -576,20 +577,8 @@ export default function ClientDetailPage() {
           </div>
         )}
 
-        {activeTab === 'documents' && (
-          <div className="bg-bg-secondary border border-border rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-display font-semibold text-text-primary">Documenti & Foto</h3>
-              <button className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border text-sm text-text-secondary hover:bg-bg-hover transition-colors">
-                <Camera className="w-4 h-4" /> Carica
-              </button>
-            </div>
-            <div className="flex flex-col items-center justify-center py-12">
-              <FileText className="w-12 h-12 text-text-muted mb-3" />
-              <p className="text-text-secondary font-medium">Nessun documento</p>
-              <p className="text-sm text-text-muted mt-1">Carica foto prima/dopo, consensi, documenti</p>
-            </div>
-          </div>
+        {activeTab === 'documents' && client && (
+          <ClientRecordTab clientId={client.id} />
         )}
 
         {activeTab === 'loyalty' && (
