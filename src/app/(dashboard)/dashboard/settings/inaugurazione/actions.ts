@@ -7,11 +7,12 @@ const TREATMENT_LABELS: Record<string, string> = {
   lampada: 'Lampada', pressoterapia: 'Pressoterapia', body_sculpting: 'Body Sculpting',
 };
 
-// Pacchetto OMAGGIO inaugurazione per ciascun trattamento: gratis (0€), pronto da "Scala".
+// Pacchetto OMAGGIO inaugurazione per ciascun trattamento scelto: gratis (0€), 1 seduta.
+// Il nome contiene il trattamento REALE del catalogo così l'agenda lo abbina in automatico.
 const FREE_PACKAGES: Record<string, { name: string; color: string; sessions: number }> = {
-  lampada: { name: 'Lampada — Omaggio Inaugurazione', color: '#F59E0B', sessions: 1 },
-  pressoterapia: { name: 'Pressoterapia — Omaggio Inaugurazione', color: '#14B8A6', sessions: 1 },
-  body_sculpting: { name: 'Body Sculpting — Omaggio Inaugurazione', color: '#A855F7', sessions: 1 },
+  lampada: { name: 'Lampada Total Body (Omaggio Inaugurazione)', color: '#F59E0B', sessions: 1 },
+  pressoterapia: { name: 'Pressoterapia Infrarossi (Omaggio Inaugurazione)', color: '#14B8A6', sessions: 1 },
+  body_sculpting: { name: 'Fast Tonic (Omaggio Inaugurazione)', color: '#A855F7', sessions: 1 },
 };
 
 const normPhone = (p: string) => (p || '').replace(/[^\d]/g, '').slice(-9);

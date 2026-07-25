@@ -868,14 +868,14 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
 
   // Aggiunge un trattamento alla lista (con prezzo/durata del sesso corrente,
   // rispettando eventuali trattamenti personalizzati del cliente)
-  const addService = (t: Treatment) => {
+  const addService = (t: Treatment, priceOverride?: number) => {
     const custom = selectedClient?.customTreatments?.find(ct => ct.treatmentId === t.id) || null;
     const service: AppointmentService = {
       treatmentId: t.id,
       treatmentName: t.name,
       treatmentCategory: t.category,
       duration: custom ? custom.duration : genderDuration(t),
-      price: custom ? custom.price : genderPrice(t),
+      price: priceOverride != null ? priceOverride : (custom ? custom.price : genderPrice(t)),
       gender,
     };
     setSelectedServices(prev => [...prev, service]);
@@ -1074,11 +1074,13 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                           t.name.toLowerCase().includes(cp.packageName.toLowerCase().split(' ').slice(0, 2).join(' '))
                         );
                         const t = matchingTreatment || treatments[0];
-                        if (t) addService(t);
+                        // Pacchetto omaggio (0€): la seduta si aggiunge gratis.
+                        const isFree = cp.pricePaid === 0;
+                        if (t) addService(t, isFree ? 0 : undefined);
                         setNotes(`📦 Seduta da pacchetto: ${cp.packageName} (${remaining} rimanenti)`);
                       }}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent text-white text-[10px] font-bold hover:bg-accent/90 transition-colors whitespace-nowrap cursor-pointer z-10">
-                        <Package className="w-3 h-3" /> Usa seduta
+                        <Package className="w-3 h-3" /> {cp.pricePaid === 0 ? 'Usa omaggio' : 'Usa seduta'}
                       </button>
                     </div>
                   );
@@ -1644,6 +1646,7 @@ export default function AgendaPage() {
   const fetchOperators = useOperatorStore(s => s.fetchOperators);
   const fetchClients = useClientStore(s => s.fetchClients);
   const fetchTreatments = useTreatmentStore(s => s.fetchTreatments);
+  const fetchPackages = usePackageStore(s => s.fetchPackages);
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [blockModal, setBlockModal] = useState<{ operatorId: string; operatorName: string; start: string; end: string } | null>(null);
@@ -1654,7 +1657,8 @@ export default function AgendaPage() {
     fetchOperators();
     fetchClients();
     fetchTreatments();
-  }, [fetchAppointments, fetchBlocks, fetchOperators, fetchClients, fetchTreatments]);
+    fetchPackages(); // pacchetti cliente: servono per mostrare l'omaggio inaugurazione nel modale
+  }, [fetchAppointments, fetchBlocks, fetchOperators, fetchClients, fetchTreatments, fetchPackages]);
 
   // Mantiene il filtro operatrici allineato alle operatrici esistenti:
   // rimuove gli id di operatrici eliminate e mostra automaticamente le nuove.
