@@ -8,9 +8,10 @@ import { Suspense } from 'react';
 import {
   CreditCard, Receipt, Calculator,
   Banknote, ArrowRight, Plus, X, CheckCircle,
-  Trash2, Search, Smartphone, Lock, Vault, ArrowDownToLine,
+  Trash2, Search, Smartphone, Lock, Vault, ArrowDownToLine, Printer,
 } from 'lucide-react';
 import { getCassaforte, closeCassa, withdrawCassa, CassaMovementRecord } from '@/app/actions/cassaforte';
+import { printThermalReceipt } from '@/lib/printReceipt';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { useClientStore } from '@/stores/useClientStore';
 import { formatCurrency } from '@/lib/helpers';
@@ -172,6 +173,19 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       cabinMinutes: initialData?.cabinMinutes,
     }, initialData?.debtPkgId);
     setStep('done');
+  };
+
+  const handlePrintReceipt = () => {
+    const finalMethod = paymentMethod === 'misto'
+      ? `Misto (Contanti €${splitCash}, Carta €${splitCard})`
+      : PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label || 'Carta';
+    printThermalReceipt({
+      lines: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price * i.qty })),
+      total: finalTotal,
+      method: finalMethod,
+      client: selectedClient || 'Cliente Occasionale',
+      operator: initialData?.operator || 'Staff',
+    });
   };
 
   return (
@@ -387,9 +401,14 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                 </button>
               </>
             ) : (
-              <button onClick={onClose} className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:scale-105 transition-all">
-                ✓ Chiudi
-              </button>
+              <div className="w-full flex items-center gap-3">
+                <button onClick={handlePrintReceipt} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border text-sm font-medium text-text-primary hover:bg-bg-hover transition-colors">
+                  <Printer className="w-4 h-4" /> Stampa scontrino
+                </button>
+                <button onClick={onClose} className="flex-1 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:scale-105 transition-all">
+                  ✓ Chiudi
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -790,8 +809,22 @@ function POSPageInner() {
               ) : (
                 <div className="px-6 py-10 text-center"><p className="text-text-muted">Nessuna transazione registrata</p></div>
               )}
-              <div className="px-6 py-4 border-t border-border bg-bg-tertiary/30">
-                <button onClick={() => setShowLastReceipt(false)} className="w-full py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Chiudi</button>
+              <div className="px-6 py-4 border-t border-border bg-bg-tertiary/30 flex items-center gap-3">
+                {lastTx && (
+                  <button
+                    onClick={() => printThermalReceipt({
+                      lines: (lastTx.items || '').split(', ').filter(Boolean).map(name => ({ name })),
+                      total: lastTx.total,
+                      method: lastTx.method,
+                      client: lastTx.client,
+                      operator: lastTx.operator,
+                    })}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:scale-105 transition-all"
+                  >
+                    <Printer className="w-4 h-4" /> Stampa
+                  </button>
+                )}
+                <button onClick={() => setShowLastReceipt(false)} className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Chiudi</button>
               </div>
             </div>
           </motion.div>
