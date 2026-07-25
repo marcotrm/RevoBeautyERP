@@ -338,6 +338,7 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
   const [phone, setPhone] = useState(operator.phone || '');
   const [commission, setCommission] = useState(String(operator.commission ?? 0));
   const [contractHours, setContractHours] = useState(String(operator.contractHours || ''));
+  const [monthlyCost, setMonthlyCost] = useState(String(operator.monthlyCost || ''));
   const [color, setColor] = useState(operator.color);
   const [specs, setSpecs] = useState<TreatmentCategory[]>(operator.specializations || []);
 
@@ -361,10 +362,16 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
       firstName: firstName.trim(), lastName: lastName.trim(),
       email, phone, commission: Number(commission) || 0,
       contractHours: Number(contractHours) || 0,
+      monthlyCost: Number(monthlyCost) || 0,
       color, specializations: specs,
     });
     onClose();
   };
+
+  // Costo orario = costo mensile / (ore settimanali da contratto × 4,33 settimane)
+  const hourlyCost = Number(monthlyCost) > 0 && Number(contractHours) > 0
+    ? Number(monthlyCost) / (Number(contractHours) * 4.33)
+    : 0;
 
   return (
     <>
@@ -414,6 +421,32 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
                 </p>
               )}
               <p className="text-xs text-text-muted mt-1">I turni si impostano nella tab &quot;Turni&quot; → Pianificazione Turni</p>
+            </div>
+
+            {/* Costo del personale */}
+            <div className="p-4 rounded-xl bg-bg-tertiary/40 border border-border">
+              <label className="block text-sm font-semibold text-text-primary mb-1.5">Costo mensile (lordo azienda)</label>
+              <div className="flex items-center gap-3">
+                <div className="relative w-36">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">€</span>
+                  <input type="number" min="0" step="50" value={monthlyCost} onChange={e => setMonthlyCost(e.target.value)}
+                    placeholder="es. 1800"
+                    className="w-full pl-7 pr-3 py-2.5 rounded-xl bg-bg-secondary border border-border text-lg font-semibold text-text-primary text-center placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
+                </div>
+                <span className="text-sm text-text-secondary">al mese</span>
+              </div>
+              {hourlyCost > 0 ? (
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  <span className="px-2.5 py-1 rounded-full bg-accent/10 text-accent text-sm font-bold">
+                    Costo orario: {hourlyCost.toFixed(2).replace('.', ',')} €/h
+                  </span>
+                  <span className="text-xs text-text-muted">
+                    = {monthlyCost}€ ÷ ({contractHours}h × 4,33 sett.)
+                  </span>
+                </div>
+              ) : (
+                <p className="text-xs text-text-muted mt-2">Inserisci costo mensile e ore da contratto per calcolare il costo orario.</p>
+              )}
             </div>
 
             <>
@@ -926,6 +959,11 @@ export default function StaffPage() {
                 <p className={`text-xs font-semibold mt-1 ${op.contractHours ? 'text-accent' : 'text-text-muted'}`}>
                   {op.contractHours ? `Contratto: ${op.contractHours}h / sett.` : 'Ore contratto da impostare'}
                 </p>
+                {!!op.monthlyCost && !!op.contractHours && (
+                  <p className="text-xs text-text-secondary mt-1">
+                    Costo: <span className="font-semibold text-text-primary">{(op.monthlyCost / (op.contractHours * 4.33)).toFixed(2).replace('.', ',')} €/h</span>
+                  </p>
+                )}
               </div>
             ))}
           </div>

@@ -18,6 +18,7 @@ import { formatCurrency, getInitials, formatDate, getStatusLabel, getStatusColor
 import Link from 'next/link';
 import AddClientModal from '@/components/AddClientModal';
 import ClientRecordTab from './ClientRecordTab';
+import { getClientValue, type ClientValue } from '@/app/actions/businessStats';
 
 const tabs = [
   { id: 'profile', label: 'Profilo', icon: User },
@@ -55,6 +56,13 @@ export default function ClientDetailPage() {
     () => clients.find(c => c.id === params.id),
     [clients, params.id]
   );
+
+  // Valore reale del cliente (incassi cassa + pacchetti, visite dagli appuntamenti)
+  const [cval, setCval] = useState<ClientValue | null>(null);
+  useEffect(() => {
+    if (!params.id) return;
+    getClientValue(String(params.id)).then(setCval).catch(() => {});
+  }, [params.id]);
 
   // Appuntamenti reali del cliente (match per id o per nome, tolleranti all'ordine)
   const clientAppointments = useMemo(() => {
@@ -235,20 +243,21 @@ export default function ClientDetailPage() {
           {/* KPI Row */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-8">
             <div className="bg-bg-tertiary/40 border border-border/40 rounded-2xl p-4 text-center hover:bg-bg-tertiary/80 transition-colors">
-              <p className="text-xl font-display font-bold text-text-primary mb-0.5">{formatCurrency(client.totalSpent)}</p>
+              <p className="text-xl font-display font-bold text-text-primary mb-0.5">{formatCurrency(cval ? cval.totalSpent : client.totalSpent)}</p>
               <p className="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Spesa Totale</p>
+              {cval && cval.monthlyAvg > 0 && <p className="text-[10px] text-text-muted mt-0.5">≈ {formatCurrency(cval.monthlyAvg)}/mese</p>}
             </div>
             <div className="bg-bg-tertiary/40 border border-border/40 rounded-2xl p-4 text-center hover:bg-bg-tertiary/80 transition-colors">
-              <p className="text-xl font-display font-bold text-text-primary mb-0.5">{client.visitCount}</p>
+              <p className="text-xl font-display font-bold text-text-primary mb-0.5">{cval ? cval.visits : client.visitCount}</p>
               <p className="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Visite</p>
             </div>
             <div className="bg-bg-tertiary/40 border border-border/40 rounded-2xl p-4 text-center hover:bg-bg-tertiary/80 transition-colors">
-              <p className="text-xl font-display font-bold text-text-primary mb-0.5">{formatCurrency(client.avgTicket)}</p>
+              <p className="text-xl font-display font-bold text-text-primary mb-0.5">{formatCurrency(cval ? cval.avgTicket : client.avgTicket)}</p>
               <p className="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Scontrino Medio</p>
             </div>
             <div className="bg-bg-tertiary/40 border border-border/40 rounded-2xl p-4 text-center hover:bg-bg-tertiary/80 transition-colors">
-              <p className="text-xl font-display font-bold text-accent mb-0.5">{client.loyaltyPoints}</p>
-              <p className="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Punti Fedeltà</p>
+              <p className="text-xl font-display font-bold text-text-primary mb-0.5">{cval && cval.avgDaysBetweenVisits ? `${cval.avgDaysBetweenVisits}g` : '—'}</p>
+              <p className="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Torna ogni</p>
             </div>
             <div className="bg-bg-tertiary/40 border border-border/40 rounded-2xl p-4 text-center hover:bg-bg-tertiary/80 transition-colors">
               <p className={`text-xl font-display font-bold mb-0.5 ${

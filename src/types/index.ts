@@ -127,6 +127,7 @@ export interface Operator {
   commission: number; // percentage
   hireDate: string;
   isResource?: boolean; // true = cabina/macchinario prenotabile senza operatrice
+  monthlyCost?: number; // costo mensile lordo azienda (per il costo orario)
 }
 
 export interface OperatorWeekSchedule {

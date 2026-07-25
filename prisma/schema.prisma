@@ -117,6 +117,7 @@ model Operator {
   commission      Float    @default(0)
   hireDate        String
   isResource      Boolean  @default(false) // true = cabina/macchinario prenotabile senza operatrice
+  monthlyCost     Float    @default(0)     // costo mensile lordo azienda (per calcolare il costo orario)
 
   appointments    Appointment[]
 
@@ -415,7 +416,7 @@ model InaugurationLead {
   id           String  @id @default(cuid())
   firstName    String
   lastName     String
-  phone        String
+  phone        String  @unique // anti-doppione: una sola iscrizione per numero
   email        String
   treatment    String  // 'lampada' | 'pressoterapia' | 'body_sculpting'
   status       String  @default("pending") // 'pending' | 'confirmed'

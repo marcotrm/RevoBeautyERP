@@ -35,6 +35,27 @@ export async function POST(request: Request) {
   const now = new Date().toISOString();
   const token = generateConfirmToken();
 
+  // Anti-doppione: se questa persona (stesso telefono o email) si è già iscritta,
+  // non creiamo un secondo lead. Capita spesso: doppio invio del form o secondo tentativo.
+  try {
+    const normPhone = (p: string) => (p || '').replace(/[^\d]/g, '').slice(-9);
+    const emailLc = (email || '').toLowerCase();
+    const existing = await prisma.inaugurationLead.findMany({ select: { id: true, phone: true, email: true } });
+    const dup = existing.find(l =>
+      (normPhone(l.phone) && normPhone(l.phone) === normPhone(phone)) ||
+      (l.email && emailLc && l.email.toLowerCase() === emailLc)
+    );
+    if (dup) {
+      return Response.json(
+        { success: true, id: dup.id, duplicate: true, message: 'Sei già iscritta: ti abbiamo già inviato il coupon.' },
+        { status: 200, headers }
+      );
+    }
+  } catch (err) {
+    console.error('[inaugurazione/lead] dedup check failed', err);
+    // in caso di errore nel controllo proseguiamo comunque con la creazione
+  }
+
   let lead;
   try {
     lead = await prisma.inaugurationLead.create({
