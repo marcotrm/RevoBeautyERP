@@ -154,7 +154,7 @@ export default function TodoPage() {
                 <option value="Francesco">Francesco</option>
               </optgroup>
               <optgroup label="Estetiste">
-                {operators.map(op => <option key={op.id} value={`${op.firstName} ${op.lastName}`}>{op.firstName} {op.lastName}</option>)}
+                {operators.filter(o=>!o.isResource).map(op => <option key={op.id} value={`${op.firstName} ${op.lastName}`}>{op.firstName} {op.lastName}</option>)}
               </optgroup>
             </select>
           </div>
@@ -221,7 +221,7 @@ export default function TodoPage() {
                               <option value="Francesco">Francesco</option>
                             </optgroup>
                             <optgroup label="Estetiste">
-                              {operators.map(op => <option key={op.id} value={`${op.firstName} ${op.lastName}`}>{op.firstName} {op.lastName}</option>)}
+                              {operators.filter(o=>!o.isResource).map(op => <option key={op.id} value={`${op.firstName} ${op.lastName}`}>{op.firstName} {op.lastName}</option>)}
                             </optgroup>
                           </select>
                         </div>

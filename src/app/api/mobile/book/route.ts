@@ -29,8 +29,9 @@ export async function POST(request: Request) {
     ? (treatment.priceMale ?? treatment.priceFemale ?? treatment.price)
     : (treatment.priceFemale ?? treatment.price);
 
-  // Assegna un'operatrice libera (quella richiesta se possibile)
-  const operators = await prisma.operator.findMany({ where: { isActive: true } });
+  // Assegna un'operatrice libera (quella richiesta se possibile).
+  // Le cabine/risorse (isResource) non vengono mai assegnate automaticamente.
+  const operators = await prisma.operator.findMany({ where: { isActive: true, isResource: false } });
   const preferredId = b.operatorId ? String(b.operatorId) : null;
   const ordered = preferredId ? [...operators].sort((a) => (a.id === preferredId ? -1 : 1)) : operators;
   let chosen: typeof operators[number] | null = null;

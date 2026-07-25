@@ -82,6 +82,7 @@ model Operator {
   email           String?
   commission      Float    @default(0)
   hireDate        String
+  isResource      Boolean  @default(false) // true = cabina/macchinario prenotabile senza operatrice
 
   appointments    Appointment[]
 

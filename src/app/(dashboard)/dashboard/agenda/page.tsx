@@ -13,7 +13,7 @@ import { Appointment, AppointmentService, AgendaBlock, Operator, Treatment } fro
 import {
   ChevronLeft, ChevronRight, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
-  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone
+  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone, Sun
 } from 'lucide-react';
 import {
   formatDateLong, timeToMinutes, getStatusLabel,
@@ -50,6 +50,7 @@ function fmtDate(d: Date) {
 // Verifica se un'operatrice lavora in una certa data, in base al turno settimanale
 // (schedule keyed 1=Lun .. 6=Sab; domenica salone chiuso).
 function operatorWorksOn(op: Operator, date: Date): boolean {
+  if (op.isResource) return true; // le cabine/risorse sono sempre disponibili
   const dow = date.getDay(); // 0=Domenica .. 6=Sabato
   if (dow === 0) return false;
   const day = op.schedule?.[dow];
@@ -123,6 +124,7 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
 }
 
 function OperatorColumnHeader({ operator, off }: { operator: Operator; off?: boolean }) {
+  const isResource = !!operator.isResource;
   return (
     <div
       className="sticky top-0 z-20 border-b-2 px-3 py-3 flex items-center gap-2.5"
@@ -132,13 +134,17 @@ function OperatorColumnHeader({ operator, off }: { operator: Operator; off?: boo
       }}
     >
       <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ${off ? 'opacity-40 grayscale' : 'shadow-sm'}`} style={{ backgroundColor: operator.color }}>
-        {getInitials(operator.firstName, operator.lastName)}
+        {isResource ? <Sun className="w-4 h-4" /> : getInitials(operator.firstName, operator.lastName)}
       </div>
       <div className="min-w-0 flex-1">
         <p className={`text-sm font-semibold truncate ${off ? 'text-text-muted' : 'text-text-primary'}`}>{operator.firstName}</p>
-        <p className="text-[11px] text-text-muted truncate">{operator.lastName}</p>
+        <p className="text-[11px] text-text-muted truncate">{isResource ? 'Cabina · senza operatrice' : operator.lastName}</p>
       </div>
-      {off && (
+      {isResource ? (
+        <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-accent/10 text-accent text-[10px] font-bold border border-accent/20 flex-shrink-0">
+          Cabina
+        </span>
+      ) : off && (
         <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400 text-[10px] font-bold border border-amber-300/50 flex-shrink-0">
           <Moon className="w-3 h-3" /> RIPOSO
         </span>
@@ -805,7 +811,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       } else {
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
         setSelectedServices([]); setTreatmentQuery('');
-        const firstWorking = operators.find(o => operatorWorksOn(o, selectedDate)) || operators[0];
+        const firstWorking = operators.find(o => !o.isResource && operatorWorksOn(o, selectedDate)) || operators.find(o => !o.isResource) || operators[0];
         setSelectedOperatorId(firstWorking?.id || '');
         setStartTime('09:00'); setApptDate(fmtDate(selectedDate)); setNotes('');
       }
@@ -1156,18 +1162,20 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                 </div>
               )}
             </div>
-            {/* Operator */}
+            {/* Operator / Cabina */}
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1.5">Operatrice *</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Operatrice / Cabina *</label>
               <div className="grid grid-cols-5 gap-2">
-                {operators.map(op => {
+                {[...operators].sort((a, b) => (a.isResource ? 1 : 0) - (b.isResource ? 1 : 0)).map(op => {
                   const off = !operatorWorksOn(op, apptDateObj);
                   return (
                   <button key={op.id} type="button" disabled={off} onClick={() => !off && setSelectedOperatorId(op.id)}
-                    title={off ? 'A riposo in questa data' : ''}
+                    title={op.isResource ? 'Cabina — nessuna operatrice richiesta' : (off ? 'A riposo in questa data' : '')}
                     className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all ${off ? 'opacity-40 cursor-not-allowed border-border' : selectedOperatorId === op.id ? 'border-accent bg-accent/10' : 'border-border hover:border-border-light'}`}>
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: op.color }}>{getInitials(op.firstName, op.lastName)}</div>
-                    <span className="text-[11px] text-text-primary truncate w-full text-center">{op.firstName}{off ? ' (riposo)' : ''}</span>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: op.color }}>
+                      {op.isResource ? <Sun className="w-4 h-4" /> : getInitials(op.firstName, op.lastName)}
+                    </div>
+                    <span className="text-[11px] text-text-primary truncate w-full text-center">{op.firstName}{off && !op.isResource ? ' (riposo)' : ''}</span>
                   </button>
                   );
                 })}
@@ -1702,7 +1710,10 @@ export default function AgendaPage() {
   };
 
   const visibleOperators = useMemo(
-    () => operators.filter(op => selectedOperatorIds.includes(op.id)),
+    () => operators
+      .filter(op => selectedOperatorIds.includes(op.id))
+      // le cabine/risorse vanno sempre in fondo, dopo le operatrici
+      .sort((a, b) => (a.isResource ? 1 : 0) - (b.isResource ? 1 : 0)),
     [selectedOperatorIds, operators]
   );
 

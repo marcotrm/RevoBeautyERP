@@ -8,7 +8,8 @@ import { useTimeClockStore } from '@/stores/useTimeClockStore';
 import { useOperatorStore } from '@/stores/useOperatorStore';
 
 export default function KioskPage() {
-  const { operators: MOCK_STAFF, fetchOperators } = useOperatorStore();
+  const { operators: allOps, fetchOperators } = useOperatorStore();
+  const MOCK_STAFF = allOps.filter(o => !o.isResource); // le cabine non timbrano
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedStaff, setSelectedStaff] = useState<typeof MOCK_STAFF[0] | null>(null);
   const [showSuccess, setShowSuccess] = useState<string | null>(null);

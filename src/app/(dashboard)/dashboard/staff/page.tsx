@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Clock, Plus, Euro, X, CheckCircle, Trash2, ChevronLeft, ChevronRight, Smartphone,
-  Sparkles, Wand2, AlertTriangle,
+  Sparkles, Wand2, AlertTriangle, Sun,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTimeClockStore } from '@/stores/useTimeClockStore';
@@ -855,14 +855,35 @@ export default function StaffPage() {
   const { operators: staffList, addOperator, updateOperator, deleteOperator, fetchOperators } = useOperatorStore();
   const [activeTab, setActiveTab] = useState<'overview' | 'shifts'>('overview');
   const { punches } = useTimeClockStore();
+  const [newResourceName, setNewResourceName] = useState('');
 
   useEffect(() => {
     fetchOperators();
   }, [fetchOperators]);
 
+  // Le cabine/risorse (isResource) non sono persone: fuori da staff, turni e commissioni.
+  const people = staffList.filter(o => !o.isResource);
+  const resources = staffList.filter(o => o.isResource);
+
+  const RESOURCE_COLORS = ['#F59E0B', '#14B8A6', '#6366F1', '#EC4899', '#22C55E', '#EF4444'];
+  const handleAddResource = () => {
+    const name = newResourceName.trim();
+    if (!name) return;
+    const color = RESOURCE_COLORS[resources.length % RESOURCE_COLORS.length];
+    addOperator({
+      id: `res-${Date.now()}`,
+      firstName: name, lastName: '',
+      email: '', phone: '', specializations: [], commission: 0,
+      color, avatar: '', isActive: true, isResource: true, locationIds: ['loc1'],
+      hireDate: new Date().toISOString().slice(0, 10),
+      contractHours: 0, schedule: {},
+    } as Operator);
+    setNewResourceName('');
+  };
+
   // Commissioni derivate dalle operatrici reali. Il fatturato per operatrice non è
   // ancora tracciato dalle vendite, quindi resta a 0 finché non ci sono dati reali.
-  const commissions = staffList.map((op) => ({
+  const commissions = people.map((op) => ({
     name: `${op.firstName} ${op.lastName}`.trim(),
     revenue: 0,
     commission: 0,
@@ -890,7 +911,7 @@ export default function StaffPage() {
         <>
           {/* Staff cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            {staffList.map(op => (
+            {people.map(op => (
               <div key={op.id} onClick={() => setDetailOpId(op.id)} className="bg-bg-secondary border border-border rounded-2xl p-5 hover:border-accent/40 hover:shadow-lg transition-all cursor-pointer group text-center relative">
                 <button onClick={(e) => {
                   e.stopPropagation();
@@ -907,6 +928,52 @@ export default function StaffPage() {
                 </p>
               </div>
             ))}
+          </div>
+
+          {/* Cabine e Risorse (prenotabili in agenda senza operatrice) */}
+          <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+              <Sun className="w-4 h-4 text-accent" />
+              <h3 className="text-base font-display font-semibold text-text-primary">Cabine e Risorse</h3>
+              <span className="text-xs text-text-muted">— postazioni prenotabili in agenda senza operatrice (es. Cabina Lampade)</span>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="flex items-center gap-2 max-w-md">
+                <input
+                  type="text"
+                  value={newResourceName}
+                  onChange={e => setNewResourceName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAddResource()}
+                  placeholder="Nome cabina/risorsa (es. Cabina Lampade)"
+                  className="flex-1 px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all"
+                />
+                <button onClick={handleAddResource} disabled={!newResourceName.trim()}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium disabled:opacity-50 hover:scale-105 transition-all">
+                  <Plus className="w-4 h-4" /> Aggiungi
+                </button>
+              </div>
+              {resources.length === 0 ? (
+                <p className="text-sm text-text-muted">Nessuna cabina. Aggiungine una per prenotarla in agenda senza assegnare un'estetista.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {resources.map(res => (
+                    <div key={res.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-bg-tertiary/40 group">
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: res.color }}>
+                        <Sun className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-text-primary truncate">{res.firstName}</p>
+                        <p className="text-[11px] text-text-muted">Cabina · senza operatrice</p>
+                      </div>
+                      <button onClick={() => { if (window.confirm(`Eliminare "${res.firstName}"?`)) deleteOperator(res.id); }}
+                        className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all flex-shrink-0">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Commissions */}
@@ -960,7 +1027,7 @@ export default function StaffPage() {
       )}
 
       {activeTab === 'shifts' && (
-        <WeeklyShiftPlanner operators={staffList} />
+        <WeeklyShiftPlanner operators={people} />
       )}
 
       <AnimatePresence>

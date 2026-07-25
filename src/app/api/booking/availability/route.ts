@@ -35,7 +35,7 @@ export async function GET(request: Request) {
         : (treatment.durationFemale ?? treatment.duration))
     : 60;
 
-  const operators = await prisma.operator.findMany({ where: { isActive: true } });
+  const operators = await prisma.operator.findMany({ where: { isActive: true, isResource: false } });
 
   // slot -> prima operatrice libera
   const slotToOperator = new Map<string, { operatorId: string; operatorName: string }>();

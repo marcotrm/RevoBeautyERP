@@ -17,6 +17,7 @@ export async function POST(request: Request) {
   const operators = await prisma.operator.findMany({
     where: {
       isActive: true,
+      isResource: false,
       ...(body.operatorId ? { id: body.operatorId } : {}),
     },
     select: { id: true, firstName: true, lastName: true },

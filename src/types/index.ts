@@ -126,6 +126,7 @@ export interface Operator {
   email?: string;
   commission: number; // percentage
   hireDate: string;
+  isResource?: boolean; // true = cabina/macchinario prenotabile senza operatrice
 }
 
 export interface OperatorWeekSchedule {
