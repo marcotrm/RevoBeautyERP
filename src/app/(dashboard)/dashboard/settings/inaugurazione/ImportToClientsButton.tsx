@@ -13,8 +13,11 @@ export default function ImportToClientsButton() {
     startTransition(async () => {
       const res = await importInaugurationLeadsToClients();
       if (res.ok) {
-        setResult(res.created > 0 ? `${res.created} nuovi clienti aggiunti` : 'Già tutti in anagrafica');
-        setTimeout(() => setResult(null), 4000);
+        const parts: string[] = [];
+        if (res.created > 0) parts.push(`${res.created} nuovi clienti`);
+        if (res.packages > 0) parts.push(`${res.packages} pacchetti omaggio`);
+        setResult(parts.length ? parts.join(' + ') + ' aggiunti' : 'Già tutti in anagrafica');
+        setTimeout(() => setResult(null), 5000);
       }
     });
   };

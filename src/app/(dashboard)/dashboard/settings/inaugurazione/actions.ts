@@ -7,37 +7,85 @@ const TREATMENT_LABELS: Record<string, string> = {
   lampada: 'Lampada', pressoterapia: 'Pressoterapia', body_sculpting: 'Body Sculpting',
 };
 
-// Copia i contatti dell'inaugurazione nell'anagrafica Clienti (senza duplicati per telefono/email).
+// Pacchetto OMAGGIO inaugurazione per ciascun trattamento: gratis (0€), pronto da "Scala".
+const FREE_PACKAGES: Record<string, { name: string; color: string; sessions: number }> = {
+  lampada: { name: 'Lampada — Omaggio Inaugurazione', color: '#F59E0B', sessions: 1 },
+  pressoterapia: { name: 'Pressoterapia — Omaggio Inaugurazione', color: '#14B8A6', sessions: 1 },
+  body_sculpting: { name: 'Body Sculpting — Omaggio Inaugurazione', color: '#A855F7', sessions: 1 },
+};
+
+const normPhone = (p: string) => (p || '').replace(/[^\d]/g, '').slice(-9);
+
+// Copia i contatti dell'inaugurazione nell'anagrafica Clienti (senza duplicati per telefono/email)
+// e assegna a ciascuno il pacchetto OMAGGIO del trattamento scelto (gratis, già pronto da scalare).
 export async function importInaugurationLeadsToClients() {
   const leads = await prisma.inaugurationLead.findMany();
   const clients = await prisma.client.findMany();
-  const normPhone = (p: string) => (p || '').replace(/[^\d]/g, '').slice(-9);
-  const phones = new Set(clients.map(c => normPhone(c.phone)).filter(Boolean));
-  const emails = new Set(clients.map(c => (c.email || '').toLowerCase()).filter(Boolean));
+  const today = new Date().toISOString().split('T')[0];
+  const expiry = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
   let created = 0;
+  let packages = 0;
+
   for (const l of leads) {
     const p = normPhone(l.phone);
     const e = (l.email || '').toLowerCase();
-    if ((p && phones.has(p)) || (e && emails.has(e))) continue; // già cliente
-    await prisma.client.create({
-      data: {
-        firstName: l.firstName || 'Cliente',
-        lastName: l.lastName || '',
-        email: l.email || null,
-        phone: l.phone || '',
-        notes: `Da inaugurazione — interessata a ${TREATMENT_LABELS[l.treatment] || l.treatment}`,
-        tags: ['Inaugurazione'],
-        marketingConsent: true,
-        createdAt: new Date().toISOString().split('T')[0],
-      },
-    });
-    if (p) phones.add(p);
-    if (e) emails.add(e);
-    created++;
+
+    // Trova il cliente esistente (per telefono o email) oppure crealo.
+    let client = clients.find(c =>
+      (p && normPhone(c.phone) === p) || (e && (c.email || '').toLowerCase() === e)
+    );
+    if (!client) {
+      client = await prisma.client.create({
+        data: {
+          firstName: l.firstName || 'Cliente',
+          lastName: l.lastName || '',
+          email: l.email || null,
+          phone: l.phone || '',
+          notes: `Da inaugurazione — interessata a ${TREATMENT_LABELS[l.treatment] || l.treatment}`,
+          tags: ['Inaugurazione'],
+          marketingConsent: true,
+          createdAt: today,
+        },
+      });
+      clients.push(client);
+      created++;
+    }
+
+    // Assegna il pacchetto omaggio del trattamento scelto (una sola volta per cliente/pacchetto).
+    const cfg = FREE_PACKAGES[l.treatment];
+    if (cfg) {
+      const already = await prisma.clientPackage.findFirst({
+        where: { clientId: client.id, packageName: cfg.name },
+      });
+      if (!already) {
+        await prisma.clientPackage.create({
+          data: {
+            clientName: `${client.firstName} ${client.lastName}`.trim(),
+            packageName: cfg.name,
+            packageColor: cfg.color,
+            totalSessions: cfg.sessions,
+            usedSessions: 0,
+            pricePaid: 0,
+            totalPaid: 0,
+            remainingBalance: 0,
+            paymentPlan: 'full',
+            purchaseDate: today,
+            expiryDate: expiry,
+            status: 'active',
+            history: [],
+            payments: [],
+            clientId: client.id,
+          },
+        });
+        packages++;
+      }
+    }
   }
+
   revalidatePath('/dashboard/clients');
-  return { ok: true, created, total: leads.length };
+  revalidatePath('/dashboard/packages');
+  return { ok: true, created, packages, total: leads.length };
 }
 
 // Elimina un contatto dell'inaugurazione.
