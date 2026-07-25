@@ -5,7 +5,7 @@ import { persist } from 'zustand/middleware';
 import { User } from '@/types';
 import { mockCurrentUser } from '@/lib/mock-data';
 import { useRolesStore } from '@/stores/useRolesStore';
-import { authenticate } from '@/app/actions/accounts';
+import { authenticate, getAccountById } from '@/app/actions/accounts';
 
 interface AuthStore {
   user: User | null;
@@ -16,6 +16,7 @@ interface AuthStore {
   logout: () => void;
   setCurrentLocation: (locationId: string) => void;
   hasPermission: (permission: string) => boolean;
+  refreshSession: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -69,6 +70,25 @@ export const useAuthStore = create<AuthStore>()(
         const role = useRolesStore.getState().roles.find(r => r.id === user.role);
         if (!role) return false;
         return !!role.permissions[permission];
+      },
+
+      // Riallinea la sessione all'account nel DB: aggiorna il ruolo se cambiato,
+      // e disconnette se l'account è stato disattivato o eliminato.
+      refreshSession: async () => {
+        const { user } = get();
+        if (!user) return;
+        try {
+          const account = await getAccountById(user.id);
+          if (!account || !account.active) {
+            set({ user: null, isAuthenticated: false });
+            return;
+          }
+          if (account.roleId !== user.role || account.firstName !== user.firstName || account.lastName !== user.lastName) {
+            set({ user: { ...user, role: account.roleId, firstName: account.firstName, lastName: account.lastName } });
+          }
+        } catch (e) {
+          console.error('refreshSession failed', e);
+        }
       },
     }),
     {

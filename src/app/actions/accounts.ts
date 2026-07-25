@@ -90,3 +90,9 @@ export async function authenticate(email: string, password: string): Promise<Ges
   if (!acc || !acc.active || acc.password !== password) return null;
   return acc as GestionaleAccount;
 }
+
+/** Ritorna un account per id (per aggiornare ruolo/stato della sessione corrente). */
+export async function getAccountById(id: string): Promise<GestionaleAccount | null> {
+  const acc = await prisma.appUser.findUnique({ where: { id } });
+  return (acc as GestionaleAccount) ?? null;
+}

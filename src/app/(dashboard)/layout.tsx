@@ -13,6 +13,7 @@ import { permissionForPath, roleHasPermission } from '@/lib/permissions';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { sidebarCollapsed } = useUIStore();
   const { isAuthenticated, user, logout } = useAuthStore();
+  const refreshSession = useAuthStore(s => s.refreshSession);
   const roles = useRolesStore(s => s.roles);
   const rolesLoaded = useRolesStore(s => s.loaded);
   const fetchRoles = useRolesStore(s => s.fetchRoles);
@@ -34,10 +35,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [isHydrated, isAuthenticated, router]);
 
-  // Carica i ruoli/permessi dal DB così valgono su tutti i dispositivi
+  // Ad ogni caricamento della dashboard riallinea permessi e ruolo con il DB,
+  // così i cambi fatti da un admin arrivano al semplice refresh (non solo al re-login).
   useEffect(() => {
-    if (isHydrated && isAuthenticated && !rolesLoaded) fetchRoles();
-  }, [isHydrated, isAuthenticated, rolesLoaded, fetchRoles]);
+    if (isHydrated && isAuthenticated) {
+      fetchRoles();
+      refreshSession();
+    }
+  }, [isHydrated, isAuthenticated, fetchRoles, refreshSession]);
 
   if (!isHydrated || !isAuthenticated) return null;
 
