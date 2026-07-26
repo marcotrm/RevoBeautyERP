@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { treatmentLabel, TREATMENTS } from '@/lib/inaugurazione';
-import { PartyPopper, CheckCircle2, Clock, Users, Mail, Phone, RefreshCw } from 'lucide-react';
+import { PartyPopper, CheckCircle2, Clock, Users, Mail, Phone, RefreshCw, CalendarCheck, CalendarX, Sparkles } from 'lucide-react';
 import DeleteLeadButton from './DeleteLeadButton';
 import ImportToClientsButton from './ImportToClientsButton';
 
@@ -19,7 +19,12 @@ function formatDate(iso: string | null): string {
   });
 }
 
-type Filter = 'all' | 'pending' | 'confirmed';
+type Filter = 'all' | 'pending' | 'confirmed' | 'booked' | 'tobook' | 'came';
+
+// Stato prenotazione di un contatto inaugurazione
+type BookState = { kind: 'came' | 'booked' | 'none'; when?: string };
+
+const normPhone = (p: string | null | undefined) => (p || '').replace(/[^\d]/g, '').slice(-9);
 
 export default async function InaugurazionePage({
   searchParams,
@@ -28,29 +33,71 @@ export default async function InaugurazionePage({
 }) {
   const sp = await searchParams;
   const raw = sp?.stato;
-  const filter: Filter = raw === 'pending' || raw === 'confirmed' ? raw : 'all';
+  const filter: Filter = (['pending', 'confirmed', 'booked', 'tobook', 'came'] as const).includes(raw as never)
+    ? (raw as Filter) : 'all';
 
-  const leads = await prisma.inaugurationLead.findMany({
-    where: filter === 'all' ? {} : { status: filter },
-    orderBy: { createdAt: 'desc' },
+  const [allLeads, clients, appts, gifts] = await Promise.all([
+    prisma.inaugurationLead.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.client.findMany({ select: { id: true, phone: true, email: true } }),
+    prisma.appointment.findMany({
+      where: { status: { not: 'cancelled' } },
+      select: { clientId: true, date: true, startTime: true },
+      orderBy: { date: 'asc' },
+    }),
+    prisma.clientPackage.findMany({ where: { pricePaid: 0 }, select: { clientId: true, usedSessions: true } }),
+  ]);
+
+  // Appuntamenti e omaggi usati, per cliente
+  const apptByClient = new Map<string, { date: string; startTime: string }>();
+  for (const a of appts) if (a.clientId && !apptByClient.has(a.clientId)) apptByClient.set(a.clientId, { date: a.date, startTime: a.startTime });
+  const cameClients = new Set(gifts.filter(g => g.usedSessions >= 1 && g.clientId).map(g => g.clientId as string));
+
+  // Stato prenotazione per ogni contatto (abbinato al cliente per telefono/email)
+  const bookState = new Map<string, BookState>();
+  for (const l of allLeads) {
+    const ph = normPhone(l.phone);
+    const em = (l.email || '').toLowerCase();
+    const c = clients.find(x => (ph && normPhone(x.phone) === ph) || (em && (x.email || '').toLowerCase() === em));
+    if (!c) { bookState.set(l.id, { kind: 'none' }); continue; }
+    if (cameClients.has(c.id)) { bookState.set(l.id, { kind: 'came' }); continue; }
+    const ap = apptByClient.get(c.id);
+    bookState.set(l.id, ap ? { kind: 'booked', when: `${ap.date} ${ap.startTime}` } : { kind: 'none' });
+  }
+
+  const isBooked = (id: string) => {
+    const b = bookState.get(id)?.kind;
+    return b === 'booked' || b === 'came';
+  };
+
+  const leads = allLeads.filter(l => {
+    if (filter === 'all') return true;
+    if (filter === 'pending' || filter === 'confirmed') return l.status === filter;
+    if (filter === 'booked') return isBooked(l.id);
+    if (filter === 'came') return bookState.get(l.id)?.kind === 'came';
+    return !isBooked(l.id); // tobook
   });
 
-  const [total, confirmed, pending] = await Promise.all([
-    prisma.inaugurationLead.count(),
-    prisma.inaugurationLead.count({ where: { status: 'confirmed' } }),
-    prisma.inaugurationLead.count({ where: { status: 'pending' } }),
-  ]);
+  const total = allLeads.length;
+  const confirmed = allLeads.filter(l => l.status === 'confirmed').length;
+  const pending = allLeads.filter(l => l.status === 'pending').length;
+  const bookedCount = allLeads.filter(l => isBooked(l.id)).length;
+  const cameCount = allLeads.filter(l => bookState.get(l.id)?.kind === 'came').length;
+  const toBookCount = total - bookedCount;
 
   const stats = [
     { label: 'Contatti totali', value: total, icon: Users, tone: 'text-accent' },
-    { label: 'Confermati', value: confirmed, icon: CheckCircle2, tone: 'text-success' },
-    { label: 'In attesa', value: pending, icon: Clock, tone: 'text-warning' },
+    { label: 'Hanno prenotato', value: bookedCount, icon: CalendarCheck, tone: 'text-success' },
+    { label: 'Da contattare', value: toBookCount, icon: CalendarX, tone: 'text-warning' },
+    { label: 'Già venute', value: cameCount, icon: Sparkles, tone: 'text-accent' },
   ];
 
-  const tabs: { id: Filter; label: string }[] = [
-    { id: 'all', label: 'Tutti' },
-    { id: 'pending', label: 'Non confermati' },
-    { id: 'confirmed', label: 'Confermati' },
+  const tabs: { id: Filter; label: string; count: number }[] = [
+    { id: 'all', label: 'Tutti', count: total },
+    { id: 'booked', label: 'Hanno prenotato', count: bookedCount },
+    { id: 'tobook', label: 'Da contattare', count: toBookCount },
+    { id: 'came', label: 'Già venute', count: cameCount },
+    { id: 'pending', label: 'Non confermati', count: pending },
+    { id: 'confirmed', label: 'Confermati', count: confirmed },
   ];
 
   return (
@@ -97,7 +144,7 @@ export default async function InaugurazionePage({
       </div>
 
       {/* Filtri */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         {tabs.map((t) => {
           const active = t.id === filter;
           const href = t.id === 'all'
@@ -114,6 +161,7 @@ export default async function InaugurazionePage({
               }`}
             >
               {t.label}
+              <span className={`ml-2 text-xs font-bold px-1.5 py-0.5 rounded-full ${active ? 'bg-accent/20' : 'bg-bg-tertiary text-text-muted'}`}>{t.count}</span>
             </Link>
           );
         })}
@@ -139,6 +187,7 @@ export default async function InaugurazionePage({
                   <th className="px-4 py-3 font-medium">Contatto</th>
                   <th className="px-4 py-3 font-medium">Recapiti</th>
                   <th className="px-4 py-3 font-medium">Trattamento</th>
+                  <th className="px-4 py-3 font-medium">Prenotazione</th>
                   <th className="px-4 py-3 font-medium">Stato</th>
                   <th className="px-4 py-3 font-medium whitespace-nowrap">Data richiesta</th>
                   <th className="px-4 py-3 font-medium text-right">Azioni</th>
@@ -166,6 +215,28 @@ export default async function InaugurazionePage({
                       <span className="inline-block px-2.5 py-1 rounded-lg bg-bg-tertiary text-text-primary text-xs font-medium">
                         {treatmentLabel(lead.treatment)}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const b = bookState.get(lead.id) || { kind: 'none' as const };
+                        if (b.kind === 'came') return (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent/10 text-accent text-xs font-medium whitespace-nowrap">
+                            <Sparkles className="w-3.5 h-3.5" /> Già venuta
+                          </span>
+                        );
+                        if (b.kind === 'booked') return (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/10 text-success text-xs font-medium whitespace-nowrap"
+                            title={b.when ? `Appuntamento: ${b.when}` : undefined}>
+                            <CalendarCheck className="w-3.5 h-3.5" />
+                            {b.when ? b.when.slice(8, 10) + '/' + b.when.slice(5, 7) + ' ' + b.when.slice(11, 16) : 'Prenotato'}
+                          </span>
+                        );
+                        return (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warning/10 text-warning text-xs font-medium whitespace-nowrap">
+                            <CalendarX className="w-3.5 h-3.5" /> Da contattare
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3">
                       {lead.status === 'confirmed' ? (
