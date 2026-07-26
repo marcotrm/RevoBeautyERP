@@ -2,11 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Euro, Users, Calendar, Package, Gift, UserCog, Loader2, Info, BarChart3 } from 'lucide-react';
+import { Euro, Users, Calendar, Package, Gift, UserCog, Loader2, Info, BarChart3, Boxes } from 'lucide-react';
 import { getBusinessKPIs, type KpiGroup, type Kpi } from '@/app/actions/businessStats';
 
 const ICONS: Record<string, React.ElementType> = {
-  euro: Euro, users: Users, calendar: Calendar, package: Package, gift: Gift, staff: UserCog,
+  euro: Euro, users: Users, calendar: Calendar, package: Package, gift: Gift, staff: UserCog, box: Boxes,
 };
 
 const TONE: Record<string, string> = {
