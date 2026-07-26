@@ -14,6 +14,7 @@ import { CATEGORY_LABELS } from '@/lib/cashCategories';
 import { withdrawCassa } from '@/app/actions/cassaforte';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { formatCurrency } from '@/lib/helpers';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 
 const IN_CATS = ['fondo', 'entrata', 'altro'];
 const OUT_CATS = ['spesa', 'prelievo', 'altro'];
@@ -41,6 +42,9 @@ export default function CassaContantiPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Saldo e movimenti sempre aggiornati (anche se incassa un'altra postazione)
+  useAutoRefresh(load, 20000);
 
   const flash = (kind: 'ok' | 'err', text: string) => {
     setMsg({ kind, text });

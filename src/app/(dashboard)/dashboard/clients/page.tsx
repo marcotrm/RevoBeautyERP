@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useClientStore } from '@/stores/useClientStore';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { Client } from '@/types';
 import Link from 'next/link';
 import {
@@ -105,6 +106,9 @@ export default function ClientsPage() {
   useEffect(() => {
     fetchClients();
   }, [fetchClients]);
+
+  // I nuovi contatti (es. iscrizioni dal sito) compaiono da soli, senza ricaricare
+  useAutoRefresh(fetchClients, 20000);
 
   // Selezione singola e di massa
   const [selected, setSelected] = useState<Set<string>>(new Set());

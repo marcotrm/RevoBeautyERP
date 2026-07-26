@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useAgendaStore } from '@/stores/useAgendaStore';
 import { useOperatorStore } from '@/stores/useOperatorStore';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { usePackageStore } from '@/stores/usePackageStore';
@@ -1658,6 +1659,13 @@ export default function AgendaPage() {
     fetchTreatments();
     fetchPackages(); // pacchetti cliente: servono per mostrare l'omaggio inaugurazione nel modale
   }, [fetchAppointments, fetchBlocks, fetchOperators, fetchClients, fetchTreatments, fetchPackages]);
+
+  // Agenda sempre aggiornata: nuovi appuntamenti e nuovi clienti compaiono da soli
+  useAutoRefresh(useCallback(() => {
+    fetchAppointments();
+    fetchBlocks();
+    fetchClients();
+  }, [fetchAppointments, fetchBlocks, fetchClients]), 20000);
 
   // Mantiene il filtro operatrici allineato alle operatrici esistenti:
   // rimuove gli id di operatrici eliminate e mostra automaticamente le nuove.
