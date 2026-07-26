@@ -21,7 +21,7 @@ export interface AgentOperator {
 }
 
 export interface AgentConfig {
-  openDays: boolean[]; // len 6, Lun..Sab
+  openDays: boolean[]; // len 7, Lun..Dom
   openTime: string; // "09:00"
   closeTime: string; // "19:00"
   minCoverage: number; // operatrici minime in servizio per giorno aperto
@@ -190,7 +190,7 @@ export function generateShifts(config: AgentConfig, operators: AgentOperator[]):
   if (closeMin <= openMin) warnings.push('⚠ Orario di chiusura non valido: turni non generati.');
 
   const openDayIdx: number[] = [];
-  for (let d = 0; d < 6; d++) if (config.openDays[d] && !closedDays.has(d)) openDayIdx.push(d);
+  for (let d = 0; d < 7; d++) if (config.openDays[d] && !closedDays.has(d)) openDayIdx.push(d);
   if (openDayIdx.length === 0) warnings.push('⚠ Nessun giorno di apertura selezionato.');
 
   const rest = (): ShiftEntry => ({ isWorking: false, startTime: '', endTime: '' });
@@ -200,7 +200,7 @@ export function generateShifts(config: AgentConfig, operators: AgentOperator[]):
   // inizializza tutti a riposo
   operators.forEach((op) => {
     shifts[op.id] = {};
-    for (let d = 0; d < 6; d++) shifts[op.id][d] = rest();
+    for (let d = 0; d < 7; d++) shifts[op.id][d] = rest();
   });
 
   operators.forEach((op, opIndex) => {
@@ -247,7 +247,7 @@ export function generateShifts(config: AgentConfig, operators: AgentOperator[]):
 
     const assigned = workingSet.reduce((s, d) => s + shiftHours(shifts[op.id][d]), 0);
     const restDays: number[] = [];
-    for (let d = 0; d < 6; d++) if (!shifts[op.id][d].isWorking) restDays.push(d);
+    for (let d = 0; d < 7; d++) if (!shifts[op.id][d].isWorking) restDays.push(d);
     perOperator.push({ id: op.id, name: op.firstName, target, hours: round1(assigned), restDays });
   });
 
@@ -290,7 +290,7 @@ export function generateShifts(config: AgentConfig, operators: AgentOperator[]):
 function recalcPlan(plan: OperatorPlan, days: Record<number, ShiftEntry>) {
   let h = 0;
   const rest: number[] = [];
-  for (let d = 0; d < 6; d++) {
+  for (let d = 0; d < 7; d++) {
     h += shiftHours(days[d]);
     if (!days[d].isWorking) rest.push(d);
   }

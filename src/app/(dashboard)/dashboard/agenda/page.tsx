@@ -52,7 +52,6 @@ function fmtDate(d: Date) {
 function operatorWorksOn(op: Operator, date: Date): boolean {
   if (op.isResource) return true; // le cabine/risorse sono sempre disponibili
   const dow = date.getDay(); // 0=Domenica .. 6=Sabato
-  if (dow === 0) return false;
   const day = op.schedule?.[dow];
   if (!day) return true; // nessun turno impostato: assume operativa
   return day.isWorking !== false;

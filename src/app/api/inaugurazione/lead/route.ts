@@ -9,6 +9,7 @@ import {
 } from '@/lib/inaugurazione';
 import { sendEmail, confirmEmailHtml } from '@/lib/mail';
 import { notifyNuovaIscrizione } from '@/lib/telegram';
+import { ensureGiftPackage } from '@/lib/inaugurationGift';
 
 export const runtime = 'nodejs';
 
@@ -81,13 +82,15 @@ export async function POST(request: Request) {
   try {
     const normPhone = (p: string) => (p || '').replace(/[^\d]/g, '').slice(-9);
     const emailLc = (email || '').toLowerCase();
-    const clients = await prisma.client.findMany({ select: { phone: true, email: true } });
+    const clients_full = await prisma.client.findMany({ select: { id: true, phone: true, email: true } });
+    const clients = clients_full;
     const already = clients.some(c =>
       (normPhone(c.phone) && normPhone(c.phone) === normPhone(phone)) ||
       (c.email && emailLc && c.email.toLowerCase() === emailLc)
     );
+    let clientId: string | null = null;
     if (!already) {
-      await prisma.client.create({
+      const createdClient = await prisma.client.create({
         data: {
           firstName: firstName || 'Cliente',
           lastName: lastName || '',
@@ -99,7 +102,17 @@ export async function POST(request: Request) {
           createdAt: now.split('T')[0],
         },
       });
+      clientId = createdClient.id;
+    } else {
+      const existing = clients_full.find(c =>
+        (normPhone(c.phone) && normPhone(c.phone) === normPhone(phone)) ||
+        (c.email && emailLc && c.email.toLowerCase() === emailLc)
+      );
+      clientId = existing?.id ?? null;
     }
+
+    // Assegna subito il pacchetto OMAGGIO del trattamento scelto
+    if (clientId) await ensureGiftPackage(clientId, treatment);
   } catch (err) {
     console.error('[inaugurazione/lead] auto-create client failed', err);
     // non blocchiamo la registrazione del lead

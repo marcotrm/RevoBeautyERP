@@ -22,8 +22,11 @@ const SPECIALIZATIONS: { value: TreatmentCategory; label: string }[] = [
 const COLORS = ['#A855F7','#EC4899','#F59E0B','#22C55E','#3B82F6','#EF4444','#14B8A6','#6366F1','#F97316','#8B5CF6'];
 const specLabel = (s: string) => SPECIALIZATIONS.find(sp => sp.value === s)?.label || s;
 
-const DAYS = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
-const DAYS_SHORT = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+const DAYS = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'];
+const DAYS_SHORT = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+
+// indice colonna (0=Lun .. 6=Dom) -> giorno JS della settimana (0=Dom, 1=Lun ..)
+const dowFor = (dayIdx: number) => (dayIdx === 6 ? 0 : dayIdx + 1);
 const TIME_SLOTS = Array.from({ length: 25 }, (_, i) => {
   const h = 8 + Math.floor(i / 2);
   const m = i % 2 === 0 ? '00' : '30';
@@ -47,7 +50,7 @@ function fmtDateShort(d: Date) {
 
 function fmtWeekLabel(monday: Date) {
   const sun = new Date(monday);
-  sun.setDate(monday.getDate() + 5);
+  sun.setDate(monday.getDate() + 6);
   const months = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
   return `${monday.getDate()} - ${sun.getDate()} ${months[sun.getMonth()]} ${sun.getFullYear()}`;
 }
@@ -56,9 +59,9 @@ function buildDefaultShifts(operators: Operator[]): WeekShifts {
   const shifts: WeekShifts = {};
   operators.forEach(op => {
     shifts[op.id] = {};
-    for (let d = 0; d < 6; d++) {
+    for (let d = 0; d < 7; d++) {
       if (op.schedule) {
-        const dayKey = (d + 1) as 1|2|3|4|5|6;
+        const dayKey = dowFor(d) as 0|1|2|3|4|5|6;
         const s = op.schedule[dayKey];
         if (s) { shifts[op.id][d] = { isWorking: s.isWorking, startTime: s.startTime || '09:00', endTime: s.endTime || '18:00', breakStart: s.breakStart, breakEnd: s.breakEnd }; continue; }
       }
@@ -347,7 +350,7 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
   // Ore effettivamente pianificate (dai turni salvati)
   const plannedHours = (() => {
     let h = 0;
-    for (let d = 1; d <= 6; d++) {
+    for (let d = 0; d <= 6; d++) {
       const s = operator.schedule?.[d];
       if (s?.isWorking) h += shiftTotalMinutes({ isWorking: true, startTime: s.startTime, endTime: s.endTime, breakStart: s.breakStart, breakEnd: s.breakEnd }) / 60;
     }
@@ -490,7 +493,7 @@ function ShiftAgentModal({ operators, onClose, onApply }: {
   onClose: () => void;
   onApply: (shifts: WeekShifts) => void;
 }) {
-  const [openDays, setOpenDays] = useState<boolean[]>([true, true, true, true, true, true]);
+  const [openDays, setOpenDays] = useState<boolean[]>([true, true, true, true, true, true, true]);
   const [openTime, setOpenTime] = useState('09:00');
   const [closeTime, setCloseTime] = useState('19:00');
   const [minCoverage, setMinCoverage] = useState(2);
@@ -657,7 +660,7 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
   const monday = getMonday(new Date());
   monday.setDate(monday.getDate() + weekOffset * 7);
 
-  const weekDates = Array.from({ length: 6 }, (_, i) => {
+  const weekDates = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
     return d;
@@ -674,7 +677,7 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
     const schedule: Record<number, { isWorking: boolean; startTime: string; endTime: string; breakStart?: string; breakEnd?: string }> = {};
     for (let d = 0; d < 6; d++) {
       const s = nextOpShifts[d] || { isWorking: true, startTime: '09:00', endTime: '18:00' };
-      schedule[d + 1] = { isWorking: s.isWorking, startTime: s.startTime, endTime: s.endTime, ...(s.breakStart && s.breakEnd ? { breakStart: s.breakStart, breakEnd: s.breakEnd } : {}) };
+      schedule[dowFor(d)] = { isWorking: s.isWorking, startTime: s.startTime, endTime: s.endTime, ...(s.breakStart && s.breakEnd ? { breakStart: s.breakStart, breakEnd: s.breakEnd } : {}) };
     }
     updateOperator(opId, { schedule });
     setShifts(prev => ({ ...prev, [opId]: { ...(prev[opId] || {}), [day]: entry } }));
@@ -686,7 +689,7 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
       const schedule: Record<number, { isWorking: boolean; startTime: string; endTime: string; breakStart?: string; breakEnd?: string }> = {};
       for (let d = 0; d < 6; d++) {
         const s = opDays[d] || { isWorking: false, startTime: '', endTime: '' };
-        schedule[d + 1] = { isWorking: s.isWorking, startTime: s.startTime, endTime: s.endTime, ...(s.breakStart && s.breakEnd ? { breakStart: s.breakStart, breakEnd: s.breakEnd } : {}) };
+        schedule[dowFor(d)] = { isWorking: s.isWorking, startTime: s.startTime, endTime: s.endTime, ...(s.breakStart && s.breakEnd ? { breakStart: s.breakStart, breakEnd: s.breakEnd } : {}) };
       }
       updateOperator(opId, { schedule });
     });
@@ -728,8 +731,7 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
 
   const workingToday = (() => {
     const todayDow = new Date().getDay();
-    const dayIdx = todayDow === 0 ? -1 : todayDow - 1; // Mon=0..Sat=5, Sun=-1
-    if (dayIdx < 0 || dayIdx > 5) return 0;
+    const dayIdx = todayDow === 0 ? 6 : todayDow - 1; // Lun=0..Sab=5, Dom=6
     return operators.filter(op => getShift(op.id, dayIdx).isWorking).length;
   })();
 

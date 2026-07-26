@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { ensureGiftPackage } from '@/lib/inaugurationGift';
 
 const TREATMENT_LABELS: Record<string, string> = {
   lampada: 'Lampada', pressoterapia: 'Pressoterapia', body_sculpting: 'Body Sculpting',
@@ -53,35 +54,8 @@ export async function importInaugurationLeadsToClients() {
       created++;
     }
 
-    // Assegna il pacchetto omaggio del trattamento scelto (una sola volta per cliente/pacchetto).
-    const cfg = FREE_PACKAGES[l.treatment];
-    if (cfg) {
-      const already = await prisma.clientPackage.findFirst({
-        where: { clientId: client.id, packageName: cfg.name },
-      });
-      if (!already) {
-        await prisma.clientPackage.create({
-          data: {
-            clientName: `${client.firstName} ${client.lastName}`.trim(),
-            packageName: cfg.name,
-            packageColor: cfg.color,
-            totalSessions: cfg.sessions,
-            usedSessions: 0,
-            pricePaid: 0,
-            totalPaid: 0,
-            remainingBalance: 0,
-            paymentPlan: 'full',
-            purchaseDate: today,
-            expiryDate: expiry,
-            status: 'active',
-            history: [],
-            payments: [],
-            clientId: client.id,
-          },
-        });
-        packages++;
-      }
-    }
+    // Assegna il pacchetto omaggio del trattamento scelto (una sola volta per cliente)
+    if (await ensureGiftPackage(client.id, l.treatment)) packages++;
   }
 
   revalidatePath('/dashboard/clients');
