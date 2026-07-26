@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Clock, Plus, Euro, X, CheckCircle, Trash2, ChevronLeft, ChevronRight, Smartphone,
-  Sparkles, Wand2, AlertTriangle, Sun,
+  Sparkles, Wand2, AlertTriangle, Sun, Pencil,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTimeClockStore } from '@/stores/useTimeClockStore';
@@ -891,6 +891,8 @@ export default function StaffPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'shifts'>('overview');
   const { punches } = useTimeClockStore();
   const [newResourceName, setNewResourceName] = useState('');
+  const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
+  const [editingResourceName, setEditingResourceName] = useState('');
 
   useEffect(() => {
     fetchOperators();
@@ -914,6 +916,16 @@ export default function StaffPage() {
       contractHours: 0, schedule: {},
     } as Operator);
     setNewResourceName('');
+  };
+
+  // Rinomina una cabina/risorsa (il nome è salvato in firstName)
+  const saveResourceName = (id: string) => {
+    const name = editingResourceName.trim();
+    const current = resources.find(r => r.id === id);
+    if (name && current && name !== current.firstName) {
+      updateOperator(id, { firstName: name });
+    }
+    setEditingResourceId(null);
   };
 
   // Commissioni derivate dalle operatrici reali. Il fatturato per operatrice non è
@@ -996,21 +1008,46 @@ export default function StaffPage() {
                 <p className="text-sm text-text-muted">Nessuna cabina. Aggiungine una per prenotarla in agenda senza assegnare un'estetista.</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                  {resources.map(res => (
+                  {resources.map(res => {
+                    const isEditing = editingResourceId === res.id;
+                    return (
                     <div key={res.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-bg-tertiary/40 group">
                       <div className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: res.color }}>
                         <Sun className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-text-primary truncate">{res.firstName}</p>
-                        <p className="text-[11px] text-text-muted">Cabina · senza operatrice</p>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editingResourceName}
+                            onChange={e => setEditingResourceName(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') saveResourceName(res.id);
+                              if (e.key === 'Escape') setEditingResourceId(null);
+                            }}
+                            onBlur={() => saveResourceName(res.id)}
+                            autoFocus
+                            className="w-full px-2 py-1 rounded-lg bg-bg-secondary border border-accent/40 text-sm font-semibold text-text-primary focus:outline-none"
+                          />
+                        ) : (
+                          <p className="text-sm font-semibold text-text-primary truncate">{res.firstName}</p>
+                        )}
+                        <p className="text-[11px] text-text-muted">{isEditing ? 'Invio per salvare · Esc per annullare' : 'Cabina · senza operatrice'}</p>
                       </div>
+                      {!isEditing && (
+                        <button onClick={() => { setEditingResourceId(res.id); setEditingResourceName(res.firstName); }}
+                          title="Rinomina"
+                          className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-accent/10 text-text-muted hover:text-accent transition-all flex-shrink-0">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button onClick={() => { if (window.confirm(`Eliminare "${res.firstName}"?`)) deleteOperator(res.id); }}
                         className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all flex-shrink-0">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
