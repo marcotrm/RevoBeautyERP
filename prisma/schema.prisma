@@ -374,6 +374,23 @@ model PosTransaction {
 // CASSAFORTE (movimenti: chiusure di cassa = versamenti, prelievi)
 // I versamenti sono bloccati (non modificabili). Saldo = versamenti - prelievi.
 // ============================================================
+// Movimenti della CASSA CONTANTI (il cassetto): fondo cassa, spese, entrate/uscite
+// manuali. Gli incassi in contanti arrivano dalle vendite POS, i versamenti in
+// cassaforte sono registrati su CassaMovement.
+model CashMovement {
+  id        String  @id @default(cuid())
+  kind      String  // 'in' | 'out'
+  amount    Float
+  category  String  @default("altro") // fondo | spesa | entrata | prelievo | correzione | altro
+  note      String?
+  operator  String  @default("")
+  date      String  // giorno italiano YYYY-MM-DD
+  createdAt String
+
+  @@index([date])
+  @@map("cash_movements")
+}
+
 model CassaMovement {
   id        String  @id @default(cuid())
   type      String  // 'deposit' (chiusura cassa) | 'withdraw' (prelievo)
