@@ -25,7 +25,7 @@ import AddClientModal from '@/components/AddClientModal';
 
 const HOUR_HEIGHT = 88;
 const START_HOUR = 8;
-const END_HOUR = 21;
+const END_HOUR = 24; // agenda aperta fino a mezzanotte
 const TOTAL_HOURS = END_HOUR - START_HOUR;
 
 const statusIcons: Record<string, React.ReactNode> = {

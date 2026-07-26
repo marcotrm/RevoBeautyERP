@@ -27,7 +27,7 @@ const DAYS_SHORT = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
 // indice colonna (0=Lun .. 6=Dom) -> giorno JS della settimana (0=Dom, 1=Lun ..)
 const dowFor = (dayIdx: number) => (dayIdx === 6 ? 0 : dayIdx + 1);
-const TIME_SLOTS = Array.from({ length: 25 }, (_, i) => {
+const TIME_SLOTS = Array.from({ length: 33 }, (_, i) => {
   const h = 8 + Math.floor(i / 2);
   const m = i % 2 === 0 ? '00' : '30';
   return `${String(h).padStart(2, '0')}:${m}`;
