@@ -1736,9 +1736,16 @@ export default function AgendaPage() {
 
   const dateStr = fmtDate(selectedDate);
 
+  // Gli appuntamenti annullati spariscono dal calendario: lo slot torna libero.
+  // Restano comunque salvati nel database per lo storico e le statistiche.
+  const visibleAppointments = useMemo(
+    () => appointments.filter(a => a.status !== 'cancelled'),
+    [appointments]
+  );
+
   const todayAppointments = useMemo(
-    () => appointments.filter(a => a.date === dateStr),
-    [appointments, dateStr]
+    () => visibleAppointments.filter(a => a.date === dateStr),
+    [visibleAppointments, dateStr]
   );
 
   const todayBlocks = useMemo(
@@ -1899,10 +1906,10 @@ export default function AgendaPage() {
           }} />
       )}
       {view === 'week' && (
-        <WeekView selectedDate={selectedDate} allAppointments={appointments} operatorColorById={operatorColorById} onAppointmentClick={handleAppointmentClick} onDayClick={handleDayClick} />
+        <WeekView selectedDate={selectedDate} allAppointments={visibleAppointments} operatorColorById={operatorColorById} onAppointmentClick={handleAppointmentClick} onDayClick={handleDayClick} />
       )}
       {view === 'month' && (
-        <MonthView selectedDate={selectedDate} allAppointments={appointments} operatorColorById={operatorColorById} onAppointmentClick={handleAppointmentClick} onDayClick={handleDayClick} />
+        <MonthView selectedDate={selectedDate} allAppointments={visibleAppointments} operatorColorById={operatorColorById} onAppointmentClick={handleAppointmentClick} onDayClick={handleDayClick} />
       )}
 
       {/* Detail Panel */}

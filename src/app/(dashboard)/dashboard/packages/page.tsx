@@ -5,7 +5,7 @@ import { usePackageStore, PackageItem, ClientPackage } from '@/stores/usePackage
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package, Plus, CheckCircle, AlertCircle,
-  X, Trash2, Minus, Search, User, Calendar, Clock, History, Euro,
+  X, Trash2, Minus, Search, User, Calendar, Clock, History, Euro, Pencil,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
 import { useClientStore } from '@/stores/useClientStore';
@@ -370,15 +370,15 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
 
 
 /* ========== ADD PACKAGE MODAL ========== */
-function AddPackageModal({ onClose, onSave }: { onClose: () => void; onSave: (p: PackageItem) => void }) {
-  const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
-  const [totalSessions, setTotalSessions] = useState('10');
-  const [treatmentName, setTreatmentName] = useState('');
+function AddPackageModal({ onClose, onSave, editing }: { onClose: () => void; onSave: (p: PackageItem) => void; editing?: PackageItem | null }) {
+  const [name, setName] = useState(editing?.name ?? '');
+  const [price, setPrice] = useState(editing ? String(editing.price) : '');
+  const [totalSessions, setTotalSessions] = useState(editing ? String(editing.totalSessions) : '10');
+  const [treatmentName, setTreatmentName] = useState(editing?.treatmentName ?? '');
   const [treatmentOpen, setTreatmentOpen] = useState(false);
   const treatments = useTreatmentStore(s => s.treatments);
-  const [description, setDescription] = useState('');
-  const [color, setColor] = useState('#8B5CF6');
+  const [description, setDescription] = useState(editing?.description ?? '');
+  const [color, setColor] = useState(editing?.color ?? '#8B5CF6');
   const canSave = name.trim() && price && totalSessions;
   const pricePerSession = Number(price) && Number(totalSessions) ? Number(price) / Number(totalSessions) : 0;
 
@@ -389,7 +389,7 @@ function AddPackageModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
         transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
         <div className="w-full max-w-lg bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-            <h3 className="text-lg font-display font-semibold text-text-primary">Nuovo Pacchetto</h3>
+            <h3 className="text-lg font-display font-semibold text-text-primary">{editing ? 'Modifica Pacchetto' : 'Nuovo Pacchetto'}</h3>
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
           </div>
           <div className="px-6 py-5 space-y-4 max-h-[calc(100vh-14rem)] overflow-y-auto">
@@ -447,9 +447,9 @@ function AddPackageModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
           </div>
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-bg-tertiary/30">
             <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Annulla</button>
-            <button onClick={() => { if (!canSave) return; onSave({ id: `pkg-${Date.now()}`, name: name.trim(), type: 'Sessioni', price: Number(price), totalSessions: Number(totalSessions), sold: 0, color, description, treatmentName: treatmentName.trim() || undefined }); onClose(); }}
+            <button onClick={() => { if (!canSave) return; onSave({ id: editing?.id ?? `pkg-${Date.now()}`, name: name.trim(), type: 'Sessioni', price: Number(price), totalSessions: Number(totalSessions), sold: editing?.sold ?? 0, color, description, treatmentName: treatmentName.trim() || undefined }); onClose(); }}
               disabled={!canSave} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${canSave ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
-              <CheckCircle className="w-4 h-4" /> Crea Pacchetto
+              <CheckCircle className="w-4 h-4" /> {editing ? 'Salva Modifiche' : 'Crea Pacchetto'}
             </button>
           </div>
         </div>
@@ -638,9 +638,10 @@ function AddListinoModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
 
 /* ========== MAIN PAGE ========== */
 export default function PackagesPage() {
-  const { packages, clientPackages: clientPkgs, addPackage, deletePackage, activatePackage, useSession, deleteClientPackage, addPayment, fetchPackages } = usePackageStore();
+  const { packages, clientPackages: clientPkgs, addPackage, updatePackage, deletePackage, activatePackage, useSession, deleteClientPackage, addPayment, fetchPackages } = usePackageStore();
   const fetchTreatments = useTreatmentStore(s => s.fetchTreatments);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingPkg, setEditingPkg] = useState<PackageItem | null>(null);
 
   useEffect(() => {
     fetchPackages();
@@ -704,7 +705,10 @@ export default function PackagesPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           {packages.map(pkg => (
             <div key={pkg.id} className="bg-bg-secondary border border-border rounded-2xl p-5 hover:border-border-light transition-all group relative">
-              <button onClick={() => setConfirmDeletePkgId(pkg.id)} className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all opacity-0 group-hover:opacity-100"><Trash2 className="w-3.5 h-3.5" /></button>
+              <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                <button onClick={() => setEditingPkg(pkg)} title="Modifica pacchetto" className="p-1.5 rounded-lg hover:bg-accent/10 text-text-muted hover:text-accent transition-all"><Pencil className="w-3.5 h-3.5" /></button>
+                <button onClick={() => setConfirmDeletePkgId(pkg.id)} title="Elimina pacchetto" className="p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+              </div>
               <div className="p-2.5 rounded-xl w-fit mb-3" style={{ backgroundColor: `${pkg.color}15`, color: pkg.color }}><Package className="w-5 h-5" /></div>
               <h4 className="text-sm font-semibold text-text-primary mb-1 line-clamp-2">{pkg.name}</h4>
               <div className="flex items-baseline gap-1 mb-1">
@@ -836,6 +840,7 @@ export default function PackagesPage() {
 
       {/* Modals */}
       <AnimatePresence>{showAddModal && <AddPackageModal onClose={() => setShowAddModal(false)} onSave={p => { addPackage(p); setShowAddModal(false); }} />}</AnimatePresence>
+      <AnimatePresence>{editingPkg && <AddPackageModal editing={editingPkg} onClose={() => setEditingPkg(null)} onSave={p => { updatePackage(p.id, p); setEditingPkg(null); }} />}</AnimatePresence>
       <AnimatePresence>{showListinoModal && <AddListinoModal onClose={() => setShowListinoModal(false)} onSave={p => { addPackage(p); setShowListinoModal(false); }} />}</AnimatePresence>
       <AnimatePresence>{activatingPkg && <ActivatePackageModal pkg={activatingPkg} onClose={() => setActivatingPkg(null)} onActivate={(cn, vm, fp, pm, op, pl) => handleActivate(activatingPkg, cn, vm, fp, pm, op, pl)} />}</AnimatePresence>
       <AnimatePresence>{usingSession && <UseSessionModal cp={usingSession} onClose={() => setUsingSession(null)} onConfirm={(op, note) => handleUseSession(usingSession.id, op, note)} />}</AnimatePresence>

@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import {
-  getPackages, getClientPackages, createPackage, deletePackage as deletePackageAction,
+  getPackages, getClientPackages, createPackage, updatePackage as updatePackageAction, deletePackage as deletePackageAction,
   activatePackage as activatePackageAction, addPayment as addPaymentAction,
   recordSessionUse, deleteClientPackage as deleteClientPackageAction,
 } from '@/app/actions/packages';
@@ -47,6 +47,7 @@ interface PackageStore {
   fetchPackages: () => Promise<void>;
 
   addPackage: (pkg: PackageItem) => Promise<void>;
+  updatePackage: (id: string, updates: Partial<PackageItem>) => Promise<void>;
   deletePackage: (id: string) => Promise<void>;
 
   activatePackage: (pkg: PackageItem, clientName: string, validityMonths: number, firstPayment: number, paymentMethod: PackagePayment['method'], operator: string, paymentPlan: 'full' | 'installments') => Promise<void>;
@@ -81,6 +82,16 @@ export const usePackageStore = create<PackageStore>()((set, get) => ({
       set((s) => ({ packages: [created, ...s.packages] }));
     } catch (error) {
       console.error('Failed to add package', error);
+      throw error;
+    }
+  },
+
+  updatePackage: async (id, updates) => {
+    try {
+      const updated = await updatePackageAction(id, updates);
+      set((s) => ({ packages: s.packages.map(p => (p.id === id ? updated : p)) }));
+    } catch (error) {
+      console.error('Failed to update package', error);
       throw error;
     }
   },

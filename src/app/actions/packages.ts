@@ -58,6 +58,15 @@ export async function createPackage(pkg: PackageItem) {
   return created as unknown as PackageItem;
 }
 
+// Modifica un pacchetto del catalogo (nome, prezzo, sedute, colore, descrizione...).
+// Non tocca i pacchetti già venduti alle clienti, che restano com'erano al momento della vendita.
+export async function updatePackage(id: string, updates: Partial<PackageItem>) {
+  const { id: _ignored, ...data } = updates as PackageItem & { id?: string };
+  void _ignored;
+  const updated = await prisma.package.update({ where: { id }, data });
+  return updated as unknown as PackageItem;
+}
+
 export async function deletePackage(id: string) {
   await prisma.package.delete({ where: { id } });
   return true;
