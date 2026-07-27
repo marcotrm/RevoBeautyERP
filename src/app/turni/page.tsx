@@ -12,7 +12,6 @@ const DAYS = [
   { key: 4, short: 'Gio', long: 'Giovedì' },
   { key: 5, short: 'Ven', long: 'Venerdì' },
   { key: 6, short: 'Sab', long: 'Sabato' },
-  { key: 0, short: 'Dom', long: 'Domenica' },
 ];
 
 function initials(f: string, l: string) {
@@ -22,8 +21,11 @@ function initials(f: string, l: string) {
 export default function TurniPage() {
   const [operators, setOperators] = useState<Operator[]>([]);
   const [loading, setLoading] = useState(true);
-  // Giorno di default: oggi (0=Dom, 1-6=Lun-Sab)
-  const todayKey = useMemo(() => new Date().getDay(), []);
+  // Giorno di default: oggi (1-6 = Lun-Sab; domenica → mostra Lunedì)
+  const todayKey = useMemo(() => {
+    const d = new Date().getDay();
+    return d === 0 ? 1 : d;
+  }, []);
   const [day, setDay] = useState<number>(todayKey);
 
   useEffect(() => {
