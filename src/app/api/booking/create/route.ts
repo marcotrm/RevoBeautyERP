@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { notifyNuovoAppuntamento } from '@/lib/telegram';
 import { hasConflict, findClientByPhone, toMinutes, toHHMM, todayInItaly } from '@/lib/voice';
 
 export const runtime = 'nodejs';
@@ -90,6 +91,17 @@ export async function POST(request: Request) {
       createdBy: 'online-booking',
     },
   });
+
+  // Notifica Telegram del nuovo appuntamento (non blocca la prenotazione)
+  notifyNuovoAppuntamento({
+    client: appointment.clientName,
+    treatment: appointment.treatmentName,
+    operator: appointment.operatorName,
+    date: appointment.date,
+    time: appointment.startTime,
+    price: appointment.price,
+    source: 'prenotazione online dal sito',
+  }).catch(() => {});
 
   return Response.json({
     success: true,

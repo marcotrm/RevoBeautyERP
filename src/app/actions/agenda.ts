@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { Appointment } from '@/types';
 import { mockOperators, mockTreatments, mockClients } from '@/lib/mock-data';
-import { notifyCancellazione } from '@/lib/telegram';
+import { notifyCancellazione, notifyNuovoAppuntamento } from '@/lib/telegram';
 
 export async function getAppointments() {
   const appointments = await prisma.appointment.findMany({
@@ -75,6 +75,17 @@ export async function createAppointment(data: Omit<Appointment, 'id' | 'createdA
       createdBy: 'dino',
     }
   });
+  // Notifica Telegram del nuovo appuntamento (non blocca la creazione)
+  notifyNuovoAppuntamento({
+    client: appointment.clientName,
+    treatment: appointment.treatmentName,
+    operator: appointment.operatorName,
+    date: appointment.date,
+    time: appointment.startTime,
+    price: appointment.price,
+    source: 'dal gestionale',
+  }).catch(() => {});
+
   return appointment as unknown as Appointment;
 }
 

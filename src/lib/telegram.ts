@@ -107,3 +107,28 @@ export async function notifyCancellazione(params: {
   ].filter(Boolean);
   await sendTelegram(lines.join('\n'));
 }
+
+// Notifica alla creazione di un nuovo appuntamento (da agenda, sito o app).
+export async function notifyNuovoAppuntamento(params: {
+  client?: string | null; treatment?: string; operator?: string;
+  date?: string; time?: string; price?: number; source?: string;
+}): Promise<void> {
+  const cfg = await getTelegramConfig();
+  if (!cfg.enabled) return;
+  const now = new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' });
+  const dateFmt = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date)
+    ? params.date.split('-').reverse().join('/')
+    : (params.date || '');
+  const when = [dateFmt, params.time].filter(Boolean).join(' alle ');
+  const lines = [
+    `📅 <b>Nuovo appuntamento</b>`,
+    params.client ? `👤 ${params.client}` : '',
+    params.treatment ? `🧾 ${params.treatment}` : '',
+    params.operator ? `💇‍♀️ ${params.operator}` : '',
+    when ? `🗓 ${when}` : '',
+    params.price && params.price > 0 ? `💶 ${params.price.toFixed(2).replace('.', ',')} €` : '',
+    params.source ? `🔗 ${params.source}` : '',
+    `🕒 registrato alle ${now}`,
+  ].filter(Boolean);
+  await sendTelegram(lines.join('\n'));
+}
