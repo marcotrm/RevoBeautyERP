@@ -51,8 +51,9 @@ function fmtDate(d: Date) {
 // Verifica se un'operatrice lavora in una certa data, in base al turno settimanale
 // (schedule keyed 1=Lun .. 6=Sab; domenica salone chiuso).
 function operatorWorksOn(op: Operator, date: Date): boolean {
-  if (op.isResource) return true; // le cabine/risorse sono sempre disponibili
   const dow = date.getDay(); // 0=Domenica .. 6=Sabato
+  if (dow === 0) return false; // domenica il centro è chiuso
+  if (op.isResource) return true; // le cabine/risorse sono sempre disponibili negli altri giorni
   const day = op.schedule?.[dow];
   if (!day) return true; // nessun turno impostato: assume operativa
   return day.isWorking !== false;
@@ -420,7 +421,8 @@ function WeekView({ selectedDate, allAppointments, operatorColorById, onAppointm
     const dayOfWeek = d.getDay();
     const monday = new Date(d);
     monday.setDate(d.getDate() - ((dayOfWeek + 6) % 7));
-    return Array.from({ length: 7 }, (_, i) => {
+    // Lun-Sab: la domenica il centro è chiuso
+    return Array.from({ length: 6 }, (_, i) => {
       const date = new Date(monday);
       date.setDate(monday.getDate() + i);
       return date;
