@@ -86,6 +86,17 @@ async function d360Post(path: string, payload: unknown): Promise<D360Result> {
       const detail = body?.error?.error_data?.details || body?.error?.message
         || (raw ? `HTTP ${res.status} — ${raw}` : `HTTP ${res.status}`);
       console.error('[wa360] errore', res.status, JSON.stringify(body));
+      // 360dialog blocca l'invio (ma non la ricezione) quando il canale è insoluto,
+      // e lo comunica solo come stringa libera: senza questo caso si legge come un
+      // generico problema di autorizzazione.
+      if (/lack of payment|blocked due to/i.test(raw)) {
+        return {
+          ok: false,
+          status: res.status,
+          error: 'Canale 360dialog bloccato per mancato pagamento: l\'invio è sospeso (la ricezione continua). Regolarizza la posizione su 360dialog Hub → Billing.',
+        };
+      }
+
       const explained = explainMetaError(code ?? res.status, detail);
       // Se abbiamo tradotto il codice, alleghiamo comunque il dettaglio grezzo:
       // è quello che serve per capire un 403 senza aprire i log.
