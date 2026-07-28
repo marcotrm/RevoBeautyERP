@@ -75,19 +75,31 @@ function buildReceiptHtml(data: ReceiptData): string {
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Scontrino</title>
 <style>
-  @page { size: 80mm auto; margin: 0; }
+  /* Le termiche da 80 mm stampano su una banda utile di ~72 mm: fuori da lì il testo viene
+     tagliato o il driver riscala tutta la pagina, ed è la causa più comune di stampa sbavata. */
+  @page { size: 72mm auto; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { width: 80mm; background: #fff; }
-  body { padding: 4mm 3mm; font-family: 'Courier New', ui-monospace, monospace; font-size: 12px; line-height: 1.35; color: #000; }
+  html, body { width: 72mm; background: #fff; }
+  /* Font di sistema (non Courier): a 203 dpi le grazie sottili della Courier si impastano.
+     Nero pieno + peso 600 danno tratti pieni invece che grigi retinati. */
+  body {
+    padding: 3mm 2mm;
+    font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+    font-size: 13px; font-weight: 600; line-height: 1.4; color: #000;
+    -webkit-font-smoothing: none; /* niente antialiasing: sulla termica diventa retino grigio */
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
   .center { text-align: center; }
-  .bold { font-weight: 700; }
-  .big { font-size: 15px; }
-  .muted { font-size: 11px; }
-  .hr { border-top: 1px dashed #000; margin: 5px 0; }
+  .bold { font-weight: 800; }
+  .big { font-size: 17px; letter-spacing: 0.5px; }
+  .muted { font-size: 12px; font-weight: 500; }
+  /* Linea continua sottile: i trattini finiscono spesso a cavallo di due punti della testina
+     e escono a puntini irregolari. */
+  .hr { border-top: 1px solid #000; margin: 5px 0; }
   .row { display: flex; justify-content: space-between; gap: 8px; }
   .row .name { flex: 1; word-break: break-word; }
   .row .price { white-space: nowrap; }
-  .total { font-size: 16px; font-weight: 700; }
+  .total { font-size: 18px; font-weight: 800; }
   .head { margin-bottom: 4px; }
   .foot { margin-top: 8px; }
 </style></head><body>
@@ -117,6 +129,11 @@ function buildReceiptHtml(data: ReceiptData): string {
 // più iframe, e la finestra di stampa può non aprirsi affatto.
 let printing = false;
 
+// Iframe dell'ultima stampa. NON va rimosso finché la finestra di stampa è aperta:
+// Chrome sgancia l'anteprima se l'iframe che l'ha aperta sparisce dal DOM. Viene quindi
+// buttato via solo alla stampa successiva.
+let lastIframe: HTMLIFrameElement | null = null;
+
 /**
  * Apre un iframe nascosto con lo scontrino formattato a 80 mm e lancia la stampa.
  * L'iframe evita i blocchi popup e non mostra finestre extra.
@@ -126,6 +143,12 @@ export function printThermalReceipt(data: ReceiptData): void {
   if (printing) return;
   printing = true;
   const html = buildReceiptHtml(data);
+
+  // Rimuove l'anteprima precedente solo ora, che di sicuro non è più a schermo
+  if (lastIframe) {
+    try { lastIframe.remove(); } catch { /* già rimosso */ }
+    lastIframe = null;
+  }
 
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
@@ -144,12 +167,15 @@ export function printThermalReceipt(data: ReceiptData): void {
     return;
   }
 
+  lastIframe = iframe;
+
+  // Sblocca soltanto il pulsante: l'iframe resta appeso al DOM, altrimenti la finestra
+  // di stampa si chiuderebbe da sola (Chrome emette afterprint appena apre l'anteprima).
   let done = false;
   const cleanup = () => {
     if (done) return;
     done = true;
-    printing = false;
-    setTimeout(() => { try { document.body.removeChild(iframe); } catch { /* già rimosso */ } }, 1000);
+    setTimeout(() => { printing = false; }, 1500);
   };
 
   let launched = false;
@@ -167,9 +193,9 @@ export function printThermalReceipt(data: ReceiptData): void {
       cleanup();
       return;
     }
-    // Fallback: alcuni browser non chiamano onafterprint (o la finestra resta aperta a lungo).
-    // Senza questo il lock resterebbe attivo e i pulsanti Stampa smetterebbero di rispondere.
-    setTimeout(cleanup, 60_000);
+    // Fallback: alcuni browser non chiamano onafterprint. Senza questo il lock resterebbe
+    // attivo e i pulsanti Stampa smetterebbero di rispondere.
+    setTimeout(cleanup, 15_000);
   };
 
   // Stampa solo a documento caricato: il vecchio setTimeout(250ms) partiva a volte prima
