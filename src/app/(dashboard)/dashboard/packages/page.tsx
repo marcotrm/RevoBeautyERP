@@ -5,13 +5,28 @@ import { usePackageStore, PackageItem, ClientPackage } from '@/stores/usePackage
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package, Plus, CheckCircle, AlertCircle,
-  X, Trash2, Minus, Search, User, Users, Calendar, Clock, History, Euro, Pencil,
+  X, Trash2, Minus, Search, User, Users, Calendar, Clock, History, Euro, Pencil, ShoppingBag,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
 import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { TreatmentsSection } from './TreatmentsSection';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
+import { useProductStore } from '@/stores/useProductStore';
+import { sellProductsWithPackage } from '@/app/actions/products';
+import type { Product } from '@/types';
+
+/** Sconto riservato a chi acquista un pacchetto, valido solo sui prodotti. */
+const PRODUCT_DISCOUNT = 20;
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+export interface ProductLine {
+  productId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  discountPct: number;
+}
 const PKG_COLORS = ['#8B5CF6', '#EC4899', '#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#6366F1', '#14B8A6'];
 
 /* ========== USE SESSION MODAL ========== */
@@ -180,7 +195,7 @@ function HistoryModal({ cp, onClose, onAddPayment }: { cp: ClientPackage; onClos
 /* ========== ACTIVATE PACKAGE MODAL ========== */
 function ActivatePackageModal({ pkg, onClose, onActivate }: {
   pkg: PackageItem; onClose: () => void;
-  onActivate: (clientName: string, validityMonths: number, firstPayment: number, method: 'Carta' | 'Contanti' | 'Satispay' | 'Bonifico', operator: string, plan: 'full' | 'installments') => void;
+  onActivate: (clientName: string, validityMonths: number, firstPayment: number, method: 'Carta' | 'Contanti' | 'Satispay' | 'Bonifico', operator: string, plan: 'full' | 'installments', products: ProductLine[]) => void;
 }) {
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState('');
@@ -193,7 +208,57 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
   const [operator, setOperator] = useState('Sara Rossi');
   const operators = ['Sara Rossi', 'Valentina Bianchi', 'Chiara Moretti', 'Francesca Romano', 'Alessia Conti'];
 
+  // Prodotti abbinati al pacchetto: chi compra un pacchetto ha il 20% sul prodotto
+  const products = useProductStore(s => s.products);
+  const fetchProducts = useProductStore(s => s.fetchProducts);
+  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+  const [lines, setLines] = useState<ProductLine[]>([]);
+  const [prodSearch, setProdSearch] = useState('');
+  const [prodOpen, setProdOpen] = useState(false);
+
+  const prodResults = useMemo(() => {
+    const q = prodSearch.trim().toLowerCase();
+    if (!q) return [];
+    return products
+      .filter(p => p.isActive !== false)
+      .filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        (p.sku || '').toLowerCase().includes(q) ||
+        (p.barcode || '').toLowerCase().includes(q) ||
+        (p.brand || '').toLowerCase().includes(q)
+      )
+      .slice(0, 8);
+  }, [prodSearch, products]);
+
+  const addProduct = (p: Product) => {
+    setLines(prev => prev.some(l => l.productId === p.id)
+      ? prev.map(l => l.productId === p.id ? { ...l, quantity: l.quantity + 1 } : l)
+      : [...prev, { productId: p.id, name: p.name, quantity: 1, unitPrice: p.price, discountPct: PRODUCT_DISCOUNT }]);
+    setProdSearch('');
+    setProdOpen(false);
+  };
+
+  // Lettore barcode: scansiona e va a capo → se c'è un solo risultato lo aggiunge
+  const onProdKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const q = prodSearch.trim().toLowerCase();
+    const exact = products.find(p => (p.barcode || '').toLowerCase() === q || (p.sku || '').toLowerCase() === q);
+    if (exact) { addProduct(exact); return; }
+    if (prodResults.length === 1) addProduct(prodResults[0]);
+  };
+
+  const setQty = (id: string, qty: number) =>
+    setLines(prev => prev.flatMap(l => l.productId !== id ? [l] : (qty <= 0 ? [] : [{ ...l, quantity: qty }])));
+
+  const lineTotal = (l: ProductLine) => round2(l.unitPrice * l.quantity * (1 - l.discountPct / 100));
+  const productsTotal = round2(lines.reduce((s, l) => s + lineTotal(l), 0));
+  const productsFull = round2(lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0));
+  const productsSaving = round2(productsFull - productsTotal);
+
   const allClients = useClientStore(s => s.clients);
+  const fetchClients = useClientStore(s => s.fetchClients);
+  useEffect(() => { fetchClients(); }, [fetchClients]);
   const filtered = useMemo(() => {
     if (!search.trim()) return allClients.slice(0, 8);
     const q = search.toLowerCase();
@@ -205,7 +270,7 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
 
   const handleConfirm = () => {
     if (!selectedClient || payAmount <= 0) return;
-    onActivate(selectedClient, Number(validityMonths), payAmount, paymentMethod, operator, paymentPlan);
+    onActivate(selectedClient, Number(validityMonths), payAmount, paymentMethod, operator, paymentPlan, lines);
     setStep('done');
   };
 
@@ -323,6 +388,98 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
                     {operators.map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </div>
+
+                {/* Prodotti con sconto riservato a chi compra il pacchetto */}
+                <div className="rounded-xl border border-accent/25 bg-accent/5 p-3">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <ShoppingBag className="w-4 h-4 text-accent" />
+                      <span className="text-sm font-semibold text-text-primary">Prodotti</span>
+                      <span className="px-1.5 py-0.5 rounded bg-accent/15 text-accent text-[10px] font-bold">-{PRODUCT_DISCOUNT}%</span>
+                    </div>
+                    {!prodOpen && (
+                      <button type="button" onClick={() => setProdOpen(true)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent/10 text-accent text-xs font-semibold hover:bg-accent/20 transition-colors">
+                        <Plus className="w-3.5 h-3.5" /> Inserisci prodotto
+                      </button>
+                    )}
+                  </div>
+
+                  {prodOpen && (
+                    <div className="relative mb-2">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                      <input type="text" value={prodSearch} autoFocus {...NO_AUTOFILL}
+                        onChange={e => setProdSearch(e.target.value)} onKeyDown={onProdKeyDown}
+                        placeholder="Nome, codice o barcode (puoi scansionare)"
+                        className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
+                      <button type="button" onClick={() => { setProdOpen(false); setProdSearch(''); }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text-primary"><X className="w-4 h-4" /></button>
+                      {prodSearch.trim() && (
+                        <div className="absolute left-0 right-0 mt-1 bg-bg-secondary border border-border rounded-xl shadow-xl z-20 max-h-48 overflow-y-auto">
+                          {prodResults.length === 0 ? (
+                            <p className="px-3 py-3 text-xs text-text-muted text-center">Nessun prodotto trovato</p>
+                          ) : prodResults.map(p => (
+                            <button key={p.id} type="button" onClick={() => addProduct(p)}
+                              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-bg-hover transition-colors text-left">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-text-primary truncate">{p.name}</p>
+                                <p className="text-[10px] text-text-muted truncate">
+                                  {[p.sku, p.barcode].filter(Boolean).join(' · ') || p.brand} · {p.stock} in stock
+                                </p>
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <p className="text-[10px] text-text-muted line-through">{formatCurrency(p.price)}</p>
+                                <p className="text-sm font-bold text-accent">{formatCurrency(round2(p.price * (1 - PRODUCT_DISCOUNT / 100)))}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {lines.length === 0 ? (
+                    <p className="text-[11px] text-text-muted">
+                      Chi compra il pacchetto ha il {PRODUCT_DISCOUNT}% di sconto sui prodotti.
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {lines.map(l => (
+                        <div key={l.productId} className="flex items-center gap-2 rounded-lg bg-bg-secondary/70 border border-border/60 px-2.5 py-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-text-primary truncate">{l.name}</p>
+                            <p className="text-[10px] text-text-muted">
+                              <span className="line-through">{formatCurrency(l.unitPrice)}</span>{' '}
+                              <span className="text-accent font-semibold">{formatCurrency(round2(l.unitPrice * (1 - l.discountPct / 100)))}</span> cad.
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button type="button" onClick={() => setQty(l.productId, l.quantity - 1)}
+                              className="p-1 rounded-md bg-bg-tertiary text-text-secondary hover:text-error"><Minus className="w-3 h-3" /></button>
+                            <span className="w-5 text-center text-xs font-bold text-text-primary">{l.quantity}</span>
+                            <button type="button" onClick={() => setQty(l.productId, l.quantity + 1)}
+                              className="p-1 rounded-md bg-bg-tertiary text-text-secondary hover:text-accent"><Plus className="w-3 h-3" /></button>
+                          </div>
+                          <span className="w-16 text-right text-sm font-bold text-text-primary flex-shrink-0">{formatCurrency(lineTotal(l))}</span>
+                          <button type="button" onClick={() => setQty(l.productId, 0)}
+                            className="p-1 rounded-md text-text-muted hover:text-error flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-between pt-1.5 border-t border-border/60 text-xs">
+                        <span className="text-text-secondary">Prodotti (sconto {formatCurrency(productsSaving)})</span>
+                        <span className="font-bold text-text-primary">{formatCurrency(productsTotal)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {productsTotal > 0 && (
+                  <div className="rounded-xl bg-bg-tertiary border border-border p-3 space-y-1 text-sm">
+                    <div className="flex justify-between"><span className="text-text-secondary">Pacchetto oggi</span><span className="text-text-primary font-medium">{formatCurrency(payAmount)}</span></div>
+                    <div className="flex justify-between"><span className="text-text-secondary">Prodotti</span><span className="text-text-primary font-medium">{formatCurrency(productsTotal)}</span></div>
+                    <div className="flex justify-between pt-1 border-t border-border"><span className="font-semibold text-text-primary">Totale da incassare</span><span className="font-bold text-accent">{formatCurrency(round2(payAmount + productsTotal))}</span></div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="p-8 flex flex-col items-center justify-center text-center">
@@ -333,8 +490,13 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
                 <h3 className="text-xl font-display font-bold text-text-primary mb-1">Pacchetto Attivato!</h3>
                 <p className="text-sm text-text-secondary mb-2">{selectedClient} • {pkg.name}</p>
                 <div className="space-y-1 text-sm">
-                  <p className="text-success font-semibold">Pagato: {formatCurrency(payAmount)} ({paymentMethod})</p>
-                  {remaining > 0 && <p className="text-error font-semibold">Restante: {formatCurrency(remaining)}</p>}
+                  <p className="text-success font-semibold">Pagato: {formatCurrency(round2(payAmount + productsTotal))} ({paymentMethod})</p>
+                  {productsTotal > 0 && (
+                    <p className="text-text-secondary text-xs">
+                      di cui {formatCurrency(productsTotal)} di prodotti ({lines.reduce((s, l) => s + l.quantity, 0)} pz, sconto {formatCurrency(productsSaving)})
+                    </p>
+                  )}
+                  {remaining > 0 && <p className="text-error font-semibold">Restante sul pacchetto: {formatCurrency(remaining)}</p>}
                   <p className="text-text-muted text-xs">Registrato da: {operator}</p>
                 </div>
               </div>
@@ -355,7 +517,7 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
                 <button onClick={() => setStep('client')} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">← Indietro</button>
                 <button onClick={handleConfirm} disabled={payAmount <= 0 || payAmount > pkg.price}
                   className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${payAmount > 0 && payAmount <= pkg.price ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
-                  <CheckCircle className="w-4 h-4" /> Conferma • {formatCurrency(payAmount)}
+                  <CheckCircle className="w-4 h-4" /> Conferma • {formatCurrency(round2(payAmount + productsTotal))}
                 </button>
               </>
             ) : (
@@ -641,6 +803,7 @@ function AddListinoModal({ onClose, onSave }: { onClose: () => void; onSave: (p:
 export default function PackagesPage() {
   const { packages, clientPackages: clientPkgs, addPackage, updatePackage, deletePackage, activatePackage, useSession, deleteClientPackage, addPayment, fetchPackages } = usePackageStore();
   const fetchTreatments = useTreatmentStore(s => s.fetchTreatments);
+  const fetchProductsList = useProductStore(s => s.fetchProducts);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingPkg, setEditingPkg] = useState<PackageItem | null>(null);
 
@@ -670,8 +833,13 @@ export default function PackagesPage() {
     return list;
   }, [clientPkgs, filter, search]);
 
-  const handleActivate = (pkg: PackageItem, clientName: string, validityMonths: number, firstPayment: number, method: 'Carta' | 'Contanti' | 'Satispay' | 'Bonifico', operator: string, plan: 'full' | 'installments') => {
-    activatePackage(pkg, clientName, validityMonths, firstPayment, method, operator, plan);
+  const handleActivate = async (pkg: PackageItem, clientName: string, validityMonths: number, firstPayment: number, method: 'Carta' | 'Contanti' | 'Satispay' | 'Bonifico', operator: string, plan: 'full' | 'installments', products: ProductLine[] = []) => {
+    await activatePackage(pkg, clientName, validityMonths, firstPayment, method, operator, plan);
+    // I prodotti abbinati sono una vendita a parte, con lo sconto pacchetto già applicato
+    if (products.length > 0) {
+      await sellProductsWithPackage({ clientName, packageName: pkg.name, lines: products, method, operator });
+      await fetchProductsList();
+    }
     setActivatingPkg(null);
   };
 
@@ -874,7 +1042,7 @@ export default function PackagesPage() {
       <AnimatePresence>{showAddModal && <AddPackageModal onClose={() => setShowAddModal(false)} onSave={p => { addPackage(p); setShowAddModal(false); }} />}</AnimatePresence>
       <AnimatePresence>{editingPkg && <AddPackageModal editing={editingPkg} onClose={() => setEditingPkg(null)} onSave={p => { updatePackage(p.id, p); setEditingPkg(null); }} />}</AnimatePresence>
       <AnimatePresence>{showListinoModal && <AddListinoModal onClose={() => setShowListinoModal(false)} onSave={p => { addPackage(p); setShowListinoModal(false); }} />}</AnimatePresence>
-      <AnimatePresence>{activatingPkg && <ActivatePackageModal pkg={activatingPkg} onClose={() => setActivatingPkg(null)} onActivate={(cn, vm, fp, pm, op, pl) => handleActivate(activatingPkg, cn, vm, fp, pm, op, pl)} />}</AnimatePresence>
+      <AnimatePresence>{activatingPkg && <ActivatePackageModal pkg={activatingPkg} onClose={() => setActivatingPkg(null)} onActivate={(cn, vm, fp, pm, op, pl, prods) => handleActivate(activatingPkg, cn, vm, fp, pm, op, pl, prods)} />}</AnimatePresence>
       <AnimatePresence>{usingSession && <UseSessionModal cp={usingSession} onClose={() => setUsingSession(null)} onConfirm={(op, note) => handleUseSession(usingSession.id, op, note)} />}</AnimatePresence>
       <AnimatePresence>{viewingHistory && <HistoryModal cp={viewingHistory} onClose={() => setViewingHistory(null)} onAddPayment={(viewingHistory.remainingBalance || 0) > 0 ? () => { setAddingPayment(viewingHistory); setViewingHistory(null); } : undefined} />}</AnimatePresence>
 

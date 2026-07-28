@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { Product } from '@/types';
+import { notifyIncasso } from '@/lib/telegram';
 
 export async function getProducts(): Promise<Product[]> {
   const rows = await prisma.product.findMany({ orderBy: { name: 'asc' } });
@@ -87,4 +88,61 @@ export async function migrateProducts(list: Product[]) {
     inserted++;
   }
   return inserted;
+}
+
+/**
+ * Vendita di prodotti abbinata a un pacchetto: registra l'incasso in cassa
+ * (con lo sconto già applicato) e scarica le quantità dal magazzino.
+ */
+export async function sellProductsWithPackage(params: {
+  clientName: string;
+  packageName: string;
+  lines: { productId: string; name: string; quantity: number; unitPrice: number; discountPct: number }[];
+  method: string;
+  operator: string;
+}): Promise<{ total: number }> {
+  const lines = params.lines.filter(l => l.quantity > 0);
+  if (lines.length === 0) return { total: 0 };
+
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const lineTotal = (l: { quantity: number; unitPrice: number; discountPct: number }) =>
+    round2(l.unitPrice * l.quantity * (1 - (l.discountPct || 0) / 100));
+  const total = round2(lines.reduce((s, l) => s + lineTotal(l), 0));
+
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const time = now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
+
+  await prisma.posTransaction.create({
+    data: {
+      date: today,
+      time,
+      clientName: params.clientName,
+      items: lines.map(l => `${l.name} x${l.quantity}${l.discountPct ? ` (-${l.discountPct}%)` : ''}`),
+      total,
+      paymentMethod: params.method,
+      operator: params.operator,
+      isRefund: false,
+    },
+  });
+
+  // Scarico magazzino (mai sotto zero)
+  for (const l of lines) {
+    const p = await prisma.product.findUnique({ where: { id: l.productId }, select: { stock: true } });
+    if (!p) continue;
+    await prisma.product.update({
+      where: { id: l.productId },
+      data: { stock: Math.max(0, p.stock - l.quantity) },
+    });
+  }
+
+  notifyIncasso({
+    amount: total,
+    client: params.clientName,
+    items: `${lines.map(l => `${l.name} x${l.quantity}`).join(', ')} — sconto pacchetto ${params.packageName}`,
+    method: params.method,
+    operator: params.operator,
+  }).catch(() => {});
+
+  return { total };
 }
