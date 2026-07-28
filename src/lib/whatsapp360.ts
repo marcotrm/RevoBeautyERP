@@ -42,7 +42,10 @@ function explainMetaError(code: number | undefined, fallback: string): string {
     case 132000:
       return 'Numero di parametri del template diverso da quello approvato.';
     case 132001:
-      return 'Template inesistente o non ancora approvato in questa lingua.';
+      // Meta dice "does not exist" anche per un template che esiste ma è ancora
+      // in revisione: senza questa precisazione si va a cercare un errore di nome
+      // o di lingua che non c'è.
+      return 'Template non utilizzabile: o non esiste con questo nome/lingua, oppure esiste ma è ancora in revisione da parte di Meta. Controlla lo stato con "Verifica": se è PENDING, va solo aspettato.';
     case 132005:
       return 'Un parametro del template è troppo lungo o contiene a capo/emoji non ammessi.';
     case 131051:
