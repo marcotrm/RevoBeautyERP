@@ -37,7 +37,7 @@ const PAYMENT_METHODS = [
 ];
 
 function NewSaleModal({ onClose, onComplete, initialData }: {
-  onClose: () => void; onComplete: (tx: Omit<TransactionRecord, 'id'>, debtPkgId?: string) => void;
+  onClose: () => void; onComplete: (tx: Omit<TransactionRecord, 'id'>, debtPkgId?: string) => Promise<TransactionRecord | undefined>;
   initialData?: { client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string; cabinMinutes?: number } | null;
 }) {
   const treatments = useTreatmentStore(s => s.treatments);
@@ -70,6 +70,10 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const [splitCard, setSplitCard] = useState('');
   const [customAmount, setCustomAmount] = useState<string>('');
   const [step, setStep] = useState<'items' | 'payment' | 'done'>(initialData && initialData.client ? 'payment' : 'items');
+  const [saving, setSaving] = useState(false);
+  // Transazione salvata a incasso concluso: porta con sé l'esito dello scontrino fiscale C95
+  // (progressivo e idtrx), che finiscono sul tagliando stampato.
+  const [savedTx, setSavedTx] = useState<TransactionRecord | null>(null);
 
   const allClients = useClientStore(s => s.clients);
   const packages = usePackageStore(s => s.packages);
@@ -154,14 +158,15 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     }
   };
 
-  const handleComplete = () => {
-    if (!canComplete) return;
+  const handleComplete = async () => {
+    if (!canComplete || saving) return;
+    setSaving(true);
     const now = new Date();
-    const finalMethod = paymentMethod === 'misto' 
-      ? `Misto (Contanti: €${splitCash}, Carta: €${splitCard})` 
+    const finalMethod = paymentMethod === 'misto'
+      ? `Misto (Contanti: €${splitCash}, Carta: €${splitCard})`
       : PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label || 'Carta';
 
-    onComplete({
+    const saved = await onComplete({
       client: selectedClient || 'Cliente Occasionale',
       items: cart.map(i => i.name).join(', '),
       total: finalTotal,
@@ -171,7 +176,9 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       // Solo i prodotti (non trattamenti/pacchetti) scaricano il magazzino
       productLines: cart.filter(i => i.type === 'product').map(i => ({ productId: i.id, qty: i.qty })),
       cabinMinutes: initialData?.cabinMinutes,
-    }, initialData?.debtPkgId);
+    }, initialData?.debtPkgId).catch(() => undefined);
+    setSavedTx(saved || null);
+    setSaving(false);
     setStep('done');
   };
 
@@ -185,6 +192,9 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       method: finalMethod,
       client: selectedClient || 'Cliente Occasionale',
       operator: initialData?.operator || 'Staff',
+      // Riferimenti del documento commerciale elettronico, se C95 lo ha già emesso
+      progressivo: savedTx?.c95Progressivo,
+      idtrx: savedTx?.c95Idtrx,
     });
   };
 
@@ -378,6 +388,20 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                   <p className="text-xs text-text-muted">{cart.map(i => i.name).join(', ')}</p>
                   <p className="text-xs text-text-muted">{PAYMENT_METHODS.find(m => m.id === paymentMethod)?.icon} {PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label}</p>
                 </div>
+                {/* Esito scontrino fiscale: l'operatore deve sapere subito se il documento
+                    commerciale è stato trasmesso all'Agenzia delle Entrate. */}
+                {savedTx?.c95Status === 'emitted' ? (
+                  <div className="w-full rounded-xl bg-success/10 border border-success/20 px-3 py-2 text-left">
+                    <p className="text-xs font-semibold text-success mb-0.5">✓ Scontrino fiscale emesso</p>
+                    {savedTx.c95Progressivo && <p className="text-[11px] text-text-secondary font-mono">N. {savedTx.c95Progressivo}</p>}
+                    {savedTx.c95Idtrx && <p className="text-[11px] text-text-muted font-mono">Cod. transazione {savedTx.c95Idtrx}</p>}
+                  </div>
+                ) : savedTx?.c95Status ? (
+                  <div className="w-full rounded-xl bg-error/10 border border-error/20 px-3 py-2 text-left">
+                    <p className="text-xs font-semibold text-error mb-0.5">⚠️ Scontrino fiscale NON emesso</p>
+                    <p className="text-[11px] text-text-secondary">{savedTx.c95Error || 'Verifica su C95 ed emetti il documento a mano.'}</p>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -395,9 +419,9 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
             ) : step === 'payment' ? (
               <>
                 <button onClick={() => setStep('items')} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">← Indietro</button>
-                <button onClick={handleComplete} disabled={!canComplete}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${canComplete ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
-                  <CheckCircle className="w-4 h-4" /> Incassa {formatCurrency(finalTotal)}
+                <button onClick={handleComplete} disabled={!canComplete || saving}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${canComplete && !saving ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
+                  <CheckCircle className="w-4 h-4" /> {saving ? 'Emissione scontrino...' : `Incassa ${formatCurrency(finalTotal)}`}
                 </button>
               </>
             ) : (
@@ -556,6 +580,7 @@ function POSPageInner() {
     if (debtPkgId) {
       addPayment(debtPkgId, created.total, created.method as any, created.operator, 'Pagamento da Cassa');
     }
+    return created;
   };
 
   const handleRefund = async (txId: string) => {
@@ -634,7 +659,18 @@ function POSPageInner() {
               <div className={`p-2 rounded-lg ${tx.total < 0 ? 'bg-error/10 text-error' : 'bg-accent/10 text-accent'}`}>
                 {tx.total < 0 ? <Banknote className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
               </div>
-              <div className="flex-1 min-w-0"><p className="text-sm font-medium text-text-primary">{tx.client}</p><p className="text-xs text-text-secondary truncate">{tx.items}</p></div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-text-primary">{tx.client}</p>
+                <p className="text-xs text-text-secondary truncate">{tx.items}</p>
+                {tx.total > 0 && tx.c95Status && tx.c95Status !== 'emitted' && (
+                  <p className="text-[11px] text-error mt-0.5 truncate" title={tx.c95Error || undefined}>
+                    ⚠️ Scontrino fiscale NON emesso{tx.c95Error ? ` — ${tx.c95Error}` : ''}
+                  </p>
+                )}
+                {tx.c95Progressivo && (
+                  <p className="text-[11px] text-text-muted font-mono truncate">{tx.c95Progressivo}</p>
+                )}
+              </div>
               <div className="hidden sm:block text-right"><p className="text-xs text-text-muted">{tx.operator}</p></div>
               <div className="text-right">
                 <p className={`text-sm font-semibold ${tx.total < 0 ? 'text-error' : 'text-text-primary'}`}>{tx.total < 0 ? '-' : ''}{formatCurrency(Math.abs(tx.total))}</p>
@@ -818,6 +854,8 @@ function POSPageInner() {
                       method: lastTx.method,
                       client: lastTx.client,
                       operator: lastTx.operator,
+                      progressivo: lastTx.c95Progressivo,
+                      idtrx: lastTx.c95Idtrx,
                     })}
                     className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:scale-105 transition-all"
                   >

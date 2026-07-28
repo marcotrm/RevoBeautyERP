@@ -17,10 +17,17 @@ export interface TransactionRecord {
   operator: string;
   productLines?: ProductLine[]; // prodotti venduti (per scaricare/ricaricare il magazzino)
   cabinMinutes?: number; // minuti trascorsi in cabina (check-in → check-out), solo per la notifica
+  c95Status?: string | null; // stato scontrino fiscale: emitted | failed | uncertain | reso_* | null
+  c95Error?: string | null;
+  c95Progressivo?: string | null; // numero documento commerciale AdE (es. DCW2026/1565-0455)
+  c95Idtrx?: string | null; // codice transazione C95/AdE
+  c95IdScontrino?: string | null; // id interno C95, serve per annullo/reso/ristampa
 }
 
 function toTransactionRecord(tx: {
   id: string; clientName: string | null; items: unknown; total: number; paymentMethod: string; time: string; operator: string;
+  c95Status?: string | null; c95Error?: string | null;
+  c95Progressivo?: string | null; c95Idtrx?: string | null; c95IdScontrino?: string | null;
 }): TransactionRecord {
   const itemsArr = Array.isArray(tx.items) ? (tx.items as string[]) : [String(tx.items ?? '')];
   return {
@@ -31,6 +38,11 @@ function toTransactionRecord(tx: {
     method: tx.paymentMethod,
     time: tx.time,
     operator: tx.operator,
+    c95Status: tx.c95Status ?? null,
+    c95Error: tx.c95Error ?? null,
+    c95Progressivo: tx.c95Progressivo ?? null,
+    c95Idtrx: tx.c95Idtrx ?? null,
+    c95IdScontrino: tx.c95IdScontrino ?? null,
   };
 }
 
@@ -92,6 +104,9 @@ export async function createTransaction(data: Omit<TransactionRecord, 'id'>, ori
   }
   // Emissione scontrino fiscale elettronico C95 (solo incassi, non resi/storni). Non blocca
   // la vendita se C95 non è configurato o fallisce: lo stato resta tracciato sulla transazione.
+  // Record restituito al client: viene sostituito con la versione aggiornata dopo l'esito C95,
+  // così il POS può avvisare subito l'operatore se lo scontrino fiscale non è stato emesso.
+  let outcome = created;
   if (created.total > 0 && !created.isRefund) {
     try {
       const c95Cfg = await getC95Config();
@@ -101,7 +116,7 @@ export async function createTransaction(data: Omit<TransactionRecord, 'id'>, ori
         paymentMethod: created.paymentMethod,
         lines: [{ descrizione: data.items.slice(0, 100) || 'Servizi/prodotti', prezzoUnitario: created.total, quantita: 1 }],
       });
-      await prisma.posTransaction.update({
+      outcome = await prisma.posTransaction.update({
         where: { id: created.id },
         data: {
           c95Status: result.status,
@@ -136,7 +151,7 @@ export async function createTransaction(data: Omit<TransactionRecord, 'id'>, ori
               idtrx,
               lines: [{ descrizione: data.items.slice(0, 100) || 'Reso', prezzoUnitario: refundAmount, quantita: 1 }],
             });
-        await prisma.posTransaction.update({
+        outcome = await prisma.posTransaction.update({
           where: { id: created.id },
           data: result.ok
             ? { c95Status: isTotal ? 'reso_totale' : 'reso_parziale', c95IdScontrino: original.c95IdScontrino, c95Idtrx: idtrx }
@@ -147,5 +162,5 @@ export async function createTransaction(data: Omit<TransactionRecord, 'id'>, ori
       // il rimborso locale resta valido; il reso fiscale andrà gestito a mano su C95
     }
   }
-  return toTransactionRecord(created);
+  return toTransactionRecord(outcome);
 }

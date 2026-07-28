@@ -18,6 +18,12 @@ export interface ReceiptData {
   operator?: string;
   /** Riferimento al documento commerciale elettronico, se disponibile. */
   fiscalRef?: string;
+  /** Numero del documento commerciale AdE restituito da C95 (es. DCW2026/1565-0455). */
+  progressivo?: string | null;
+  /** Codice transazione C95/AdE (idtrx) del documento commerciale. */
+  idtrx?: string | null;
+  /** Data/ora da stampare; se assente usa l'istante della stampa. */
+  dateLabel?: string;
 }
 
 // Intestazione del negozio stampata in cima allo scontrino.
@@ -39,6 +45,25 @@ function nowStamp(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// Vero quando lo scontrino ha almeno un riferimento al documento commerciale elettronico:
+// solo in quel caso ha senso stampare il blocco fiscale e la dicitura estesa in fondo.
+function hasFiscalData(data: ReceiptData): boolean {
+  return !!(data.progressivo || data.idtrx || data.fiscalRef);
+}
+
+// Riferimenti del documento commerciale AdE, così il tagliando cartaceo è riconducibile
+// allo scontrino elettronico (necessario per resi, contestazioni e controlli).
+function fiscalBlock(data: ReceiptData): string {
+  if (!hasFiscalData(data)) return '';
+  const rows: string[] = [];
+  if (data.progressivo) rows.push(`<div class="row muted"><span>N. Documento</span><span>${esc(data.progressivo)}</span></div>`);
+  if (data.idtrx) rows.push(`<div class="row muted"><span>Cod. Transazione</span><span>${esc(data.idtrx)}</span></div>`);
+  if (!data.progressivo && !data.idtrx && data.fiscalRef) {
+    rows.push(`<div class="muted">Doc. Commerciale: ${esc(data.fiscalRef)}</div>`);
+  }
+  return `<div class="hr"></div>${rows.join('')}`;
 }
 
 function buildReceiptHtml(data: ReceiptData): string {
@@ -71,7 +96,7 @@ function buildReceiptHtml(data: ReceiptData): string {
     ${BUSINESS.lines.map((l) => `<div class="muted">${esc(l)}</div>`).join('')}
   </div>
   <div class="hr"></div>
-  <div class="muted">Data: ${nowStamp()}</div>
+  <div class="muted">Data: ${esc(data.dateLabel || nowStamp())}</div>
   ${data.client ? `<div class="muted">Cliente: ${esc(data.client)}</div>` : ''}
   ${data.operator ? `<div class="muted">Operatore: ${esc(data.operator)}</div>` : ''}
   <div class="hr"></div>
@@ -79,12 +104,18 @@ function buildReceiptHtml(data: ReceiptData): string {
   <div class="hr"></div>
   <div class="row total"><span>TOTALE</span><span>${euro(data.total)}</span></div>
   ${data.method ? `<div class="row muted"><span>Pagamento</span><span>${esc(data.method)}</span></div>` : ''}
-  ${data.fiscalRef ? `<div class="muted" style="margin-top:4px">Doc. Commerciale: ${esc(data.fiscalRef)}</div>` : ''}
+  ${fiscalBlock(data)}
   <div class="hr"></div>
-  <div class="center foot muted">Copia di cortesia — non fiscale</div>
+  <div class="center foot muted">${hasFiscalData(data)
+    ? 'Documento commerciale emesso elettronicamente<br>e trasmesso all\'Agenzia delle Entrate.<br>Copia di cortesia per il cliente.'
+    : 'Copia di cortesia — non fiscale'}</div>
   <div class="center muted">Grazie e arrivederci!</div>
 </body></html>`;
 }
+
+// Una stampa alla volta: senza questo lock i click ripetuti sul pulsante accavallano
+// più iframe, e la finestra di stampa può non aprirsi affatto.
+let printing = false;
 
 /**
  * Apre un iframe nascosto con lo scontrino formattato a 80 mm e lancia la stampa.
@@ -92,6 +123,8 @@ function buildReceiptHtml(data: ReceiptData): string {
  */
 export function printThermalReceipt(data: ReceiptData): void {
   if (typeof window === 'undefined') return;
+  if (printing) return;
+  printing = true;
   const html = buildReceiptHtml(data);
 
   const iframe = document.createElement('iframe');
@@ -107,27 +140,44 @@ export function printThermalReceipt(data: ReceiptData): void {
   const doc = iframe.contentWindow?.document;
   if (!doc) {
     document.body.removeChild(iframe);
+    printing = false;
     return;
   }
-  doc.open();
-  doc.write(html);
-  doc.close();
 
-  const win = iframe.contentWindow!;
+  let done = false;
   const cleanup = () => {
+    if (done) return;
+    done = true;
+    printing = false;
     setTimeout(() => { try { document.body.removeChild(iframe); } catch { /* già rimosso */ } }, 1000);
   };
-  win.onafterprint = cleanup;
 
-  // Attende il render del contenuto prima di stampare
-  setTimeout(() => {
+  let launched = false;
+  const launch = () => {
+    if (launched) return; // onload e il fallback possono scattare entrambi: una stampa sola
+    launched = true;
+    const win = iframe.contentWindow;
+    if (!win) { cleanup(); return; }
+    win.onafterprint = cleanup;
     try {
       win.focus();
       win.print();
     } catch (e) {
       console.error('Stampa scontrino fallita', e);
+      cleanup();
+      return;
     }
-    // fallback nel caso onafterprint non venga chiamato
-    setTimeout(cleanup, 2000);
-  }, 250);
+    // Fallback: alcuni browser non chiamano onafterprint (o la finestra resta aperta a lungo).
+    // Senza questo il lock resterebbe attivo e i pulsanti Stampa smetterebbero di rispondere.
+    setTimeout(cleanup, 60_000);
+  };
+
+  // Stampa solo a documento caricato: il vecchio setTimeout(250ms) partiva a volte prima
+  // del render e non apriva nulla — era la causa dei click a vuoto sul pulsante Stampa.
+  iframe.onload = launch;
+  doc.open();
+  doc.write(html);
+  doc.close();
+  // Con document.write l'evento load può essere già scattato: fallback difensivo.
+  setTimeout(() => { if (!launched && iframe.contentWindow) launch(); }, 500);
 }

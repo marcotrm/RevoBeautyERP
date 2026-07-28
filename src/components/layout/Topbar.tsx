@@ -19,6 +19,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard/agenda': 'Agenda',
   '/dashboard/clients': 'Clienti',
   '/dashboard/pos': 'Punto Cassa',
+  '/dashboard/scontrini': 'Scontrini Fiscali',
   '/dashboard/packages': 'Pacchetti & Abbonamenti',
   '/dashboard/packages/gift-cards': 'Buoni Regalo',
   '/dashboard/inventory': 'Magazzino',

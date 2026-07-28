@@ -13,7 +13,7 @@ import {
   Calendar, Users, ShoppingBag, Package, BarChart3,
   Megaphone, Settings, ChevronLeft, ChevronRight,
   LayoutDashboard, UserCog, Sun, Moon, LogOut,
-  Warehouse, Sparkles, X, Landmark, Gift, PartyPopper, CheckSquare, Zap, TrendingUp, Banknote,
+  Warehouse, Sparkles, X, Landmark, Gift, PartyPopper, CheckSquare, Zap, TrendingUp, Banknote, Receipt,
 } from 'lucide-react';
 import { getInitials } from '@/lib/helpers';
 
@@ -23,6 +23,7 @@ const menuItems = [
   { id: 'clients', label: 'Clienti', icon: Users, href: '/dashboard/clients' },
   { id: 'pos', label: 'Cassa', icon: ShoppingBag, href: '/dashboard/pos', badge: 0 },
   { id: 'cassa-contanti', label: 'Cassa Contanti', icon: Banknote, href: '/dashboard/cassa-contanti' },
+  { id: 'scontrini', label: 'Scontrini Fiscali', icon: Receipt, href: '/dashboard/scontrini' },
   { id: 'packages', label: 'Trattamenti e Pacchetti', icon: Package, href: '/dashboard/packages' },
   { id: 'gift-cards', label: 'Buoni Regalo', icon: Gift, href: '/dashboard/packages/gift-cards' },
   { id: 'inventory', label: 'Magazzino', icon: Warehouse, href: '/dashboard/inventory' },

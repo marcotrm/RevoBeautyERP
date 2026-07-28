@@ -11,6 +11,7 @@ export const MENU_PERMISSIONS: Record<string, string> = {
   clients: 'clients_view',
   pos: 'pos',
   'cassa-contanti': 'pos',
+  scontrini: 'pos',
   packages: 'packages',
   'gift-cards': 'packages',
   inventory: 'inventory_view',

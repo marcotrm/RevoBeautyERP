@@ -85,7 +85,11 @@ function isErrorResponse(body: Record<string, unknown>): string | null {
   if (Array.isArray(body.errori) && body.errori.length) {
     const first = body.errori[0] as { codice?: string; descrizione?: string };
     const codice = String(first?.codice ?? '');
-    if (codice && codice !== '0') return first?.descrizione || `Errore C95 (codice ${codice})`;
+    const descrizione = String(first?.descrizione ?? '').trim();
+    // C95 può restituire l'errore con codice vuoto e solo la descrizione
+    // (es. { codice: "", descrizione: "Credenziali AdE non valide" }).
+    if (codice && codice !== '0') return descrizione || `Errore C95 (codice ${codice})`;
+    if (codice !== '0' && descrizione) return descrizione;
   }
   if ('errCode' in body) {
     const code = String(body.errCode ?? '');
@@ -320,10 +324,18 @@ export async function emitC95Receipt(params: {
   }
 
   const idScontrino = String(body.idScontrino ?? body.IdScontrino ?? '') || undefined;
-  const emitted = !!body.esito || !!idScontrino;
-  if (!emitted) {
+  // ATTENZIONE: C95 valorizza idScontrino/gid anche quando la trasmissione all'AdE fallisce
+  // (documento creato ma in stato NON INVIATO). L'unico indicatore affidabile è esito === true:
+  // non usare la presenza di idScontrino come prova di emissione.
+  if (body.esito !== true) {
     const err = isErrorResponse(body);
-    return { ok: false, status: 'failed', error: err || 'C95 ha rifiutato lo scontrino' };
+    return {
+      ok: false,
+      status: 'failed',
+      error: err || 'C95 ha creato il documento ma non lo ha trasmesso all\'Agenzia delle Entrate (stato NON INVIATO): verifica le credenziali AdE sull\'anagrafica C95 ed emetti il documento dal portale.',
+      idScontrino,
+      gid: (body.gid as string) || undefined,
+    };
   }
 
   return {
