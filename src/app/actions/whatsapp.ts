@@ -1,5 +1,6 @@
 'use server';
 
+import { prisma } from '@/lib/prisma';
 import { waProvider, whatsappMissingVars } from '@/lib/whatsapp';
 import { listD360Templates } from '@/lib/whatsapp360';
 import { WA_TEMPLATES, type TemplateKey } from '@/lib/wa-templates';
@@ -39,6 +40,35 @@ export async function previewAutomation(which: TemplateKey): Promise<RunResult |
 export async function runAutomationNow(which: TemplateKey): Promise<RunResult | null> {
   const res = await runWaAutomations({ which, force: true, dryRun: false });
   return res[0] || null;
+}
+
+export interface WaInboxMessage {
+  phone: string;
+  name?: string;
+  text: string;
+  receivedAt: string;
+}
+
+/**
+ * Ultimi messaggi ricevuti dai clienti. Serve soprattutto a verificare che il
+ * webhook 360dialog sia collegato: se qui non compare nulla dopo aver scritto
+ * al numero del centro, il webhook non sta consegnando.
+ */
+export async function loadWaInbox(limit = 15): Promise<WaInboxMessage[]> {
+  const rows = await prisma.adminEntry.findMany({
+    where: { kind: 'wa_inbox' },
+    orderBy: { createdAt: 'desc' },
+    take: Math.min(limit, 50),
+  });
+  return rows.map(r => {
+    const d = (r.data || {}) as { phone?: string; name?: string; text?: string; receivedAt?: string };
+    return {
+      phone: d.phone || r.entityId || '',
+      name: d.name,
+      text: d.text || '',
+      receivedAt: d.receivedAt || r.createdAt,
+    };
+  });
 }
 
 export interface TemplateCheck {

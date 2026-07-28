@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { MessageSquare, ChevronDown, Loader2, CheckCircle2, AlertTriangle, Clock, Heart, Gift, Star, CalendarPlus } from 'lucide-react';
 import {
-  loadWaConfig, saveWaConfig, loadWaStatus, previewAutomation, runAutomationNow, checkTemplates,
-  type WaStatus, type TemplateCheck,
+  loadWaConfig, saveWaConfig, loadWaStatus, previewAutomation, runAutomationNow, checkTemplates, loadWaInbox,
+  type WaStatus, type TemplateCheck, type WaInboxMessage,
 } from '@/app/actions/whatsapp';
 import type { WaAutomationsConfig, RunResult } from '@/lib/wa-automations';
 
@@ -32,6 +32,7 @@ export default function WhatsAppAutomationsConfig() {
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<RunResult | null>(null);
   const [checks, setChecks] = useState<TemplateCheck[] | null>(null);
+  const [inbox, setInbox] = useState<WaInboxMessage[] | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
@@ -71,6 +72,13 @@ export default function WhatsAppAutomationsConfig() {
     if (r.skipped) return flash(false, r.skipped);
     setResult(r);
     flash(r.failed === 0, `${title}: ${r.sent} inviati, ${r.failed} falliti su ${r.candidates} candidati`);
+  };
+
+  const doLoadInbox = async () => {
+    setBusy('inbox');
+    const r = await loadWaInbox().catch(() => []);
+    setBusy(null);
+    setInbox(r);
   };
 
   const doCheckTemplates = async () => {
@@ -169,6 +177,38 @@ export default function WhatsAppAutomationsConfig() {
                 </div>
               );
             })}
+          </div>
+
+          {/* Messaggi ricevuti: è la verifica pratica che il webhook 360dialog stia
+              consegnando. Se resta vuoto dopo aver scritto al numero, il giro è rotto. */}
+          <div className="p-3 rounded-xl bg-bg-secondary border border-border/50 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-text-secondary">Messaggi ricevuti dai clienti</p>
+                <p className="text-[10px] text-text-muted/70">Se qui non compare nulla dopo aver scritto al numero del centro, il webhook non sta consegnando.</p>
+              </div>
+              <button onClick={doLoadInbox} disabled={busy !== null}
+                className="text-[11px] px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-text-secondary hover:bg-bg-hover disabled:opacity-50 flex-shrink-0">
+                {busy === 'inbox' ? '...' : 'Aggiorna'}
+              </button>
+            </div>
+            {inbox === null ? (
+              <p className="text-[11px] text-text-muted">Premi &quot;Aggiorna&quot; per vedere gli ultimi messaggi arrivati.</p>
+            ) : inbox.length === 0 ? (
+              <p className="text-[11px] text-warning">Nessun messaggio ricevuto finora.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {inbox.map((m, i) => (
+                  <div key={`${m.phone}-${m.receivedAt}-${i}`} className="flex items-start gap-2 text-[11px] border-t border-border/40 pt-1.5 first:border-0 first:pt-0">
+                    <span className="text-text-muted font-mono flex-shrink-0">
+                      {new Date(m.receivedAt).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <span className="text-text-primary font-medium flex-shrink-0">{m.name || m.phone}</span>
+                    <span className="text-text-secondary min-w-0 break-words">{m.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Prenotazione da WhatsApp: non è un'automazione a orario, reagisce ai
