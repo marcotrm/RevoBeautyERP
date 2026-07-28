@@ -988,7 +988,7 @@ export default function StaffPage() {
             <div className="px-5 py-4 border-b border-border flex items-center gap-2">
               <Sun className="w-4 h-4 text-accent" />
               <h3 className="text-base font-display font-semibold text-text-primary">Cabine e Risorse</h3>
-              <span className="text-xs text-text-muted">— postazioni prenotabili in agenda senza operatrice (es. Cabina Lampade)</span>
+              <span className="text-xs text-text-muted">— postazioni prenotabili in agenda senza operatrice (es. Cabina Automatica)</span>
             </div>
             <div className="p-5 space-y-4">
               <div className="flex items-center gap-2 max-w-md">
@@ -997,7 +997,7 @@ export default function StaffPage() {
                   value={newResourceName}
                   onChange={e => setNewResourceName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleAddResource()}
-                  placeholder="Nome cabina/risorsa (es. Cabina Lampade)"
+                  placeholder="Nome cabina/risorsa (es. Cabina Automatica)"
                   className="flex-1 px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all"
                 />
                 <button onClick={handleAddResource} disabled={!newResourceName.trim()}
