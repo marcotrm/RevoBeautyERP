@@ -11,7 +11,7 @@ import {
   Trash2, Search, Smartphone, Lock, Vault, ArrowDownToLine, Printer,
 } from 'lucide-react';
 import { getCassaforte, closeCassa, withdrawCassa, CassaMovementRecord } from '@/app/actions/cassaforte';
-import { printThermalReceipt } from '@/lib/printReceipt';
+import { printThermalReceipt, primeVatRate } from '@/lib/printReceipt';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { useClientStore } from '@/stores/useClientStore';
 import { formatCurrency } from '@/lib/helpers';
@@ -71,6 +71,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const [customAmount, setCustomAmount] = useState<string>('');
   const [step, setStep] = useState<'items' | 'payment' | 'done'>(initialData && initialData.client ? 'payment' : 'items');
   const [saving, setSaving] = useState(false);
+  const [cashGiven, setCashGiven] = useState('');
   // Transazione salvata a incasso concluso: porta con sé l'esito dello scontrino fiscale C95
   // (progressivo e idtrx), che finiscono sul tagliando stampato.
   const [savedTx, setSavedTx] = useState<TransactionRecord | null>(null);
@@ -140,6 +141,13 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const isDebtPayment = !!initialData?.debtPkgId;
   const finalTotal = isDebtPayment ? (customAmount ? Number(customAmount) : 0) : total;
   const isMistoValid = paymentMethod === 'misto' ? Math.abs((Number(splitCash) + Number(splitCard)) - finalTotal) < 0.01 : true;
+  // Resto: null se il contante battuto non copre il totale (o non è ancora stato inserito)
+  const changeDue = (() => {
+    if (paymentMethod !== 'contanti' || cashGiven === '') return null;
+    const given = Number(cashGiven);
+    if (!isFinite(given) || given + 0.005 < finalTotal) return null;
+    return Math.round((given - finalTotal) * 100) / 100;
+  })();
   const canComplete = (isDebtPayment ? finalTotal > 0 : cart.length > 0) && isMistoValid;
 
   const handleSplitCashChange = (val: string) => {
@@ -342,6 +350,43 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                     ))}
                   </div>
 
+                  {/* Contanti: l'operatrice batte quanto ha ricevuto e legge il resto da dare.
+                      Il totale incassato resta finalTotal, il contante ricevuto non viene registrato. */}
+                  {paymentMethod === 'contanti' && finalTotal > 0 && (
+                    <div className="mt-4 p-4 rounded-xl bg-bg-tertiary/50 border border-border">
+                      <div className="flex items-center justify-between gap-4">
+                        <label className="text-sm font-medium text-text-primary">Contanti ricevuti</label>
+                        <div className="relative">
+                          <input type="number" step="0.01" inputMode="decimal" value={cashGiven} onChange={e => setCashGiven(e.target.value)}
+                            placeholder="0.00" autoComplete="off"
+                            className="w-32 pl-2 pr-6 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
+                        </div>
+                      </div>
+                      {/* Tagli rapidi: banconote utili al di sopra del totale, più l'importo esatto */}
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        <button onClick={() => setCashGiven(finalTotal.toFixed(2))}
+                          className="px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover">Esatto</button>
+                        {[5, 10, 20, 50, 100].filter(v => v > finalTotal).map(v => (
+                          <button key={v} onClick={() => setCashGiven(String(v))}
+                            className="px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover">{v} €</button>
+                        ))}
+                      </div>
+                      {cashGiven !== '' && (
+                        changeDue !== null ? (
+                          <div className="mt-3 pt-3 border-t border-border/40 flex items-center justify-between">
+                            <span className="text-sm font-semibold text-text-primary">Resto da dare</span>
+                            <span className="text-2xl font-display font-bold text-accent">{formatCurrency(changeDue)}</span>
+                          </div>
+                        ) : (
+                          <p className="mt-3 pt-3 border-t border-border/40 text-xs text-error font-medium">
+                            Contante ricevuto inferiore al totale di {formatCurrency(finalTotal)}
+                          </p>
+                        )
+                      )}
+                    </div>
+                  )}
+
                   {paymentMethod === 'misto' && (
                     <div className="mt-4 p-4 rounded-xl bg-bg-tertiary/50 border border-border space-y-3">
                       <p className="text-sm font-medium text-text-primary mb-2">Dividi Importo (Totale: {formatCurrency(finalTotal)})</p>
@@ -388,6 +433,13 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                   <p className="text-xs text-text-muted">{cart.map(i => i.name).join(', ')}</p>
                   <p className="text-xs text-text-muted">{PAYMENT_METHODS.find(m => m.id === paymentMethod)?.icon} {PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label}</p>
                 </div>
+                {/* Il resto resta a schermo anche dopo l'incasso, finché il modal è aperto */}
+                {changeDue !== null && changeDue > 0 && (
+                  <div className="w-full rounded-xl bg-accent/10 border border-accent/20 px-3 py-2 mb-3 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-text-primary">Resto da dare</span>
+                    <span className="text-xl font-display font-bold text-accent">{formatCurrency(changeDue)}</span>
+                  </div>
+                )}
                 {/* Esito scontrino fiscale: l'operatore deve sapere subito se il documento
                     commerciale è stato trasmesso all'Agenzia delle Entrate. */}
                 {savedTx?.c95Status === 'emitted' ? (
@@ -545,6 +597,7 @@ function POSPageInner() {
     fetchClients();
     fetchTreatments();
     refreshSafe();
+    primeVatRate(); // aliquota per lo scorporo IVA sul tagliando stampato
   }, [fetchTransactions, fetchClients, fetchTreatments]);
 
   // Auto-open dalla vendita in arrivo dall'agenda — via memoria di sessione,

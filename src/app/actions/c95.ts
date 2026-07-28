@@ -18,3 +18,10 @@ export async function saveC95ConfigAction(cfg: Omit<C95Config, 'token' | 'tokenE
 export async function testC95ConnectionAction() {
   return testC95Connection();
 }
+
+// Aliquota IVA usata sugli scontrini: serve al tagliando cartaceo per stampare
+// lo scorporo "di cui IVA", che deve coincidere con quello del documento C95.
+export async function getReceiptVatRate(): Promise<number> {
+  const cfg = await getC95Config();
+  return cfg.vatRate || 22;
+}

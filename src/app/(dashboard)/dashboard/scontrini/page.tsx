@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Receipt, Search, RefreshCw, Printer, Ban, RotateCcw, Loader2, AlertTriangle } from 'lucide-react';
 import { getScontrini, annullaScontrino, riemettiScontrino, ScontrinoRecord, ScontrinoFilter } from '@/app/actions/scontrini';
-import { printThermalReceipt } from '@/lib/printReceipt';
+import { printThermalReceipt, primeVatRate } from '@/lib/printReceipt';
 import { formatCurrency } from '@/lib/helpers';
 
 function todayISO(): string {
@@ -51,6 +51,7 @@ export default function ScontriniPage() {
   }, [from, to, query, filter]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { primeVatRate(); }, []); // aliquota per lo scorporo IVA in ristampa
 
   const doAnnulla = async (s: ScontrinoRecord) => {
     if (!window.confirm(`Annullare lo scontrino fiscale ${s.c95Progressivo || s.c95IdScontrino} di ${formatCurrency(s.total)}?\n\nL'annullo viene trasmesso all'Agenzia delle Entrate e non è reversibile.`)) return;

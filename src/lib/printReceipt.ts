@@ -1,5 +1,7 @@
 'use client';
 
+import { getReceiptVatRate } from '@/app/actions/c95';
+
 // Stampa una copia di cortesia dello scontrino su stampante termica da 80 mm.
 // Nota: il documento fiscale è quello elettronico inviato all'Agenzia delle Entrate
 // tramite C95; questo è solo il tagliando cartaceo per il cliente.
@@ -24,6 +26,8 @@ export interface ReceiptData {
   idtrx?: string | null;
   /** Data/ora da stampare; se assente usa l'istante della stampa. */
   dateLabel?: string;
+  /** Aliquota IVA per lo scorporo "di cui IVA" (default 22, come la config C95). */
+  vatRate?: number;
 }
 
 // Intestazione del negozio stampata in cima allo scontrino.
@@ -45,6 +49,33 @@ function nowStamp(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// Aliquota letta una volta sola dalla config C95 e tenuta in cache: evita di passarla
+// come prop attraverso tutti i componenti che stampano. Chi stampa chiama primeVatRate()
+// al mount; finché non risponde si usa il 22% (stesso default della config).
+let cachedVatRate: number | null = null;
+
+export async function primeVatRate(): Promise<void> {
+  if (cachedVatRate !== null) return;
+  try {
+    cachedVatRate = await getReceiptVatRate();
+  } catch {
+    cachedVatRate = 22;
+  }
+}
+
+// IVA scorporata dal totale (i prezzi a listino sono lordi, come nel payload inviato a C95):
+// imponibile = totale / (1 + aliquota), IVA = totale - imponibile.
+function vatAmount(data: ReceiptData): number {
+  const rate = data.vatRate ?? cachedVatRate ?? 22;
+  const imponibile = data.total / (1 + rate / 100);
+  return Math.round((data.total - imponibile) * 100) / 100;
+}
+
+function vatLabel(data: ReceiptData): string {
+  const rate = data.vatRate ?? cachedVatRate ?? 22;
+  return String(Math.round(rate * 100) / 100).replace('.', ',');
 }
 
 // Vero quando lo scontrino ha almeno un riferimento al documento commerciale elettronico:
@@ -84,8 +115,10 @@ function buildReceiptHtml(data: ReceiptData): string {
      male sulla griglia di punti della testina, il pt è assoluto (1/72 di pollice) e cade
      sempre uguale a qualunque dpi. Font di sistema e non Courier: a 203 dpi le aste sottili
      della Courier si impastano. */
+  /* Margine destro più largo del sinistro: su questa testina gli ultimi ~5 mm della banda
+     non vengono impressi e tagliavano il simbolo €, il n. documento e il cod. transazione. */
   body {
-    padding: 3mm 2mm;
+    padding: 3mm 7mm 3mm 3mm;
     font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
     font-size: 10pt; font-weight: 700; line-height: 1.45; color: #000;
     -webkit-font-smoothing: none; /* niente antialiasing: sulla termica diventa retino grigio */
@@ -119,6 +152,7 @@ function buildReceiptHtml(data: ReceiptData): string {
   <div class="hr"></div>
   <div class="row total"><span>TOTALE</span><span>${euro(data.total)}</span></div>
   ${data.method ? `<div class="row muted"><span>Pagamento</span><span>${esc(data.method)}</span></div>` : ''}
+  <div class="row muted"><span>di cui IVA ${vatLabel(data)}%</span><span>${euro(vatAmount(data))}</span></div>
   ${fiscalBlock(data)}
   <div class="hr"></div>
   <div class="center foot muted">${hasFiscalData(data)
