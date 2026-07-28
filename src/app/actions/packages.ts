@@ -8,7 +8,7 @@ function toClientPackage(cp: {
   id: string; clientName: string; packageName: string; packageColor: string;
   totalSessions: number; usedSessions: number; pricePaid: number; totalPaid: number;
   remainingBalance: number; paymentPlan: string; purchaseDate: string; expiryDate: string;
-  status: string; history: unknown; payments: unknown;
+  status: string; history: unknown; payments: unknown; packageId?: string | null;
 }): ClientPackage {
   return {
     ...cp,

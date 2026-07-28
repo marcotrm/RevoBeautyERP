@@ -25,6 +25,8 @@ export interface ClientPackage {
   id: string;
   clientName: string;
   packageName: string;
+  /** pacchetto del catalogo da cui è stato venduto (serve per sapere il trattamento) */
+  packageId?: string | null;
   packageColor: string;
   totalSessions: number;
   usedSessions: number;

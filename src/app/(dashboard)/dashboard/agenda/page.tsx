@@ -20,6 +20,7 @@ import {
   formatDateLong, timeToMinutes, getStatusLabel,
   getStatusColor, formatCurrency, getInitials, getCategoryLabel, guessGenderFromName,
 } from '@/lib/helpers';
+import { resolveTreatmentForPackage } from '@/lib/packageTreatment';
 import WaitlistModal from '@/components/WaitlistModal';
 import WaitlistPanel from '@/components/WaitlistPanel';
 import AddClientModal from '@/components/AddClientModal';
@@ -778,6 +779,8 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   const [treatmentQuery, setTreatmentQuery] = useState('');
   const [treatmentOpen, setTreatmentOpen] = useState(false);
   const [gender, setGender] = useState<'female' | 'male'>('female');
+  // avviso quando dal nome del pacchetto non si capisce il trattamento
+  const [pkgHint, setPkgHint] = useState('');
 
   useEffect(() => {
     if (isAppointmentModalOpen) {
@@ -819,6 +822,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       }
       setShowClientDropdown(false);
       setTreatmentOpen(false);
+      setPkgHint('');
       // Deduci il sesso dal primo trattamento salvato, altrimenti default Donna
       if (editingAppointment?.services?.[0]?.gender) {
         setGender(editingAppointment.services[0].gender);
@@ -840,6 +844,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
 
   // Active packages for selected client
   const allPkgData = usePackageStore(s => s.clientPackages);
+  const catalogPackages = usePackageStore(s => s.packages);
   const clientActivePkgs = useMemo(() => {
     if (!selectedClientName) return [];
     const normalize = (n: string) => n.toLowerCase().trim().split(/\s+/).sort().join(' ');
@@ -1071,14 +1076,20 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                       <button type="button" onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        const matchingTreatment = treatments.find(t =>
-                          cp.packageName.toLowerCase().includes(t.name.toLowerCase()) ||
-                          t.name.toLowerCase().includes(cp.packageName.toLowerCase().split(' ').slice(0, 2).join(' '))
-                        );
-                        const t = matchingTreatment || treatments[0];
-                        // Pacchetto omaggio (0€): la seduta si aggiunge gratis.
-                        const isFree = cp.pricePaid === 0;
-                        if (t) addService(t, isFree ? 0 : undefined);
+                        // Il trattamento è quello del pacchetto: prima da catalogo, poi dal nome.
+                        const catalogPkg = catalogPackages.find(p => p.id === cp.packageId);
+                        const t = resolveTreatmentForPackage({
+                          packageName: cp.packageName,
+                          catalogTreatmentName: catalogPkg?.treatmentName,
+                          treatments,
+                        });
+                        if (t) {
+                          setPkgHint('');
+                          // La seduta è già pagata nel pacchetto: si aggiunge a 0 €.
+                          if (!selectedServices.some(s => s.treatmentId === t.id)) addService(t, 0);
+                        } else {
+                          setPkgHint(`Non riesco a capire il trattamento di «${cp.packageName}»: scegli tu quale trattamento fare qui sotto. La seduta verrà comunque scalata dal pacchetto.`);
+                        }
                         setNotes(`📦 Seduta da pacchetto: ${cp.packageName} (${remaining} rimanenti)`);
                       }}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent text-white text-[10px] font-bold hover:bg-accent/90 transition-colors whitespace-nowrap cursor-pointer z-10">
@@ -1088,6 +1099,9 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                   );
                 })}
                 <p className="text-[10px] text-text-muted italic">La seduta verrà scalata solo quando l&apos;appuntamento sarà completato.</p>
+                {pkgHint && (
+                  <p className="text-[11px] text-warning font-medium bg-warning/10 rounded-lg px-2.5 py-2">⚠️ {pkgHint}</p>
+                )}
               </div>
             )}
 
