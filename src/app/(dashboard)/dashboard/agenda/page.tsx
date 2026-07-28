@@ -1371,9 +1371,26 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
     setShowPkgModal(true);
   };
 
+  // Manda in cassa a saldare le rate di un pacchetto
+  const goPayDebt = (pkg: typeof clientPkgs[number]) => {
+    setShowPkgModal(false);
+    setShowDebtModal(false);
+    try {
+      sessionStorage.setItem('revo_pos_autosale', JSON.stringify({
+        client: appointment.clientName,
+        treatment: `Rata Pacchetto: ${pkg.packageName}`,
+        price: pkg.remainingBalance,
+        operator: appointment.operatorName || 'Staff',
+        debtPkgId: pkg.id,
+      }));
+    } catch { /* no-op */ }
+    router.push('/dashboard/pos');
+  };
+
   const handleCheckoutClick = () => {
-    if (packagesWithDebt.length > 0) setShowDebtModal(true);
-    else if (usablePkgs.length > 0) askWhichPackage();
+    // Prima cosa: da quale pacchetto scalo? (le rate in sospeso si vedono lì dentro)
+    if (usablePkgs.length > 0) askWhichPackage();
+    else if (packagesWithDebt.length > 0) setShowDebtModal(true);
     else processCheckout(null);
   };
 
@@ -1676,6 +1693,25 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
             <p className="text-sm text-text-secondary mb-4">
               <strong className="text-text-primary">{appointment.clientName}</strong> — {appointment.treatmentName}
             </p>
+
+            {packagesWithDebt.length > 0 && (
+              <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 p-3 space-y-2">
+                <p className="flex items-center gap-1.5 text-xs font-bold text-warning">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Rate in sospeso
+                </p>
+                {packagesWithDebt.map(pkg => (
+                  <div key={pkg.id} className="flex items-center gap-2">
+                    <p className="flex-1 min-w-0 text-[11px] text-text-secondary truncate">
+                      {pkg.packageName}: <strong className="text-error">{formatCurrency(pkg.remainingBalance)}</strong> da pagare
+                    </p>
+                    <button onClick={() => goPayDebt(pkg)}
+                      className="px-2 py-1 rounded-lg bg-accent/15 text-accent text-[11px] font-semibold hover:bg-accent/25 transition-colors flex items-center gap-1 flex-shrink-0">
+                      <Euro className="w-3 h-3" /> Incassa
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="space-y-2 mb-5 max-h-[45vh] overflow-y-auto">
               {usablePkgs.map(cp => {
