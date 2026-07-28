@@ -17,8 +17,8 @@ import { useProductStore } from '@/stores/useProductStore';
 import { sellProductsWithPackage } from '@/app/actions/products';
 import type { Product } from '@/types';
 
-/** Sconto riservato a chi acquista un pacchetto, valido solo sui prodotti. */
-const PRODUCT_DISCOUNT = 20;
+/** Sconto sui prodotti abbinati al pacchetto (0 = nessuno sconto). */
+const PRODUCT_DISCOUNT = 0;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export interface ProductLine {
@@ -398,7 +398,9 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
                     <div className="flex items-center gap-1.5">
                       <ShoppingBag className="w-4 h-4 text-accent" />
                       <span className="text-sm font-semibold text-text-primary">Prodotti</span>
-                      <span className="px-1.5 py-0.5 rounded bg-accent/15 text-accent text-[10px] font-bold">-{PRODUCT_DISCOUNT}%</span>
+                      {PRODUCT_DISCOUNT > 0 && (
+                        <span className="px-1.5 py-0.5 rounded bg-accent/15 text-accent text-[10px] font-bold">-{PRODUCT_DISCOUNT}%</span>
+                      )}
                     </div>
                     {!prodOpen && (
                       <button type="button" onClick={() => setProdOpen(true)}
@@ -431,7 +433,7 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
                                 </p>
                               </div>
                               <div className="text-right flex-shrink-0">
-                                <p className="text-[10px] text-text-muted line-through">{formatCurrency(p.price)}</p>
+                                {PRODUCT_DISCOUNT > 0 && <p className="text-[10px] text-text-muted line-through">{formatCurrency(p.price)}</p>}
                                 <p className="text-sm font-bold text-accent">{formatCurrency(round2(p.price * (1 - PRODUCT_DISCOUNT / 100)))}</p>
                               </div>
                             </button>
@@ -443,7 +445,9 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
 
                   {lines.length === 0 ? (
                     <p className="text-[11px] text-text-muted">
-                      Chi compra il pacchetto ha il {PRODUCT_DISCOUNT}% di sconto sui prodotti.
+                      {PRODUCT_DISCOUNT > 0
+                        ? `Chi compra il pacchetto ha il ${PRODUCT_DISCOUNT}% di sconto sui prodotti.`
+                        : 'Puoi aggiungere prodotti alla vendita: si incassano insieme al pacchetto.'}
                     </p>
                   ) : (
                     <div className="space-y-1.5">
@@ -452,7 +456,7 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-semibold text-text-primary truncate">{l.name}</p>
                             <p className="text-[10px] text-text-muted">
-                              <span className="line-through">{formatCurrency(l.unitPrice)}</span>{' '}
+                              {l.discountPct > 0 && <span className="line-through">{formatCurrency(l.unitPrice)}{' '}</span>}
                               <span className="text-accent font-semibold">{formatCurrency(round2(l.unitPrice * (1 - l.discountPct / 100)))}</span> cad.
                             </p>
                           </div>
@@ -469,7 +473,7 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
                         </div>
                       ))}
                       <div className="flex items-center justify-between pt-1.5 border-t border-border/60 text-xs">
-                        <span className="text-text-secondary">Prodotti (sconto {formatCurrency(productsSaving)})</span>
+                        <span className="text-text-secondary">Prodotti{productsSaving > 0 ? ` (sconto ${formatCurrency(productsSaving)})` : ''}</span>
                         <span className="font-bold text-text-primary">{formatCurrency(productsTotal)}</span>
                       </div>
                     </div>
@@ -496,7 +500,7 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
                   <p className="text-success font-semibold">Pagato: {formatCurrency(round2(payAmount + productsTotal))} ({paymentMethod})</p>
                   {productsTotal > 0 && (
                     <p className="text-text-secondary text-xs">
-                      di cui {formatCurrency(productsTotal)} di prodotti ({lines.reduce((s, l) => s + l.quantity, 0)} pz, sconto {formatCurrency(productsSaving)})
+                      di cui {formatCurrency(productsTotal)} di prodotti ({lines.reduce((s, l) => s + l.quantity, 0)} pz{productsSaving > 0 ? `, sconto ${formatCurrency(productsSaving)}` : ''})
                     </p>
                   )}
                   {remaining > 0 && <p className="text-error font-semibold">Restante sul pacchetto: {formatCurrency(remaining)}</p>}
