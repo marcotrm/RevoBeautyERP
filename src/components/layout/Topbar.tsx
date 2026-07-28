@@ -9,10 +9,11 @@ import { useRolesStore } from '@/stores/useRolesStore';
 import { mockLocations, mockNotifications } from '@/lib/mock-data';
 import {
   Search, Bell, Menu, ChevronDown,
-  MapPin, Command, LogOut, User as UserIcon
+  MapPin, Command, LogOut, User as UserIcon, BookUser
 } from 'lucide-react';
 import { getInitials, getRelativeTime } from '@/lib/helpers';
 import ClientChat from '@/components/chat/ClientChat';
+import RubricaModal from '@/components/RubricaModal';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -38,6 +39,7 @@ export default function Topbar() {
   const [showNotifications, setShowNotifications] = React.useState(false);
   const [showLocationPicker, setShowLocationPicker] = React.useState(false);
   const [showUserMenu, setShowUserMenu] = React.useState(false);
+  const [showRubrica, setShowRubrica] = React.useState(false);
   const router = useRouter();
   
   const handleLogout = () => {
@@ -90,6 +92,16 @@ export default function Topbar() {
           className="md:hidden p-2 rounded-xl hover:bg-bg-hover text-text-secondary transition-colors"
         >
           <Search className="w-5 h-5" />
+        </button>
+
+        {/* Rubrica contatti (commercialista, programmatore, fornitori...) */}
+        <button
+          onClick={() => setShowRubrica(true)}
+          title="Rubrica contatti"
+          className="flex items-center gap-2 px-2.5 py-2 rounded-xl bg-bg-tertiary border border-border hover:border-accent hover:text-accent text-text-secondary text-sm font-medium transition-all duration-200"
+        >
+          <BookUser className="w-4.5 h-4.5" />
+          <span className="hidden lg:inline">Rubrica</span>
         </button>
 
         {/* Location Picker */}
@@ -262,6 +274,10 @@ export default function Topbar() {
           </div>
         )}
       </div>
+
+      <AnimatePresence>
+        {showRubrica && <RubricaModal onClose={() => setShowRubrica(false)} />}
+      </AnimatePresence>
     </header>
   );
 }

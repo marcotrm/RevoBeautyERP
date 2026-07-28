@@ -475,3 +475,26 @@ model AppUser {
   @@index([email])
   @@map("app_users")
 }
+
+// ============================================================
+// RUBRICA CONTATTI (fornitori, professionisti, servizi)
+// ============================================================
+model BusinessContact {
+  id        String  @id @default(cuid())
+  name      String
+  role      String  @default("") // Commercialista, Programmatore, HR, Fornitore...
+  category  String  @default("professionisti")
+  company   String  @default("")
+  phone     String  @default("")
+  email     String  @default("")
+  website   String  @default("")
+  address   String  @default("")
+  vatNumber String  @default("")
+  notes     String  @default("")
+  favorite  Boolean @default(false)
+  createdAt String
+  updatedAt String
+
+  @@index([category])
+  @@map("business_contacts")
+}
