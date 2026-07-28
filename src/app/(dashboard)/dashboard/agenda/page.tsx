@@ -21,6 +21,8 @@ import {
   getStatusColor, formatCurrency, getInitials, getCategoryLabel, guessGenderFromName,
 } from '@/lib/helpers';
 import { resolveTreatmentForPackage } from '@/lib/packageTreatment';
+import { GIFT_OPTIONS, isGiftPackage } from '@/lib/giftOptions';
+import { changeGiftTreatment } from '@/app/actions/packages';
 import CabinCountdown from '@/components/CabinCountdown';
 import WaitlistModal from '@/components/WaitlistModal';
 import WaitlistPanel from '@/components/WaitlistPanel';
@@ -1298,6 +1300,10 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
   // Scelta del pacchetto da scalare al check-out ('none' = incassa in cassa)
   const [showPkgModal, setShowPkgModal] = useState(false);
   const [pkgChoice, setPkgChoice] = useState<string>('none');
+  // Cambio del trattamento omaggio (le clienti cambiano idea all'ultimo)
+  const [changingGift, setChangingGift] = useState<string | null>(null);
+  const [savingGift, setSavingGift] = useState(false);
+  const refreshPackages = usePackageStore(s => s.fetchPackages);
   const usePackageSession = usePackageStore(s => s.useSession);
   const allClientPkgs = usePackageStore(s => s.clientPackages);
   const allClients = useClientStore(s => s.clients);
@@ -1494,6 +1500,43 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
                       </div>
                       {isPackageAppt && (
                         <p className="text-[10px] text-accent font-semibold mt-1.5">✓ Questo appuntamento usa una seduta di questo pacchetto</p>
+                      )}
+
+                      {/* L'omaggio inaugurazione si può cambiare finché non è stato usato */}
+                      {isGiftPackage(cp.packageName) && cp.usedSessions === 0 && (
+                        changingGift === cp.id ? (
+                          <div className="mt-2 space-y-1">
+                            <p className="text-[10px] text-text-muted">Quale omaggio vuole fare?</p>
+                            {GIFT_OPTIONS.map(opt => {
+                              const current = cp.packageName.toLowerCase() === opt.name.toLowerCase();
+                              return (
+                                <button key={opt.key} type="button" disabled={current || savingGift}
+                                  onClick={async () => {
+                                    setSavingGift(true);
+                                    try {
+                                      await changeGiftTreatment(cp.id, opt.key);
+                                      await refreshPackages();
+                                      setChangingGift(null);
+                                    } finally { setSavingGift(false); }
+                                  }}
+                                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
+                                    current ? 'bg-accent/15 text-accent cursor-default' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+                                  }`}>
+                                  <span className="w-1.5 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: opt.color }} />
+                                  <span className="flex-1 text-left">{opt.label}</span>
+                                  {current && <span className="text-[9px] font-bold uppercase">attuale</span>}
+                                </button>
+                              );
+                            })}
+                            <button type="button" onClick={() => setChangingGift(null)}
+                              className="w-full py-1 text-[10px] text-text-muted hover:text-text-primary">Annulla</button>
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => setChangingGift(cp.id)}
+                            className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-warning/10 text-warning text-[11px] font-semibold hover:bg-warning/20 transition-colors">
+                            <Sparkles className="w-3 h-3" /> Cambia trattamento omaggio
+                          </button>
+                        )
                       )}
                     </div>
                   );

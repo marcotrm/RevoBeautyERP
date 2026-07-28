@@ -2,12 +2,9 @@
 // Il nome contiene il trattamento REALE del catalogo così l'agenda lo abbina da sola.
 // Condiviso tra l'API pubblica dei lead e l'import manuale in anagrafica.
 import { prisma } from '@/lib/prisma';
+import { FREE_PACKAGES } from '@/lib/giftOptions';
 
-export const FREE_PACKAGES: Record<string, { name: string; color: string; sessions: number }> = {
-  lampada: { name: 'Lampada Total Body (Omaggio Inaugurazione)', color: '#F59E0B', sessions: 1 },
-  pressoterapia: { name: 'Pressoterapia Infrarossi (Omaggio Inaugurazione)', color: '#14B8A6', sessions: 1 },
-  body_sculpting: { name: 'Fast Tonic (Omaggio Inaugurazione)', color: '#A855F7', sessions: 1 },
-};
+export { FREE_PACKAGES };
 
 /**
  * Assegna a un cliente il pacchetto omaggio del trattamento scelto.

@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { PackageItem, ClientPackage, PackagePayment } from '@/stores/usePackageStore';
 import { notifyIncasso } from '@/lib/telegram';
+import { FREE_PACKAGES } from '@/lib/giftOptions';
 
 function toClientPackage(cp: {
   id: string; clientName: string; packageName: string; packageColor: string;
@@ -172,4 +173,24 @@ export async function recordSessionUse(cpId: string, operator: string, note: str
 export async function deleteClientPackage(cpId: string) {
   await prisma.clientPackage.delete({ where: { id: cpId } });
   return true;
+}
+
+/**
+ * Cambia il trattamento dell'omaggio inaugurazione (es. da Fast Tonic a Lampada).
+ * Si può fare solo finché la seduta non è stata usata.
+ */
+export async function changeGiftTreatment(cpId: string, giftKey: string) {
+  const cfg = FREE_PACKAGES[giftKey];
+  if (!cfg) throw new Error('Omaggio non valido');
+
+  const cp = await prisma.clientPackage.findUnique({ where: { id: cpId } });
+  if (!cp) throw new Error('Pacchetto non trovato');
+  if (cp.pricePaid !== 0) throw new Error('Si può cambiare solo un pacchetto omaggio');
+  if (cp.usedSessions > 0) throw new Error('La seduta omaggio è già stata usata');
+
+  const updated = await prisma.clientPackage.update({
+    where: { id: cpId },
+    data: { packageName: cfg.name, packageColor: cfg.color, totalSessions: cfg.sessions },
+  });
+  return toClientPackage(updated);
 }
