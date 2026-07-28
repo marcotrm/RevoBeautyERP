@@ -8,6 +8,7 @@ import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { mockOperators } from '@/lib/mock-data';
 import { getInitials } from '@/lib/helpers';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 
 export default function WaitlistModal({
   onClose,
@@ -99,7 +100,7 @@ export default function WaitlistModal({
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                     <input type="text" value={clientSearch} onChange={e => { setClientSearch(e.target.value); setShowClientDropdown(true); }}
-                      placeholder="Cerca cliente o scrivi il nome..."
+                      {...NO_AUTOFILL} placeholder="Cerca cliente o scrivi il nome..."
                       className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-warning/50 transition-all" />
                   </div>
                   {showClientDropdown && clientSearch && (

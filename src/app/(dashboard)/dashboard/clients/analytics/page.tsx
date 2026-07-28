@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 import {
   ArrowLeft, Users, UserCheck, UserX, UserPlus, TrendingUp, DollarSign,
   Target, Clock, RefreshCw, Heart, Shield, Search, ChevronDown, Phone,
@@ -167,7 +168,7 @@ function RankingTab({ clients }: { clients: ClientAnalytics[] }) {
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca cliente..."
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca cliente..."
             className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
         </div>
         <select value={levelFilter} onChange={e => setLevelFilter(e.target.value)}

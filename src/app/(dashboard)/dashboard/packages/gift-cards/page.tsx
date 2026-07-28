@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 
 /* ========== CREATE GIFT CARD MODAL ========== */
 function CreateGiftCardModal({ onClose, onCreate }: {
@@ -92,7 +93,7 @@ function CreateGiftCardModal({ onClose, onCreate }: {
                     <>
                       <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                         <input type="text" value={buyerSearch} onChange={e => { setBuyerSearch(e.target.value); setShowBuyerDrop(true); }} onFocus={() => setShowBuyerDrop(true)}
-                          placeholder="Cerca o scrivi nome..." className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
+                          {...NO_AUTOFILL} placeholder="Cerca o scrivi nome..." className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
                       </div>
                       {showBuyerDrop && (
                         <div className="absolute left-0 right-0 mt-1 bg-bg-tertiary border border-border rounded-xl shadow-xl z-10 max-h-36 overflow-y-auto">
@@ -122,7 +123,7 @@ function CreateGiftCardModal({ onClose, onCreate }: {
                     <>
                       <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                         <input type="text" value={recipientSearch} onChange={e => { setRecipientSearch(e.target.value); setShowRecipientDrop(true); }} onFocus={() => setShowRecipientDrop(true)}
-                          placeholder="Cerca o scrivi nome festeggiata..." className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
+                          {...NO_AUTOFILL} placeholder="Cerca o scrivi nome festeggiata..." className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
                       </div>
                       {showRecipientDrop && (
                         <div className="absolute left-0 right-0 mt-1 bg-bg-tertiary border border-border rounded-xl shadow-xl z-10 max-h-36 overflow-y-auto">
@@ -294,7 +295,7 @@ function RedeemModal({ gc, onClose, onRedeem }: {
               ) : (
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                  <input type="text" value={serviceSearch} onChange={e => setServiceSearch(e.target.value)} placeholder="Cerca trattamento..."
+                  <input type="text" value={serviceSearch} onChange={e => setServiceSearch(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca trattamento..."
                     className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
                   <div className="mt-2 grid grid-cols-1 gap-1 max-h-[120px] overflow-y-auto">
                     {filteredServices.map(t => (
@@ -429,7 +430,7 @@ export default function GiftCardsPage() {
             </div>
             <div className="relative w-52">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca per nome o codice..."
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca per nome o codice..."
                 className="w-full pl-9 pr-3 py-2 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
             </div>
           </div>

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency, generateId } from '@/lib/helpers';
 import { useClientStore } from '@/stores/useClientStore';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 
 interface GiftCard {
   id: string;
@@ -134,7 +135,7 @@ function CreateGiftCardModal({ onClose, onSave }: { onClose: () => void; onSave:
                     <>
                       <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                         <input type="text" value={buyerSearch} onChange={e => { setBuyerSearch(e.target.value); setShowBuyerDropdown(true); }} onFocus={() => setShowBuyerDropdown(true)}
-                          placeholder="Cerca cliente acquirente..." className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+                          {...NO_AUTOFILL} placeholder="Cerca cliente acquirente..." className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
                       {showBuyerDropdown && (
                         <div className="absolute left-0 right-0 mt-1 bg-bg-tertiary border border-border rounded-xl shadow-xl z-10 max-h-40 overflow-y-auto">
                           {filteredClients.map(c => (
@@ -305,7 +306,7 @@ export default function GiftCardsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
         <div className="relative flex-1 w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca per nome, codice..."
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca per nome, codice..."
             className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
         </div>
         <div className="flex gap-1">

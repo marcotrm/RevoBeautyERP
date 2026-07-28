@@ -6,6 +6,7 @@ import { Plus, Edit2, Trash2, CheckCircle, X, Search, Eye, EyeOff, ShieldCheck, 
 import { useAccountsStore, GestionaleAccount } from '@/stores/useAccountsStore';
 import { useRolesStore } from '@/stores/useRolesStore';
 import { getInitials } from '@/lib/helpers';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 
 type FormState = {
   firstName: string;
@@ -105,7 +106,7 @@ export function AccountsSection() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
           <input
             type="text"
-            placeholder="Cerca account..."
+            {...NO_AUTOFILL} placeholder="Cerca account..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all"

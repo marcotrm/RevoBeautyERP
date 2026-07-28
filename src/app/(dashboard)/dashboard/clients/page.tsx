@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency, getInitials } from '@/lib/helpers';
 import AddClientModal from '@/components/AddClientModal';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 
 const container = {
   hidden: { opacity: 0 },
@@ -167,7 +168,7 @@ export default function ClientsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
         <div className="relative flex-1 w-full sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-          <input type="text" placeholder="Cerca per nome, telefono, email..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+          <input type="text" {...NO_AUTOFILL} placeholder="Cerca per nome, telefono, email..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-all" />
         </div>
         <div className="flex items-center gap-1 overflow-x-auto pb-1">

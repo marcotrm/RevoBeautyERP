@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { mockOperators } from '@/lib/mock-data';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 
 interface SearchItem {
   id: string;
@@ -168,7 +169,7 @@ export default function CommandPalette() {
               value={query}
               onChange={e => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Cerca pagine, staff, trattamenti..."
+              {...NO_AUTOFILL} placeholder="Cerca pagine, staff, trattamenti..."
               className="flex-1 bg-transparent text-base text-text-primary placeholder-text-muted focus:outline-none"
             />
             <kbd className="flex items-center px-2 py-1 rounded-lg bg-bg-tertiary text-[10px] font-medium text-text-muted border border-border">ESC</kbd>

@@ -6,6 +6,7 @@ import { Receipt, Search, RefreshCw, Printer, Ban, RotateCcw, Loader2, AlertTria
 import { getScontrini, annullaScontrino, riemettiScontrino, ScontrinoRecord, ScontrinoFilter } from '@/app/actions/scontrini';
 import { printThermalReceipt, primeVatRate } from '@/lib/printReceipt';
 import { formatCurrency } from '@/lib/helpers';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 
 function todayISO(): string {
   const d = new Date();
@@ -112,7 +113,7 @@ export default function ScontriniPage() {
           className="px-3 py-2 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary" />
         <div className="relative flex-1 min-w-[220px]">
           <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Cerca per numero documento, transazione o cliente..."
+          <input value={query} onChange={e => setQuery(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca per numero documento, transazione o cliente..."
             className="w-full pl-9 pr-3 py-2 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted" />
         </div>
         <div className="flex gap-1">

@@ -24,6 +24,7 @@ import { resolveTreatmentForPackage } from '@/lib/packageTreatment';
 import WaitlistModal from '@/components/WaitlistModal';
 import WaitlistPanel from '@/components/WaitlistPanel';
 import AddClientModal from '@/components/AddClientModal';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 
 const HOUR_HEIGHT = 88;
 const START_HOUR = 8;
@@ -1032,7 +1033,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                     <input type="text" value={clientSearch} onChange={e => { setClientSearch(e.target.value); setShowClientDropdown(true); }} onFocus={() => setShowClientDropdown(true)}
-                      placeholder="Cerca cliente per nome o telefono..."
+                      {...NO_AUTOFILL} placeholder="Cerca cliente o numero..."
                       className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-all" />
                   </div>
                   {showClientDropdown && (
@@ -1143,6 +1144,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                   onChange={e => { setTreatmentQuery(e.target.value); setTreatmentOpen(true); }}
                   onFocus={() => setTreatmentOpen(true)}
                   onBlur={() => setTimeout(() => setTreatmentOpen(false), 150)}
+                  {...NO_AUTOFILL}
                   placeholder={selectedServices.length > 0 ? 'Aggiungi un altro trattamento...' : 'Cerca o scrivi il trattamento...'}
                   className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
                 {treatmentOpen && (() => {

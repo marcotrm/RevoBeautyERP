@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Edit2, Trash2, CheckCircle, X, Search } from 'lucide-react';
 import { usePriceListStore } from '@/stores/usePriceListStore';
 import { PriceList } from '@/types';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 
 export function PriceListsSection() {
   const { priceLists, addPriceList, updatePriceList, deletePriceList } = usePriceListStore();
@@ -47,7 +48,7 @@ export function PriceListsSection() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
           <input 
             type="text" 
-            placeholder="Cerca listino..." 
+            {...NO_AUTOFILL} placeholder="Cerca listino..." 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all"

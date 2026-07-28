@@ -11,6 +11,7 @@ import { formatCurrency } from '@/lib/helpers';
 import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { TreatmentsSection } from './TreatmentsSection';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 const PKG_COLORS = ['#8B5CF6', '#EC4899', '#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#6366F1', '#14B8A6'];
 
 /* ========== USE SESSION MODAL ========== */
@@ -243,7 +244,7 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
                     <>
                       <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                         <input type="text" value={search} onChange={e => { setSearch(e.target.value); setShowDropdown(true); }} onFocus={() => setShowDropdown(true)}
-                          placeholder="Cerca cliente..." className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+                          {...NO_AUTOFILL} placeholder="Cerca cliente..." className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
                       {showDropdown && (
                         <div className="absolute left-0 right-0 mt-1 bg-bg-tertiary border border-border rounded-xl shadow-xl z-10 max-h-40 overflow-y-auto">
                           {filtered.map(c => (
@@ -402,7 +403,7 @@ function AddPackageModal({ onClose, onSave, editing }: { onClose: () => void; on
                   onChange={e => { setTreatmentName(e.target.value); setTreatmentOpen(true); }}
                   onFocus={() => setTreatmentOpen(true)}
                   onBlur={() => setTimeout(() => setTreatmentOpen(false), 150)}
-                  placeholder="Cerca o scrivi il trattamento..."
+                  {...NO_AUTOFILL} placeholder="Cerca o scrivi il trattamento..."
                   className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
                 {treatmentOpen && (() => {
                   const q = treatmentName.trim().toLowerCase();
@@ -747,7 +748,7 @@ export default function PackagesPage() {
           <h3 className="text-base font-display font-semibold text-text-primary">Pacchetti Clienti</h3>
           <div className="flex items-center gap-2">
             <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca..."
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca..."
                 className="pl-8 pr-3 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all w-40" /></div>
             <div className="flex gap-1">
               {([['all','Tutti'],['active','Attivi'],['expiring','In Scad.'],['completed','Finiti']] as const).map(([val, label]) => (

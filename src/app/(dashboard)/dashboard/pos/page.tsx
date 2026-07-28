@@ -18,6 +18,7 @@ import { formatCurrency } from '@/lib/helpers';
 import { usePackageStore } from '@/stores/usePackageStore';
 import { usePriceListStore } from '@/stores/usePriceListStore';
 import { useProductStore } from '@/stores/useProductStore';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 
 interface CartItem {
   id: string;
@@ -237,7 +238,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                   ) : (
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                      <input type="text" value={clientSearch} onChange={e => setClientSearch(e.target.value)} placeholder="Cerca cliente..."
+                      <input type="text" value={clientSearch} onChange={e => setClientSearch(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca cliente..."
                         className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
                       {filteredClients.length > 0 && (
                         <div className="absolute left-0 right-0 top-full mt-1 bg-bg-secondary border border-border rounded-xl shadow-xl z-10 overflow-hidden">
@@ -256,7 +257,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                   <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Aggiungi Servizi / Prodotti</label>
                   <div className="relative mb-2">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                    <input type="text" value={serviceSearch} onChange={e => setServiceSearch(e.target.value)} placeholder="Cerca trattamento..."
+                    <input type="text" value={serviceSearch} onChange={e => setServiceSearch(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca trattamento..."
                       className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto">

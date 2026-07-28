@@ -12,6 +12,7 @@ import {
   type BusinessContactData,
 } from '@/app/actions/contacts';
 import { CONTACT_CATEGORIES, ROLE_SUGGESTIONS, categoryColor, categoryLabel } from '@/lib/contactCategories';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 
 type FormState = {
   name: string; role: string; category: string; company: string; phone: string;
@@ -262,7 +263,7 @@ export default function RubricaModal({ onClose }: { onClose: () => void }) {
                     <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
                     <input
                       className={`${inputCls} pl-9`} value={query} autoFocus
-                      placeholder="Cerca per nome, ruolo, azienda, telefono…"
+                      {...NO_AUTOFILL} placeholder="Cerca per nome, ruolo, azienda, telefono…"
                       onChange={e => setQuery(e.target.value)}
                     />
                   </div>

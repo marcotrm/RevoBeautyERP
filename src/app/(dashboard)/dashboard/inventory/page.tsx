@@ -8,6 +8,7 @@ import {
 import { useProductStore } from '@/stores/useProductStore';
 import { formatCurrency, generateId } from '@/lib/helpers';
 import { Product } from '@/types';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 
 const categories = ['Tutti', 'Viso', 'Corpo', 'Laser', 'Unghie', 'Capelli'];
 const PRODUCT_CATEGORIES = ['Viso', 'Corpo', 'Laser', 'Unghie', 'Capelli'];
@@ -367,7 +368,7 @@ export default function InventoryPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
         <div className="relative flex-1 w-full sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca prodotto, SKU, barcode, brand..."
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca prodotto, SKU, barcode, brand..."
             className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-all" />
         </div>
         <div className="flex items-center gap-1 overflow-x-auto pb-1">

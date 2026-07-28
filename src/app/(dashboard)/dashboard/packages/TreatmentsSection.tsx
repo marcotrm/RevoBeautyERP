@@ -7,6 +7,7 @@ import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { Treatment } from '@/types';
 import { formatCurrency } from '@/lib/helpers';
 import { getCategoryLabel } from '@/lib/helpers';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 
 export const CATEGORIES = [
   { value: 'facial', label: 'Viso' }, { value: 'body', label: 'Corpo' }, { value: 'laser', label: 'Laser' },
@@ -148,7 +149,7 @@ export function TreatmentsSection() {
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca..."
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca..."
                 className="pl-8 pr-3 py-2 rounded-xl bg-bg-tertiary border border-border text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all w-40" />
             </div>
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleImport} className="hidden" />

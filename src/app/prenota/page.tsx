@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 
 type Treatment = {
   id: string; name: string; category: string;
@@ -144,7 +145,7 @@ export default function PrenotaPage() {
           </div>
         ) : (
           <>
-            <input style={styles.input} placeholder="Cerca un trattamento…" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input style={styles.input} {...NO_AUTOFILL} placeholder="Cerca un trattamento…" value={query} onChange={(e) => setQuery(e.target.value)} />
             <div style={styles.treatList}>
               {filtered.slice(0, 40).map((t) => (
                 <button key={t.id} style={styles.treatItem} onClick={() => { setTreatment(t); setQuery(''); }}>
