@@ -80,28 +80,31 @@ function buildReceiptHtml(data: ReceiptData): string {
   @page { size: 72mm auto; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { width: 72mm; background: #fff; }
-  /* Font di sistema (non Courier): a 203 dpi le grazie sottili della Courier si impastano.
-     Nero pieno + peso 600 danno tratti pieni invece che grigi retinati. */
+  /* Misure in pt e non in px: il px del browser è legato al viewport e viene arrotondato
+     male sulla griglia di punti della testina, il pt è assoluto (1/72 di pollice) e cade
+     sempre uguale a qualunque dpi. Font di sistema e non Courier: a 203 dpi le aste sottili
+     della Courier si impastano. */
   body {
     padding: 3mm 2mm;
     font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
-    font-size: 13px; font-weight: 600; line-height: 1.4; color: #000;
+    font-size: 10pt; font-weight: 700; line-height: 1.45; color: #000;
     -webkit-font-smoothing: none; /* niente antialiasing: sulla termica diventa retino grigio */
+    text-rendering: geometricPrecision; /* niente hinting/kerning approssimato in stampa */
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .center { text-align: center; }
-  .bold { font-weight: 800; }
-  .big { font-size: 17px; letter-spacing: 0.5px; }
-  .muted { font-size: 12px; font-weight: 500; }
-  /* Linea continua sottile: i trattini finiscono spesso a cavallo di due punti della testina
-     e escono a puntini irregolari. */
-  .hr { border-top: 1px solid #000; margin: 5px 0; }
-  .row { display: flex; justify-content: space-between; gap: 8px; }
+  .bold { font-weight: 900; }
+  .big { font-size: 14pt; }
+  .muted { font-size: 9pt; font-weight: 700; }
+  /* Linea continua e spessa mezzo millimetro: i tratteggi cadono a cavallo dei punti della
+     testina e escono irregolari, e un bordo sotto 0.2mm può sparire del tutto. */
+  .hr { border-top: 0.4mm solid #000; margin: 1.5mm 0; }
+  .row { display: flex; justify-content: space-between; gap: 2mm; }
   .row .name { flex: 1; word-break: break-word; }
   .row .price { white-space: nowrap; }
-  .total { font-size: 18px; font-weight: 800; }
-  .head { margin-bottom: 4px; }
-  .foot { margin-top: 8px; }
+  .total { font-size: 15pt; font-weight: 900; }
+  .head { margin-bottom: 1mm; }
+  .foot { margin-top: 2.5mm; }
 </style></head><body>
   <div class="center head">
     <div class="bold big">${esc(BUSINESS.name)}</div>
