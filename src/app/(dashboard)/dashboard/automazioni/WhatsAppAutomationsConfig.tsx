@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { MessageSquare, ChevronDown, Loader2, CheckCircle2, AlertTriangle, Clock, Heart, Gift, Star, CalendarPlus } from 'lucide-react';
+import { MessageSquare, ChevronDown, Loader2, CheckCircle2, AlertTriangle, Clock, Heart, Gift, Star, CalendarPlus, Bot } from 'lucide-react';
 import {
   loadWaConfig, saveWaConfig, loadWaStatus, previewAutomation, runAutomationNow, checkTemplates, loadWaInbox,
   type WaStatus, type TemplateCheck, type WaInboxMessage,
@@ -242,6 +242,31 @@ export default function WhatsAppAutomationsConfig() {
             )}
             <p className="text-[10px] text-text-muted/70 mt-1 leading-relaxed">
               Richiede il webhook 360dialog configurato. La simulazione qui sopra non lo riguarda: se lo accendi, risponde davvero.
+            </p>
+          </div>
+
+          {/* Assistente AI */}
+          <div className="p-3 rounded-xl bg-bg-secondary border border-border/50">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex items-start gap-2">
+                <Bot className="w-4 h-4 text-text-muted flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-text-primary">Assistente AI</span>
+                  <span className="ml-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-warning/15 text-warning align-middle">RISPONDE DA SOLO</span>
+                  <p className="text-[11px] text-text-muted">
+                    Risponde alle domande dei clienti su trattamenti, prezzi e durate, leggendo il listino reale del gestionale.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => save({ assistant: !cfg.assistant })} disabled={saving}
+                className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${cfg.assistant ? 'bg-success' : 'bg-bg-hover'}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${cfg.assistant ? 'left-6' : 'left-1'}`} />
+              </button>
+            </div>
+            <p className="text-[10px] text-text-muted/70 mt-2 leading-relaxed">
+              Non dà indicazioni mediche e non inventa prezzi: sulle domande cliniche rimanda alla valutazione in sede.
+              Chi vuole prenotare viene indirizzato alla prenotazione guidata. Massimo 20 risposte al giorno per numero.
+              Ogni risposta ha un costo: richiede <code className="text-warning">ANTHROPIC_API_KEY</code> tra le variabili d&apos;ambiente.
             </p>
           </div>
 

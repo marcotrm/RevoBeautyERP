@@ -14,6 +14,7 @@ import { prisma } from '@/lib/prisma';
 import { normalizePhone } from '@/lib/whatsapp';
 import { handleReminderReply } from '@/lib/wa-appointments';
 import { handleBookingMessage } from '@/lib/wa-booking';
+import { handleAssistantMessage } from '@/lib/wa-assistant';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -146,6 +147,14 @@ export async function POST(request: Request) {
         const booking = await handleBookingMessage({ phone, text, contactName, origin });
         if (booking.handled) {
           console.log(`[wa-webhook] ${phone}: prenotazione, passo ${booking.step || 'concluso'}`);
+          continue; // conversazione di prenotazione in corso: l'assistente non si intromette
+        }
+
+        // Assistente AI: risponde alle domande. Ultimo anello, così prenotazione
+        // e promemoria hanno sempre la precedenza.
+        const assistant = await handleAssistantMessage({ phone, text, contactName });
+        if (!assistant.handled && assistant.reason) {
+          console.log(`[wa-webhook] ${phone}: assistente non ha risposto (${assistant.reason})`);
         }
       }
 

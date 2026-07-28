@@ -42,6 +42,13 @@ export interface WaAutomationsConfig {
    * ai messaggi in arrivo.
    */
   booking: boolean;
+  /**
+   * Assistente AI che risponde alle domande dei clienti (lib/wa-assistant.ts).
+   * Spento di default: ogni risposta costa una chiamata al modello e parla
+   * direttamente con i clienti. Come il bot di prenotazione, non è coperto
+   * dalla modalità simulazione.
+   */
+  assistant: boolean;
 }
 
 export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
@@ -55,6 +62,7 @@ export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
   birthdayValidDays: 30,
   dryRun: true,
   booking: false,
+  assistant: false,
 };
 
 export async function getWaAutomationsConfig(): Promise<WaAutomationsConfig> {

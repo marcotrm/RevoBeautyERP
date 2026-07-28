@@ -51,8 +51,12 @@ function explainMetaError(code: number | undefined, fallback: string): string {
       return 'Il numero destinatario non è su WhatsApp.';
     case 130472:
       return 'Utente escluso dall\'esperimento marketing di Meta: messaggio non consegnabile.';
+    case 131056:
+      return 'Troppi messaggi verso questo numero in poco tempo: riprova più tardi.';
     case 401:
       return 'D360_API_KEY non valida.';
+    case 403:
+      return 'Invio non autorizzato dal canale (403). Di solito: canale non ancora abilitato all\'invio, verifica dell\'attività su Meta non completata, o limite di destinatari del numero non verificato.';
     default:
       return fallback;
   }
@@ -76,9 +80,21 @@ async function d360Post(path: string, payload: unknown): Promise<D360Result> {
 
     if (!res.ok) {
       const code = body?.error?.code as number | undefined;
-      const detail = body?.error?.error_data?.details || body?.error?.message || `HTTP ${res.status}`;
+      // Il corpo di 360dialog non ha sempre error.message: senza questo fallback
+      // l'unica traccia del motivo reale resta nei log del server.
+      const raw = body ? JSON.stringify(body).slice(0, 300) : '';
+      const detail = body?.error?.error_data?.details || body?.error?.message
+        || (raw ? `HTTP ${res.status} — ${raw}` : `HTTP ${res.status}`);
       console.error('[wa360] errore', res.status, JSON.stringify(body));
-      return { ok: false, status: res.status, errorCode: code, error: explainMetaError(code ?? res.status, detail) };
+      const explained = explainMetaError(code ?? res.status, detail);
+      // Se abbiamo tradotto il codice, alleghiamo comunque il dettaglio grezzo:
+      // è quello che serve per capire un 403 senza aprire i log.
+      return {
+        ok: false,
+        status: res.status,
+        errorCode: code,
+        error: explained === detail ? explained : `${explained} [${detail}]`,
+      };
     }
 
     return { ok: true, status: res.status, messageId: body?.messages?.[0]?.id };
