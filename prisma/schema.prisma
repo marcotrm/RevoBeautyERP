@@ -180,6 +180,7 @@ model PartnerExpense {
 model TodoItem {
   id         String  @id @default(cuid())
   title      String
+  list       String  @default("todo") // todo | shopping (cose da comprare)
   done       Boolean @default(false)
   priority   String  @default("normal") // low | normal | high
   dueDate    String?

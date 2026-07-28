@@ -43,7 +43,7 @@ function isIncompleteClient(c: Client): boolean {
   return !c.birthDate || !c.address || !c.email;
 }
 
-function ClientRow({ client, checked, onToggle, onEdit }: { client: Client; checked: boolean; onToggle: (id: string) => void; onEdit: (c: Client) => void }) {
+function ClientRow({ client, checked, onToggle, onEdit, onDelete }: { client: Client; checked: boolean; onToggle: (id: string) => void; onEdit: (c: Client) => void; onDelete: (c: Client) => void }) {
   const daysSinceVisit = client.lastVisit ? Math.floor((Date.now() - new Date(client.lastVisit).getTime()) / (1000 * 60 * 60 * 24)) : null;
   const incomplete = isIncompleteClient(client);
   return (
@@ -93,6 +93,10 @@ function ClientRow({ client, checked, onToggle, onEdit }: { client: Client; chec
         className="p-2 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10 transition-all opacity-0 group-hover/row:opacity-100 flex-shrink-0">
         <Pencil className="w-4 h-4" />
       </button>
+      <button onClick={() => onDelete(client)} title="Elimina cliente"
+        className="p-2 rounded-lg text-text-muted hover:text-error hover:bg-error/10 transition-all opacity-0 group-hover/row:opacity-100 flex-shrink-0">
+        <Trash2 className="w-4 h-4" />
+      </button>
     </motion.div>
   );
 }
@@ -114,6 +118,7 @@ export default function ClientsPage() {
   // Selezione singola e di massa
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [deletingClient, setDeletingClient] = useState<Client | null>(null);
   const toggleOne = (id: string) => setSelected(prev => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -221,7 +226,7 @@ export default function ClientsPage() {
           </div>
         </div>
         <motion.div variants={container} initial="hidden" animate="show" className="divide-y divide-border/30">
-          {filteredClients.map(client => <ClientRow key={client.id} client={client} checked={selected.has(client.id)} onToggle={toggleOne} onEdit={setEditingClient} />)}
+          {filteredClients.map(client => <ClientRow key={client.id} client={client} checked={selected.has(client.id)} onToggle={toggleOne} onEdit={setEditingClient} onDelete={setDeletingClient} />)}
         </motion.div>
         {filteredClients.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16">
@@ -235,6 +240,44 @@ export default function ClientsPage() {
 
       <AnimatePresence>{showModal && <AddClientModal onClose={() => setShowModal(false)} onSave={data => { addClient(data); setShowModal(false); }} />}</AnimatePresence>
       <AnimatePresence>{editingClient && <AddClientModal initialData={editingClient} onClose={() => setEditingClient(null)} onSave={data => { updateClient(editingClient.id, data); setEditingClient(null); clearSelection(); }} />}</AnimatePresence>
+
+      {/* Conferma eliminazione cliente */}
+      <AnimatePresence>{deletingClient && (
+        <>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm" onClick={() => setDeletingClient(null)} />
+          <div className="fixed inset-0 z-[71] flex items-center justify-center p-4 pointer-events-none">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="pointer-events-auto w-full max-w-sm rounded-2xl border border-border bg-bg-secondary shadow-2xl overflow-hidden">
+              <div className="flex items-center gap-3 px-5 py-4 bg-error/10">
+                <div className="w-10 h-10 rounded-full bg-error/20 flex items-center justify-center text-error flex-shrink-0">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <h3 className="text-base font-display font-bold text-text-primary">Elimina cliente</h3>
+              </div>
+              <div className="px-5 py-4">
+                <p className="text-sm text-text-secondary">
+                  Vuoi eliminare <strong className="text-text-primary">{deletingClient.firstName} {deletingClient.lastName}</strong>{' '}dall&apos;anagrafica?
+                </p>
+                <p className="text-xs text-text-muted mt-2">
+                  La scheda sparisce dai clienti. Appuntamenti, pacchetti e incassi già registrati restano nello storico.
+                  L&apos;operazione non si può annullare.
+                </p>
+              </div>
+              <div className="px-5 pb-5 flex gap-2">
+                <button onClick={() => setDeletingClient(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+                  Annulla
+                </button>
+                <button onClick={() => { deleteClient(deletingClient.id); setDeletingClient(null); clearSelection(); }}
+                  className="flex-1 py-2.5 rounded-xl bg-error text-white text-sm font-bold hover:bg-error/90 transition-colors">
+                  Elimina
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        </>
+      )}</AnimatePresence>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckSquare, Square, Plus, Trash2, Flag, Calendar as CalendarIcon, X, User, Pencil, Check } from 'lucide-react';
+import { CheckSquare, Square, Plus, Trash2, Flag, Calendar as CalendarIcon, X, User, Pencil, Check, ShoppingCart } from 'lucide-react';
 import { TodoItem } from '@/types';
 import { getTodos, createTodo, updateTodo, deleteTodo } from '@/app/actions/todo';
 import { useOperatorStore } from '@/stores/useOperatorStore';
@@ -12,7 +12,16 @@ const PRIORITIES: { value: TodoItem['priority']; label: string; color: string; b
   { value: 'normal', label: 'Media', color: '#F59E0B', bg: 'bg-warning/10 text-warning border-warning/30' },
   { value: 'low', label: 'Bassa', color: '#22C55E', bg: 'bg-success/10 text-success border-success/30' },
 ];
-const prioMeta = (p: string) => PRIORITIES.find(x => x.value === p) || PRIORITIES[1];
+// Sulla spesa la priorità dice quanto è urgente comprarlo
+const SHOPPING_PRIORITIES: typeof PRIORITIES = [
+  { value: 'high', label: 'Finito', color: '#EF4444', bg: 'bg-error/10 text-error border-error/30' },
+  { value: 'normal', label: 'Sta finendo', color: '#F59E0B', bg: 'bg-warning/10 text-warning border-warning/30' },
+  { value: 'low', label: 'Da prendere', color: '#22C55E', bg: 'bg-success/10 text-success border-success/30' },
+];
+const prioList = (list: ListKind) => (list === 'shopping' ? SHOPPING_PRIORITIES : PRIORITIES);
+const prioMeta = (p: string, list: ListKind = 'todo') => prioList(list).find(x => x.value === p) || prioList(list)[1];
+
+type ListKind = 'todo' | 'shopping';
 
 function fmtDue(d?: string) {
   if (!d) return null;
@@ -35,6 +44,8 @@ export default function TodoPage() {
   const [dueDate, setDueDate] = useState('');
   const [assignee, setAssignee] = useState('');
   const [filter, setFilter] = useState<'all' | 'todo' | 'done'>('todo');
+  // Due liste separate: cose da fare e cose da comprare
+  const [list, setList] = useState<ListKind>('todo');
 
   // Modifica in linea
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -51,7 +62,7 @@ export default function TodoPage() {
     if (!title.trim()) return;
     const optimisticTitle = title.trim();
     setTitle(''); setDueDate(''); setAssignee('');
-    const created = await createTodo({ title: optimisticTitle, priority, dueDate: dueDate || undefined, assignee: assignee || undefined });
+    const created = await createTodo({ title: optimisticTitle, priority, dueDate: dueDate || undefined, assignee: assignee || undefined, list });
     setTodos(prev => [created, ...prev]);
   };
 
@@ -86,10 +97,13 @@ export default function TodoPage() {
     await updateTodo(t.id, { priority: next });
   };
 
+  // Solo gli elementi della lista aperta (i vecchi senza campo valgono come "da fare")
+  const listTodos = useMemo(() => todos.filter(t => (t.list || 'todo') === list), [todos, list]);
+
   const filtered = useMemo(() => {
-    let list = todos;
-    if (filter === 'todo') list = todos.filter(t => !t.done);
-    else if (filter === 'done') list = todos.filter(t => t.done);
+    let list = listTodos;
+    if (filter === 'todo') list = listTodos.filter(t => !t.done);
+    else if (filter === 'done') list = listTodos.filter(t => t.done);
     // Ordina: non fatti per priorità (alta prima) e scadenza, fatti in fondo
     const prioRank = { high: 0, normal: 1, low: 2 } as Record<string, number>;
     return [...list].sort((a, b) => {
@@ -100,16 +114,35 @@ export default function TodoPage() {
       if (b.dueDate) return 1;
       return 0;
     });
-  }, [todos, filter]);
+  }, [listTodos, filter]);
 
-  const openCount = todos.filter(t => !t.done).length;
-  const doneCount = todos.filter(t => t.done).length;
+  const openCount = listTodos.filter(t => !t.done).length;
+  const doneCount = listTodos.filter(t => t.done).length;
+  const countOpen = (kind: ListKind) => todos.filter(t => (t.list || 'todo') === kind && !t.done).length;
+  const isShopping = list === 'shopping';
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-3xl mx-auto">
       <div>
-        <h2 className="text-xl font-display font-bold text-text-primary">To-Do</h2>
-        <p className="text-sm text-text-secondary">Le cose da fare del salone</p>
+        <h2 className="text-xl font-display font-bold text-text-primary">
+          {isShopping ? 'Da comprare' : 'To-Do'}
+        </h2>
+        <p className="text-sm text-text-secondary">
+          {isShopping ? 'I prodotti e i materiali che stanno finendo' : 'Le cose da fare del salone'}
+        </p>
+      </div>
+
+      {/* Due liste separate */}
+      <div className="flex items-center gap-2 p-1 rounded-2xl bg-bg-secondary border border-border w-fit">
+        {([['todo', 'Cose da fare', CheckSquare], ['shopping', 'Da comprare', ShoppingCart]] as const).map(([kind, label, Icon]) => (
+          <button key={kind} onClick={() => setList(kind)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${list === kind ? 'gradient-accent text-white shadow-lg shadow-accent/20' : 'text-text-secondary hover:bg-bg-hover'}`}>
+            <Icon className="w-4 h-4" /> {label}
+            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-bold ${list === kind ? 'bg-white/20' : 'bg-bg-tertiary text-text-muted'}`}>
+              {countOpen(kind)}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Aggiungi */}
@@ -118,7 +151,7 @@ export default function TodoPage() {
           <input
             type="text" value={title} onChange={e => setTitle(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') add(); }}
-            placeholder="Cosa c'è da fare? (es. Ordinare cere, chiamare fornitore...)"
+            placeholder={isShopping ? 'Cosa sta finendo? (es. cere, guanti monouso, salviette...)' : "Cosa c'è da fare? (es. Ordinare cere, chiamare fornitore...)"}
             className="flex-1 px-4 py-3 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all"
           />
           <button onClick={add} disabled={!title.trim()}
@@ -128,8 +161,8 @@ export default function TodoPage() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs text-text-muted">Priorità:</span>
-            {PRIORITIES.map(p => (
+            <span className="text-xs text-text-muted">{isShopping ? 'Scorta:' : 'Priorità:'}</span>
+            {prioList(list).map(p => (
               <button key={p.value} onClick={() => setPriority(p.value)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${priority === p.value ? p.bg : 'bg-bg-tertiary text-text-secondary border-border hover:border-border-light'}`}>
                 {p.label}
@@ -163,7 +196,7 @@ export default function TodoPage() {
 
       {/* Filtri */}
       <div className="flex items-center gap-2">
-        {([['todo', `Da fare (${openCount})`], ['done', `Fatte (${doneCount})`], ['all', 'Tutte']] as const).map(([val, label]) => (
+        {([['todo', isShopping ? `Da comprare (${openCount})` : `Da fare (${openCount})`], ['done', isShopping ? `Comprate (${doneCount})` : `Fatte (${doneCount})`], ['all', 'Tutte']] as const).map(([val, label]) => (
           <button key={val} onClick={() => setFilter(val)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filter === val ? 'bg-accent text-white' : 'bg-bg-secondary text-text-secondary border border-border hover:bg-bg-hover'}`}>
             {label}
@@ -178,12 +211,12 @@ export default function TodoPage() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 bg-bg-secondary border border-border rounded-2xl">
             <CheckSquare className="w-10 h-10 text-text-muted mx-auto mb-2" />
-            <p className="text-text-secondary font-medium">{filter === 'done' ? 'Nessuna attività completata' : 'Niente da fare, tutto a posto!'}</p>
+            <p className="text-text-secondary font-medium">{filter === 'done' ? (isShopping ? 'Niente ancora comprato' : 'Nessuna attività completata') : (isShopping ? 'Niente da comprare, scorte a posto!' : 'Niente da fare, tutto a posto!')}</p>
           </div>
         ) : (
           <AnimatePresence initial={false}>
             {filtered.map(t => {
-              const pm = prioMeta(t.priority);
+              const pm = prioMeta(t.priority, list);
               const due = fmtDue(t.dueDate);
               return (
                 <motion.div key={t.id} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }}
@@ -198,7 +231,7 @@ export default function TodoPage() {
                         className="w-full px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50" />
                       <div className="flex items-center gap-3 flex-wrap">
                         <div className="flex items-center gap-1.5">
-                          {PRIORITIES.map(p => (
+                          {prioList(list).map(p => (
                             <button key={p.value} onClick={() => setEdit(prev => ({ ...prev, priority: p.value }))}
                               className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${edit.priority === p.value ? p.bg : 'bg-bg-tertiary text-text-secondary border-border hover:border-border-light'}`}>
                               {p.label}

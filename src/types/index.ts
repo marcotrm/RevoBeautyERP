@@ -173,6 +173,8 @@ export interface TodoItem {
   assignee?: string;
   createdAt: string;
   completedAt?: string;
+  /** 'todo' = cose da fare, 'shopping' = cose da comprare per il centro */
+  list?: 'todo' | 'shopping';
 }
 
 export interface AgendaBlock {

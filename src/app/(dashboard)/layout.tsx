@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Lock, Loader2 } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
+import CabinTimers from '@/components/CabinTimers';
 import { useUIStore } from '@/stores/useUIStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRolesStore } from '@/stores/useRolesStore';
@@ -97,6 +98,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
         </main>
       </div>
+      {/* Conto alla rovescia dei trattamenti in cabina: avvisa a tempo scaduto */}
+      <CabinTimers />
     </div>
   );
 }

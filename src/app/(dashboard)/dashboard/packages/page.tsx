@@ -5,7 +5,7 @@ import { usePackageStore, PackageItem, ClientPackage } from '@/stores/usePackage
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package, Plus, CheckCircle, AlertCircle,
-  X, Trash2, Minus, Search, User, Calendar, Clock, History, Euro, Pencil,
+  X, Trash2, Minus, Search, User, Users, Calendar, Clock, History, Euro, Pencil,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
 import { useClientStore } from '@/stores/useClientStore';
@@ -657,6 +657,8 @@ export default function PackagesPage() {
   const [search, setSearch] = useState('');
   const [confirmDeleteCpId, setConfirmDeleteCpId] = useState<string | null>(null);
   const [confirmDeletePkgId, setConfirmDeletePkgId] = useState<string | null>(null);
+  // L'elenco dei pacchetti clienti si apre in una finestra: la pagina resta pulita
+  const [showClientPkgs, setShowClientPkgs] = useState(false);
 
   const filteredClientPkgs = useMemo(() => {
     let list = [...clientPkgs];
@@ -742,22 +744,48 @@ export default function PackagesPage() {
         </div>
       </div>
 
-      {/* Client Packages */}
-      <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Pacchetti Clienti: solo il riepilogo, l'elenco si apre in una finestra */}
+      <div className="bg-bg-secondary border border-border rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
           <h3 className="text-base font-display font-semibold text-text-primary">Pacchetti Clienti</h3>
-          <div className="flex items-center gap-2">
-            <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca..."
-                className="pl-8 pr-3 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all w-40" /></div>
-            <div className="flex gap-1">
-              {([['all','Tutti'],['active','Attivi'],['expiring','In Scad.'],['completed','Finiti']] as const).map(([val, label]) => (
-                <button key={val} onClick={() => setFilter(val)} className={`px-2 py-1.5 rounded-lg text-[10px] font-medium transition-all ${filter === val ? 'bg-accent/10 text-accent' : 'text-text-muted hover:text-text-secondary'}`}>{label}</button>
-              ))}
-            </div>
-          </div>
+          <p className="text-xs text-text-secondary mt-0.5">
+            {clientPkgs.length} venduti · {activeCount} attivi · {totalRemaining} sedute da fare
+            {totalDebt > 0 && <span className="text-error font-medium"> · {formatCurrency(totalDebt)} da incassare</span>}
+          </p>
         </div>
-        <div className="divide-y divide-border/30">
+        <button onClick={() => setShowClientPkgs(true)}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105">
+          <Users className="w-4 h-4" /> Apri elenco clienti
+        </button>
+      </div>
+
+      {/* Elenco pacchetti clienti in finestra */}
+      <AnimatePresence>{showClientPkgs && (
+        <>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[55] bg-black/50 backdrop-blur-sm" onClick={() => setShowClientPkgs(false)} />
+          <motion.div initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 16 }}
+            className="fixed inset-0 z-[56] flex items-center justify-center sm:p-4 pointer-events-none">
+            <div className="pointer-events-auto w-full h-full sm:h-auto sm:max-h-[88vh] sm:max-w-5xl bg-bg-secondary sm:border sm:border-border sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+              <div className="px-5 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-shrink-0">
+                <h3 className="text-base font-display font-semibold text-text-primary">
+                  Pacchetti Clienti <span className="text-text-muted font-normal">({filteredClientPkgs.length})</span>
+                </h3>
+                <div className="flex items-center gap-2">
+                  <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
+                    <input type="text" value={search} onChange={e => setSearch(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca cliente o pacchetto..." autoFocus
+                      className="pl-8 pr-3 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all w-56" /></div>
+                  <div className="flex gap-1">
+                    {([['all','Tutti'],['active','Attivi'],['expiring','In Scad.'],['completed','Finiti']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => setFilter(val)} className={`px-2 py-1.5 rounded-lg text-[10px] font-medium transition-all ${filter === val ? 'bg-accent/10 text-accent' : 'text-text-muted hover:text-text-secondary'}`}>{label}</button>
+                    ))}
+                  </div>
+                  <button onClick={() => setShowClientPkgs(false)} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary transition-colors">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto divide-y divide-border/30">
           {filteredClientPkgs.map(cp => {
             const sessionsLeft = cp.totalSessions - cp.usedSessions;
             const isCompleted = cp.status === 'completed';
@@ -833,8 +861,11 @@ export default function PackagesPage() {
           {filteredClientPkgs.length === 0 && (
             <div className="text-center py-10"><p className="text-text-muted">Nessun pacchetto cliente trovato</p></div>
           )}
-        </div>
-      </div>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}</AnimatePresence>
 
       {/* Treatments Section */}
       <TreatmentsSection />

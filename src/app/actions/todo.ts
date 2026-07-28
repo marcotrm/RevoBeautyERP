@@ -8,10 +8,11 @@ export async function getTodos() {
   return todos as unknown as TodoItem[];
 }
 
-export async function createTodo(data: { title: string; priority?: string; dueDate?: string; assignee?: string }) {
+export async function createTodo(data: { title: string; priority?: string; dueDate?: string; assignee?: string; list?: string }) {
   const todo = await prisma.todoItem.create({
     data: {
       title: data.title,
+      list: data.list === 'shopping' ? 'shopping' : 'todo',
       priority: data.priority || 'normal',
       dueDate: data.dueDate || null,
       assignee: data.assignee || null,
@@ -30,6 +31,7 @@ export async function updateTodo(id: string, updates: Partial<TodoItem>) {
       ...(updates.priority !== undefined ? { priority: updates.priority } : {}),
       ...(updates.dueDate !== undefined ? { dueDate: updates.dueDate || null } : {}),
       ...(updates.assignee !== undefined ? { assignee: updates.assignee || null } : {}),
+      ...(updates.list !== undefined ? { list: updates.list } : {}),
       ...(updates.done !== undefined ? { done: updates.done, completedAt: updates.done ? new Date().toISOString() : null } : {}),
     },
   });

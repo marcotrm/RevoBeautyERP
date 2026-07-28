@@ -21,6 +21,7 @@ import {
   getStatusColor, formatCurrency, getInitials, getCategoryLabel, guessGenderFromName,
 } from '@/lib/helpers';
 import { resolveTreatmentForPackage } from '@/lib/packageTreatment';
+import CabinCountdown from '@/components/CabinCountdown';
 import WaitlistModal from '@/components/WaitlistModal';
 import WaitlistPanel from '@/components/WaitlistPanel';
 import AddClientModal from '@/components/AddClientModal';
@@ -89,6 +90,7 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
         <div className="flex items-center gap-1 min-w-0">
           <span style={{ color: getStatusColor(appointment.status) }}>{statusIcons[appointment.status]}</span>
           <span className={`font-semibold text-text-primary truncate ${isSmall ? 'text-[10px]' : 'text-xs'}`}>{appointment.clientName}</span>
+          <CabinCountdown appointment={appointment} />
         </div>
         <div className="flex items-center gap-1">
           {onWaitlistAdd && (
@@ -1440,6 +1442,14 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
                   <div><p className="text-[11px] text-text-muted">Check-in</p><p className="text-sm font-medium text-text-primary">{fmtClock(appointment.checkInAt) || '—'}</p></div>
                   <div><p className="text-[11px] text-text-muted">Check-out</p><p className="text-sm font-medium text-text-primary">{fmtClock(appointment.checkOutAt) || (appointment.status === 'in_cabin' ? 'in corso…' : '—')}</p></div>
                 </div>
+                {appointment.status === 'in_cabin' && (
+                  <div className="mt-3">
+                    <CabinCountdown appointment={appointment} size="lg" />
+                    <p className="text-[10px] text-text-muted text-center mt-1">
+                      {appointment.duration} minuti dal check-in · a tempo scaduto parte l&apos;avviso
+                    </p>
+                  </div>
+                )}
                 {cabinMinutes !== null && (
                   <p className="mt-2 text-sm font-bold text-text-primary">⏱️ {cabinMinutes} min effettivi <span className="text-xs font-normal text-text-muted">(previsti {appointment.duration} min)</span></p>
                 )}
