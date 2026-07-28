@@ -15,51 +15,115 @@ export interface InaugurationStats {
   inClients: number;         // entrati in anagrafica
   withGift: number;          // con pacchetto omaggio assegnato
   came: number;              // omaggio effettivamente scalato (sono venute)
-  booked: number;            // omaggio prenotato ma non ancora completato
-  returnedPaying: number;    // tornate per un servizio a pagamento
-  conversionRate: number;    // % venute → tornate paganti
+  booked: number;            // omaggio non ancora usato
+  bookedGift: number;        // ha già fissato l'appuntamento per l'omaggio
+  returnedPaying: number;    // tornate per un servizio a pagamento DOPO l'omaggio
+  boughtPackage: number;     // hanno acquistato un PACCHETTO a pagamento dopo l'omaggio
+  conversionRate: number;    // % venute -> tornate paganti
+  showRate: number;          // % con omaggio -> venute
+  packageRate: number;       // % venute -> hanno comprato un pacchetto
+  revenueAfter: number;      // fatturato generato dopo l'omaggio
+  avgValuePerGift: number;   // fatturato medio per omaggio usato
+  avgDaysToPurchase: number; // giorni medi tra omaggio e primo acquisto
 }
 
 export async function getInaugurationStats(): Promise<InaugurationStats> {
-  const [leads, inaugClients, giftPkgs, transactions] = await Promise.all([
+  const [leads, inaugClients, allPkgs, transactions, appts] = await Promise.all([
     prisma.inaugurationLead.count(),
     prisma.client.findMany({ where: { tags: { has: 'Inaugurazione' } }, select: { id: true, firstName: true, lastName: true } }),
-    prisma.clientPackage.findMany({ where: { pricePaid: 0 }, select: { clientId: true, usedSessions: true } }),
-    prisma.posTransaction.findMany({ where: { total: { gt: 0 } }, select: { clientName: true } }),
+    prisma.clientPackage.findMany({ select: { clientId: true, usedSessions: true, pricePaid: true, totalPaid: true, purchaseDate: true, history: true } }),
+    prisma.posTransaction.findMany({ where: { total: { gt: 0 } }, select: { clientName: true, total: true, date: true } }),
+    prisma.appointment.findMany({ where: { status: { not: 'cancelled' } }, select: { clientId: true, date: true, price: true, status: true } }),
   ]);
 
   const inaugIds = new Set(inaugClients.map(c => c.id));
-  const inaugNames = new Set(inaugClients.map(c => norm(`${c.firstName} ${c.lastName}`)));
+  const nameById = new Map(inaugClients.map(c => [c.id, norm(`${c.firstName} ${c.lastName}`)]));
 
-  const giftForInaug = giftPkgs.filter(g => g.clientId && inaugIds.has(g.clientId));
-  const withGift = new Set(giftForInaug.map(g => g.clientId)).size;
-  const came = new Set(giftForInaug.filter(g => g.usedSessions >= 1).map(g => g.clientId)).size;
-  const booked = withGift - came;
+  // --- Omaggi (pacchetti a 0€) dei clienti inaugurazione ---
+  const gifts = allPkgs.filter(g => g.pricePaid === 0 && g.clientId && inaugIds.has(g.clientId));
+  const withGift = new Set(gifts.map(g => g.clientId)).size;
 
-  // Appuntamenti a pagamento completati per clienti inaugurazione
-  const paidAppts = await prisma.appointment.findMany({
-    where: { status: 'completed', price: { gt: 0 }, clientId: { in: [...inaugIds] } },
-    select: { clientId: true },
-  });
-  const returnedIds = new Set<string>(paidAppts.map(a => a.clientId));
-  // ...oppure una vendita cassa a loro nome
-  for (const t of transactions) {
-    const n = norm(t.clientName);
-    if (n && inaugNames.has(n)) {
-      const match = inaugClients.find(c => norm(`${c.firstName} ${c.lastName}`) === n);
-      if (match) returnedIds.add(match.id);
+  // Data in cui l'omaggio è stato usato (dalla cronologia sedute)
+  const giftUsedDate = new Map<string, string>();
+  for (const g of gifts) {
+    if (g.usedSessions < 1 || !g.clientId) continue;
+    const hist = Array.isArray(g.history) ? (g.history as { date?: string }[]) : [];
+    const d = hist.map(h => h.date).filter(Boolean).sort()[0] || g.purchaseDate;
+    if (d) giftUsedDate.set(g.clientId, d);
+  }
+  const came = giftUsedDate.size;
+
+  // Chi ha l'omaggio non ancora usato ma ha già fissato un appuntamento
+  const giftClientIds = new Set(gifts.map(g => g.clientId as string));
+  const pendingIds = [...giftClientIds].filter(id => !giftUsedDate.has(id));
+  const apptByClient = new Set(appts.map(a => a.clientId));
+  const bookedGift = pendingIds.filter(id => apptByClient.has(id)).length;
+
+  // --- Cosa hanno fatto DOPO l'omaggio ---
+  const returnedIds = new Set<string>();
+  const packageIds = new Set<string>();
+  let revenueAfter = 0;
+  const daysToPurchase: number[] = [];
+
+  for (const [clientId, giftDate] of giftUsedDate) {
+    const fullName = nameById.get(clientId) || '';
+    let firstPurchase: string | null = null;
+
+    // Pacchetti a pagamento acquistati dopo l'omaggio
+    for (const pkg of allPkgs) {
+      if (pkg.clientId !== clientId || pkg.pricePaid <= 0) continue;
+      if (pkg.purchaseDate && pkg.purchaseDate >= giftDate) {
+        packageIds.add(clientId);
+        returnedIds.add(clientId);
+        revenueAfter += pkg.totalPaid || 0;
+        if (!firstPurchase || pkg.purchaseDate < firstPurchase) firstPurchase = pkg.purchaseDate;
+      }
+    }
+
+    // Trattamenti a pagamento completati dopo l'omaggio
+    for (const a of appts) {
+      if (a.clientId !== clientId || a.status !== 'completed' || a.price <= 0) continue;
+      if (a.date > giftDate) {
+        returnedIds.add(clientId);
+        if (!firstPurchase || a.date < firstPurchase) firstPurchase = a.date;
+      }
+    }
+
+    // Vendite in cassa a suo nome dopo l'omaggio
+    for (const t of transactions) {
+      if (!fullName || norm(t.clientName) !== fullName) continue;
+      if (t.date > giftDate) {
+        returnedIds.add(clientId);
+        revenueAfter += t.total;
+        if (!firstPurchase || t.date < firstPurchase) firstPurchase = t.date;
+      }
+    }
+
+    if (firstPurchase) {
+      const d = Math.round((Date.parse(firstPurchase) - Date.parse(giftDate)) / 86400000);
+      if (d >= 0 && d < 400) daysToPurchase.push(d);
     }
   }
+
   const returnedPaying = returnedIds.size;
+  const boughtPackage = packageIds.size;
+  revenueAfter = Math.round(revenueAfter * 100) / 100;
 
   return {
     totalLeads: leads,
     inClients: inaugClients.length,
     withGift,
     came,
-    booked,
+    booked: withGift - came,
+    bookedGift,
     returnedPaying,
+    boughtPackage,
     conversionRate: came > 0 ? Math.round((returnedPaying / came) * 100) : 0,
+    showRate: withGift > 0 ? Math.round((came / withGift) * 100) : 0,
+    packageRate: came > 0 ? Math.round((boughtPackage / came) * 100) : 0,
+    revenueAfter,
+    avgValuePerGift: came > 0 ? Math.round((revenueAfter / came) * 100) / 100 : 0,
+    avgDaysToPurchase: daysToPurchase.length ? Math.round(daysToPurchase.reduce((a, b) => a + b, 0) / daysToPurchase.length) : 0,
   };
 }
 
@@ -390,14 +454,18 @@ export async function getBusinessKPIs(): Promise<KpiGroup[]> {
       ],
     },
     {
-      title: 'Inaugurazione (omaggi)', icon: 'gift',
+      title: 'Inaugurazione — dal coupon al cliente pagante', icon: 'gift',
       kpis: [
-        { key: 'leads', label: 'Contatti raccolti', value: String(inaug.totalLeads), hint: 'Persone che hanno richiesto il coupon inaugurazione.' },
-        { key: 'withGift', label: 'Con omaggio assegnato', value: String(inaug.withGift), hint: 'Clienti che hanno il pacchetto omaggio pronto da usare.' },
-        { key: 'came', label: 'Venute (omaggio usato)', value: String(inaug.came), hint: 'Hanno fatto la seduta gratis: la seduta si scala al check-out.', tone: 'good' },
-        { key: 'pending', label: 'Non ancora venute', value: String(inaug.booked), hint: 'Hanno l’omaggio ma non l’hanno usato: da richiamare, l’omaggio lo stai già pagando tu.', tone: inaug.booked > 0 ? 'warn' : 'neutral' },
-        { key: 'returned', label: 'Tornate paganti', value: String(inaug.returnedPaying), hint: 'Clienti arrivate dall’inaugurazione che hanno poi acquistato a pagamento: è il vero risultato della campagna.', tone: 'good' },
-        { key: 'conv', label: 'Conversione omaggio → pagante', value: inaug.came > 0 ? pct(inaug.conversionRate) : '—', sub: inaug.came === 0 ? 'nessuna ha ancora usato l’omaggio' : `${inaug.returnedPaying} su ${inaug.came}`, hint: 'Su 100 clienti che hanno usato l’omaggio, quante tornano a pagare. È il numero che dice se l’inaugurazione è stata un investimento o un costo.', tone: inaug.came === 0 ? 'neutral' : inaug.conversionRate >= 30 ? 'good' : inaug.conversionRate >= 15 ? 'warn' : 'bad' },
+        { key: 'leads', label: '1· Contatti raccolti', value: String(inaug.totalLeads), hint: 'Persone che hanno richiesto il coupon inaugurazione.' },
+        { key: 'withGift', label: '2· Con omaggio assegnato', value: String(inaug.withGift), hint: 'Hanno il pacchetto omaggio pronto da usare.' },
+        { key: 'bookedGift', label: '3· Hanno fissato l\'omaggio', value: String(inaug.bookedGift), hint: 'Hanno preso appuntamento ma non sono ancora venute.' },
+        { key: 'came', label: '4· Sono venute', value: String(inaug.came), sub: `${pct(inaug.showRate)} di chi ha l'omaggio`, hint: 'Hanno fatto la seduta gratis (omaggio scalato al check-out). È il primo vero contatto in negozio.', tone: inaug.showRate >= 50 ? 'good' : inaug.showRate >= 25 ? 'warn' : 'bad' },
+        { key: 'pending', label: 'Non ancora venute', value: String(inaug.booked), hint: 'Hanno l\'omaggio ma non l\'hanno usato: da richiamare, l\'omaggio lo stai già pagando tu.', tone: inaug.booked > 0 ? 'warn' : 'neutral' },
+        { key: 'returned', label: '5· Sono tornate paganti', value: String(inaug.returnedPaying), sub: inaug.came > 0 ? `${pct(inaug.conversionRate)} di chi è venuta` : '', hint: 'Dopo l\'omaggio hanno speso qualcosa: un trattamento, un prodotto o un pacchetto. È la prova che il servizio ha convinto.', tone: inaug.came === 0 ? 'neutral' : inaug.conversionRate >= 30 ? 'good' : inaug.conversionRate >= 15 ? 'warn' : 'bad' },
+        { key: 'boughtPkg', label: '6· Hanno comprato un pacchetto', value: String(inaug.boughtPackage), sub: inaug.came > 0 ? `${pct(inaug.packageRate)} di chi è venuta` : '', hint: 'Hanno acquistato un pacchetto a pagamento dopo l\'omaggio: è il risultato che vale di più, perché lega la cliente per più sedute.', tone: inaug.came === 0 ? 'neutral' : inaug.packageRate >= 20 ? 'good' : inaug.packageRate >= 10 ? 'warn' : 'bad' },
+        { key: 'revAfter', label: 'Fatturato generato', value: eur(inaug.revenueAfter), hint: 'Quanto hanno speso in totale queste clienti DOPO aver usato l\'omaggio. Confrontalo con quanto ti è costata la campagna.', tone: inaug.revenueAfter > 0 ? 'good' : 'neutral' },
+        { key: 'valuePerGift', label: 'Valore per omaggio erogato', value: eur(inaug.avgValuePerGift), hint: 'Quanto rende in media ogni seduta omaggio regalata. Se supera il costo del trattamento gratis, la campagna è in utile.', tone: inaug.avgValuePerGift > 0 ? 'good' : 'neutral' },
+        { key: 'daysToBuy', label: 'Giorni prima di ricomprare', value: inaug.avgDaysToPurchase ? `${inaug.avgDaysToPurchase} gg` : '—', hint: 'Tempo medio tra la seduta omaggio e il primo acquisto: ti dice dopo quanti giorni ha senso richiamare chi non è ancora tornata.' },
       ],
     },
     {
