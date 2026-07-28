@@ -12,6 +12,7 @@ import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { TreatmentsSection } from './TreatmentsSection';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
+import { useStaffNames } from '@/hooks/useStaffNames';
 import { useProductStore } from '@/stores/useProductStore';
 import { sellProductsWithPackage } from '@/app/actions/products';
 import type { Product } from '@/types';
@@ -33,10 +34,11 @@ const PKG_COLORS = ['#8B5CF6', '#EC4899', '#3B82F6', '#22C55E', '#F59E0B', '#EF4
 function UseSessionModal({ cp, onClose, onConfirm }: {
   cp: ClientPackage; onClose: () => void; onConfirm: (operator: string, note: string) => void;
 }) {
-  const [operator, setOperator] = useState('Sara Rossi');
+  const operators = useStaffNames();
+  const [operator, setOperator] = useState('');
+  useEffect(() => { if (!operator && operators.length > 0) setOperator(operators[0]); }, [operators, operator]);
   const [note, setNote] = useState('');
   const remaining = cp.totalSessions - cp.usedSessions;
-  const operators = ['Sara Rossi', 'Valentina Bianchi', 'Chiara Moretti', 'Francesca Romano', 'Alessia Conti'];
 
   return (
     <>
@@ -205,8 +207,9 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
   const [paymentPlan, setPaymentPlan] = useState<'full' | 'installments'>('full');
   const [firstPayment, setFirstPayment] = useState(String(pkg.price));
   const [paymentMethod, setPaymentMethod] = useState<'Carta' | 'Contanti' | 'Satispay' | 'Bonifico'>('Carta');
-  const [operator, setOperator] = useState('Sara Rossi');
-  const operators = ['Sara Rossi', 'Valentina Bianchi', 'Chiara Moretti', 'Francesca Romano', 'Alessia Conti'];
+  const operators = useStaffNames();
+  const [operator, setOperator] = useState('');
+  useEffect(() => { if (!operator && operators.length > 0) setOperator(operators[0]); }, [operators, operator]);
 
   // Prodotti abbinati al pacchetto: chi compra un pacchetto ha il 20% sul prodotto
   const products = useProductStore(s => s.products);
@@ -627,8 +630,9 @@ function AddPaymentInner({ cp, onClose, onPay }: {
 }) {
   const [amount, setAmount] = useState(String(cp.remainingBalance || 0));
   const [method, setMethod] = useState<'Carta' | 'Contanti' | 'Satispay' | 'Bonifico'>('Carta');
-  const [operator, setOperator] = useState('Sara Rossi');
-  const operators = ['Sara Rossi', 'Valentina Bianchi', 'Chiara Moretti', 'Francesca Romano', 'Alessia Conti'];
+  const operators = useStaffNames();
+  const [operator, setOperator] = useState('');
+  useEffect(() => { if (!operator && operators.length > 0) setOperator(operators[0]); }, [operators, operator]);
   const payAmount = Number(amount) || 0;
   const newRemaining = Math.max(0, (cp.remainingBalance || 0) - payAmount);
 

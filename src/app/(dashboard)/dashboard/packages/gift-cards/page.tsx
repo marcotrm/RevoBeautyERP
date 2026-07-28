@@ -11,6 +11,7 @@ import {
 import { formatCurrency } from '@/lib/helpers';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
+import { useStaffNames } from '@/hooks/useStaffNames';
 
 /* ========== CREATE GIFT CARD MODAL ========== */
 function CreateGiftCardModal({ onClose, onCreate }: {
@@ -26,13 +27,14 @@ function CreateGiftCardModal({ onClose, onCreate }: {
   const [message, setMessage] = useState('');
   const [validityMonths, setValidityMonths] = useState('12');
   const [paymentMethod, setPaymentMethod] = useState<'Carta' | 'Contanti' | 'Satispay' | 'Bonifico'>('Carta');
-  const [operator, setOperator] = useState('Sara Rossi');
+  const operators = useStaffNames();
+  const [operator, setOperator] = useState('');
+  useEffect(() => { if (!operator && operators.length > 0) setOperator(operators[0]); }, [operators, operator]);
   const [showBuyerDrop, setShowBuyerDrop] = useState(false);
   const [showRecipientDrop, setShowRecipientDrop] = useState(false);
   const [createdCode, setCreatedCode] = useState('');
 
   const allClients = useClientStore(s => s.clients);
-  const operators = ['Sara Rossi', 'Valentina Bianchi', 'Chiara Moretti', 'Francesca Romano', 'Alessia Conti'];
 
   const filteredBuyers = useMemo(() => {
     if (!buyerSearch.trim()) return allClients.slice(0, 6);
@@ -255,8 +257,9 @@ function RedeemModal({ gc, onClose, onRedeem }: {
   const [amount, setAmount] = useState('');
   const [serviceSearch, setServiceSearch] = useState('');
   const [selectedService, setSelectedService] = useState('');
-  const [operator, setOperator] = useState('Sara Rossi');
-  const operators = ['Sara Rossi', 'Valentina Bianchi', 'Chiara Moretti', 'Francesca Romano', 'Alessia Conti'];
+  const operators = useStaffNames();
+  const [operator, setOperator] = useState('');
+  useEffect(() => { if (!operator && operators.length > 0) setOperator(operators[0]); }, [operators, operator]);
 
   const filteredServices = serviceSearch.trim()
     ? treatments.filter(t => t.name.toLowerCase().includes(serviceSearch.toLowerCase()) && t.isActive).slice(0, 6)
