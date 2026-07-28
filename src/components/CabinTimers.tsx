@@ -81,21 +81,21 @@ export default function CabinTimers() {
     const scaduti = running.filter(({ appt, endAt }) =>
       endAt <= now &&
       now - endAt < MAX_LATE_ALERT_MS &&
-      !alertedRef.current.includes(appt.id)
+      !alertedRef.current.includes(`${appt.id}|${endAt}`)
     );
     if (scaduti.length === 0) return;
 
-    alertedRef.current = [...alertedRef.current, ...scaduti.map(s => s.appt.id)];
+    alertedRef.current = [...alertedRef.current, ...scaduti.map(s => `${s.appt.id}|${s.endAt}`)];
     saveAlerted(alertedRef.current);
-    setFinished(prev => [...prev, ...scaduti.map(s => s.appt)]);
+    setFinished(prev => [...prev, ...scaduti.map(s => ({ ...s.appt, treatmentName: s.label }))]);
     playBeep();
 
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      scaduti.forEach(({ appt }) => {
+      scaduti.forEach(({ appt, label }) => {
         try {
           new Notification('⏰ Trattamento finito', {
-            body: `${appt.clientName} — ${appt.treatmentName}\n${appt.operatorName}: vai a fermare il macchinario`,
-            tag: `revo-cabina-${appt.id}`,
+            body: `${appt.clientName} — ${label}\n${appt.operatorName}: vai a fermare il macchinario`,
+            tag: `revo-cabina-${appt.id}-${label}`,
           });
         } catch { /* no-op */ }
       });
@@ -126,14 +126,14 @@ export default function CabinTimers() {
 
           {!collapsed && (
             <div className="p-2 space-y-1.5 max-h-[45vh] overflow-y-auto">
-              {running.map(({ appt, endAt }) => {
+              {running.map(({ appt, endAt, label }) => {
                 const left = endAt - now;
                 const tone = countdownTone(left);
                 const toneCls = tone === 'over' ? 'bg-error/15 text-error' : tone === 'soon' ? 'bg-warning/15 text-warning' : 'bg-success/15 text-success';
                 return (
-                  <div key={appt.id} className="rounded-xl border border-border/60 bg-bg-tertiary/40 p-2.5">
+                  <div key={`${appt.id}-${endAt}`} className="rounded-xl border border-border/60 bg-bg-tertiary/40 p-2.5">
                     <p className="text-xs font-semibold text-text-primary truncate">{appt.clientName}</p>
-                    <p className="text-[11px] text-text-secondary truncate">{appt.treatmentName}</p>
+                    <p className="text-[11px] text-text-secondary truncate">{label}</p>
                     <div className="flex items-center justify-between mt-1.5 gap-2">
                       <span className="text-[10px] text-text-muted truncate">{appt.operatorName}</span>
                       <span className={`px-2 py-0.5 rounded-lg text-xs font-bold tabular-nums ${toneCls}`}>

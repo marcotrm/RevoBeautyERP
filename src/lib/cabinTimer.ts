@@ -1,5 +1,14 @@
 // Conto alla rovescia del trattamento in cabina.
-// Il tempo parte dal check-in e dura quanto il trattamento prenotato.
+// Il tempo parte dal check-in e dura quanto il trattamento.
+// Se l'appuntamento ha più trattamenti, ognuno ha il suo check-in/check-out:
+// il timer segue sempre quello in corso.
+
+export interface TimedService {
+  treatmentName: string;
+  duration: number;
+  checkInAt?: string;
+  checkOutAt?: string;
+}
 
 export interface TimedAppointment {
   id: string;
@@ -9,14 +18,32 @@ export interface TimedAppointment {
   duration: number; // minuti
   status: string;
   checkInAt?: string;
+  services?: TimedService[];
 }
 
-/** Timestamp (ms) di fine trattamento, o null se non è in cabina. */
-export function treatmentEndAt(a: TimedAppointment): number | null {
+export interface ActiveTimer {
+  endAt: number; // timestamp di fine (ms)
+  label: string; // trattamento in corso
+}
+
+/** Timer del trattamento in corso, o null se non c'è niente in cabina. */
+export function activeTimer(a: TimedAppointment): ActiveTimer | null {
+  const services = a.services ?? [];
+
+  // Appuntamenti con check-in per singolo trattamento
+  if (services.some(s => s.checkInAt)) {
+    const running = services.find(s => s.checkInAt && !s.checkOutAt);
+    if (!running?.checkInAt) return null;
+    const start = Date.parse(running.checkInAt);
+    if (Number.isNaN(start)) return null;
+    return { endAt: start + Math.max(1, running.duration) * 60_000, label: running.treatmentName };
+  }
+
+  // Appuntamento con un solo check-in complessivo
   if (a.status !== 'in_cabin' || !a.checkInAt) return null;
   const start = Date.parse(a.checkInAt);
   if (Number.isNaN(start)) return null;
-  return start + Math.max(1, a.duration) * 60_000;
+  return { endAt: start + Math.max(1, a.duration) * 60_000, label: a.treatmentName };
 }
 
 /** "07:32" se manca tempo, "+01:15" se il trattamento è già finito da un po'. */
@@ -36,9 +63,10 @@ export function countdownTone(msLeft: number): 'ok' | 'soon' | 'over' {
 }
 
 /** Trattamenti attualmente in cabina, ordinati da quello che finisce prima. */
-export function runningTreatments<T extends TimedAppointment>(appointments: T[]): { appt: T; endAt: number }[] {
+export function runningTreatments<T extends TimedAppointment>(appointments: T[]): { appt: T; endAt: number; label: string }[] {
   return appointments
-    .map((appt) => ({ appt, endAt: treatmentEndAt(appt) }))
-    .filter((x): x is { appt: T; endAt: number } => x.endAt !== null)
+    .map(appt => ({ appt, timer: activeTimer(appt) }))
+    .filter((x): x is { appt: T; timer: ActiveTimer } => x.timer !== null)
+    .map(({ appt, timer }) => ({ appt, endAt: timer.endAt, label: timer.label }))
     .sort((a, b) => a.endAt - b.endAt);
 }

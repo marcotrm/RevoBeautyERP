@@ -194,6 +194,8 @@ export interface AppointmentService {
   duration: number; // minuti
   price: number;
   gender?: 'male' | 'female';
+  checkInAt?: string;  // ISO — inizio di QUESTO trattamento in cabina
+  checkOutAt?: string; // ISO — fine di QUESTO trattamento
 }
 
 export interface Appointment {

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Timer } from 'lucide-react';
-import { formatCountdown, countdownTone, treatmentEndAt, type TimedAppointment } from '@/lib/cabinTimer';
+import { formatCountdown, countdownTone, activeTimer, type TimedAppointment } from '@/lib/cabinTimer';
 
 const TONE_CLASS = {
   ok: 'bg-success/15 text-success',
@@ -11,11 +11,12 @@ const TONE_CLASS = {
 } as const;
 
 /**
- * Badge con il tempo che manca alla fine del trattamento.
+ * Badge con il tempo che manca alla fine del trattamento in corso.
  * Si aggiorna ogni secondo da solo, così non fa ridisegnare tutta l'agenda.
  */
 export default function CabinCountdown({ appointment, size = 'sm' }: { appointment: TimedAppointment; size?: 'sm' | 'lg' }) {
-  const endAt = treatmentEndAt(appointment);
+  const timer = activeTimer(appointment);
+  const endAt = timer?.endAt ?? null;
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {

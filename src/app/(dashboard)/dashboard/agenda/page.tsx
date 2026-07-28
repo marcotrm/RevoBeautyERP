@@ -17,7 +17,7 @@ import {
   Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone, Sun
 } from 'lucide-react';
 import {
-  formatDateLong, timeToMinutes, getStatusLabel,
+  formatDateLong, timeToMinutes, minutesToTime, getStatusLabel,
   getStatusColor, formatCurrency, getInitials, getCategoryLabel, guessGenderFromName,
 } from '@/lib/helpers';
 import { resolveTreatmentForPackage } from '@/lib/packageTreatment';
@@ -1285,13 +1285,89 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   );
 }
 /* ========== DETAIL PANEL ========== */
-function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWithReason, onDelete }: {
+function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusChange, onCancelWithReason, onDelete }: {
   appointment: Appointment; onClose: () => void; onEdit: (a: Appointment) => void;
   onStatusChange: (id: string, status: Appointment['status'], extra?: Partial<Appointment>) => void;
   onCancelWithReason: (id: string, reason: string) => void;
   onDelete: (id: string) => void;
 }) {
   const router = useRouter();
+  // Sempre allineato al dato in memoria: dopo un check-in o un trattamento
+  // aggiunto il pannello si aggiorna da solo
+  const liveAppointment = useAgendaStore(s => s.appointments.find(a => a.id === appointmentProp.id));
+  const appointment = liveAppointment ?? appointmentProp;
+  const updateAppt = useAgendaStore(s => s.updateAppointment);
+  const treatments = useTreatmentStore(s => s.treatments);
+  const [addingTreatment, setAddingTreatment] = useState(false);
+  const [treatmentQuery, setTreatmentQuery] = useState('');
+  const [busySvc, setBusySvc] = useState(false);
+
+  // Elenco dei trattamenti dell'appuntamento (i vecchi ne hanno uno solo)
+  const services: AppointmentService[] = useMemo(() => (
+    appointment.services && appointment.services.length > 0
+      ? appointment.services
+      : [{
+          treatmentId: appointment.treatmentId,
+          treatmentName: appointment.treatmentName,
+          treatmentCategory: appointment.treatmentCategory,
+          duration: appointment.duration,
+          price: appointment.price,
+          checkInAt: appointment.checkInAt,
+          checkOutAt: appointment.checkOutAt,
+        }]
+  ), [appointment]);
+
+  /** Salva i trattamenti ricalcolando durata, fine e totale. */
+  const saveServices = async (next: AppointmentService[], extra: Partial<Appointment> = {}) => {
+    const totalDuration = next.reduce((s, x) => s + x.duration, 0);
+    const totalPrice = next.reduce((s, x) => s + x.price, 0);
+    setBusySvc(true);
+    try {
+      await updateAppt(appointment.id, {
+        services: next,
+        duration: totalDuration,
+        price: totalPrice,
+        endTime: minutesToTime(timeToMinutes(appointment.startTime) + totalDuration),
+        ...extra,
+      });
+    } finally { setBusySvc(false); }
+  };
+
+  const svcCheckIn = (i: number) => {
+    const now = new Date().toISOString();
+    const next = services.map((s, idx) => idx === i ? { ...s, checkInAt: now, checkOutAt: undefined } : s);
+    saveServices(next, { status: 'in_cabin', ...(appointment.checkInAt ? {} : { checkInAt: now }) });
+  };
+
+  const svcCheckOut = (i: number) => {
+    const now = new Date().toISOString();
+    const next = services.map((s, idx) => idx === i ? { ...s, checkOutAt: now } : s);
+    saveServices(next);
+  };
+
+  const addTreatmentToAppointment = (t: Treatment) => {
+    const gender = services[0]?.gender ?? 'female';
+    const duration = gender === 'male' ? (t.durationMale ?? t.durationFemale ?? t.duration) : (t.durationFemale ?? t.duration);
+    const price = gender === 'male' ? (t.priceMale ?? t.priceFemale ?? t.price) : (t.priceFemale ?? t.price);
+    saveServices([...services, {
+      treatmentId: t.id, treatmentName: t.name, treatmentCategory: t.category,
+      duration, price, gender,
+    }]);
+    setAddingTreatment(false);
+    setTreatmentQuery('');
+  };
+
+  const removeServiceAt = (i: number) => {
+    if (services.length <= 1) return;
+    saveServices(services.filter((_, idx) => idx !== i));
+  };
+
+  const treatmentResults = useMemo(() => {
+    const q = treatmentQuery.trim().toLowerCase();
+    const list = treatments.filter(t => t.isActive !== false);
+    if (!q) return list.slice(0, 8);
+    return list.filter(t => t.name.toLowerCase().includes(q) || getCategoryLabel(t.category).toLowerCase().includes(q)).slice(0, 8);
+  }, [treatmentQuery, treatments]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reasonText, setReasonText] = useState('');
@@ -1347,7 +1423,9 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
     const cabinMinutes = appointment.checkInAt
       ? Math.max(1, Math.round((Date.parse(checkOutAt) - Date.parse(appointment.checkInAt)) / 60000))
       : undefined;
-    onStatusChange(appointment.id, 'completed', { checkOutAt });
+    // Chiude anche il trattamento eventualmente ancora in corso (ferma il timer)
+    const closedServices = services.map(s => (s.checkInAt && !s.checkOutAt ? { ...s, checkOutAt } : s));
+    onStatusChange(appointment.id, 'completed', { checkOutAt, services: closedServices });
 
     const pkg = chosenPkgId === undefined
       ? bookedPkg
@@ -1362,7 +1440,8 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
       try {
         sessionStorage.setItem('revo_pos_autosale', JSON.stringify({
           client: appointment.clientName,
-          treatment: appointment.treatmentName,
+          // Con più trattamenti il conto è unico: nome e totale di tutta la seduta
+          treatment: services.map(s => s.treatmentName).join(' + '),
           treatmentId: appointment.treatmentId,
           price: appointment.price,
           operator: appointment.operatorName,
@@ -1428,9 +1507,99 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
             </div>
           </div>
           <div className="space-y-3 mb-6">
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-bg-tertiary/50">
-              <div className="w-1 h-8 rounded-full" style={{ backgroundColor: appointment.color }} />
-              <div><p className="text-sm font-medium text-text-primary">{appointment.treatmentName}</p><p className="text-xs text-text-secondary">{appointment.duration} minuti</p></div>
+            {/* Trattamenti: ognuno con il suo check-in/check-out, conto unico alla fine */}
+            <div className="rounded-xl bg-bg-tertiary/50 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                  Trattamenti {services.length > 1 && <span className="text-text-muted">({services.length})</span>}
+                </p>
+                {appointment.status !== 'completed' && !addingTreatment && (
+                  <button onClick={() => setAddingTreatment(true)} disabled={busySvc}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-accent/10 text-accent text-[11px] font-semibold hover:bg-accent/20 transition-colors disabled:opacity-50">
+                    <Plus className="w-3 h-3" /> Aggiungi
+                  </button>
+                )}
+              </div>
+
+              {services.map((s, i) => {
+                const running = !!s.checkInAt && !s.checkOutAt;
+                const done = !!s.checkOutAt;
+                const mins = s.checkInAt && s.checkOutAt
+                  ? Math.max(1, Math.round((Date.parse(s.checkOutAt) - Date.parse(s.checkInAt)) / 60000))
+                  : null;
+                return (
+                  <div key={`${s.treatmentId}-${i}`} className="rounded-lg bg-bg-secondary/70 border border-border/60 p-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: appointment.color }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-text-primary truncate">{s.treatmentName}</p>
+                        <p className="text-xs text-text-secondary">{s.duration} min · {formatCurrency(s.price)}</p>
+                      </div>
+                      {services.length > 1 && !s.checkInAt && appointment.status !== 'completed' && (
+                        <button onClick={() => removeServiceAt(i)} disabled={busySvc}
+                          className="p-1 rounded-md text-text-muted hover:text-error flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
+                      )}
+                    </div>
+
+                    {appointment.status !== 'completed' && (
+                      <div className="flex items-center gap-2 mt-2">
+                        {done ? (
+                          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-success">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            {fmtClock(s.checkInAt)} → {fmtClock(s.checkOutAt)}{mins ? ` · ${mins} min` : ''}
+                          </span>
+                        ) : running ? (
+                          <>
+                            <CabinCountdown appointment={{ ...appointment, services }} />
+                            <button onClick={() => svcCheckOut(i)} disabled={busySvc}
+                              className="ml-auto px-2.5 py-1 rounded-lg bg-success/15 text-success text-[11px] font-bold hover:bg-success/25 transition-colors disabled:opacity-50">
+                              Fine trattamento
+                            </button>
+                          </>
+                        ) : (
+                          <button onClick={() => svcCheckIn(i)} disabled={busySvc}
+                            className="ml-auto px-2.5 py-1 rounded-lg bg-pink-500/10 text-pink-400 text-[11px] font-bold hover:bg-pink-500/20 transition-colors disabled:opacity-50">
+                            <span className="flex items-center gap-1"><Play className="w-3 h-3" /> Check-in</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {addingTreatment && (
+                <div className="relative">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                    <input autoFocus type="text" value={treatmentQuery} onChange={e => setTreatmentQuery(e.target.value)}
+                      placeholder="Cerca trattamento da aggiungere..."
+                      className="w-full pl-9 pr-8 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
+                    <button onClick={() => { setAddingTreatment(false); setTreatmentQuery(''); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text-primary"><X className="w-4 h-4" /></button>
+                  </div>
+                  <div className="mt-1 max-h-44 overflow-y-auto rounded-xl border border-border bg-bg-secondary shadow-xl">
+                    {treatmentResults.length === 0 ? (
+                      <p className="px-3 py-3 text-xs text-text-muted text-center">Nessun trattamento trovato</p>
+                    ) : treatmentResults.map(t => (
+                      <button key={t.id} onClick={() => addTreatmentToAppointment(t)}
+                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-bg-hover transition-colors text-left">
+                        <span className="flex-1 min-w-0 text-sm text-text-primary truncate">{t.name}</span>
+                        <span className="text-[11px] text-text-muted flex-shrink-0">
+                          {t.durationFemale ?? t.duration}min · {formatCurrency(t.priceFemale ?? t.price)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {services.length > 1 && (
+                <div className="flex items-center justify-between pt-1.5 border-t border-border/60 text-sm">
+                  <span className="text-text-secondary">Totale ({appointment.duration} min)</span>
+                  <span className="font-bold text-text-primary">{formatCurrency(appointment.price)}</span>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Orario</p><p className="text-sm font-medium text-text-primary">{appointment.startTime} - {appointment.endTime}</p></div>
@@ -1580,7 +1749,7 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
                 </button>
               ) : (
                 <>
-                  <button onClick={() => { onStatusChange(appointment.id, 'in_cabin', { checkInAt: new Date().toISOString() }); onClose(); }}
+                  <button onClick={() => { svcCheckIn(0); }}
                     className="py-2.5 rounded-xl text-sm font-medium transition-colors bg-pink-500/10 text-pink-400 hover:bg-pink-500/20">
                     <span className="flex items-center justify-center gap-1.5"><Play className="w-3.5 h-3.5" /> Check-in</span>
                   </button>
