@@ -185,7 +185,7 @@ function NewCampaignModal({ onClose, onSave }: { onClose: () => void; onSave: (c
 }
 
 /* ========== TEST NOTIFICHE ========== */
-interface ChannelStatus { configured: boolean; missing: string[]; from?: string }
+interface ChannelStatus { configured: boolean; missing: string[]; from?: string; provider?: string | null }
 interface TestStatus { email: ChannelStatus; whatsapp: ChannelStatus; sms: ChannelStatus }
 
 function TestNotificationsPanel() {
@@ -265,9 +265,12 @@ function TestNotificationsPanel() {
                 className="w-full py-2 rounded-xl gradient-accent text-white text-xs font-medium disabled:opacity-50 transition-all">
                 {sending === 'whatsapp' ? 'Invio...' : 'Invia WhatsApp di prova'}
               </button>
+              {status?.whatsapp.provider === '360dialog' && (
+                <p className="text-[11px] text-text-muted">Canale ufficiale 360dialog. Il testo libero arriva solo se quel numero ci ha scritto nelle ultime 24h: altrimenti scrivi prima &quot;ciao&quot; al numero del salone, poi riprova.</p>
+              )}
             </>
           ) : (
-            <p className="text-xs text-text-muted">Mancano <code className="text-warning">{status?.whatsapp.missing.join(', ') || 'variabili Evolution'}</code> su Railway (stessa infrastruttura degli allarmi distributori).</p>
+            <p className="text-xs text-text-muted">Manca <code className="text-warning">{status?.whatsapp.missing.join(', ') || 'D360_API_KEY'}</code> su Railway (chiave API del canale 360dialog).</p>
           )}
           {results.whatsapp && <p className={`text-xs font-medium ${results.whatsapp.ok ? 'text-success' : 'text-error'}`}>{results.whatsapp.msg}</p>}
         </div>

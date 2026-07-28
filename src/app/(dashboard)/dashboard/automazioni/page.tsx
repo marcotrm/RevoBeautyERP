@@ -2,17 +2,14 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, Bot, Phone, MessageSquare, Zap, Gift, Star } from 'lucide-react';
+import { Sparkles, Bot, Phone, Zap } from 'lucide-react';
 import TelegramAgentConfig from '../settings/TelegramAgentConfig';
+import WhatsAppAutomationsConfig from './WhatsAppAutomationsConfig';
 
 interface AgentDef { id: string; name: string; description: string; icon: typeof Bot; color: string; status: 'active' | 'setup' | 'soon' }
 
 const AI_AGENTS: AgentDef[] = [
   { id: 'federica', name: 'Federica — Assistente vocale', description: 'Risponde alle chiamate, dà info su trattamenti e prezzi e fissa appuntamenti in autonomia (ElevenLabs).', icon: Phone, color: '#A855F7', status: 'setup' },
-  { id: 'reminder', name: 'Promemoria Appuntamenti', description: 'Invia un WhatsApp al cliente 24h prima dell\'appuntamento per ridurre i no-show.', icon: MessageSquare, color: '#22C55E', status: 'soon' },
-  { id: 'recall', name: 'Recupero Clienti', description: 'Contatta automaticamente i clienti che non tornano da oltre 60 giorni con un messaggio di richiamo.', icon: Zap, color: '#F59E0B', status: 'soon' },
-  { id: 'birthday', name: 'Auguri Compleanno', description: 'Manda gli auguri (ed eventuale sconto) ai clienti il giorno del loro compleanno.', icon: Gift, color: '#EC4899', status: 'soon' },
-  { id: 'review', name: 'Richiesta Recensioni', description: 'Dopo la visita chiede al cliente una recensione su Google per far crescere la reputazione online.', icon: Star, color: '#3B82F6', status: 'soon' },
 ];
 
 const AGENT_STATUS: Record<AgentDef['status'], { label: string; cls: string }> = {
@@ -42,6 +39,12 @@ export default function AutomazioniPage() {
       <div>
         <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-2">Notifiche & Report</h3>
         <TelegramAgentConfig />
+      </div>
+
+      {/* WhatsApp */}
+      <div>
+        <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-2">Messaggi ai clienti</h3>
+        <WhatsAppAutomationsConfig />
       </div>
 
       {/* Altri agenti */}

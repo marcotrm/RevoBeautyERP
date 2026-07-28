@@ -1,5 +1,5 @@
 import { sendEmail, mailFrom } from '@/lib/mail';
-import { sendWhatsApp, whatsappConfigured, whatsappMissingVars, normalizePhone } from '@/lib/whatsapp';
+import { sendWhatsApp, whatsappConfigured, whatsappMissingVars, normalizePhone, waProvider } from '@/lib/whatsapp';
 
 export const runtime = 'nodejs';
 
@@ -14,6 +14,7 @@ export async function GET() {
     whatsapp: {
       configured: whatsappConfigured(),
       missing: whatsappMissingVars(),
+      provider: waProvider(),
     },
     sms: { configured: false, missing: ['non ancora implementato'] },
   });

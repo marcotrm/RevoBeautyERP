@@ -43,7 +43,32 @@ export async function register() {
     }
   };
 
+  // Automazioni WhatsApp: ognuna ha il suo orario (vedi WA_SCHEDULE).
+  // La deduplica vera è per messaggio (AdminEntry kind `wa_log`), quindi qui
+  // basta evitare di rilanciare la stessa automazione due volte nello stesso minuto.
+  const waLastRun = new Map<string, string>();
+
+  const waTick = async () => {
+    try {
+      const { date, hhmm } = nowRome();
+      const { WA_SCHEDULE, runWaAutomations } = await import('@/lib/wa-automations');
+      for (const slot of WA_SCHEDULE) {
+        if (slot.hhmm !== hhmm) continue;
+        if (waLastRun.get(slot.which) === date) continue;
+        waLastRun.set(slot.which, date);
+        const results = await runWaAutomations({ which: slot.which });
+        for (const r of results) {
+          if (r.skipped) continue;
+          console.log(`[wa] ${r.automation}: ${r.candidates} candidati, ${r.sent} inviati, ${r.failed} falliti${r.dryRun ? ' (SIMULAZIONE)' : ''}`);
+        }
+      }
+    } catch (err) {
+      console.error('[wa] scheduler error', err);
+    }
+  };
+
   // Controlla ogni minuto
-  setInterval(tick, 60 * 1000);
+  setInterval(() => { void tick(); void waTick(); }, 60 * 1000);
   console.log('[reports] Scheduler report Telegram attivo (invio alle 20:00 Europe/Rome)');
+  console.log('[wa] Scheduler automazioni WhatsApp attivo');
 }
