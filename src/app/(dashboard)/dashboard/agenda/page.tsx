@@ -1293,6 +1293,9 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
   const [reasonText, setReasonText] = useState('');
   const [scaledPkgId, setScaledPkgId] = useState<string | null>(null);
   const [showDebtModal, setShowDebtModal] = useState(false);
+  // Scelta del pacchetto da scalare al check-out ('none' = incassa in cassa)
+  const [showPkgModal, setShowPkgModal] = useState(false);
+  const [pkgChoice, setPkgChoice] = useState<string>('none');
   const usePackageSession = usePackageStore(s => s.useSession);
   const allClientPkgs = usePackageStore(s => s.clientPackages);
   const allClients = useClientStore(s => s.clients);
@@ -1320,23 +1323,31 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
     ? Math.max(1, Math.round((Date.parse(appointment.checkOutAt) - Date.parse(appointment.checkInAt)) / 60000))
     : null;
 
-  const processCheckout = () => {
-    const isPackageSession = appointment.notes?.includes('📦 Seduta da pacchetto');
+  // Pacchetti da cui si può ancora scalare una seduta
+  const usablePkgs = clientPkgs.filter(cp => cp.usedSessions < cp.totalSessions);
+  // Pacchetto indicato al momento della prenotazione (se c'è)
+  const bookedPkg = appointment.notes?.includes('📦 Seduta da pacchetto')
+    ? usablePkgs.find(cp => appointment.notes?.includes(cp.packageName)) || null
+    : null;
+
+  /**
+   * chosenPkgId: id del pacchetto da scalare, oppure null per incassare in cassa.
+   * Se non passato, usa il pacchetto scelto in fase di prenotazione.
+   */
+  const processCheckout = (chosenPkgId?: string | null) => {
     const checkOutAt = new Date().toISOString();
     const cabinMinutes = appointment.checkInAt
       ? Math.max(1, Math.round((Date.parse(checkOutAt) - Date.parse(appointment.checkInAt)) / 60000))
       : undefined;
     onStatusChange(appointment.id, 'completed', { checkOutAt });
 
-    if (isPackageSession) {
-      const matchingPkg = clientPkgs.find(cp =>
-        appointment.notes?.includes(cp.packageName) &&
-        cp.usedSessions < cp.totalSessions
-      );
-      if (matchingPkg) {
-        usePackageSession(matchingPkg.id, appointment.operatorName, `Completato: ${appointment.treatmentName}`);
-        setScaledPkgId(matchingPkg.id);
-      }
+    const pkg = chosenPkgId === undefined
+      ? bookedPkg
+      : (chosenPkgId ? usablePkgs.find(cp => cp.id === chosenPkgId) || null : null);
+
+    if (pkg) {
+      usePackageSession(pkg.id, appointment.operatorName, `Completato: ${appointment.treatmentName}`);
+      setScaledPkgId(pkg.id);
       onClose();
     } else {
       onClose();
@@ -1354,12 +1365,16 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
     }
   };
 
+  // Con dei pacchetti attivi si chiede sempre da quale scalare la seduta
+  const askWhichPackage = () => {
+    setPkgChoice(bookedPkg ? bookedPkg.id : 'none');
+    setShowPkgModal(true);
+  };
+
   const handleCheckoutClick = () => {
-    if (packagesWithDebt.length > 0) {
-      setShowDebtModal(true);
-    } else {
-      processCheckout();
-    }
+    if (packagesWithDebt.length > 0) setShowDebtModal(true);
+    else if (usablePkgs.length > 0) askWhichPackage();
+    else processCheckout(null);
   };
 
   return (
@@ -1638,9 +1653,85 @@ function DetailPanel({ appointment, onClose, onEdit, onStatusChange, onCancelWit
               </button>
               <button onClick={() => {
                 setShowDebtModal(false);
-                processCheckout();
+                if (usablePkgs.length > 0) askWhichPackage();
+                else processCheckout(null);
               }} className="flex-1 py-2.5 rounded-xl bg-bg-tertiary text-text-primary text-sm font-medium hover:bg-bg-hover transition-colors">
                 Salta per oggi
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Da quale pacchetto scalo la seduta? */}
+      {showPkgModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowPkgModal(false)} />
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="relative bg-bg-secondary border border-border rounded-2xl shadow-2xl p-6 w-full max-w-md z-10">
+            <div className="flex items-center gap-3 mb-1 text-accent">
+              <Package className="w-6 h-6" />
+              <h3 className="text-lg font-display font-bold text-text-primary">Da quale pacchetto scalo?</h3>
+            </div>
+            <p className="text-sm text-text-secondary mb-4">
+              <strong className="text-text-primary">{appointment.clientName}</strong> — {appointment.treatmentName}
+            </p>
+
+            <div className="space-y-2 mb-5 max-h-[45vh] overflow-y-auto">
+              {usablePkgs.map(cp => {
+                const remaining = cp.totalSessions - cp.usedSessions;
+                const isFree = cp.pricePaid === 0;
+                const selected = pkgChoice === cp.id;
+                return (
+                  <button key={cp.id} type="button" onClick={() => setPkgChoice(cp.id)}
+                    className={`w-full text-left rounded-xl border p-3 transition-colors ${selected ? 'border-accent bg-accent/10' : 'border-border bg-bg-tertiary/40 hover:bg-bg-hover'}`}>
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${selected ? 'border-accent' : 'border-border'}`}>
+                        {selected && <div className="w-2 h-2 rounded-full bg-accent" />}
+                      </div>
+                      <div className="w-1.5 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: cp.packageColor }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-semibold text-text-primary truncate">{cp.packageName}</p>
+                          {isFree
+                            ? <span className="px-1.5 py-0.5 rounded bg-warning/15 text-warning text-[10px] font-bold uppercase">Omaggio</span>
+                            : <span className="px-1.5 py-0.5 rounded bg-success/15 text-success text-[10px] font-bold uppercase">Già pagato</span>}
+                        </div>
+                        <p className="text-[11px] text-text-muted mt-0.5">
+                          {remaining} {remaining === 1 ? 'seduta rimanente' : 'sedute rimanenti'} su {cp.totalSessions}
+                          {cp.id === bookedPkg?.id && ' · scelto in prenotazione'}
+                        </p>
+                      </div>
+                      <span className="text-sm font-bold text-text-primary flex-shrink-0">0,00 €</span>
+                    </div>
+                  </button>
+                );
+              })}
+
+              <button type="button" onClick={() => setPkgChoice('none')}
+                className={`w-full text-left rounded-xl border p-3 transition-colors ${pkgChoice === 'none' ? 'border-accent bg-accent/10' : 'border-border bg-bg-tertiary/40 hover:bg-bg-hover'}`}>
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${pkgChoice === 'none' ? 'border-accent' : 'border-border'}`}>
+                    {pkgChoice === 'none' && <div className="w-2 h-2 rounded-full bg-accent" />}
+                  </div>
+                  <Euro className="w-4 h-4 text-text-secondary flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-text-primary">Nessun pacchetto — incassa in cassa</p>
+                    <p className="text-[11px] text-text-muted mt-0.5">Non scala nessuna seduta, apre il punto cassa</p>
+                  </div>
+                  <span className="text-sm font-bold text-text-primary flex-shrink-0">{formatCurrency(appointment.price)}</span>
+                </div>
+              </button>
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={() => setShowPkgModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+                Annulla
+              </button>
+              <button onClick={() => { setShowPkgModal(false); processCheckout(pkgChoice === 'none' ? null : pkgChoice); }}
+                className="flex-1 py-2.5 rounded-xl bg-success/15 text-success text-sm font-bold hover:bg-success/25 transition-colors flex items-center justify-center gap-1.5">
+                <CheckCircle className="w-4 h-4" /> Conferma check-out
               </button>
             </div>
           </motion.div>
