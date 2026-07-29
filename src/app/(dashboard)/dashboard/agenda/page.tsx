@@ -64,6 +64,43 @@ function operatorWorksOn(op: Operator, date: Date): boolean {
   return day.isWorking !== false;
 }
 
+// Fasce in cui l'operatrice NON è in servizio in quel giorno: prima dell'inizio
+// turno, dopo la fine, e durante la pausa. Restituisce minuti-dall'inizio-agenda.
+interface UnavailBand { startMin: number; endMin: number; label: string; kind: 'fuori' | 'pausa'; }
+function operatorUnavailableBands(op: Operator, date: Date): UnavailBand[] {
+  if (op.isResource) return [];
+  const dow = date.getDay();
+  const day = op.schedule?.[dow];
+  if (!day || day.isWorking === false) return []; // riposo gestito a parte
+  const bands: UnavailBand[] = [];
+  const dayStart = START_HOUR * 60;
+  const dayEnd = END_HOUR * 60;
+  const toMin = (t?: string) => (t && /^\d{1,2}:\d{2}$/.test(t) ? timeToMinutes(t) : null);
+
+  const start = toMin(day.startTime);
+  const end = toMin(day.endTime);
+  // Prima dell'inizio turno
+  if (start != null && start > dayStart) {
+    bands.push({ startMin: dayStart - dayStart, endMin: start - dayStart, label: 'Fuori orario', kind: 'fuori' });
+  }
+  // Dopo la fine turno
+  if (end != null && end < dayEnd) {
+    bands.push({ startMin: end - dayStart, endMin: dayEnd - dayStart, label: 'Fuori orario', kind: 'fuori' });
+  }
+  // Pausa
+  const bStart = toMin(day.breakStart);
+  const bEnd = toMin(day.breakEnd);
+  if (bStart != null && bEnd != null && bEnd > bStart) {
+    bands.push({ startMin: bStart - dayStart, endMin: bEnd - dayStart, label: 'Pausa', kind: 'pausa' });
+  }
+  return bands.filter(b => b.endMin > b.startMin);
+}
+
+/** true se l'orario (minuti dall'inizio agenda) cade in una fascia non disponibile. */
+function isMinuteUnavailable(op: Operator, date: Date, minFromStart: number): boolean {
+  return operatorUnavailableBands(op, date).some(b => minFromStart >= b.startMin && minFromStart < b.endMin);
+}
+
 function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, color }: { appointment: Appointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties; color?: string }) {
   const blockColor = color || appointment.color;
   const startMin = timeToMinutes(appointment.startTime) - START_HOUR * 60;
@@ -264,6 +301,12 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
     const duration = Number(e.dataTransfer.getData('duration')) || 60;
     if (!appointmentId) return;
     const time = calcTimeFromY(e, columnEl);
+    // Non spostare dentro fuori-orario o pausa dell'operatrice
+    const op = operators.find(o => o.id === operatorId);
+    if (op && isMinuteUnavailable(op, selectedDate, timeToMinutes(time) - START_HOUR * 60)) {
+      setDragOver(null);
+      return;
+    }
     onDropAppointment(appointmentId, operatorId, time, duration);
     setDragOver(null);
   };
@@ -322,6 +365,30 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
                   </div>
                 </div>
               )}
+              {/* Fasce fuori orario e pausa (dal turno dell'operatrice) */}
+              {!off && operatorUnavailableBands(operator, selectedDate).map((band, bi) => {
+                const top = (band.startMin / 60) * HOUR_HEIGHT;
+                const h = Math.max(((band.endMin - band.startMin) / 60) * HOUR_HEIGHT, 20);
+                const isPausa = band.kind === 'pausa';
+                return (
+                  <div key={`unavail-${bi}`}
+                    className="absolute left-0 right-0 z-20 cursor-not-allowed flex flex-col items-center justify-center text-center overflow-hidden"
+                    style={{
+                      top: `${top}px`, height: `${h}px`,
+                      backgroundImage: 'repeating-linear-gradient(45deg, rgba(148,163,184,0.16) 0, rgba(148,163,184,0.16) 10px, rgba(148,163,184,0.04) 10px, rgba(148,163,184,0.04) 20px)',
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    title={isPausa ? `${operator.firstName} è in pausa` : `${operator.firstName} non è ancora in servizio`}>
+                    {h >= 34 && (
+                      <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                        {isPausa ? <Clock className="w-3 h-3" /> : <Moon className="w-3 h-3" />}
+                        <span className="text-[11px] font-bold">{isPausa ? 'Pausa' : 'Fuori orario'}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
               {/* Fasce bloccate */}
               {!off && (blocksByOperator[operator.id] || []).map(block => {
                 const bStart = timeToMinutes(block.startTime) - START_HOUR * 60;
