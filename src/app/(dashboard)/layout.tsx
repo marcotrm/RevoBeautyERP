@@ -6,6 +6,7 @@ import { Lock, Loader2 } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
 import CabinTimers from '@/components/CabinTimers';
+import WhatsAppAlert from '@/components/WhatsAppAlert';
 import { useUIStore } from '@/stores/useUIStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRolesStore } from '@/stores/useRolesStore';
@@ -100,6 +101,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
       {/* Conto alla rovescia dei trattamenti in cabina: avvisa a tempo scaduto */}
       <CabinTimers />
+      {/* Messaggi WhatsApp non letti: pallino sul menu e avviso se nessuno risponde */}
+      <WhatsAppAlert />
     </div>
   );
 }

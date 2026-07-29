@@ -3,8 +3,8 @@
 import { prisma } from '@/lib/prisma';
 import { waProvider, whatsappMissingVars, sendWhatsApp, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
 import {
-  listConversations, listMessages, markConversationRead, conversationWindow,
-  type WaConversation, type WaMessageRow,
+  listConversations, listMessages, markConversationRead, conversationWindow, listUnreadChats,
+  type WaConversation, type WaMessageRow, type WaUnreadChat,
 } from '@/lib/wa-conversations';
 import { listD360Templates } from '@/lib/whatsapp360';
 import { WA_TEMPLATES, type TemplateKey } from '@/lib/wa-templates';
@@ -87,6 +87,15 @@ export async function loadWaInbox(limit = 15): Promise<WaInboxMessage[]> {
 /** Elenco chat, la più recente in cima, con non letti e stato finestra 24h. */
 export async function loadConversations(limit = 50): Promise<WaConversation[]> {
   return listConversations(limit);
+}
+
+/**
+ * Messaggi dei clienti ancora da leggere. Gira in polling da tutto il
+ * gestionale: accende il pallino sul menu WhatsApp e, se nessuno risponde,
+ * fa scattare l'avviso a schermo.
+ */
+export async function loadWaUnread(): Promise<WaUnreadChat[]> {
+  return listUnreadChats();
 }
 
 /**

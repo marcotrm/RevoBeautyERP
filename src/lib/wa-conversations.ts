@@ -52,6 +52,18 @@ export interface WaConversation {
   windowExpiresAt?: string;
   /** Messaggi del cliente arrivati dopo l'ultima lettura in gestionale. */
   unread: number;
+  /** Quando è arrivato il più vecchio dei messaggi non letti: da qui si conta l'attesa. */
+  oldestUnreadAt?: string;
+}
+
+/** Riassunto dei non letti per l'avviso in tutto il gestionale. */
+export interface WaUnreadChat {
+  phone: string;
+  name?: string;
+  unread: number;
+  lastText: string;
+  /** Da quanto il cliente aspetta una risposta. */
+  oldestUnreadAt: string;
 }
 
 // ============================================================
@@ -221,6 +233,7 @@ export async function listConversations(limit = 50): Promise<WaConversation[]> {
     const last = msgs[0]; // recentMessages ordina già dal più recente
     const readAt = reads.get(phone);
     const win = windowState(windows.get(phone));
+    const unreadMsgs = msgs.filter(m => m.direction === 'in' && (!readAt || m.at > readAt));
     conversations.push({
       phone,
       // Il nome profilo arriva solo con i messaggi in entrata.
@@ -230,11 +243,26 @@ export async function listConversations(limit = 50): Promise<WaConversation[]> {
       lastDirection: last.direction,
       windowOpen: win.open,
       windowExpiresAt: win.expiresAt,
-      unread: msgs.filter(m => m.direction === 'in' && (!readAt || m.at > readAt)).length,
+      unread: unreadMsgs.length,
+      // `msgs` è ordinato dal più recente: l'ultimo non letto è il più vecchio.
+      oldestUnreadAt: unreadMsgs.length ? unreadMsgs[unreadMsgs.length - 1].at : undefined,
     });
   }
 
   return conversations.sort((a, b) => b.lastAt.localeCompare(a.lastAt)).slice(0, limit);
+}
+
+/**
+ * Solo le chat con messaggi del cliente ancora da leggere, dalla più vecchia
+ * in attesa. Serve all'avviso sempre attivo nel gestionale: chiede poco al DB
+ * rispetto al thread completo e può girare in polling su ogni pagina.
+ */
+export async function listUnreadChats(): Promise<WaUnreadChat[]> {
+  const conversations = await listConversations(100);
+  return conversations
+    .filter((c): c is WaConversation & { oldestUnreadAt: string } => c.unread > 0 && !!c.oldestUnreadAt)
+    .map(c => ({ phone: c.phone, name: c.name, unread: c.unread, lastText: c.lastText, oldestUnreadAt: c.oldestUnreadAt }))
+    .sort((a, b) => a.oldestUnreadAt.localeCompare(b.oldestUnreadAt));
 }
 
 /** Thread completo di un numero, dal più vecchio al più recente (ordine di lettura). */

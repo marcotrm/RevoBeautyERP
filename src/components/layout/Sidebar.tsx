@@ -8,6 +8,7 @@ import { useUIStore } from '@/stores/useUIStore';
 import { useThemeStore } from '@/stores/useThemeStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRolesStore } from '@/stores/useRolesStore';
+import { useWaInboxStore } from '@/stores/useWaInboxStore';
 import { MENU_PERMISSIONS, roleHasPermission } from '@/lib/permissions';
 import {
   Calendar, Users, ShoppingBag, Package, BarChart3,
@@ -47,6 +48,9 @@ export default function Sidebar() {
   const roles = useRolesStore(s => s.roles);
   const role = roles.find(r => r.id === user?.role);
   const roleName = role?.name ?? user?.role;
+  // Messaggi WhatsApp da leggere: fanno lampeggiare la voce di menu.
+  // Il polling lo fa WhatsAppAlert, montato nel layout della dashboard.
+  const waUnread = useWaInboxStore(s => s.total);
 
   // Mostra solo le voci per cui il ruolo dell'utente ha il permesso
   const visibleMenuItems = menuItems.filter(item =>
@@ -130,6 +134,9 @@ export default function Sidebar() {
             
             const isActive = activeItem?.id === item.id || (item.href === '/dashboard' && pathname === '/dashboard');
             const Icon = item.icon;
+            // WhatsApp lampeggia finché c'è un messaggio del cliente da leggere
+            const blinking = item.id === 'whatsapp' && waUnread > 0;
+            const badgeCount = item.id === 'whatsapp' ? waUnread : (item.badge ?? 0);
             return (
               <Link
                 key={item.id}
@@ -153,13 +160,21 @@ export default function Sidebar() {
                     transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                   />
                 )}
-                <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-accent' : ''}`} />
+                <div className="relative flex-shrink-0">
+                  <Icon className={`w-5 h-5 ${blinking ? 'text-error' : isActive ? 'text-accent' : ''}`} />
+                  {blinking && (
+                    <>
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-error animate-ping" />
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-error" />
+                    </>
+                  )}
+                </div>
                 {!sidebarCollapsed && (
-                  <span className="text-sm font-medium truncate">{item.label}</span>
+                  <span className={`text-sm font-medium truncate ${blinking ? 'text-error font-bold' : ''}`}>{item.label}</span>
                 )}
-                {!sidebarCollapsed && item.badge !== undefined && item.badge > 0 && (
-                  <span className="ml-auto px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-error text-white">
-                    {item.badge}
+                {!sidebarCollapsed && badgeCount > 0 && (
+                  <span className={`ml-auto px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-error text-white ${blinking ? 'animate-pulse' : ''}`}>
+                    {badgeCount}
                   </span>
                 )}
                 {/* Tooltip for collapsed */}

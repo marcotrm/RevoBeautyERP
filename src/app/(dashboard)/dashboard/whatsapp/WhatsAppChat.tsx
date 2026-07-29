@@ -14,6 +14,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock } from 'lucide-react';
 import { loadConversations, loadConversation, sendManualReply } from '@/app/actions/whatsapp';
+import { useWaInboxStore } from '@/stores/useWaInboxStore';
 // I tipi arrivano dalla libreria, non dal file di azioni: un 'use server' non
 // può ri-esportarli senza rompersi a runtime.
 import type { WaConversation, WaMessageRow } from '@/lib/wa-conversations';
@@ -73,6 +74,9 @@ export default function WhatsAppChat() {
       setWindowOpen(res.windowOpen);
       setWindowExpiresAt(res.windowExpiresAt);
       setClientName(res.clientName);
+      // Aprire la chat la segna letta: spegne subito il pallino sul menu,
+      // senza aspettare il giro di polling dell'avviso globale.
+      void useWaInboxStore.getState().fetchUnread();
     } catch {
       setError('Impossibile aprire la conversazione.');
     }
