@@ -12,6 +12,8 @@ import { useOperatorStore } from '@/stores/useOperatorStore';
 import { getInitials } from '@/lib/helpers';
 import { Operator, TreatmentCategory } from '@/types';
 import { generateShifts, type AgentConfig, type ShiftEntry, type WeekShifts } from '@/lib/shiftAgent';
+import { getWeekShifts, saveWeekShift, saveWeekShiftsBulk, type WeekScheduleMap } from '@/app/actions/weekShifts';
+import { mondayISO } from '@/lib/weekSchedule';
 
 const SPECIALIZATIONS: { value: TreatmentCategory; label: string }[] = [
   { value: 'facial', label: 'Viso' }, { value: 'body', label: 'Corpo' },
@@ -55,22 +57,6 @@ function fmtWeekLabel(monday: Date) {
   return `${monday.getDate()} - ${sun.getDate()} ${months[sun.getMonth()]} ${sun.getFullYear()}`;
 }
 
-function buildDefaultShifts(operators: Operator[]): WeekShifts {
-  const shifts: WeekShifts = {};
-  operators.forEach(op => {
-    shifts[op.id] = {};
-    for (let d = 0; d < 6; d++) {
-      if (op.schedule) {
-        const dayKey = dowFor(d) as 0|1|2|3|4|5|6;
-        const s = op.schedule[dayKey];
-        if (s) { shifts[op.id][d] = { isWorking: s.isWorking, startTime: s.startTime || '09:00', endTime: s.endTime || '18:00', breakStart: s.breakStart, breakEnd: s.breakEnd }; continue; }
-      }
-      // defaults: Sat off, rest working
-      shifts[op.id][d] = d === 5 ? { isWorking: false, startTime: '', endTime: '' } : { isWorking: true, startTime: '09:00', endTime: '18:00' };
-    }
-  });
-  return shifts;
-}
 
 
 /* ========== helpers ========== */
@@ -652,13 +638,16 @@ function ShiftAgentModal({ operators, onClose, onApply }: {
 /* ========== WEEKLY SHIFT PLANNER ========== */
 function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
   const [weekOffset, setWeekOffset] = useState(0);
-  const [shifts, setShifts] = useState<WeekShifts>(() => buildDefaultShifts(operators));
+  // Turni della SETTIMANA mostrata: opId -> { dow 1..6 -> turno }. I giorni non
+  // presenti sono "non impostati" (cella vuota da compilare).
+  const [weekMap, setWeekMap] = useState<Record<string, WeekScheduleMap>>({});
+  const [loadingWeek, setLoadingWeek] = useState(true);
   const [editModal, setEditModal] = useState<{ operatorId: string; dayIndex: number } | null>(null);
   const [showAgent, setShowAgent] = useState(false);
-  const updateOperator = useOperatorStore(s => s.updateOperator);
 
   const monday = getMonday(new Date());
   monday.setDate(monday.getDate() + weekOffset * 7);
+  const weekStart = mondayISO(monday);
 
   const weekDates = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(monday);
@@ -666,57 +655,78 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
     return d;
   });
 
+  // Carica i turni della settimana mostrata (ogni settimana è indipendente)
+  useEffect(() => {
+    let alive = true;
+    setLoadingWeek(true);
+    getWeekShifts(weekStart).then(m => { if (alive) { setWeekMap(m); setLoadingWeek(false); } })
+      .catch(() => { if (alive) setLoadingWeek(false); });
+    return () => { alive = false; };
+  }, [weekStart]);
+
+  // Cella impostata?  (dayIndex 0=Lun..5=Sab  →  dow 1..6)
+  const isSet = useCallback((opId: string, day: number): boolean => {
+    return weekMap[opId]?.[dowFor(day)] !== undefined;
+  }, [weekMap]);
+
+  // Turno per il calcolo ore (vuoto = 0 ore)
   const getShift = useCallback((opId: string, day: number): ShiftEntry => {
-    return shifts[opId]?.[day] || { isWorking: true, startTime: '09:00', endTime: '18:00' };
-  }, [shifts]);
+    const s = weekMap[opId]?.[dowFor(day)];
+    return s ? { isWorking: s.isWorking, startTime: s.startTime, endTime: s.endTime, breakStart: s.breakStart, breakEnd: s.breakEnd }
+             : { isWorking: false, startTime: '', endTime: '' };
+  }, [weekMap]);
 
   const updateShift = useCallback((opId: string, day: number, entry: ShiftEntry) => {
-    const nextOpShifts = { ...(shifts[opId] || {}), [day]: entry };
-    // Persiste nella scheda operatrice (giorni 1=Lun .. 6=Sab) così l'agenda lo rispetta.
-    // updateOperator resta fuori dall'updater di setShifts (dev'essere puro).
-    const schedule: Record<number, { isWorking: boolean; startTime: string; endTime: string; breakStart?: string; breakEnd?: string }> = {};
-    for (let d = 0; d < 6; d++) {
-      const s = nextOpShifts[d] || { isWorking: true, startTime: '09:00', endTime: '18:00' };
-      schedule[dowFor(d)] = { isWorking: s.isWorking, startTime: s.startTime, endTime: s.endTime, ...(s.breakStart && s.breakEnd ? { breakStart: s.breakStart, breakEnd: s.breakEnd } : {}) };
-    }
-    updateOperator(opId, { schedule });
-    setShifts(prev => ({ ...prev, [opId]: { ...(prev[opId] || {}), [day]: entry } }));
-  }, [shifts, updateOperator]);
+    const nextOpMap: WeekScheduleMap = {
+      ...(weekMap[opId] || {}),
+      [dowFor(day)]: { isWorking: entry.isWorking, startTime: entry.startTime, endTime: entry.endTime, ...(entry.breakStart && entry.breakEnd ? { breakStart: entry.breakStart, breakEnd: entry.breakEnd } : {}) },
+    };
+    setWeekMap(prev => ({ ...prev, [opId]: nextOpMap }));
+    saveWeekShift(opId, weekStart, nextOpMap); // salva SOLO questa settimana
+  }, [weekMap, weekStart]);
 
-  // Applica una settimana intera generata dall'Agente Turni e la persiste su ogni operatrice
+  // Applica una settimana intera generata dall'Agente Turni (solo su questa settimana)
   const applyGenerated = useCallback((generated: WeekShifts) => {
+    const byOperator: Record<string, WeekScheduleMap> = {};
     Object.entries(generated).forEach(([opId, opDays]) => {
-      const schedule: Record<number, { isWorking: boolean; startTime: string; endTime: string; breakStart?: string; breakEnd?: string }> = {};
+      const m: WeekScheduleMap = {};
       for (let d = 0; d < 6; d++) {
-        const s = opDays[d] || { isWorking: false, startTime: '', endTime: '' };
-        schedule[dowFor(d)] = { isWorking: s.isWorking, startTime: s.startTime, endTime: s.endTime, ...(s.breakStart && s.breakEnd ? { breakStart: s.breakStart, breakEnd: s.breakEnd } : {}) };
+        const s = opDays[d];
+        if (s) m[dowFor(d)] = { isWorking: s.isWorking, startTime: s.startTime, endTime: s.endTime, ...(s.breakStart && s.breakEnd ? { breakStart: s.breakStart, breakEnd: s.breakEnd } : {}) };
       }
-      updateOperator(opId, { schedule });
+      byOperator[opId] = m;
     });
-    setShifts(prev => {
-      const next: WeekShifts = { ...prev };
-      Object.entries(generated).forEach(([opId, opDays]) => { next[opId] = { ...opDays }; });
-      return next;
-    });
-  }, [updateOperator]);
+    setWeekMap(prev => ({ ...prev, ...byOperator }));
+    saveWeekShiftsBulk(weekStart, byOperator);
+  }, [weekStart]);
 
-  // Ensure new operators have shifts
-  React.useEffect(() => {
-    setShifts(prev => {
-      const updated = { ...prev };
+  // Comodità: riempi la settimana copiando quella precedente (resta modificabile).
+  // Se anche la precedente è vuota, parte dal turno abituale delle operatrici.
+  const copyPreviousWeek = useCallback(async () => {
+    const prevMonday = new Date(monday);
+    prevMonday.setDate(prevMonday.getDate() - 7);
+    const prev = await getWeekShifts(mondayISO(prevMonday));
+    let source: Record<string, WeekScheduleMap> = prev;
+    if (Object.keys(prev).length === 0) {
+      // ripiego: turno ricorrente della scheda operatrice
+      source = {};
       operators.forEach(op => {
-        if (!updated[op.id]) {
-          updated[op.id] = {};
-          for (let d = 0; d < 6; d++) {
-            updated[op.id][d] = d === 5
-              ? { isWorking: false, startTime: '', endTime: '' }
-              : { isWorking: true, startTime: '09:00', endTime: '18:00' };
-          }
+        const sc = op.schedule as Record<number, { isWorking: boolean; startTime: string; endTime: string; breakStart?: string; breakEnd?: string }> | undefined;
+        if (!sc) return;
+        const m: WeekScheduleMap = {};
+        for (let dow = 1; dow <= 6; dow++) {
+          const s = sc[dow];
+          if (s) m[dow] = { isWorking: s.isWorking, startTime: s.startTime, endTime: s.endTime, ...(s.breakStart && s.breakEnd ? { breakStart: s.breakStart, breakEnd: s.breakEnd } : {}) };
         }
+        if (Object.keys(m).length > 0) source[op.id] = m;
       });
-      return updated;
-    });
-  }, [operators]);
+    }
+    if (Object.keys(source).length === 0) return;
+    setWeekMap(source);
+    saveWeekShiftsBulk(weekStart, source);
+  }, [monday, weekStart, operators]);
+
+  const weekIsEmpty = !loadingWeek && operators.every(op => !weekMap[op.id] || Object.keys(weekMap[op.id]).length === 0);
 
   const editingOp = editModal ? operators.find(o => o.id === editModal.operatorId) : null;
 
@@ -754,6 +764,12 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
             <span className="text-text-muted">•</span>
             <span>Ore settimana: {totalHoursWeek.toFixed(0)}h</span>
           </div>
+          {weekIsEmpty && (
+            <button onClick={copyPreviousWeek} title="Copia i turni dalla settimana precedente"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+              <Calendar className="w-3.5 h-3.5" /> Copia sett. precedente
+            </button>
+          )}
           <div className="flex items-center gap-1">
             <button onClick={() => setWeekOffset(p => p - 1)} className="p-1.5 rounded-lg hover:bg-bg-hover border border-border text-text-secondary transition-colors"><ChevronLeft className="w-4 h-4" /></button>
             <button onClick={() => setWeekOffset(0)} className="px-2.5 py-1.5 rounded-lg hover:bg-bg-hover border border-border text-xs font-medium text-text-primary transition-colors">Oggi</button>
@@ -807,18 +823,23 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
                   </td>
                   {weekDates.map((d, dayIdx) => {
                     const shift = getShift(op.id, dayIdx);
+                    const setCell = isSet(op.id, dayIdx);
                     const isToday = d.toDateString() === new Date().toDateString();
                     return (
                       <td key={dayIdx} className={`px-1.5 py-2 text-center ${isToday ? 'bg-accent/5' : ''}`}>
                         <button
                           onClick={() => setEditModal({ operatorId: op.id, dayIndex: dayIdx })}
                           className={`w-full p-2 rounded-xl transition-all hover:scale-105 ${
-                            shift.isWorking
-                              ? 'bg-success/10 hover:bg-success/15 border border-success/20'
-                              : 'bg-bg-tertiary hover:bg-bg-hover border border-border/30'
+                            !setCell
+                              ? 'bg-bg-tertiary/40 hover:bg-bg-hover border border-dashed border-border/50'
+                              : shift.isWorking
+                                ? 'bg-success/10 hover:bg-success/15 border border-success/20'
+                                : 'bg-bg-tertiary hover:bg-bg-hover border border-border/30'
                           }`}
                         >
-                          {shift.isWorking ? (
+                          {!setCell ? (
+                            <p className="text-[10px] text-text-muted font-medium py-0.5">+ imposta</p>
+                          ) : shift.isWorking ? (
                             <>
                               {shift.breakStart && shift.breakEnd ? (
                                 <>
@@ -867,7 +888,9 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
             operator={editingOp}
             day={DAYS[editModal.dayIndex]}
             dayDate={fmtDateShort(weekDates[editModal.dayIndex])}
-            shift={getShift(editModal.operatorId, editModal.dayIndex)}
+            shift={isSet(editModal.operatorId, editModal.dayIndex)
+              ? getShift(editModal.operatorId, editModal.dayIndex)
+              : { isWorking: true, startTime: '09:00', endTime: '18:00' }}
             onClose={() => setEditModal(null)}
             onSave={(entry) => updateShift(editModal.operatorId, editModal.dayIndex, entry)}
           />

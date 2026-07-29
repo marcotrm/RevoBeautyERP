@@ -23,6 +23,9 @@ import {
 import { resolveTreatmentForPackage } from '@/lib/packageTreatment';
 import { GIFT_OPTIONS, isGiftPackage } from '@/lib/giftOptions';
 import { changeGiftTreatment } from '@/app/actions/packages';
+import { type WeekScheduleMap } from '@/app/actions/weekShifts';
+import { resolveDaySchedule, mondayISO } from '@/lib/weekSchedule';
+import { useWeekShiftsStore } from '@/stores/useWeekShiftsStore';
 import CabinCountdown from '@/components/CabinCountdown';
 import WaitlistModal from '@/components/WaitlistModal';
 import WaitlistPanel from '@/components/WaitlistPanel';
@@ -55,11 +58,12 @@ function fmtDate(d: Date) {
 /* ========== APPOINTMENT BLOCK (Day View) ========== */
 // Verifica se un'operatrice lavora in una certa data, in base al turno settimanale
 // (schedule keyed 1=Lun .. 6=Sab; domenica salone chiuso).
-function operatorWorksOn(op: Operator, date: Date): boolean {
+// weekMap è la mappa dei turni della settimana mostrata (opId -> {dow -> turno}).
+function operatorWorksOn(op: Operator, date: Date, weekMap?: Record<string, WeekScheduleMap>): boolean {
   const dow = date.getDay(); // 0=Domenica .. 6=Sabato
   if (dow === 0) return false; // domenica il centro è chiuso
   if (op.isResource) return true; // le cabine/risorse sono sempre disponibili negli altri giorni
-  const day = op.schedule?.[dow];
+  const day = resolveDaySchedule(weekMap, op, date);
   if (!day) return true; // nessun turno impostato: assume operativa
   return day.isWorking !== false;
 }
@@ -67,10 +71,9 @@ function operatorWorksOn(op: Operator, date: Date): boolean {
 // Fasce in cui l'operatrice NON è in servizio in quel giorno: prima dell'inizio
 // turno, dopo la fine, e durante la pausa. Restituisce minuti-dall'inizio-agenda.
 interface UnavailBand { startMin: number; endMin: number; label: string; kind: 'fuori' | 'pausa'; }
-function operatorUnavailableBands(op: Operator, date: Date): UnavailBand[] {
+function operatorUnavailableBands(op: Operator, date: Date, weekMap?: Record<string, WeekScheduleMap>): UnavailBand[] {
   if (op.isResource) return [];
-  const dow = date.getDay();
-  const day = op.schedule?.[dow];
+  const day = resolveDaySchedule(weekMap, op, date);
   if (!day || day.isWorking === false) return []; // riposo gestito a parte
   const bands: UnavailBand[] = [];
   const dayStart = START_HOUR * 60;
@@ -97,8 +100,8 @@ function operatorUnavailableBands(op: Operator, date: Date): UnavailBand[] {
 }
 
 /** true se l'orario (minuti dall'inizio agenda) cade in una fascia non disponibile. */
-function isMinuteUnavailable(op: Operator, date: Date, minFromStart: number): boolean {
-  return operatorUnavailableBands(op, date).some(b => minFromStart >= b.startMin && minFromStart < b.endMin);
+function isMinuteUnavailable(op: Operator, date: Date, minFromStart: number, weekMap?: Record<string, WeekScheduleMap>): boolean {
+  return operatorUnavailableBands(op, date, weekMap).some(b => minFromStart >= b.startMin && minFromStart < b.endMin);
 }
 
 function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, color }: { appointment: Appointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties; color?: string }) {
@@ -244,6 +247,12 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
   const [dragOver, setDragOver] = useState<{ operatorId: string; time: string } | null>(null);
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Turni della settimana mostrata (ogni settimana ha i suoi orari)
+  const weekStart = mondayISO(selectedDate);
+  const weekMap = useWeekShiftsStore(s => s.byWeek[weekStart]);
+  const fetchWeek = useWeekShiftsStore(s => s.fetchWeek);
+  useEffect(() => { fetchWeek(weekStart, true); }, [weekStart, fetchWeek]);
+
   // Distingue click singolo (nuovo appuntamento) da doppio click (blocca fascia)
   const handleSlotClickDelayed = (operatorId: string, hour: number) => {
     if (clickTimer.current) return; // già in attesa: il secondo click del doppio è gestito da onDoubleClick
@@ -303,7 +312,7 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
     const time = calcTimeFromY(e, columnEl);
     // Non spostare dentro fuori-orario o pausa dell'operatrice
     const op = operators.find(o => o.id === operatorId);
-    if (op && isMinuteUnavailable(op, selectedDate, timeToMinutes(time) - START_HOUR * 60)) {
+    if (op && isMinuteUnavailable(op, selectedDate, timeToMinutes(time) - START_HOUR * 60, weekMap)) {
       setDragOver(null);
       return;
     }
@@ -322,7 +331,7 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
       <div className="flex min-w-0">
         <TimeGutter />
         {operators.map(operator => {
-          const off = !operatorWorksOn(operator, selectedDate);
+          const off = !operatorWorksOn(operator, selectedDate, weekMap);
           return (
           <div key={operator.id} className="flex-1 min-w-[160px] border-r border-border/50 last:border-r-0 relative">
             <OperatorColumnHeader operator={operator} off={off} />
@@ -366,7 +375,7 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
                 </div>
               )}
               {/* Fasce fuori orario e pausa (dal turno dell'operatrice) */}
-              {!off && operatorUnavailableBands(operator, selectedDate).map((band, bi) => {
+              {!off && operatorUnavailableBands(operator, selectedDate, weekMap).map((band, bi) => {
                 const top = (band.startMin / 60) * HOUR_HEIGHT;
                 const h = Math.max(((band.endMin - band.startMin) / 60) * HOUR_HEIGHT, 20);
                 const isPausa = band.kind === 'pausa';
@@ -888,7 +897,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       } else {
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
         setSelectedServices([]); setTreatmentQuery('');
-        const firstWorking = operators.find(o => !o.isResource && operatorWorksOn(o, selectedDate)) || operators.find(o => !o.isResource) || operators[0];
+        const firstWorking = operators.find(o => !o.isResource && operatorWorksOn(o, selectedDate, apptWeekMap)) || operators.find(o => !o.isResource) || operators[0];
         setSelectedOperatorId(firstWorking?.id || '');
         setStartTime('09:00'); setApptDate(fmtDate(selectedDate)); setNotes('');
       }
@@ -979,6 +988,11 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   const selectedOperator = operators.find(o => o.id === selectedOperatorId);
   const dateStr = apptDate;
   const apptDateObj = useMemo(() => { const [y, m, d] = apptDate.split('-').map(Number); return new Date(y, m - 1, d); }, [apptDate]);
+  // Turni della settimana dell'appuntamento (per mostrare chi è a riposo)
+  const apptWeekStart = mondayISO(apptDateObj);
+  const apptWeekMap = useWeekShiftsStore(s => s.byWeek[apptWeekStart]);
+  const fetchApptWeek = useWeekShiftsStore(s => s.fetchWeek);
+  useEffect(() => { if (isAppointmentModalOpen) fetchApptWeek(apptWeekStart); }, [isAppointmentModalOpen, apptWeekStart, fetchApptWeek]);
   const canSave = selectedClientId && selectedServices.length > 0 && selectedOperatorId && startTime;
 
   const handleSave = () => {

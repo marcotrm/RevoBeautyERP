@@ -522,3 +522,18 @@ model StockMovement {
   @@index([date])
   @@map("stock_movements")
 }
+
+// ============================================================
+// TURNI PER SETTIMANA (ogni settimana ha i suoi orari)
+// ============================================================
+model OperatorWeekSchedule {
+  id         String @id @default(cuid())
+  operatorId String
+  weekStart  String // lunedì della settimana, YYYY-MM-DD
+  schedule   Json   // { [dow 1..6]: { isWorking, startTime, endTime, breakStart?, breakEnd? } }
+  updatedAt  String
+
+  @@unique([operatorId, weekStart])
+  @@index([weekStart])
+  @@map("operator_week_schedules")
+}
