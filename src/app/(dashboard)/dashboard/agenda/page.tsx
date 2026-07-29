@@ -1414,16 +1414,11 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     } finally { setBusySvc(false); }
   };
 
-  const svcCheckIn = (i: number) => {
-    const now = new Date().toISOString();
-    const next = services.map((s, idx) => idx === i ? { ...s, checkInAt: now, checkOutAt: undefined } : s);
-    saveServices(next, { status: 'in_cabin', ...(appointment.checkInAt ? {} : { checkInAt: now }) });
-  };
-
-  const svcCheckOut = (i: number) => {
-    const now = new Date().toISOString();
-    const next = services.map((s, idx) => idx === i ? { ...s, checkOutAt: now } : s);
-    saveServices(next);
+  // Check-in unico per tutto l'appuntamento (non per singolo trattamento):
+  // il timer conta la durata totale di tutti i trattamenti.
+  const doCheckIn = () => {
+    onStatusChange(appointment.id, 'in_cabin', { checkInAt: new Date().toISOString() });
+    onClose();
   };
 
   const addTreatmentToAppointment = (t: Treatment) => {
@@ -1602,52 +1597,19 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 )}
               </div>
 
-              {services.map((s, i) => {
-                const running = !!s.checkInAt && !s.checkOutAt;
-                const done = !!s.checkOutAt;
-                const mins = s.checkInAt && s.checkOutAt
-                  ? Math.max(1, Math.round((Date.parse(s.checkOutAt) - Date.parse(s.checkInAt)) / 60000))
-                  : null;
-                return (
-                  <div key={`${s.treatmentId}-${i}`} className="rounded-lg bg-bg-secondary/70 border border-border/60 p-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: appointment.color }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-text-primary truncate">{s.treatmentName}</p>
-                        <p className="text-xs text-text-secondary">{s.duration} min · {formatCurrency(s.price)}</p>
-                      </div>
-                      {services.length > 1 && !s.checkInAt && appointment.status !== 'completed' && (
-                        <button onClick={() => removeServiceAt(i)} disabled={busySvc}
-                          className="p-1 rounded-md text-text-muted hover:text-error flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
-                      )}
-                    </div>
-
-                    {appointment.status !== 'completed' && (
-                      <div className="flex items-center gap-2 mt-2">
-                        {done ? (
-                          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-success">
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            {fmtClock(s.checkInAt)} → {fmtClock(s.checkOutAt)}{mins ? ` · ${mins} min` : ''}
-                          </span>
-                        ) : running ? (
-                          <>
-                            <CabinCountdown appointment={{ ...appointment, services }} />
-                            <button onClick={() => svcCheckOut(i)} disabled={busySvc}
-                              className="ml-auto px-2.5 py-1 rounded-lg bg-success/15 text-success text-[11px] font-bold hover:bg-success/25 transition-colors disabled:opacity-50">
-                              Fine trattamento
-                            </button>
-                          </>
-                        ) : (
-                          <button onClick={() => svcCheckIn(i)} disabled={busySvc}
-                            className="ml-auto px-2.5 py-1 rounded-lg bg-pink-500/10 text-pink-400 text-[11px] font-bold hover:bg-pink-500/20 transition-colors disabled:opacity-50">
-                            <span className="flex items-center gap-1"><Play className="w-3 h-3" /> Check-in</span>
-                          </button>
-                        )}
-                      </div>
-                    )}
+              {services.map((s, i) => (
+                <div key={`${s.treatmentId}-${i}`} className="flex items-center gap-2 rounded-lg bg-bg-secondary/70 border border-border/60 p-2.5">
+                  <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: appointment.color }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text-primary truncate">{s.treatmentName}</p>
+                    <p className="text-xs text-text-secondary">{s.duration} min · {formatCurrency(s.price)}</p>
                   </div>
-                );
-              })}
+                  {services.length > 1 && appointment.status !== 'completed' && (
+                    <button onClick={() => removeServiceAt(i)} disabled={busySvc} title="Togli trattamento"
+                      className="p-1 rounded-md text-text-muted hover:text-error flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
+                  )}
+                </div>
+              ))}
 
               {addingTreatment && (
                 <div className="relative">
@@ -1830,7 +1792,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 </button>
               ) : (
                 <>
-                  <button onClick={() => { svcCheckIn(0); }}
+                  <button onClick={doCheckIn}
                     className="py-2.5 rounded-xl text-sm font-medium transition-colors bg-pink-500/10 text-pink-400 hover:bg-pink-500/20">
                     <span className="flex items-center justify-center gap-1.5"><Play className="w-3.5 h-3.5" /> Check-in</span>
                   </button>

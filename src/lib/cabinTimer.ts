@@ -26,24 +26,20 @@ export interface ActiveTimer {
   label: string; // trattamento in corso
 }
 
-/** Timer del trattamento in corso, o null se non c'è niente in cabina. */
+/**
+ * Timer unico dell'appuntamento: parte dal check-in e dura quanto TUTTI i
+ * trattamenti insieme (a.duration è già la somma). Un solo check-in, un solo
+ * check-out: l'estetista non timbra ogni trattamento.
+ */
 export function activeTimer(a: TimedAppointment): ActiveTimer | null {
-  const services = a.services ?? [];
-
-  // Appuntamenti con check-in per singolo trattamento
-  if (services.some(s => s.checkInAt)) {
-    const running = services.find(s => s.checkInAt && !s.checkOutAt);
-    if (!running?.checkInAt) return null;
-    const start = Date.parse(running.checkInAt);
-    if (Number.isNaN(start)) return null;
-    return { endAt: start + Math.max(1, running.duration) * 60_000, label: running.treatmentName };
-  }
-
-  // Appuntamento con un solo check-in complessivo
   if (a.status !== 'in_cabin' || !a.checkInAt) return null;
   const start = Date.parse(a.checkInAt);
   if (Number.isNaN(start)) return null;
-  return { endAt: start + Math.max(1, a.duration) * 60_000, label: a.treatmentName };
+  const services = a.services ?? [];
+  const label = services.length > 1
+    ? services.map(s => s.treatmentName).join(' + ')
+    : a.treatmentName;
+  return { endAt: start + Math.max(1, a.duration) * 60_000, label };
 }
 
 /** "07:32" se manca tempo, "+01:15" se il trattamento è già finito da un po'. */
