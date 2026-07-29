@@ -387,6 +387,8 @@ model CashMovement {
   operator  String  @default("")
   date      String  // giorno italiano YYYY-MM-DD
   createdAt String
+  deletedAt String? // annullato: resta visibile nella cronologia (antifrode)
+  deletedBy String?
 
   @@index([date])
   @@map("cash_movements")

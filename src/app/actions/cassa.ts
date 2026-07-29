@@ -35,10 +35,14 @@ export interface CashLedgerRow {
   date: string;        // YYYY-MM-DD
   label: string;
   detail: string;
+  operator: string;    // chi l'ha fatto (per filtrare)
   amount: number;      // positivo = entra in cassa, negativo = esce
   source: 'vendita' | 'manuale' | 'cassaforte';
   category: string;
   canDelete: boolean;
+  cancelled?: boolean; // annullato: mostrato barrato, non conta nel saldo
+  cancelledBy?: string;
+  cancelledAt?: string;
 }
 
 export interface CashRegisterState {
@@ -66,9 +70,10 @@ export async function getCashRegister(limit = 300): Promise<CashRegisterState> {
   const cashTxs = txs.filter(t => /contant|cash|misto/i.test(t.paymentMethod || ''));
   const cashFromSales = cashTxs.reduce((s, t) => s + t.total, 0);
 
-  // --- Movimenti manuali ---
-  const manualIn = manual.filter(m => m.kind === 'in').reduce((s, m) => s + m.amount, 0);
-  const manualOut = manual.filter(m => m.kind === 'out').reduce((s, m) => s + m.amount, 0);
+  // --- Movimenti manuali (gli annullati NON contano nel saldo, ma restano in cronologia) ---
+  const liveManual = manual.filter(m => !m.deletedAt);
+  const manualIn = liveManual.filter(m => m.kind === 'in').reduce((s, m) => s + m.amount, 0);
+  const manualOut = liveManual.filter(m => m.kind === 'out').reduce((s, m) => s + m.amount, 0);
 
   // --- Versamenti in cassaforte: i contanti escono dal cassetto ---
   const toSafe = safeMoves.filter(m => m.type === 'deposit').reduce((s, m) => s + m.cash, 0);
@@ -88,6 +93,7 @@ export async function getCashRegister(limit = 300): Promise<CashRegisterState> {
       date: t.date,
       label: t.total >= 0 ? 'Vendita in contanti' : 'Rimborso in contanti',
       detail: [t.clientName || 'Cliente occasionale', t.operator].filter(Boolean).join(' · '),
+      operator: t.operator || '',
       amount: round2(t.total),
       source: 'vendita',
       category: 'incasso',
@@ -102,10 +108,14 @@ export async function getCashRegister(limit = 300): Promise<CashRegisterState> {
       date: m.date,
       label: m.kind === 'in' ? 'Entrata' : 'Uscita',
       detail: [CATEGORY_LABELS[m.category] || m.category, m.note, m.operator].filter(Boolean).join(' · '),
+      operator: m.operator || '',
       amount: round2(m.kind === 'in' ? m.amount : -m.amount),
       source: 'manuale',
       category: m.category,
-      canDelete: true,
+      canDelete: !m.deletedAt,
+      cancelled: !!m.deletedAt,
+      cancelledBy: m.deletedBy || undefined,
+      cancelledAt: m.deletedAt || undefined,
     });
   }
 
@@ -118,6 +128,7 @@ export async function getCashRegister(limit = 300): Promise<CashRegisterState> {
         date: m.date,
         label: 'Versato in cassaforte',
         detail: m.note || `Chiusura cassa del ${m.date.split('-').reverse().join('/')}`,
+        operator: '',
         amount: round2(-m.cash),
         source: 'cassaforte',
         category: 'versamento',
@@ -160,9 +171,17 @@ export async function addCashMovement(data: {
   return { ok: true, movement: mv as CashMovementRecord };
 }
 
-export async function deleteCashMovement(id: string): Promise<{ ok: boolean }> {
+/**
+ * Annulla un movimento manuale. NON lo cancella dal database: lo segna come
+ * annullato così resta visibile nella cronologia con chi e quando l'ha tolto
+ * (antifrode: nessun euro può sparire in silenzio).
+ */
+export async function deleteCashMovement(id: string, deletedBy?: string): Promise<{ ok: boolean }> {
   try {
-    await prisma.cashMovement.delete({ where: { id } });
+    await prisma.cashMovement.update({
+      where: { id },
+      data: { deletedAt: new Date().toISOString(), deletedBy: deletedBy?.trim() || 'sconosciuto' },
+    });
     return { ok: true };
   } catch {
     return { ok: false };

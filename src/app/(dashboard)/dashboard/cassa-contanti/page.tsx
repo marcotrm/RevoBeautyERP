@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Banknote, Vault, ArrowDownCircle, ArrowUpCircle, Loader2, X, Trash2,
-  Moon, Wallet, Info, AlertTriangle, CheckCircle,
+  Moon, Wallet, Info, AlertTriangle, CheckCircle, Ban, Search,
 } from 'lucide-react';
 import {
   getCashRegister, addCashMovement, deleteCashMovement, closeDayCash,
@@ -35,6 +35,12 @@ export default function CassaContantiPage() {
   const [note, setNote] = useState('');
   const [counted, setCounted] = useState('');
   const [keep, setKeep] = useState('');
+
+  // Filtri della cronologia (per controllare chi fa cosa)
+  const [fType, setFType] = useState<'all' | 'in' | 'out' | 'vendita' | 'versamento'>('all');
+  const [fOperator, setFOperator] = useState('all');
+  const [fSearch, setFSearch] = useState('');
+  const [fDate, setFDate] = useState('');
 
   const load = useCallback(async () => {
     try { setState(await getCashRegister()); }
@@ -93,14 +99,38 @@ export default function CassaContantiPage() {
   };
 
   const removeMovement = async (id: string) => {
-    if (!confirm('Eliminare questo movimento?')) return;
-    await deleteCashMovement(id);
+    if (!confirm('Annullare questo movimento? Resterà visibile nella cronologia, barrato, con il tuo nome.')) return;
+    await deleteCashMovement(id, operatorName);
     await load();
   };
 
   if (!state) {
     return <div className="flex items-center justify-center py-20 text-text-muted"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Caricamento cassa...</div>;
   }
+
+  // Operatrici presenti nella cronologia, per il filtro
+  const operators = Array.from(new Set(state.ledger.map(r => r.operator).filter(Boolean))).sort();
+
+  // Cronologia filtrata
+  const filteredLedger = state.ledger.filter(r => {
+    if (fType === 'in' && !(r.source === 'manuale' && r.amount >= 0)) return false;
+    if (fType === 'out' && !(r.source === 'manuale' && r.amount < 0)) return false;
+    if (fType === 'vendita' && r.source !== 'vendita') return false;
+    if (fType === 'versamento' && r.source !== 'cassaforte') return false;
+    if (fOperator !== 'all' && r.operator !== fOperator) return false;
+    if (fDate && r.date !== fDate) return false;
+    if (fSearch.trim()) {
+      const q = fSearch.toLowerCase();
+      if (!`${r.label} ${r.detail} ${r.operator}`.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  // Riepilogo dei movimenti mostrati (per il set filtrato)
+  const sumIn = filteredLedger.filter(r => !r.cancelled && r.amount >= 0).reduce((s, r) => s + r.amount, 0);
+  const sumOut = filteredLedger.filter(r => !r.cancelled && r.amount < 0).reduce((s, r) => s + Math.abs(r.amount), 0);
+  const cancelledCount = filteredLedger.filter(r => r.cancelled).length;
+  const filtersActive = fType !== 'all' || fOperator !== 'all' || !!fSearch.trim() || !!fDate;
 
   const cards = [
     { label: 'In cassa adesso', value: state.balance, icon: Wallet, color: '#22C55E', hint: 'Contanti che devono trovarsi nel cassetto in questo momento.' },
@@ -160,34 +190,87 @@ export default function CassaContantiPage() {
 
       {/* Cronologia */}
       <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-          <h3 className="text-base font-display font-semibold text-text-primary">Cronologia entrate e uscite</h3>
-          <span className="text-xs text-text-muted">{state.ledger.length} movimenti</span>
+        <div className="px-5 py-4 border-b border-border space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h3 className="text-base font-display font-semibold text-text-primary">Cronologia entrate e uscite</h3>
+            <span className="text-xs text-text-muted">
+              {filteredLedger.length}{filtersActive ? ` su ${state.ledger.length}` : ''} movimenti
+            </span>
+          </div>
+
+          {/* Filtri di controllo */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative flex-1 min-w-[160px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
+              <input type="text" value={fSearch} onChange={e => setFSearch(e.target.value)}
+                placeholder="Cerca cliente, nota…"
+                className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
+            </div>
+            <select value={fOperator} onChange={e => setFOperator(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none focus:border-accent/50 appearance-none">
+              <option value="all">Tutte le operatrici</option>
+              {operators.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+            <input type="date" value={fDate} onChange={e => setFDate(e.target.value)}
+              className="px-2.5 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none focus:border-accent/50" />
+            {filtersActive && (
+              <button onClick={() => { setFType('all'); setFOperator('all'); setFSearch(''); setFDate(''); }}
+                className="px-2.5 py-1.5 rounded-lg text-xs text-text-muted hover:text-text-primary hover:bg-bg-hover">Azzera</button>
+            )}
+          </div>
+          <div className="flex items-center gap-1 flex-wrap">
+            {([['all','Tutti'],['vendita','Vendite'],['in','Entrate'],['out','Uscite'],['versamento','Cassaforte']] as const).map(([val, label]) => (
+              <button key={val} onClick={() => setFType(val)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${fType === val ? 'bg-accent/10 text-accent' : 'text-text-muted hover:bg-bg-hover'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Riepilogo del filtro attivo */}
+          <div className="flex items-center gap-4 text-xs pt-1">
+            <span className="text-success font-semibold">+ {formatCurrency(sumIn)} entrate</span>
+            <span className="text-error font-semibold">− {formatCurrency(sumOut)} uscite</span>
+            {cancelledCount > 0 && (
+              <span className="flex items-center gap-1 text-warning font-semibold">
+                <Ban className="w-3 h-3" /> {cancelledCount} annullat{cancelledCount === 1 ? 'o' : 'i'}
+              </span>
+            )}
+          </div>
         </div>
-        {state.ledger.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-text-muted">Nessun movimento registrato.</p>
+
+        {filteredLedger.length === 0 ? (
+          <p className="px-5 py-10 text-center text-sm text-text-muted">
+            {state.ledger.length === 0 ? 'Nessun movimento registrato.' : 'Nessun movimento con questi filtri.'}
+          </p>
         ) : (
           <div className="divide-y divide-border/30 max-h-[600px] overflow-y-auto">
-            {state.ledger.map(row => (
-              <div key={row.id} className="flex items-center gap-3 px-5 py-3 hover:bg-bg-hover transition-colors group">
-                <div className={`p-2 rounded-lg flex-shrink-0 ${row.amount >= 0 ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
-                  {row.amount >= 0 ? <ArrowDownCircle className="w-4 h-4" /> : <ArrowUpCircle className="w-4 h-4" />}
+            {filteredLedger.map(row => (
+              <div key={row.id} className={`flex items-center gap-3 px-5 py-3 transition-colors group ${row.cancelled ? 'bg-warning/[0.04]' : 'hover:bg-bg-hover'}`}>
+                <div className={`p-2 rounded-lg flex-shrink-0 ${row.cancelled ? 'bg-warning/10 text-warning' : row.amount >= 0 ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
+                  {row.cancelled ? <Ban className="w-4 h-4" /> : row.amount >= 0 ? <ArrowDownCircle className="w-4 h-4" /> : <ArrowUpCircle className="w-4 h-4" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-text-primary truncate">{row.label}</p>
+                    <p className={`text-sm font-medium truncate ${row.cancelled ? 'text-text-muted line-through' : 'text-text-primary'}`}>{row.label}</p>
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-muted flex-shrink-0">{row.source}</span>
+                    {row.cancelled && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-warning/15 text-warning flex-shrink-0 font-semibold">ANNULLATO</span>}
                   </div>
-                  <p className="text-xs text-text-muted truncate">{row.detail || '—'}</p>
+                  <p className={`text-xs truncate ${row.cancelled ? 'text-text-muted line-through' : 'text-text-muted'}`}>{row.detail || '—'}</p>
+                  {row.cancelled && (
+                    <p className="text-[10px] text-warning mt-0.5">
+                      Annullato da {row.cancelledBy || 'sconosciuto'}{row.cancelledAt ? ` il ${new Date(row.cancelledAt).toLocaleString('it-IT', { timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}
+                    </p>
+                  )}
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className={`text-sm font-semibold ${row.amount >= 0 ? 'text-success' : 'text-error'}`}>
+                  <p className={`text-sm font-semibold ${row.cancelled ? 'text-text-muted line-through' : row.amount >= 0 ? 'text-success' : 'text-error'}`}>
                     {row.amount >= 0 ? '+' : '−'} {formatCurrency(Math.abs(row.amount))}
                   </p>
                   <p className="text-[10px] text-text-muted">{row.date.split('-').reverse().join('/')}</p>
                 </div>
-                {row.canDelete && (
-                  <button onClick={() => removeMovement(row.id)} className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all flex-shrink-0">
+                {row.canDelete && !row.cancelled && (
+                  <button onClick={() => removeMovement(row.id)} title="Annulla movimento" className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all flex-shrink-0">
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 )}
