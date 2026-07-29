@@ -13,10 +13,10 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock } from 'lucide-react';
-import {
-  loadConversations, loadConversation, sendManualReply,
-  type WaConversation, type WaMessageRow,
-} from '@/app/actions/whatsapp';
+import { loadConversations, loadConversation, sendManualReply } from '@/app/actions/whatsapp';
+// I tipi arrivano dalla libreria, non dal file di azioni: un 'use server' non
+// può ri-esportarli senza rompersi a runtime.
+import type { WaConversation, WaMessageRow } from '@/lib/wa-conversations';
 
 const POLL_MS = 20_000;
 

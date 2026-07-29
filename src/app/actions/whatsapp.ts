@@ -79,7 +79,10 @@ export async function loadWaInbox(limit = 15): Promise<WaInboxMessage[]> {
 // Conversazioni: lettura e risposta manuale
 // ============================================================
 
-export type { WaConversation, WaMessageRow };
+// Attenzione: in un file 'use server' NON si possono ri-esportare i tipi
+// (`export type { ... }`). Next li trasforma in re-export a runtime e, non
+// esistendo il simbolo, il modulo esplode in fase di valutazione facendo
+// fallire tutte le azioni del file. I tipi si importano da '@/lib/wa-conversations'.
 
 /** Elenco chat, la più recente in cima, con non letti e stato finestra 24h. */
 export async function loadConversations(limit = 50): Promise<WaConversation[]> {
