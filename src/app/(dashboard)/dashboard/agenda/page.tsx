@@ -12,7 +12,7 @@ import { usePackageStore } from '@/stores/usePackageStore';
 import { useWaitlistStore, WaitlistEntry } from '@/stores/useWaitlistStore';
 import { Appointment, AppointmentService, AgendaBlock, Operator, Treatment } from '@/types';
 import {
-  ChevronLeft, ChevronRight, CalendarDays, Plus,
+  ChevronLeft, ChevronRight, ChevronDown, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
   Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone, Sun
 } from 'lucide-react';
@@ -835,6 +835,290 @@ function MiniDatePicker({ selectedDate, onPick, onClose }: {
           className="w-full mt-2 py-1.5 rounded-lg bg-bg-tertiary text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors">
           Vai a Oggi
         </button>
+      </div>
+    </>
+  );
+}
+
+/* ========== INCASSO STIMATO: PERIODO A SCELTA ========== */
+// L'incasso stimato non è più legato al solo giorno mostrato in agenda:
+// si sceglie un periodo (giorno / settimana / mese / intervallo libero) dal calendario.
+type RevenueMode = 'day' | 'week' | 'month' | 'range';
+type RevenuePeriod = { mode: RevenueMode; start: string; end: string }; // start/end inclusi, formato YYYY-MM-DD
+
+const REVENUE_MODES: { key: RevenueMode; label: string }[] = [
+  { key: 'day', label: 'Giorno' },
+  { key: 'week', label: 'Settimana' },
+  { key: 'month', label: 'Mese' },
+  { key: 'range', label: 'Intervallo' },
+];
+
+function parseDateStr(s: string) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function addDaysDate(d: Date, n: number) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() + n);
+  return x;
+}
+function startOfWeekDate(d: Date) {
+  return addDaysDate(d, -((d.getDay() + 6) % 7)); // settimana da lunedì
+}
+function daysBetween(a: string, b: string) {
+  return Math.round((parseDateStr(b).getTime() - parseDateStr(a).getTime()) / 86400000);
+}
+
+function periodFor(mode: RevenueMode, d: Date): RevenuePeriod {
+  if (mode === 'week') {
+    const mon = startOfWeekDate(d);
+    return { mode, start: fmtDate(mon), end: fmtDate(addDaysDate(mon, 6)) };
+  }
+  if (mode === 'month') {
+    const first = new Date(d.getFullYear(), d.getMonth(), 1);
+    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    return { mode, start: fmtDate(first), end: fmtDate(last) };
+  }
+  return { mode, start: fmtDate(d), end: fmtDate(d) }; // day + range (inizio = fine)
+}
+
+function shiftPeriod(p: RevenuePeriod, delta: number): RevenuePeriod {
+  const s = parseDateStr(p.start);
+  if (p.mode === 'day') return periodFor('day', addDaysDate(s, delta));
+  if (p.mode === 'week') return periodFor('week', addDaysDate(s, delta * 7));
+  if (p.mode === 'month') return periodFor('month', new Date(s.getFullYear(), s.getMonth() + delta, 1));
+  const len = daysBetween(p.start, p.end) + 1; // l'intervallo scorre di tutta la sua durata
+  return { mode: 'range', start: fmtDate(addDaysDate(s, delta * len)), end: fmtDate(addDaysDate(parseDateStr(p.end), delta * len)) };
+}
+
+function periodLabel(p: RevenuePeriod) {
+  const s = parseDateStr(p.start), e = parseDateStr(p.end);
+  if (p.start === p.end) return `${s.getDate()} ${MONTH_NAMES_IT[s.getMonth()]} ${s.getFullYear()}`;
+  if (p.mode === 'month') return `${MONTH_NAMES_IT[s.getMonth()]} ${s.getFullYear()}`;
+  if (s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear())
+    return `${s.getDate()} – ${e.getDate()} ${MONTH_NAMES_IT[e.getMonth()]} ${e.getFullYear()}`;
+  return `${s.getDate()} ${MONTH_NAMES_IT[s.getMonth()].slice(0, 3)} – ${e.getDate()} ${MONTH_NAMES_IT[e.getMonth()].slice(0, 3)} ${e.getFullYear()}`;
+}
+
+function periodShortLabel(p: RevenuePeriod) {
+  const s = parseDateStr(p.start), e = parseDateStr(p.end);
+  if (p.start === p.end) return `${s.getDate()}/${s.getMonth() + 1}`;
+  if (p.mode === 'month') return `${MONTH_NAMES_IT[s.getMonth()].slice(0, 3)} ${s.getFullYear()}`;
+  return `${s.getDate()}/${s.getMonth() + 1} – ${e.getDate()}/${e.getMonth() + 1}`;
+}
+
+const eur = (n: number) => `€ ${n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// Statistiche del periodo: gli annullati e i no show non entrano nell'incasso stimato.
+function computeRevenueStats(appointments: Appointment[], p: RevenuePeriod) {
+  const inPeriod = appointments.filter(a => a.date >= p.start && a.date <= p.end);
+  const billable = inPeriod.filter(a => a.status !== 'cancelled' && a.status !== 'no_show');
+  const total = billable.reduce((s, a) => s + a.price, 0);
+  const completed = billable.filter(a => a.status === 'completed');
+  const incassato = completed.reduce((s, a) => s + a.price, 0);
+
+  const byDay = new Map<string, { total: number; count: number }>();
+  billable.forEach(a => {
+    const cur = byDay.get(a.date) ?? { total: 0, count: 0 };
+    cur.total += a.price; cur.count += 1;
+    byDay.set(a.date, cur);
+  });
+  const days = [...byDay.entries()].sort((x, y) => (x[0] < y[0] ? -1 : 1));
+
+  return {
+    total, incassato, daIncassare: total - incassato,
+    count: billable.length,
+    completedCount: completed.length,
+    scartati: inPeriod.length - billable.length,
+    days,
+    numDays: daysBetween(p.start, p.end) + 1,
+    mediaGiorno: days.length > 0 ? total / days.length : 0,
+  };
+}
+
+function RevenuePanel({ appointments, period, isFollowingAgenda, onChange, onFollowAgenda, onClose }: {
+  appointments: Appointment[];
+  period: RevenuePeriod;
+  isFollowingAgenda: boolean;
+  onChange: (p: RevenuePeriod) => void;
+  onFollowAgenda: () => void;
+  onClose: () => void;
+}) {
+  const [viewMonth, setViewMonth] = useState(() => {
+    const s = parseDateStr(period.start);
+    return new Date(s.getFullYear(), s.getMonth(), 1);
+  });
+  // In modalità intervallo il primo click fissa l'inizio, il secondo la fine.
+  const [rangeAnchor, setRangeAnchor] = useState<string | null>(null);
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayStr = fmtDate(today);
+  const stats = useMemo(() => computeRevenueStats(appointments, period), [appointments, period]);
+
+  const cells = useMemo(() => {
+    const y = viewMonth.getFullYear(), m = viewMonth.getMonth();
+    const startOffset = (new Date(y, m, 1).getDay() + 6) % 7; // Lun=0
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const arr: (Date | null)[] = [];
+    for (let i = 0; i < startOffset; i++) arr.push(null);
+    for (let d = 1; d <= daysInMonth; d++) arr.push(new Date(y, m, d));
+    while (arr.length % 7 !== 0) arr.push(null);
+    return arr;
+  }, [viewMonth]);
+
+  // Incasso per giorno del mese mostrato: serve per il pallino sotto i giorni con appuntamenti
+  const monthTotals = useMemo(() => {
+    const map = new Map<string, number>();
+    appointments.forEach(a => {
+      if (a.status === 'cancelled' || a.status === 'no_show') return;
+      map.set(a.date, (map.get(a.date) ?? 0) + a.price);
+    });
+    return map;
+  }, [appointments]);
+
+  const changeMonth = (delta: number) => setViewMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
+
+  const setMode = (mode: RevenueMode) => {
+    setRangeAnchor(null);
+    onChange(periodFor(mode, parseDateStr(period.start)));
+  };
+
+  const pickDay = (d: Date) => {
+    const ds = fmtDate(d);
+    if (period.mode !== 'range') { onChange(periodFor(period.mode, d)); return; }
+    if (!rangeAnchor) { setRangeAnchor(ds); onChange({ mode: 'range', start: ds, end: ds }); return; }
+    const [start, end] = rangeAnchor <= ds ? [rangeAnchor, ds] : [ds, rangeAnchor];
+    setRangeAnchor(null);
+    onChange({ mode: 'range', start, end });
+  };
+
+  const navPeriod = (delta: number) => {
+    setRangeAnchor(null);
+    const next = shiftPeriod(period, delta);
+    onChange(next);
+    const s = parseDateStr(next.start);
+    setViewMonth(new Date(s.getFullYear(), s.getMonth(), 1));
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 z-[55]" onClick={onClose} />
+      <div className="absolute top-full right-0 mt-2 z-[56] w-[23rem] max-h-[calc(100vh-9rem)] overflow-y-auto bg-bg-secondary border border-border rounded-2xl shadow-2xl p-3"
+        onClick={e => e.stopPropagation()}>
+        {/* Modalità periodo */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex rounded-xl border border-border overflow-hidden">
+            {REVENUE_MODES.map(m => (
+              <button key={m.key} onClick={() => setMode(m.key)}
+                className={`px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                  period.mode === m.key ? 'bg-accent text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+                }`}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-bg-hover text-text-muted"><X className="w-4 h-4" /></button>
+        </div>
+
+        {/* Totale del periodo */}
+        <div className="rounded-xl bg-accent/10 border border-accent/20 p-3 mb-3">
+          <div className="flex items-center justify-between mb-1">
+            <button onClick={() => navPeriod(-1)} className="p-1 rounded-lg hover:bg-bg-hover text-text-secondary" title="Periodo precedente"><ChevronLeft className="w-4 h-4" /></button>
+            <span className="text-xs font-semibold text-text-primary capitalize text-center">{periodLabel(period)}</span>
+            <button onClick={() => navPeriod(1)} className="p-1 rounded-lg hover:bg-bg-hover text-text-secondary" title="Periodo successivo"><ChevronRight className="w-4 h-4" /></button>
+          </div>
+          <p className="text-2xl font-display font-bold text-accent text-center">{eur(stats.total)}</p>
+          <p className="text-[11px] text-text-muted text-center mt-0.5">
+            {stats.count} app. su {stats.numDays} {stats.numDays === 1 ? 'giorno' : 'giorni'}
+            {stats.days.length > 1 && ` · media ${eur(stats.mediaGiorno)}/giorno lavorato`}
+          </p>
+        </div>
+
+        {/* Già incassato / ancora da incassare */}
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="rounded-xl bg-success-bg p-2">
+            <p className="text-[10px] text-text-muted">Completati ({stats.completedCount})</p>
+            <p className="text-sm font-semibold text-success">{eur(stats.incassato)}</p>
+          </div>
+          <div className="rounded-xl bg-bg-tertiary p-2">
+            <p className="text-[10px] text-text-muted">Da completare</p>
+            <p className="text-sm font-semibold text-text-primary">{eur(stats.daIncassare)}</p>
+          </div>
+        </div>
+
+        {/* Calendario */}
+        <div className="flex items-center justify-between mb-2">
+          <button onClick={() => changeMonth(-1)} className="p-1.5 rounded-lg hover:bg-bg-hover text-text-secondary"><ChevronLeft className="w-4 h-4" /></button>
+          <span className="text-xs font-semibold text-text-primary capitalize">{MONTH_NAMES_IT[viewMonth.getMonth()]} {viewMonth.getFullYear()}</span>
+          <button onClick={() => changeMonth(1)} className="p-1.5 rounded-lg hover:bg-bg-hover text-text-secondary"><ChevronRight className="w-4 h-4" /></button>
+        </div>
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {WEEK_DAYS_IT.map(d => <div key={d} className="text-center text-[10px] font-semibold text-text-muted">{d.charAt(0)}</div>)}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {cells.map((d, i) => {
+            if (!d) return <div key={i} />;
+            const ds = fmtDate(d);
+            const inPeriod = ds >= period.start && ds <= period.end;
+            const isEdge = ds === period.start || ds === period.end;
+            const hasMoney = (monthTotals.get(ds) ?? 0) > 0;
+            return (
+              <button key={i} onClick={() => pickDay(d)}
+                title={hasMoney ? `${formatDateLong(ds)} · ${eur(monthTotals.get(ds) ?? 0)}` : formatDateLong(ds)}
+                className={`h-9 rounded-lg text-xs font-medium transition-all relative ${
+                  isEdge ? 'bg-accent text-white font-bold'
+                    : inPeriod ? 'bg-accent/15 text-accent'
+                    : ds === todayStr ? 'bg-accent/5 text-accent ring-1 ring-accent/30'
+                    : 'text-text-primary hover:bg-bg-hover'
+                }`}>
+                {d.getDate()}
+                {hasMoney && (
+                  <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${isEdge ? 'bg-white' : 'bg-accent'}`} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {period.mode === 'range' && (
+          <p className="text-[10px] text-text-muted text-center mt-2">
+            {rangeAnchor ? 'Ora scegli la data di fine' : 'Clicca la data di inizio, poi quella di fine'}
+          </p>
+        )}
+
+        {/* Dettaglio giorno per giorno */}
+        {stats.days.length > 1 && (
+          <div className="mt-3 pt-3 border-t border-border/50">
+            <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wide mb-1.5">Dettaglio giornaliero</p>
+            <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
+              {stats.days.map(([date, v]) => {
+                const dd = parseDateStr(date);
+                return (
+                  <div key={date} className="flex items-center justify-between text-xs px-2 py-1 rounded-lg hover:bg-bg-hover">
+                    <span className="text-text-secondary">
+                      {WEEK_DAYS_IT[(dd.getDay() + 6) % 7]} {dd.getDate()}/{dd.getMonth() + 1}
+                      <span className="text-text-muted"> · {v.count} app.</span>
+                    </span>
+                    <span className="font-semibold text-text-primary">{eur(v.total)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2 mt-3">
+          <button onClick={() => { setRangeAnchor(null); onChange(periodFor(period.mode === 'range' ? 'day' : period.mode, new Date())); setViewMonth(new Date(today.getFullYear(), today.getMonth(), 1)); }}
+            className="flex-1 py-1.5 rounded-lg bg-bg-tertiary text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+            Oggi
+          </button>
+          {!isFollowingAgenda && (
+            <button onClick={() => { setRangeAnchor(null); onFollowAgenda(); }}
+              className="flex-1 py-1.5 rounded-lg bg-bg-tertiary text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+              Segui agenda
+            </button>
+          )}
+        </div>
       </div>
     </>
   );
@@ -2192,7 +2476,19 @@ export default function AgendaPage() {
 
   const totalApts = todayAppointments.length;
   const completedApts = todayAppointments.filter(a => a.status === 'completed').length;
-  const revenue = todayAppointments.filter(a => a.status !== 'cancelled' && a.status !== 'no_show').reduce((s, a) => s + a.price, 0);
+
+  // Incasso stimato: di default segue il periodo mostrato in agenda (giorno/settimana/mese),
+  // ma dal pannello si può scegliere qualsiasi data o intervallo dal calendario.
+  const [showRevenuePanel, setShowRevenuePanel] = useState(false);
+  const [customRevenuePeriod, setCustomRevenuePeriod] = useState<RevenuePeriod | null>(null);
+  const revenuePeriod = useMemo(
+    () => customRevenuePeriod ?? periodFor(view, selectedDate),
+    [customRevenuePeriod, view, selectedDate]
+  );
+  const revenueStats = useMemo(
+    () => computeRevenueStats(appointments, revenuePeriod),
+    [appointments, revenuePeriod]
+  );
 
   const handleSlotBlock = useCallback((operatorId: string, hour: number) => {
     const op = operators.find(o => o.id === operatorId);
@@ -2248,12 +2544,31 @@ export default function AgendaPage() {
         </div>
         <div className="flex items-center gap-2">
           {view === 'day' && (
-            <div className="hidden md:flex items-center gap-2 mr-2">
+            <div className="hidden md:flex items-center gap-2">
               <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-bg-tertiary text-xs text-text-secondary"><CalendarDays className="w-3.5 h-3.5" /> {totalApts} app.</span>
               <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-success-bg text-xs text-success"><CheckCircle className="w-3.5 h-3.5" /> {completedApts} compl.</span>
-              <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent/10 text-xs text-accent" title="Incasso stimato della giornata">Incasso stimato: € {revenue.toLocaleString('it-IT')}</span>
             </div>
           )}
+          <div className="relative hidden md:block mr-2">
+            <button onClick={() => setShowRevenuePanel(v => !v)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent/10 text-xs text-accent hover:bg-accent/20 transition-colors whitespace-nowrap"
+              title="Incasso stimato — clicca per scegliere giorno, settimana, mese o intervallo">
+              <Euro className="w-3.5 h-3.5 flex-shrink-0" />
+              Incasso stimato: {eur(revenueStats.total)}
+              <span className="opacity-70 hidden xl:inline">· {periodShortLabel(revenuePeriod)}</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showRevenuePanel ? 'rotate-180' : ''}`} />
+            </button>
+            {showRevenuePanel && (
+              <RevenuePanel
+                appointments={appointments}
+                period={revenuePeriod}
+                isFollowingAgenda={customRevenuePeriod === null}
+                onChange={setCustomRevenuePeriod}
+                onFollowAgenda={() => setCustomRevenuePeriod(null)}
+                onClose={() => setShowRevenuePanel(false)}
+              />
+            )}
+          </div>
           <div className="flex rounded-xl border border-border overflow-hidden">
             {(['day','week','month'] as const).map(v => (
               <button key={v} onClick={() => setView(v)}
