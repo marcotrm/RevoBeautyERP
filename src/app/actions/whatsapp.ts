@@ -160,7 +160,9 @@ export async function checkTemplates(): Promise<{ ok: boolean; error?: string; c
   const checks = (Object.keys(WA_TEMPLATES) as TemplateKey[]).map(key => {
     const tpl = WA_TEMPLATES[key];
     const found = remote.templates.find(t => t.name === tpl.name && t.language === tpl.language);
-    return { key, name: tpl.name, category: tpl.category, status: found?.status || 'MISSING' };
+    // 360dialog risponde in minuscolo ("approved"): senza normalizzare, la UI non
+    // riconosce lo stato e mostra la stringa grezza in grigio invece di "Approvato".
+    return { key, name: tpl.name, category: tpl.category, status: (found?.status || 'MISSING').toUpperCase() };
   });
   return { ok: true, checks };
 }
