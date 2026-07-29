@@ -146,3 +146,66 @@ export async function sellProductsWithPackage(params: {
 
   return { total };
 }
+
+export interface StockMovementData {
+  id: string;
+  productId: string;
+  productName: string;
+  kind: string;
+  quantity: number;
+  reason: string;
+  note: string;
+  operator: string;
+  stockAfter: number;
+  date: string;
+  createdAt: string;
+}
+
+/** Scarico o carico di magazzino con motivo: aggiorna lo stock e registra il movimento. */
+export async function recordStockMovement(params: {
+  productId: string;
+  kind: 'out' | 'in';
+  quantity: number;
+  reason: string;
+  note?: string;
+  operator?: string;
+}): Promise<{ stock: number }> {
+  const qty = Math.max(0, Math.floor(params.quantity));
+  if (qty <= 0) throw new Error('Quantità non valida');
+
+  const product = await prisma.product.findUnique({ where: { id: params.productId } });
+  if (!product) throw new Error('Prodotto non trovato');
+
+  const delta = params.kind === 'in' ? qty : -qty;
+  const stockAfter = Math.max(0, product.stock + delta);
+
+  await prisma.product.update({ where: { id: params.productId }, data: { stock: stockAfter } });
+
+  const now = new Date();
+  await prisma.stockMovement.create({
+    data: {
+      productId: product.id,
+      productName: product.name,
+      kind: params.kind,
+      quantity: qty,
+      reason: params.reason || 'altro',
+      note: params.note || '',
+      operator: params.operator || '',
+      stockAfter,
+      date: now.toISOString().split('T')[0],
+      createdAt: now.toISOString(),
+    },
+  });
+
+  return { stock: stockAfter };
+}
+
+/** Storico movimenti: tutti, o solo di un prodotto se passato productId. */
+export async function getStockMovements(productId?: string): Promise<StockMovementData[]> {
+  const rows = await prisma.stockMovement.findMany({
+    where: productId ? { productId } : undefined,
+    orderBy: { createdAt: 'desc' },
+    take: 300,
+  });
+  return rows as unknown as StockMovementData[];
+}

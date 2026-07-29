@@ -499,3 +499,24 @@ model BusinessContact {
   @@index([category])
   @@map("business_contacts")
 }
+
+// ============================================================
+// MOVIMENTI DI MAGAZZINO (scarichi e carichi con motivo)
+// ============================================================
+model StockMovement {
+  id          String  @id @default(cuid())
+  productId   String
+  productName String
+  kind        String  @default("out") // out = scarico | in = carico
+  quantity    Int     // quantità movimentata (sempre positiva)
+  reason      String  @default("") // motivo: uso interno, scaduto, rotto, omaggio, correzione...
+  note        String  @default("")
+  operator    String  @default("")
+  stockAfter  Int     // giacenza risultante
+  date        String  // giorno italiano YYYY-MM-DD
+  createdAt   String
+
+  @@index([productId])
+  @@index([date])
+  @@map("stock_movements")
+}

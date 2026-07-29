@@ -4,11 +4,15 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertTriangle, Plus, Search, Trash2, X, CheckCircle, Package, FileText, Upload, Loader2, Pencil,
+  ArrowDownCircle, ArrowUpCircle, History,
 } from 'lucide-react';
 import { useProductStore } from '@/stores/useProductStore';
 import { formatCurrency, generateId } from '@/lib/helpers';
 import { Product } from '@/types';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
+import { OUT_REASONS, IN_REASONS, reasonLabel } from '@/lib/stockReasons';
+import { recordStockMovement, getStockMovements, type StockMovementData } from '@/app/actions/products';
+import { useStaffNames } from '@/hooks/useStaffNames';
 
 const categories = ['Tutti', 'Viso', 'Corpo', 'Laser', 'Unghie', 'Capelli'];
 const PRODUCT_CATEGORIES = ['Viso', 'Corpo', 'Laser', 'Unghie', 'Capelli'];
@@ -285,6 +289,186 @@ function AddProductModal({ onClose, onSave, editing }: { onClose: () => void; on
   );
 }
 
+/* ========== SCARICO / CARICO MAGAZZINO ========== */
+function StockMovementModal({ product, onClose, onDone }: {
+  product: Product; onClose: () => void; onDone: () => void;
+}) {
+  const [kind, setKind] = useState<'out' | 'in'>('out');
+  const [qty, setQty] = useState('1');
+  const [reason, setReason] = useState(OUT_REASONS[0].id);
+  const [note, setNote] = useState('');
+  const staff = useStaffNames();
+  const [operator, setOperator] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => { if (!operator && staff.length > 0) setOperator(staff[0]); }, [staff, operator]);
+
+  const reasons = kind === 'out' ? OUT_REASONS : IN_REASONS;
+  useEffect(() => { setReason(reasons[0].id); }, [kind]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const n = Math.max(0, Math.floor(Number(qty) || 0));
+  const stockAfter = kind === 'out' ? Math.max(0, product.stock - n) : product.stock + n;
+  const canSave = n > 0 && !saving;
+
+  const handleSave = async () => {
+    if (!canSave) return;
+    setSaving(true); setError('');
+    try {
+      await recordStockMovement({ productId: product.id, kind, quantity: n, reason, note, operator });
+      onDone();
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Errore durante il salvataggio');
+      setSaving(false);
+    }
+  };
+
+  const inputCls = 'w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all';
+
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+        <div className="w-full max-w-md bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+            <div>
+              <h3 className="text-base font-display font-semibold text-text-primary">Movimento magazzino</h3>
+              <p className="text-xs text-text-muted">{product.name} · {product.stock} in stock</p>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
+          </div>
+
+          <div className="px-6 py-5 space-y-4 overflow-y-auto">
+            {/* Scarico o carico */}
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setKind('out')}
+                className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all ${kind === 'out' ? 'border-error bg-error/5' : 'border-border hover:border-border-light'}`}>
+                <ArrowDownCircle className={`w-5 h-5 ${kind === 'out' ? 'text-error' : 'text-text-muted'}`} />
+                <div className="text-left">
+                  <p className={`text-sm font-semibold ${kind === 'out' ? 'text-error' : 'text-text-primary'}`}>Scarico</p>
+                  <p className="text-[10px] text-text-muted">Esce dal magazzino</p>
+                </div>
+              </button>
+              <button onClick={() => setKind('in')}
+                className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all ${kind === 'in' ? 'border-success bg-success/5' : 'border-border hover:border-border-light'}`}>
+                <ArrowUpCircle className={`w-5 h-5 ${kind === 'in' ? 'text-success' : 'text-text-muted'}`} />
+                <div className="text-left">
+                  <p className={`text-sm font-semibold ${kind === 'in' ? 'text-success' : 'text-text-primary'}`}>Carico</p>
+                  <p className="text-[10px] text-text-muted">Rientra in magazzino</p>
+                </div>
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Quantità *</label>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setQty(String(Math.max(1, n - 1)))} className="p-2.5 rounded-xl bg-bg-tertiary border border-border text-text-secondary hover:text-accent">−</button>
+                <input type="number" min={1} value={qty} onChange={e => setQty(e.target.value)} className={`${inputCls} text-center`} />
+                <button onClick={() => setQty(String(n + 1))} className="p-2.5 rounded-xl bg-bg-tertiary border border-border text-text-secondary hover:text-accent">+</button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Motivo *</label>
+              <select value={reason} onChange={e => setReason(e.target.value)} className={`${inputCls} appearance-none`}>
+                {reasons.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Note (facoltative)</label>
+              <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Es. lotto scaduto a giugno, caduto per terra…" className={inputCls} />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Fatto da</label>
+              <select value={operator} onChange={e => setOperator(e.target.value)} className={`${inputCls} appearance-none`}>
+                {staff.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+
+            <div className={`flex items-center justify-between rounded-xl px-4 py-3 ${kind === 'out' ? 'bg-error/5' : 'bg-success/5'}`}>
+              <span className="text-sm text-text-secondary">Giacenza dopo</span>
+              <span className="text-lg font-bold text-text-primary">
+                {product.stock} → {stockAfter}
+              </span>
+            </div>
+
+            {error && <p className="text-xs text-error font-medium">{error}</p>}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-bg-tertiary/30 flex-shrink-0">
+            <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Annulla</button>
+            <button onClick={handleSave} disabled={!canSave}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${canSave ? (kind === 'out' ? 'bg-error hover:bg-error/90' : 'bg-success hover:bg-success/90') : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
+              {kind === 'out' ? <ArrowDownCircle className="w-4 h-4" /> : <ArrowUpCircle className="w-4 h-4" />}
+              {saving ? 'Salvo…' : kind === 'out' ? `Scarica ${n}` : `Carica ${n}`}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
+/* ========== STORICO MOVIMENTI ========== */
+function StockHistoryModal({ product, onClose }: { product?: Product | null; onClose: () => void }) {
+  const [rows, setRows] = useState<StockMovementData[] | null>(null);
+  useEffect(() => { getStockMovements(product?.id).then(setRows).catch(() => setRows([])); }, [product]);
+
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 16 }}
+        className="fixed inset-0 z-[61] flex items-center justify-center sm:p-4 pointer-events-none">
+        <div className="pointer-events-auto w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-bg-secondary sm:border sm:border-border sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+            <div>
+              <h3 className="text-base font-display font-semibold text-text-primary">Storico movimenti</h3>
+              <p className="text-xs text-text-muted">{product ? product.name : 'Tutti i prodotti'}</p>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {rows === null ? (
+              <p className="text-sm text-text-muted text-center py-10">Carico…</p>
+            ) : rows.length === 0 ? (
+              <div className="text-center py-12">
+                <History className="w-10 h-10 text-text-muted mx-auto mb-2" />
+                <p className="text-text-secondary">Nessun movimento registrato</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border/30">
+                {rows.map(m => (
+                  <div key={m.id} className="flex items-center gap-3 px-5 py-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${m.kind === 'out' ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}`}>
+                      {m.kind === 'out' ? <ArrowDownCircle className="w-4 h-4" /> : <ArrowUpCircle className="w-4 h-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {!product && <p className="text-sm font-medium text-text-primary truncate">{m.productName}</p>}
+                      <p className={`text-sm ${product ? 'font-medium text-text-primary' : 'text-text-secondary'}`}>
+                        {reasonLabel(m.reason)}{m.note ? ` — ${m.note}` : ''}
+                      </p>
+                      <p className="text-[11px] text-text-muted">
+                        {m.date}{m.operator ? ` · ${m.operator}` : ''} · giacenza {m.stockAfter}
+                      </p>
+                    </div>
+                    <span className={`text-sm font-bold flex-shrink-0 ${m.kind === 'out' ? 'text-error' : 'text-success'}`}>
+                      {m.kind === 'out' ? '−' : '+'}{m.quantity}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
 export default function InventoryPage() {
   const { products, addProduct, updateProduct, deleteProduct, fetchProducts, importProducts } = useProductStore();
   const [showAddModal, setShowAddModal] = useState(false);
@@ -293,6 +477,8 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('Tutti');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [movingProduct, setMovingProduct] = useState<Product | null>(null);
+  const [historyProduct, setHistoryProduct] = useState<Product | null | undefined>(undefined); // undefined = chiuso, null = tutti
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
@@ -344,6 +530,9 @@ export default function InventoryPage() {
           <p className="text-sm text-text-secondary">Inventario, scorte e fornitori</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setHistoryProduct(null)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all">
+            <History className="w-4 h-4" /> Movimenti
+          </button>
           <button onClick={() => setShowImportModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all">
             <FileText className="w-4 h-4" /> Importa Fattura
           </button>
@@ -443,9 +632,14 @@ export default function InventoryPage() {
                       </span>
                     </td>
                     <td className="px-2 py-3.5">
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
-                        <button onClick={() => setEditingProduct(product)} title="Modifica" className="p-1.5 rounded-lg hover:bg-accent/10 text-text-muted hover:text-accent transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => { if(window.confirm('Eliminare prodotto?')) deleteProduct(product.id); }} title="Elimina" className="p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <div className="flex items-center gap-0.5">
+                        <button onClick={() => setMovingProduct(product)} title="Scarico / carico"
+                          className="p-1.5 rounded-lg hover:bg-accent/10 text-accent transition-colors"><ArrowDownCircle className="w-4 h-4" /></button>
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                          <button onClick={() => setHistoryProduct(product)} title="Storico movimenti" className="p-1.5 rounded-lg hover:bg-bg-hover text-text-muted hover:text-text-primary transition-colors"><History className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => setEditingProduct(product)} title="Modifica" className="p-1.5 rounded-lg hover:bg-accent/10 text-text-muted hover:text-accent transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => { if(window.confirm('Eliminare prodotto?')) deleteProduct(product.id); }} title="Elimina" className="p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -469,6 +663,8 @@ export default function InventoryPage() {
       <AnimatePresence>{showAddModal && <AddProductModal onClose={() => setShowAddModal(false)} onSave={(p) => { addProduct(p); setShowAddModal(false); }} />}</AnimatePresence>
       <AnimatePresence>{editingProduct && <AddProductModal editing={editingProduct} onClose={() => setEditingProduct(null)} onSave={(p) => { updateProduct(p.id, p); setEditingProduct(null); setSelected(new Set()); }} />}</AnimatePresence>
       <AnimatePresence>{showImportModal && <InvoiceImportModal onClose={() => setShowImportModal(false)} onImport={handleImport} />}</AnimatePresence>
+      <AnimatePresence>{movingProduct && <StockMovementModal product={movingProduct} onClose={() => setMovingProduct(null)} onDone={fetchProducts} />}</AnimatePresence>
+      <AnimatePresence>{historyProduct !== undefined && <StockHistoryModal product={historyProduct} onClose={() => setHistoryProduct(undefined)} />}</AnimatePresence>
     </motion.div>
   );
 }
