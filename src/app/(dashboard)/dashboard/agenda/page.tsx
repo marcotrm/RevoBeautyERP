@@ -2094,12 +2094,15 @@ export default function AgendaPage() {
     fetchPackages(); // pacchetti cliente: servono per mostrare l'omaggio inaugurazione nel modale
   }, [fetchAppointments, fetchBlocks, fetchOperators, fetchClients, fetchTreatments, fetchPackages]);
 
-  // Agenda sempre aggiornata: nuovi appuntamenti e nuovi clienti compaiono da soli
+  // Agenda sempre aggiornata: appuntamenti, clienti e TURNI ricaricati da soli.
+  // Così un cambio turno (orario, pausa, riposo) si riflette in disponibilità
+  // e indisponibilità senza ricaricare la pagina.
   useAutoRefresh(useCallback(() => {
     fetchAppointments();
     fetchBlocks();
     fetchClients();
-  }, [fetchAppointments, fetchBlocks, fetchClients]), 20000);
+    fetchOperators();
+  }, [fetchAppointments, fetchBlocks, fetchClients, fetchOperators]), 20000);
 
   // Mantiene il filtro operatrici allineato alle operatrici esistenti:
   // rimuove gli id di operatrici eliminate e mostra automaticamente le nuove.
