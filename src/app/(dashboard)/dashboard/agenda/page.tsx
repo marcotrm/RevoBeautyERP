@@ -381,7 +381,7 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
                 const isPausa = band.kind === 'pausa';
                 return (
                   <div key={`unavail-${bi}`}
-                    className="absolute left-0 right-0 z-20 cursor-not-allowed flex flex-col items-center justify-center text-center overflow-hidden"
+                    className="absolute left-0 right-0 z-[5] cursor-not-allowed flex flex-col items-center justify-center text-center overflow-hidden"
                     style={{
                       top: `${top}px`, height: `${h}px`,
                       backgroundImage: 'repeating-linear-gradient(45deg, rgba(148,163,184,0.16) 0, rgba(148,163,184,0.16) 10px, rgba(148,163,184,0.04) 10px, rgba(148,163,184,0.04) 20px)',
