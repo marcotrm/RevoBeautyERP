@@ -38,6 +38,20 @@ export interface WaTemplate {
  *    passare per revisione manuale: si parla di "trattamento" e basta.
  */
 export const WA_TEMPLATES = {
+  confirm: {
+    name: 'conferma_appuntamento',
+    category: 'UTILITY',
+    language: 'it',
+    params: ['nome cliente', 'trattamento', 'data', 'ora'],
+    body:
+      'Ciao {{1}}, il tuo appuntamento da RevoBeauty per {{2}} è confermato: {{3}} alle {{4}}.\n' +
+      'Ti aspettiamo in Via Caudina, Maddaloni. Se ti serve spostarlo, rispondi a questo messaggio.',
+    note:
+      'Parte subito dopo la creazione dell\'appuntamento, non a orario fisso. È il primo contatto ' +
+      'della conversazione, quindi deve essere un template: a quel punto il cliente non ci ha ancora ' +
+      'scritto e la finestra 24h non è aperta.',
+  },
+
   reminder: {
     name: 'promemoria_appuntamento',
     category: 'UTILITY',

@@ -158,7 +158,7 @@ export async function handleAssistantMessage(params: {
 
     if (!reply) return { handled: false, reason: 'risposta vuota dal modello' };
 
-    const sent = await sendWhatsApp(phone, reply);
+    const sent = await sendWhatsApp(phone, reply, 'assistant');
     if (!sent.ok) return { handled: false, reason: sent.error };
 
     await saveLog({

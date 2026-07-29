@@ -24,6 +24,8 @@ export const MENU_PERMISSIONS: Record<string, string> = {
   settings: 'settings',
   inaugurazione: 'settings',
   automazioni: 'admin_automations',
+  // Le chat contengono dati personali dei clienti: stesso permesso della rubrica.
+  whatsapp: 'clients_view',
 };
 
 // prefisso route -> permesso richiesto per accedere alla pagina

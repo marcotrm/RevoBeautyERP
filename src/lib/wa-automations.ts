@@ -21,6 +21,12 @@ const LOG_KIND = 'wa_log';
 const MAX_PER_RUN = 200;
 
 export interface WaAutomationsConfig {
+  /**
+   * Conferma inviata subito dopo la creazione dell'appuntamento
+   * (lib/wa-appointments.ts). Non è a orario: reagisce alla prenotazione.
+   * Rispetta comunque `dryRun`.
+   */
+  confirm: boolean;
   reminder: boolean;
   recall: boolean;
   birthday: boolean;
@@ -52,6 +58,7 @@ export interface WaAutomationsConfig {
 }
 
 export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
+  confirm: false,
   reminder: false,
   recall: false,
   birthday: false,

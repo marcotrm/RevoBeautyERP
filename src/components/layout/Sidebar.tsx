@@ -13,7 +13,7 @@ import {
   Calendar, Users, ShoppingBag, Package, BarChart3,
   Megaphone, Settings, ChevronLeft, ChevronRight,
   LayoutDashboard, UserCog, Sun, Moon, LogOut,
-  Warehouse, Sparkles, X, Landmark, Gift, PartyPopper, CheckSquare, Zap, TrendingUp, Banknote, Receipt,
+  Warehouse, Sparkles, X, Landmark, Gift, PartyPopper, CheckSquare, Zap, TrendingUp, Banknote, Receipt, MessageSquare,
 } from 'lucide-react';
 import { getInitials } from '@/lib/helpers';
 
@@ -35,6 +35,7 @@ const menuItems = [
   { id: 'staff', label: 'Staff', icon: UserCog, href: '/dashboard/staff' },
   { id: 'settings', label: 'Impostazioni', icon: Settings, href: '/dashboard/settings' },
   { id: 'inaugurazione', label: 'Inaugurazione', icon: PartyPopper, href: '/dashboard/settings/inaugurazione' },
+  { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare, href: '/dashboard/whatsapp' },
   { id: 'automazioni', label: 'Automazioni', icon: Zap, href: '/dashboard/automazioni' },
 ];
 

@@ -15,12 +15,12 @@ import { normalizePhone } from '@/lib/whatsapp';
 import { handleReminderReply } from '@/lib/wa-appointments';
 import { handleBookingMessage } from '@/lib/wa-booking';
 import { handleAssistantMessage } from '@/lib/wa-assistant';
+import { logInbound } from '@/lib/wa-conversations';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const WINDOW_KIND = 'wa_window';
-const INBOX_KIND = 'wa_inbox';
 
 /** Parole che il cliente può scrivere per non ricevere più marketing. */
 const OPT_OUT = /\b(stop|basta|cancellami|disiscriv|non scriv|rimuovi|unsubscribe)\w*/i;
@@ -112,15 +112,10 @@ export async function POST(request: Request) {
           },
         });
 
-        // Archivio del messaggio, così la chat resta nel gestionale.
-        await prisma.adminEntry.upsert({
-          where: { rowId: `wa:in:${m.id || `${phone}:${m.timestamp || now}`}` },
-          update: { data: { phone, text, type: m.type, name: contactName, receivedAt: now } },
-          create: {
-            rowId: `wa:in:${m.id || `${phone}:${m.timestamp || now}`}`, kind: INBOX_KIND, entityId: phone,
-            data: { phone, text, type: m.type, name: contactName, receivedAt: now }, createdAt: now,
-          },
-        });
+        // Archivio del messaggio, così la chat resta nel gestionale. Va nello
+        // stesso archivio delle risposte in uscita: è quello che alimenta la
+        // schermata Conversazioni.
+        await logInbound({ phone, text, name: contactName, messageId: m.id, at: now });
 
         // Opt-out: obbligatorio onorarlo, sia da bottone che da testo libero.
         const payloadId = m.button?.payload || m.interactive?.button_reply?.id || '';

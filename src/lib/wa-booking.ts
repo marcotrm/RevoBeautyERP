@@ -25,6 +25,13 @@ import { sendWhatsApp } from '@/lib/whatsapp';
 import { sendTelegram } from '@/lib/telegram';
 import { getWaAutomationsConfig } from '@/lib/wa-automations';
 
+/**
+ * Tutte le risposte del bot passano di qui, così in archivio conversazioni
+ * risultano etichettate come "bot prenotazione" e si distinguono a colpo
+ * d'occhio da quelle scritte da una persona.
+ */
+const say = (phone: string, text: string) => sendWhatsApp(phone, text, 'booking');
+
 const SESSION_KIND = 'wa_booking';
 /** Minuti di inattività dopo i quali la conversazione riparte da zero. */
 const SESSION_TTL_MIN = 30;
@@ -125,14 +132,14 @@ async function askTreatment(phone: string): Promise<void> {
   });
 
   if (!treatments.length) {
-    await sendWhatsApp(phone, 'Al momento non riesco a mostrarti i trattamenti prenotabili. Scrivici pure qui e ti rispondiamo noi.');
+    await say(phone, 'Al momento non riesco a mostrarti i trattamenti prenotabili. Scrivici pure qui e ti rispondiamo noi.');
     await clearSession(phone);
     return;
   }
 
   const options = treatments.map((t) => ({ id: t.id, label: `${t.name} (${t.duration} min)` }));
   await saveSession(phone, { step: 'treatment', updatedAt: new Date().toISOString(), options });
-  await sendWhatsApp(phone,
+  await say(phone,
     'Certo! Per quale trattamento vuoi prenotare?\n\n' +
     numberedList(options) +
     '\n\nRispondi con il numero. Scrivi "annulla" per lasciar perdere.'
@@ -145,7 +152,7 @@ async function askDate(phone: string, s: BookingSession): Promise<void> {
     .map((d) => ({ id: d, label: i18nDay(d, today) }));
 
   await saveSession(phone, { ...s, step: 'date', options, updatedAt: new Date().toISOString() });
-  await sendWhatsApp(phone,
+  await say(phone,
     `Perfetto: ${s.treatmentName}.\nIn che giorno ti farebbe comodo?\n\n` +
     numberedList(options) +
     '\n\nRispondi con il numero.'
@@ -165,7 +172,7 @@ async function askSlot(phone: string, s: BookingSession, origin: string): Promis
 
   if (!slots.length) {
     await saveSession(phone, { ...s, step: 'date', updatedAt: new Date().toISOString() });
-    await sendWhatsApp(phone,
+    await say(phone,
       `Mi dispiace, ${humanDate(s.date!)} non ho orari liberi.\n` +
       'Rispondi con il numero di un altro giorno, oppure scrivi "annulla".'
     );
@@ -175,7 +182,7 @@ async function askSlot(phone: string, s: BookingSession, origin: string): Promis
   const shown = slots.slice(0, MAX_SLOTS);
   const options = shown.map((sl) => ({ id: sl.time, label: `ore ${sl.time}`, extra: sl }));
   await saveSession(phone, { ...s, step: 'slot', options, updatedAt: new Date().toISOString() });
-  await sendWhatsApp(phone,
+  await say(phone,
     `${humanDate(s.date!)} ho questi orari liberi:\n\n` +
     numberedList(options) +
     '\n\nRispondi con il numero.'
@@ -184,7 +191,7 @@ async function askSlot(phone: string, s: BookingSession, origin: string): Promis
 
 async function askConfirm(phone: string, s: BookingSession): Promise<void> {
   await saveSession(phone, { ...s, step: 'confirm', options: [], updatedAt: new Date().toISOString() });
-  await sendWhatsApp(phone,
+  await say(phone,
     'Riepilogo:\n' +
     `• ${s.treatmentName}\n` +
     `• ${humanDate(s.date!)} alle ${s.slot!.time}\n` +
@@ -212,11 +219,11 @@ async function createBooking(phone: string, s: BookingSession, origin: string): 
   if (!res?.ok) {
     // 409 = slot occupato nel frattempo: si riparte dagli orari, non da capo.
     if (res?.status === 409) {
-      await sendWhatsApp(phone, 'Quell\'orario è appena stato preso da qualcun altro, mi dispiace. Ti rimando gli orari ancora liberi.');
+      await say(phone, 'Quell\'orario è appena stato preso da qualcun altro, mi dispiace. Ti rimando gli orari ancora liberi.');
       await askSlot(phone, { ...s, step: 'slot' }, origin);
       return;
     }
-    await sendWhatsApp(phone,
+    await say(phone,
       `Non sono riuscito a completare la prenotazione${body?.error ? `: ${body.error}` : ''}.\n` +
       'Scrivici pure qui, ti rispondiamo noi e la fissiamo insieme.'
     );
@@ -229,7 +236,7 @@ async function createBooking(phone: string, s: BookingSession, origin: string): 
   }
 
   await clearSession(phone);
-  await sendWhatsApp(phone,
+  await say(phone,
     `È fatta! Ti aspettiamo ${humanDate(s.date!)} alle ${s.slot!.time} per ${s.treatmentName}.\n` +
     'Se ti serve spostare l\'appuntamento, scrivici pure qui. A presto!'
   );
@@ -274,7 +281,7 @@ export async function handleBookingMessage(params: {
 
     if (CANCEL.test(text)) {
       await clearSession(phone);
-      await sendWhatsApp(phone, 'Va bene, non ho prenotato nulla. Se cambi idea scrivimi pure "prenota".');
+      await say(phone, 'Va bene, non ho prenotato nulla. Se cambi idea scrivimi pure "prenota".');
       return { handled: true };
     }
 
@@ -282,7 +289,7 @@ export async function handleBookingMessage(params: {
       case 'treatment': {
         const i = parseChoice(text, session.options.length);
         if (i === null) {
-          await sendWhatsApp(phone, `Non ho capito. Rispondi con un numero da 1 a ${session.options.length}, oppure scrivi "annulla".`);
+          await say(phone, `Non ho capito. Rispondi con un numero da 1 a ${session.options.length}, oppure scrivi "annulla".`);
           return { handled: true, step: 'treatment' };
         }
         const chosen = session.options[i];
@@ -297,7 +304,7 @@ export async function handleBookingMessage(params: {
       case 'date': {
         const i = parseChoice(text, session.options.length);
         if (i === null) {
-          await sendWhatsApp(phone, `Non ho capito. Rispondi con un numero da 1 a ${session.options.length}, oppure scrivi "annulla".`);
+          await say(phone, `Non ho capito. Rispondi con un numero da 1 a ${session.options.length}, oppure scrivi "annulla".`);
           return { handled: true, step: 'date' };
         }
         await askSlot(phone, { ...session, date: session.options[i].id }, origin);
@@ -307,7 +314,7 @@ export async function handleBookingMessage(params: {
       case 'slot': {
         const i = parseChoice(text, session.options.length);
         if (i === null) {
-          await sendWhatsApp(phone, `Non ho capito. Rispondi con un numero da 1 a ${session.options.length}, oppure scrivi "annulla".`);
+          await say(phone, `Non ho capito. Rispondi con un numero da 1 a ${session.options.length}, oppure scrivi "annulla".`);
           return { handled: true, step: 'slot' };
         }
         const slot = session.options[i].extra as SlotOption;
@@ -324,14 +331,14 @@ export async function handleBookingMessage(params: {
         }
 
         await saveSession(phone, { ...next, step: 'name', options: [], updatedAt: new Date().toISOString() });
-        await sendWhatsApp(phone, 'Ultima cosa: come ti chiami? (nome e cognome)');
+        await say(phone, 'Ultima cosa: come ti chiami? (nome e cognome)');
         return { handled: true, step: 'name' };
       }
 
       case 'name': {
         const name = text.trim().replace(/\s{2,}/g, ' ');
         if (name.length < 2) {
-          await sendWhatsApp(phone, 'Scrivimi nome e cognome, per favore.');
+          await say(phone, 'Scrivimi nome e cognome, per favore.');
           return { handled: true, step: 'name' };
         }
         await askConfirm(phone, { ...session, name });
@@ -343,7 +350,7 @@ export async function handleBookingMessage(params: {
           await createBooking(phone, session, origin);
           return { handled: true };
         }
-        await sendWhatsApp(phone, 'Rispondi *SI* per confermare la prenotazione, oppure "annulla" per lasciar perdere.');
+        await say(phone, 'Rispondi *SI* per confermare la prenotazione, oppure "annulla" per lasciar perdere.');
         return { handled: true, step: 'confirm' };
       }
     }

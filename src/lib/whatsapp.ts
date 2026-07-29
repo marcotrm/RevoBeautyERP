@@ -17,6 +17,7 @@
 
 import { d360Configured, d360MissingVars, sendD360Text, sendD360Template, type TemplateSendOptions } from './whatsapp360';
 import { WA_TEMPLATES, type TemplateKey } from './wa-templates';
+import { logOutbound, type WaSource } from './wa-conversations';
 
 export type WaProvider = '360dialog' | 'evolution' | null;
 
@@ -75,17 +76,22 @@ async function sendViaEvolution(number: string, text: string): Promise<WaSendRes
  *
  * Attenzione: su 360dialog il testo libero passa solo entro 24h dall'ultimo
  * messaggio del cliente. Per contatti a freddo usa sendWhatsAppTemplate.
+ *
+ * Ogni invio finisce nell'archivio conversazioni: è l'unico modo per rileggere
+ * dal gestionale quello che assistente e bot hanno risposto da soli, visto che
+ * il numero non è più apribile da WhatsApp.
  */
-export async function sendWhatsApp(number: string, text: string): Promise<WaSendResult> {
+export async function sendWhatsApp(number: string, text: string, source: WaSource = 'system'): Promise<WaSendResult> {
   const provider = waProvider();
   if (!provider) {
     return { ok: false, error: `WhatsApp non configurato: mancano ${whatsappMissingVars().join(', ')}` };
   }
-  if (provider === '360dialog') {
-    const res = await sendD360Text(number, text);
-    return { ...res, provider };
-  }
-  return sendViaEvolution(number, text);
+  const res = provider === '360dialog'
+    ? { ...(await sendD360Text(number, text)), provider }
+    : await sendViaEvolution(number, text);
+
+  await logOutbound({ phone: number, text, source, messageId: res.messageId, ok: res.ok, error: res.error });
+  return res;
 }
 
 /**
@@ -95,21 +101,34 @@ export async function sendWhatsApp(number: string, text: string): Promise<WaSend
 export async function sendWhatsAppTemplate(
   number: string,
   key: TemplateKey,
-  opts: TemplateSendOptions & { fallbackText?: string } = {}
+  opts: TemplateSendOptions & { fallbackText?: string; source?: WaSource } = {}
 ): Promise<WaSendResult> {
   const provider = waProvider();
   if (!provider) {
     return { ok: false, error: `WhatsApp non configurato: mancano ${whatsappMissingVars().join(', ')}` };
   }
   const tpl = WA_TEMPLATES[key];
+
+  let res: WaSendResult;
   if (provider === '360dialog') {
-    const res = await sendD360Template(number, tpl.name, { language: tpl.language, ...opts });
-    return { ...res, provider };
+    res = { ...(await sendD360Template(number, tpl.name, { language: tpl.language, ...opts })), provider };
+  } else if (!opts.fallbackText) {
+    res = { ok: false, error: 'Evolution non supporta i template: serve fallbackText', provider };
+  } else {
+    res = await sendViaEvolution(number, opts.fallbackText);
   }
-  if (!opts.fallbackText) {
-    return { ok: false, error: 'Evolution non supporta i template: serve fallbackText', provider };
-  }
-  return sendViaEvolution(number, opts.fallbackText);
+
+  // In archivio va il testo che il cliente legge davvero: il template con i
+  // parametri già sostituiti, non il nome tecnico.
+  await logOutbound({
+    phone: number,
+    text: opts.fallbackText || `[template ${tpl.name}]`,
+    source: opts.source || 'automation',
+    messageId: res.messageId,
+    ok: res.ok,
+    error: res.error,
+  });
+  return res;
 }
 
 /** Normalizza un numero italiano in formato internazionale (es. 3331234567 → 393331234567). */

@@ -17,6 +17,9 @@
 import { prisma } from '@/lib/prisma';
 import { todayRome } from '@/lib/date';
 import { sendTelegram } from '@/lib/telegram';
+import { sendWhatsAppTemplate, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
+import { sanitizeParam, WA_TEMPLATES } from '@/lib/wa-templates';
+import { getWaAutomationsConfig } from '@/lib/wa-automations';
 
 /** Un appuntamento già passato o annullato non si conferma né si sposta. */
 const OPEN_STATUSES = ['confirmed', 'pending', 'scheduled', 'booked'];
@@ -118,5 +121,86 @@ export async function handleReminderReply(params: {
   } catch (err) {
     console.error('[wa-appointments] errore gestione risposta promemoria', err);
     return { handled: false, intent };
+  }
+}
+
+// ============================================================
+// Conferma alla prenotazione
+// ============================================================
+
+const CONFIRM_LOG_KIND = 'wa_log';
+
+/** "2026-07-28" → "martedì 28 luglio". */
+function humanDate(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Intl.DateTimeFormat('it-IT', {
+    timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long',
+  }).format(new Date(Date.UTC(y, m - 1, d)));
+}
+
+/**
+ * Manda la conferma subito dopo che l'appuntamento è entrato in agenda,
+ * da qualunque canale sia arrivato (gestionale, prenotazione online, bot
+ * WhatsApp, assistente vocale).
+ *
+ * Non lancia mai e non blocca: se WhatsApp è spento o il numero non è valido,
+ * la prenotazione resta comunque salvata. Deduplica sull'id appuntamento, così
+ * una modifica successiva non rimanda la stessa conferma.
+ */
+export async function sendAppointmentConfirmation(appointmentId: string): Promise<{ sent: boolean; reason?: string }> {
+  try {
+    const cfg = await getWaAutomationsConfig();
+    if (!cfg.confirm) return { sent: false, reason: 'conferma spenta' };
+
+    const appt = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: { client: true },
+    });
+    if (!appt) return { sent: false, reason: 'appuntamento non trovato' };
+    if (!OPEN_STATUSES.includes(appt.status)) return { sent: false, reason: `stato ${appt.status}` };
+
+    const phone = appt.client?.phone;
+    if (!isSendablePhone(phone)) return { sent: false, reason: 'numero non valido' };
+
+    const rowId = `wa:confirm:${appt.clientId}:${appt.id}`;
+    const existing = await prisma.adminEntry.findUnique({ where: { rowId } });
+    if ((existing?.data as { ok?: boolean } | null)?.ok) return { sent: false, reason: 'già inviata' };
+
+    const params = [
+      sanitizeParam(appt.client?.firstName || appt.clientName.split(' ')[0]),
+      sanitizeParam(appt.treatmentName, 'il tuo trattamento'),
+      sanitizeParam(humanDate(appt.date)),
+      sanitizeParam(appt.startTime),
+    ];
+    const preview = WA_TEMPLATES.confirm.body.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1] ?? '');
+
+    // In simulazione si vede in archivio cosa sarebbe partito, senza mandarlo.
+    if (cfg.dryRun) {
+      console.log(`[wa-appointments] SIMULAZIONE conferma a ${normalizePhone(phone as string)}: ${preview}`);
+      return { sent: false, reason: 'simulazione attiva' };
+    }
+
+    const res = await sendWhatsAppTemplate(normalizePhone(phone as string), 'confirm', {
+      bodyParams: params,
+      fallbackText: preview,
+      source: 'automation',
+    });
+
+    const now = new Date().toISOString();
+    await prisma.adminEntry.upsert({
+      where: { rowId },
+      update: { data: { automation: 'confirm', clientId: appt.clientId, phone: normalizePhone(phone as string), messageId: res.messageId, ok: res.ok, error: res.error, sentAt: now } },
+      create: {
+        rowId, kind: CONFIRM_LOG_KIND, entityId: rowId,
+        data: { automation: 'confirm', clientId: appt.clientId, phone: normalizePhone(phone as string), messageId: res.messageId, ok: res.ok, error: res.error, sentAt: now },
+        createdAt: now,
+      },
+    });
+
+    if (!res.ok) console.error(`[wa-appointments] conferma non inviata a ${appt.clientName}: ${res.error}`);
+    return { sent: res.ok, reason: res.error };
+  } catch (err) {
+    console.error('[wa-appointments] errore invio conferma', err);
+    return { sent: false, reason: err instanceof Error ? err.message : 'errore' };
   }
 }

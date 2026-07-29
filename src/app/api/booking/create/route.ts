@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { notifyNuovoAppuntamento } from '@/lib/telegram';
 import { hasConflict, findClientByPhone, toMinutes, toHHMM, todayInItaly } from '@/lib/voice';
+import { sendAppointmentConfirmation } from '@/lib/wa-appointments';
 
 export const runtime = 'nodejs';
 
@@ -91,6 +92,9 @@ export async function POST(request: Request) {
       createdBy: 'online-booking',
     },
   });
+
+  // Conferma WhatsApp al cliente (non blocca la prenotazione)
+  sendAppointmentConfirmation(appointment.id).catch(() => {});
 
   // Notifica Telegram del nuovo appuntamento (non blocca la prenotazione)
   notifyNuovoAppuntamento({

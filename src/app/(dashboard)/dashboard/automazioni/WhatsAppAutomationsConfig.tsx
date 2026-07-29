@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { MessageSquare, ChevronDown, Loader2, CheckCircle2, AlertTriangle, Clock, Heart, Gift, Star, CalendarPlus, Bot } from 'lucide-react';
 import {
   loadWaConfig, saveWaConfig, loadWaStatus, previewAutomation, runAutomationNow, checkTemplates, loadWaInbox,
@@ -90,7 +91,7 @@ export default function WhatsAppAutomationsConfig() {
   };
 
   const configured = status?.provider === '360dialog';
-  const anyOn = cfg ? AUTOMATIONS.some(a => cfg[a.key]) : false;
+  const anyOn = cfg ? AUTOMATIONS.some(a => cfg[a.key]) || cfg.confirm : false;
   // La simulazione riguarda solo le automazioni a orario: il bot di prenotazione
   // risponde davvero anche a simulazione accesa, e l'etichetta non deve mentire.
   const headStatus = !configured
@@ -145,6 +146,32 @@ export default function WhatsAppAutomationsConfig() {
             </button>
           </div>
 
+          {/* Conferma alla prenotazione: non è a orario, scatta appena
+              l'appuntamento entra in agenda. Sta prima delle altre perché è il
+              primo messaggio che il cliente riceve. */}
+          <div className="p-3 rounded-xl bg-bg-secondary border border-border/50">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-text-muted flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-text-primary">Conferma appuntamento</span>
+                  <p className="text-[11px] text-text-muted">
+                    Appena l&apos;appuntamento entra in agenda, il cliente riceve la conferma con trattamento, giorno e ora.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => save({ confirm: !cfg.confirm })} disabled={saving}
+                className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${cfg.confirm ? 'bg-success' : 'bg-bg-hover'}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${cfg.confirm ? 'left-6' : 'left-1'}`} />
+              </button>
+            </div>
+            <p className="text-[10px] text-text-muted/70 mt-2 leading-relaxed">
+              Vale per tutti i canali: gestionale, prenotazione online, bot WhatsApp e assistente vocale.
+              Richiede il template <code className="text-warning">conferma_appuntamento</code> approvato da Meta.
+              La modalità simulazione qui sopra la blocca come le altre.
+            </p>
+          </div>
+
           {/* Le quattro automazioni */}
           <div className="p-3 rounded-xl bg-bg-secondary border border-border/50 space-y-3">
             {AUTOMATIONS.map((a, i) => {
@@ -179,35 +206,37 @@ export default function WhatsAppAutomationsConfig() {
             })}
           </div>
 
-          {/* Messaggi ricevuti: è la verifica pratica che il webhook 360dialog stia
-              consegnando. Se resta vuoto dopo aver scritto al numero, il giro è rotto. */}
+          {/* Le conversazioni vivono nella loro schermata: qui basta il collegamento
+              e l'ultimo messaggio, come prova che il webhook stia consegnando. */}
           <div className="p-3 rounded-xl bg-bg-secondary border border-border/50 space-y-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-text-secondary">Messaggi ricevuti dai clienti</p>
-                <p className="text-[10px] text-text-muted/70">Se qui non compare nulla dopo aver scritto al numero del centro, il webhook non sta consegnando.</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-text-secondary">Conversazioni con i clienti</p>
+                <p className="text-[10px] text-text-muted/70">
+                  Leggi le chat, vedi cosa ha risposto l&apos;assistente e rispondi a mano.
+                </p>
               </div>
+              <Link href="/dashboard/whatsapp"
+                className="text-[11px] px-2.5 py-1 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 flex-shrink-0 whitespace-nowrap">
+                Apri le chat
+              </Link>
+            </div>
+            <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-2">
+              <p className="text-[10px] text-text-muted/70 min-w-0">
+                Se dopo aver scritto al numero del centro non arriva nulla, il webhook non sta consegnando.
+              </p>
               <button onClick={doLoadInbox} disabled={busy !== null}
                 className="text-[11px] px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-text-secondary hover:bg-bg-hover disabled:opacity-50 flex-shrink-0">
-                {busy === 'inbox' ? '...' : 'Aggiorna'}
+                {busy === 'inbox' ? '...' : 'Verifica'}
               </button>
             </div>
-            {inbox === null ? (
-              <p className="text-[11px] text-text-muted">Premi &quot;Aggiorna&quot; per vedere gli ultimi messaggi arrivati.</p>
-            ) : inbox.length === 0 ? (
-              <p className="text-[11px] text-warning">Nessun messaggio ricevuto finora.</p>
-            ) : (
-              <div className="space-y-1.5">
-                {inbox.map((m, i) => (
-                  <div key={`${m.phone}-${m.receivedAt}-${i}`} className="flex items-start gap-2 text-[11px] border-t border-border/40 pt-1.5 first:border-0 first:pt-0">
-                    <span className="text-text-muted font-mono flex-shrink-0">
-                      {new Date(m.receivedAt).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <span className="text-text-primary font-medium flex-shrink-0">{m.name || m.phone}</span>
-                    <span className="text-text-secondary min-w-0 break-words">{m.text}</span>
-                  </div>
-                ))}
-              </div>
+            {inbox !== null && (
+              inbox.length === 0
+                ? <p className="text-[11px] text-warning">Nessun messaggio ricevuto finora.</p>
+                : <p className="text-[11px] text-success">
+                    Ultimo messaggio da {inbox[0].name || inbox[0].phone} il{' '}
+                    {new Date(inbox[0].receivedAt).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.
+                  </p>
             )}
           </div>
 

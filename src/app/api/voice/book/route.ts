@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { notifyNuovoAppuntamento } from '@/lib/telegram';
+import { sendAppointmentConfirmation } from '@/lib/wa-appointments';
 import {
   isAuthorized,
   unauthorized,
@@ -88,6 +89,9 @@ export async function POST(request: Request) {
       createdBy: 'voice-assistant',
     },
   });
+
+  // Conferma WhatsApp al cliente (non blocca la prenotazione)
+  sendAppointmentConfirmation(appointment.id).catch(() => {});
 
   // Notifica Telegram del nuovo appuntamento (non blocca la prenotazione)
   notifyNuovoAppuntamento({

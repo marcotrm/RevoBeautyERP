@@ -1,7 +1,11 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { waProvider, whatsappMissingVars } from '@/lib/whatsapp';
+import { waProvider, whatsappMissingVars, sendWhatsApp, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
+import {
+  listConversations, listMessages, markConversationRead, conversationWindow,
+  type WaConversation, type WaMessageRow,
+} from '@/lib/wa-conversations';
 import { listD360Templates } from '@/lib/whatsapp360';
 import { WA_TEMPLATES, type TemplateKey } from '@/lib/wa-templates';
 import {
@@ -69,6 +73,69 @@ export async function loadWaInbox(limit = 15): Promise<WaInboxMessage[]> {
       receivedAt: d.receivedAt || r.createdAt,
     };
   });
+}
+
+// ============================================================
+// Conversazioni: lettura e risposta manuale
+// ============================================================
+
+export type { WaConversation, WaMessageRow };
+
+/** Elenco chat, la più recente in cima, con non letti e stato finestra 24h. */
+export async function loadConversations(limit = 50): Promise<WaConversation[]> {
+  return listConversations(limit);
+}
+
+/**
+ * Thread completo di un numero. Segna anche la conversazione come letta:
+ * aprirla in gestionale è esattamente il gesto che azzera i non letti.
+ */
+export async function loadConversation(phone: string): Promise<{
+  messages: WaMessageRow[];
+  windowOpen: boolean;
+  windowExpiresAt?: string;
+  clientName?: string;
+}> {
+  const normalized = normalizePhone(phone);
+  const [messages, win, client] = await Promise.all([
+    listMessages(normalized),
+    conversationWindow(normalized),
+    // Le ultime 9 cifre bastano a riconoscere il cliente qualunque prefisso sia
+    // stato salvato in anagrafica.
+    prisma.client.findFirst({ where: { phone: { endsWith: normalized.slice(-9) } } }),
+  ]);
+  await markConversationRead(normalized);
+  return {
+    messages,
+    windowOpen: win.open,
+    windowExpiresAt: win.expiresAt,
+    clientName: client ? `${client.firstName} ${client.lastName}`.trim() : undefined,
+  };
+}
+
+/**
+ * Risposta scritta a mano dall'operatore.
+ *
+ * Passa solo entro la finestra 24h: fuori, Meta impone un template approvato e
+ * il testo libero verrebbe rifiutato (131047). Meglio dirlo qui che far
+ * scrivere un messaggio destinato a non partire.
+ */
+export async function sendManualReply(phone: string, text: string): Promise<{ ok: boolean; error?: string }> {
+  const body = text.trim();
+  if (!body) return { ok: false, error: 'Messaggio vuoto' };
+  if (!isSendablePhone(phone)) return { ok: false, error: 'Numero non valido' };
+
+  const normalized = normalizePhone(phone);
+  const win = await conversationWindow(normalized);
+  if (!win.open) {
+    return {
+      ok: false,
+      error: 'Sono passate più di 24 ore dall\'ultimo messaggio del cliente: Meta non permette più il testo libero. Serve che sia il cliente a riscrivere, oppure un template approvato.',
+    };
+  }
+
+  const res = await sendWhatsApp(normalized, body, 'manual');
+  return res.ok ? { ok: true } : { ok: false, error: res.error || 'Invio fallito' };
 }
 
 export interface TemplateCheck {
