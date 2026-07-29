@@ -149,6 +149,8 @@ export default function WhatsAppChat() {
               </p>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-[10px] text-text-muted/70">{timeLabel(c.lastAt)}</span>
+                {/* Col nome dall'anagrafica il numero sparirebbe dalla riga: lo teniamo qui */}
+                {c.name && <span className="text-[10px] text-text-muted/60 font-mono truncate">+{c.phone}</span>}
                 {!c.windowOpen && (
                   <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-muted">CHIUSA</span>
                 )}

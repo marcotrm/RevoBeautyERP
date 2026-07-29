@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { waProvider, whatsappMissingVars, sendWhatsApp, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
 import {
   listConversations, listMessages, markConversationRead, conversationWindow, listUnreadChats,
+  clientNameForPhone,
   type WaConversation, type WaMessageRow, type WaUnreadChat,
 } from '@/lib/wa-conversations';
 import { listD360Templates } from '@/lib/whatsapp360';
@@ -109,19 +110,19 @@ export async function loadConversation(phone: string): Promise<{
   clientName?: string;
 }> {
   const normalized = normalizePhone(phone);
-  const [messages, win, client] = await Promise.all([
+  const [messages, win, clientName] = await Promise.all([
     listMessages(normalized),
     conversationWindow(normalized),
-    // Le ultime 9 cifre bastano a riconoscere il cliente qualunque prefisso sia
-    // stato salvato in anagrafica.
-    prisma.client.findFirst({ where: { phone: { endsWith: normalized.slice(-9) } } }),
+    // Il confronto è sulle ultime 9 cifre, ignorando prefissi e spazi: in
+    // anagrafica i numeri sono scritti in mille modi diversi.
+    clientNameForPhone(normalized),
   ]);
   await markConversationRead(normalized);
   return {
     messages,
     windowOpen: win.open,
     windowExpiresAt: win.expiresAt,
-    clientName: client ? `${client.firstName} ${client.lastName}`.trim() : undefined,
+    clientName,
   };
 }
 

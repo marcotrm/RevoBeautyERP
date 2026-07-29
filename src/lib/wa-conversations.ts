@@ -194,6 +194,35 @@ function windowState(lastInboundAt: string | undefined): { open: boolean; expire
   return { open: expires.getTime() > Date.now(), expiresAt: expires.toISOString() };
 }
 
+/**
+ * Chiave di confronto fra il numero di WhatsApp e quello in anagrafica: le
+ * ultime 9 cifre. Il prefisso può esserci o no (+39, 0039, niente) e in scheda
+ * cliente i numeri sono scritti in tutti i modi, spazi e trattini compresi.
+ */
+function phoneKey(phone: string | null | undefined): string {
+  const digits = (phone || '').replace(/\D/g, '');
+  return digits.length >= 9 ? digits.slice(-9) : '';
+}
+
+/** Nome e cognome dei clienti in anagrafica, indicizzati sul numero. */
+export async function clientNamesByPhone(): Promise<Map<string, string>> {
+  const clients = await prisma.client.findMany({ select: { firstName: true, lastName: true, phone: true } });
+  const map = new Map<string, string>();
+  for (const c of clients) {
+    const key = phoneKey(c.phone);
+    const full = `${c.firstName} ${c.lastName}`.trim();
+    // Primo arrivato, primo servito: se due schede hanno lo stesso numero
+    // (doppioni in anagrafica) meglio un nome stabile che uno a caso.
+    if (key && full && !map.has(key)) map.set(key, full);
+  }
+  return map;
+}
+
+/** Nome del cliente in anagrafica per un singolo numero, se c'è. */
+export async function clientNameForPhone(phone: string): Promise<string | undefined> {
+  return (await clientNamesByPhone()).get(phoneKey(phone));
+}
+
 const READ_ROW = (phone: string) => `wa:read:${phone}`;
 
 /** Fino a quando ogni conversazione è stata letta in gestionale. */
@@ -219,7 +248,9 @@ export async function markConversationRead(phone: string): Promise<void> {
 
 /** Elenco conversazioni, la più recente in cima. */
 export async function listConversations(limit = 50): Promise<WaConversation[]> {
-  const [messages, windows, reads] = await Promise.all([recentMessages(600), lastInboundMap(), readMarks()]);
+  const [messages, windows, reads, clientNames] = await Promise.all([
+    recentMessages(600), lastInboundMap(), readMarks(), clientNamesByPhone(),
+  ]);
 
   const byPhone = new Map<string, WaMessageRow[]>();
   for (const m of messages) {
@@ -236,8 +267,10 @@ export async function listConversations(limit = 50): Promise<WaConversation[]> {
     const unreadMsgs = msgs.filter(m => m.direction === 'in' && (!readAt || m.at > readAt));
     conversations.push({
       phone,
-      // Il nome profilo arriva solo con i messaggi in entrata.
-      name: msgs.find(m => m.name)?.name,
+      // Prima il nome in anagrafica: dice davvero a chi appartiene il numero.
+      // In mancanza si ripiega sul nome profilo WhatsApp, che arriva solo con i
+      // messaggi in entrata e spesso è un soprannome con emoji.
+      name: clientNames.get(phoneKey(phone)) || msgs.find(m => m.name)?.name,
       lastText: last.text,
       lastAt: last.at,
       lastDirection: last.direction,
