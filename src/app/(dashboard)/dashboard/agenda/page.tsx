@@ -1230,17 +1230,22 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   // Active packages for selected client
   const allPkgData = usePackageStore(s => s.clientPackages);
   const catalogPackages = usePackageStore(s => s.packages);
+  // Pacchetti già in mano alla cliente, da richiamare qui invece di rivenderli.
+  // L'abbinamento è sulla scheda cliente quando il pacchetto ce l'ha salvata;
+  // i pacchetti vecchi hanno solo il nome scritto a mano, quindi si confronta
+  // anche quello ignorando maiuscole e ordine di nome/cognome.
   const clientActivePkgs = useMemo(() => {
     if (!selectedClientName) return [];
     const normalize = (n: string) => n.toLowerCase().trim().split(/\s+/).sort().join(' ');
     const target = normalize(selectedClientName);
-    return allPkgData.filter(
-      cp => (normalize(cp.clientName) === target ||
-             cp.clientName.toLowerCase().includes(selectedClientName.toLowerCase()) ||
-             selectedClientName.toLowerCase().includes(cp.clientName.toLowerCase())) &&
-            (cp.status === 'active' || cp.status === 'expiring')
-    );
-  }, [selectedClientName, allPkgData]);
+    return allPkgData.filter(cp => {
+      const stessoCliente = (selectedClientId && cp.clientId === selectedClientId) ||
+        normalize(cp.clientName) === target ||
+        cp.clientName.toLowerCase().includes(selectedClientName.toLowerCase()) ||
+        selectedClientName.toLowerCase().includes(cp.clientName.toLowerCase());
+      return stessoCliente && (cp.status === 'active' || cp.status === 'expiring');
+    });
+  }, [selectedClientName, selectedClientId, allPkgData]);
 
   const selectedClient = useMemo(() => allClients.find(c => c.id === selectedClientId), [selectedClientId, allClients]);
 
@@ -1493,6 +1498,15 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                   <p className="text-[11px] text-warning font-medium bg-warning/10 rounded-lg px-2.5 py-2">⚠️ {pkgHint}</p>
                 )}
               </div>
+            )}
+
+            {/* Detto esplicitamente: così si sa che il controllo è stato fatto e
+                non si resta col dubbio che il pacchetto ci sia ma non si veda */}
+            {selectedClientName && clientActivePkgs.length === 0 && (
+              <p className="flex items-center gap-1.5 text-[11px] text-text-muted px-1">
+                <Package className="w-3.5 h-3.5 flex-shrink-0" />
+                Nessun pacchetto attivo per {selectedClientName.split(' ')[0]}.
+              </p>
             )}
 
             {/* Treatments (uno o più) */}

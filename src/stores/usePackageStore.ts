@@ -28,6 +28,8 @@ export interface PackagePayment {
 export interface ClientPackage {
   id: string;
   clientName: string;
+  /** Scheda cliente collegata: i pacchetti vecchi hanno solo il nome scritto a mano. */
+  clientId?: string | null;
   packageName: string;
   /** pacchetto del catalogo da cui è stato venduto (serve per sapere il trattamento) */
   packageId?: string | null;

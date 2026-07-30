@@ -10,6 +10,7 @@ function toClientPackage(cp: {
   totalSessions: number; usedSessions: number; pricePaid: number; totalPaid: number;
   remainingBalance: number; paymentPlan: string; purchaseDate: string; expiryDate: string;
   status: string; history: unknown; payments: unknown; packageId?: string | null;
+  clientId?: string | null;
 }): ClientPackage {
   return {
     ...cp,
