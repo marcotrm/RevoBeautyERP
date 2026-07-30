@@ -44,6 +44,34 @@ async function recordPosPayment(params: {
   notifyIncasso({ amount: params.amount, client: params.clientName, items: params.label, method: params.method, operator: params.operator }).catch(() => {});
 }
 
+/**
+ * Riga in cassa per un regalo: importo zero, così si vede chi ha ricevuto cosa
+ * senza spostare di un centesimo l'incasso del giorno.
+ *
+ * A zero euro il gestionale non emette scontrino fiscale, non manda la notifica
+ * dell'incasso e la riga non entra né nella chiusura contanti né in cassaforte:
+ * resta solo la traccia di quello che è successo.
+ */
+async function recordPosGift(params: {
+  clientName: string; giftedAmount: number; operator: string; packageName: string;
+}) {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const time = now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
+  await prisma.posTransaction.create({
+    data: {
+      date: today,
+      time,
+      clientName: params.clientName,
+      items: [`Regalo pacchetto: ${params.packageName} — ${params.giftedAmount.toFixed(2).replace('.', ',')} € omaggio`],
+      total: 0,
+      paymentMethod: 'Regalo',
+      operator: params.operator,
+      isRefund: false,
+    },
+  });
+}
+
 export async function getPackages() {
   const packages = await prisma.package.findMany({ orderBy: { name: 'asc' } });
   return packages as unknown as PackageItem[];
@@ -126,13 +154,14 @@ export async function activatePackage(
 /**
  * Regalo: il residuo viene condonato alla cliente.
  *
- * Non è un incasso, quindi non tocca `totalPaid` e non crea nessuna riga in
- * cassa: cala il prezzo del pacchetto, così il dovuto va a zero e i conti del
- * centro continuano a dire la verità su quanto è entrato davvero.
- * Nello storico resta la riga "Regalo" con l'importo condonato e chi l'ha fatto.
+ * Non è un incasso, quindi non tocca `totalPaid`: cala il prezzo del pacchetto,
+ * così il dovuto va a zero e i conti del centro continuano a dire la verità su
+ * quanto è entrato davvero. Nello storico del pacchetto resta la riga "Regalo"
+ * con l'importo condonato e chi l'ha fatto, e in cassa compare una riga da zero
+ * euro per sapere che quel pacchetto è stato regalato.
  */
 async function giftBalance(
-  cp: { id: string; pricePaid: number; totalPaid: number; remainingBalance: number; paymentPlan: string; payments: unknown },
+  cp: { id: string; clientName: string; packageName: string; pricePaid: number; totalPaid: number; remainingBalance: number; paymentPlan: string; payments: unknown },
   amount: number, operator: string, note?: string,
 ) {
   const today = new Date().toISOString().split('T')[0];
@@ -153,6 +182,15 @@ async function giftBalance(
       ])),
     },
   });
+
+  // Traccia in cassa: importo zero, non sposta l'incasso
+  await recordPosGift({
+    clientName: cp.clientName,
+    giftedAmount: gifted,
+    operator,
+    packageName: cp.packageName,
+  });
+
   return toClientPackage(updated);
 }
 

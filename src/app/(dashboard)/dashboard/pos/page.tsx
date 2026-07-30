@@ -8,7 +8,7 @@ import { Suspense } from 'react';
 import {
   CreditCard, Receipt, Calculator,
   Banknote, ArrowRight, Plus, X, CheckCircle,
-  Trash2, Search, Smartphone, Lock, Vault, ArrowDownToLine, Printer,
+  Trash2, Search, Smartphone, Lock, Vault, ArrowDownToLine, Printer, Gift,
 } from 'lucide-react';
 import { getCassaforte, closeCassa, withdrawCassa, CassaMovementRecord } from '@/app/actions/cassaforte';
 import { printThermalReceipt, primeVatRate } from '@/lib/printReceipt';
@@ -708,10 +708,13 @@ function POSPageInner() {
           <h3 className="text-base font-display font-semibold text-text-primary">Ultime Transazioni</h3>
         </div>
         <div className="divide-y divide-border/30">
-          {transactions.map(tx => (
-            <div key={tx.id} className={`flex items-center gap-4 px-5 py-3.5 hover:bg-bg-hover transition-colors group ${tx.total < 0 ? 'bg-error/[0.03]' : ''}`}>
+          {transactions.map(tx => {
+            // Regalo: sta in elenco per sapere che è successo, ma non è un incasso
+            const isGift = tx.method === 'Regalo';
+            return (
+            <div key={tx.id} className={`flex items-center gap-4 px-5 py-3.5 hover:bg-bg-hover transition-colors group ${tx.total < 0 ? 'bg-error/[0.03]' : isGift ? 'bg-accent/[0.03]' : ''}`}>
               <div className={`p-2 rounded-lg ${tx.total < 0 ? 'bg-error/10 text-error' : 'bg-accent/10 text-accent'}`}>
-                {tx.total < 0 ? <Banknote className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
+                {tx.total < 0 ? <Banknote className="w-4 h-4" /> : isGift ? <Gift className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-text-primary">{tx.client}</p>
@@ -727,16 +730,19 @@ function POSPageInner() {
               </div>
               <div className="hidden sm:block text-right"><p className="text-xs text-text-muted">{tx.operator}</p></div>
               <div className="text-right">
-                <p className={`text-sm font-semibold ${tx.total < 0 ? 'text-error' : 'text-text-primary'}`}>{tx.total < 0 ? '-' : ''}{formatCurrency(Math.abs(tx.total))}</p>
-                <p className="text-[11px] text-text-muted">{tx.method} • {tx.time}</p>
+                <p className={`text-sm font-semibold ${tx.total < 0 ? 'text-error' : isGift ? 'text-accent' : 'text-text-primary'}`}>
+                  {isGift ? 'Regalo' : `${tx.total < 0 ? '-' : ''}${formatCurrency(Math.abs(tx.total))}`}
+                </p>
+                <p className="text-[11px] text-text-muted">{isGift ? 'nessun incasso' : tx.method} • {tx.time}</p>
               </div>
-              <button onClick={() => { if (window.confirm(`Eliminare questa transazione di ${formatCurrency(Math.abs(tx.total))} (${tx.client})? L'incasso verrà ricalcolato.`)) removeTransaction(tx.id); }}
+              <button onClick={() => { if (window.confirm(isGift ? `Eliminare questa riga di regalo (${tx.client})? Il pacchetto resta regalato: sparisce solo la traccia in cassa.` : `Eliminare questa transazione di ${formatCurrency(Math.abs(tx.total))} (${tx.client})? L'incasso verrà ricalcolato.`)) removeTransaction(tx.id); }}
                 title="Elimina transazione"
                 className="p-2 rounded-lg text-text-muted hover:text-error hover:bg-error/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0">
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
-          ))}
+            );
+          })}
           {transactions.length === 0 && (
             <div className="text-center py-10"><p className="text-text-muted">Nessuna transazione</p></div>
           )}
