@@ -138,6 +138,15 @@ export async function getIncomeSummary(from: string, to: string): Promise<Income
   };
 }
 
+/** Tutte le vendite di una singola data, in ordine di orario: il dettaglio dietro al riepilogo. */
+export async function getTransactionsByDate(date: string): Promise<TransactionRecord[]> {
+  const transactions = await prisma.posTransaction.findMany({
+    where: { date },
+    orderBy: { time: 'asc' },
+  });
+  return transactions.map(toTransactionRecord);
+}
+
 export async function deleteTransaction(id: string) {
   // Ricarica le giacenze dei prodotti prima di cancellare la transazione
   const tx = await prisma.posTransaction.findUnique({ where: { id } });

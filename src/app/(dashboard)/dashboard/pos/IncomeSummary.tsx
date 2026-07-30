@@ -10,8 +10,9 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Banknote, CreditCard, ChevronLeft, ChevronRight, Loader2, Wallet, Smartphone } from 'lucide-react';
-import { getIncomeSummary, type IncomeSummary as Summary } from '@/app/actions/pos';
+import { createPortal } from 'react-dom';
+import { Banknote, CreditCard, ChevronLeft, ChevronRight, Loader2, Wallet, Smartphone, X, Gift } from 'lucide-react';
+import { getIncomeSummary, getTransactionsByDate, type IncomeSummary as Summary, type TransactionRecord } from '@/app/actions/pos';
 import { formatCurrency } from '@/lib/helpers';
 import { todayRome } from '@/lib/date';
 
@@ -67,6 +68,15 @@ export default function IncomeSummary() {
   const [to, setTo] = useState(() => todayRome());
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
+  // Dettaglio di una giornata: si apre cliccando la riga della data
+  const [openDay, setOpenDay] = useState<string | null>(null);
+  const [dayTxs, setDayTxs] = useState<TransactionRecord[] | null>(null);
+
+  const apriGiorno = useCallback((giorno: string) => {
+    setOpenDay(giorno);
+    setDayTxs(null);
+    getTransactionsByDate(giorno).then(setDayTxs).catch(() => setDayTxs([]));
+  }, []);
 
   const applica = useCallback((m: Mode, giorno: string) => {
     setMode(m);
@@ -194,9 +204,10 @@ export default function IncomeSummary() {
             {(data?.days ?? []).map(d => {
               const g = parse(d.date);
               return (
-                <tr key={d.date} className="border-b border-border/30 hover:bg-bg-hover transition-colors">
+                <tr key={d.date} onClick={() => apriGiorno(d.date)} title="Apri il dettaglio della giornata"
+                  className="border-b border-border/30 hover:bg-bg-hover transition-colors cursor-pointer">
                   <td className="px-5 py-2.5">
-                    <span className="text-text-primary">{GIORNI[g.getDay()]} {g.getDate()}/{g.getMonth() + 1}</span>
+                    <span className="text-text-primary underline decoration-dotted decoration-text-muted/40 underline-offset-4">{GIORNI[g.getDay()]} {g.getDate()}/{g.getMonth() + 1}</span>
                     <span className="text-[10px] text-text-muted ml-2">{d.vendite} vend.</span>
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-text-primary">{formatCurrency(d.contanti)}</td>
@@ -212,6 +223,114 @@ export default function IncomeSummary() {
           </tbody>
         </table>
       </div>
+
+      {openDay && (
+        <DayDetail date={openDay} txs={dayTxs} onClose={() => { setOpenDay(null); setDayTxs(null); }} />
+      )}
     </div>
+  );
+}
+
+/* ========== DETTAGLIO DI UNA GIORNATA ========== */
+
+/** A quale colonna appartiene la vendita: serve anche nel dettaglio, non solo nei totali. */
+function metodoLabel(method: string): { testo: string; classe: string } {
+  const m = String(method || '');
+  if (/regalo/i.test(m)) return { testo: 'Regalo', classe: 'text-accent' };
+  if (/misto/i.test(m)) return { testo: m, classe: 'text-warning' };
+  if (/contant|cash/i.test(m)) return { testo: 'Contanti', classe: 'text-success' };
+  if (/carta|pos|bancomat/i.test(m)) return { testo: 'POS / Carta', classe: 'text-accent' };
+  return { testo: m || '—', classe: 'text-text-muted' };
+}
+
+function DayDetail({ date, txs, onClose }: { date: string; txs: TransactionRecord[] | null; onClose: () => void }) {
+  const g = parse(date);
+  const titolo = g.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  // Totali ricalcolati sulle righe mostrate, così quello che si legge torna con l'elenco
+  const tot = (txs ?? []).reduce((acc, t) => {
+    const m = String(t.method || '');
+    if (/misto/i.test(m)) {
+      const n = [...m.matchAll(/€\s*([\d.,]+)/g)].map(x => Number(x[1].replace(/\./g, '').replace(',', '.')) || 0);
+      const [c = 0, k = 0] = n;
+      const somma = c + k;
+      if (somma > 0) { acc.contanti += (c / somma) * t.total; acc.carta += (k / somma) * t.total; }
+      else acc.contanti += t.total;
+    } else if (/contant|cash/i.test(m)) acc.contanti += t.total;
+    else if (/carta|pos|bancomat/i.test(m)) acc.carta += t.total;
+    else acc.altro += t.total;
+    acc.totale += t.total;
+    return acc;
+  }, { contanti: 0, carta: 0, altro: 0, totale: 0 });
+
+  // Fuori dalla pagina (portale su body): le animazioni della schermata cassa
+  // creano un contesto che sballerebbe il posizionamento fisso del popup.
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-2xl max-h-[85vh] flex flex-col bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden">
+        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border">
+          <div>
+            <h3 className="text-base font-display font-semibold text-text-primary capitalize">{titolo}</h3>
+            <p className="text-xs text-text-muted">
+              {txs === null ? 'carico…' : `${txs.filter(t => t.total > 0).length} vendite`}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="grid grid-cols-4 gap-px bg-border/60 flex-shrink-0">
+          <div className="bg-bg-secondary px-4 py-3">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Contanti</p>
+            <p className="text-sm font-bold text-text-primary">{formatCurrency(tot.contanti)}</p>
+          </div>
+          <div className="bg-bg-secondary px-4 py-3">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">POS / Carta</p>
+            <p className="text-sm font-bold text-text-primary">{formatCurrency(tot.carta)}</p>
+          </div>
+          <div className="bg-bg-secondary px-4 py-3">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Altro</p>
+            <p className="text-sm font-bold text-text-primary">{formatCurrency(tot.altro)}</p>
+          </div>
+          <div className="bg-bg-secondary px-4 py-3">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Totale</p>
+            <p className="text-sm font-bold text-accent">{formatCurrency(tot.totale)}</p>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto divide-y divide-border/30">
+          {txs === null && (
+            <p className="flex items-center justify-center gap-2 py-10 text-sm text-text-muted"><Loader2 className="w-4 h-4 animate-spin" /> carico il dettaglio…</p>
+          )}
+          {txs?.length === 0 && (
+            <p className="py-10 text-center text-sm text-text-muted">Nessuna vendita in questa giornata</p>
+          )}
+          {txs?.map(t => {
+            const m = metodoLabel(t.method);
+            const regalo = /regalo/i.test(t.method || '');
+            const reso = t.total < 0;
+            return (
+              <div key={t.id} className="flex items-center gap-3 px-5 py-3 hover:bg-bg-hover transition-colors">
+                <span className="text-[11px] tabular-nums text-text-muted w-11 flex-shrink-0">{t.time}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-text-primary truncate">{t.client || 'Cliente occasionale'}</p>
+                  <p className="text-xs text-text-secondary truncate">{t.items}</p>
+                  {t.operator && <p className="text-[10px] text-text-muted truncate">{t.operator}</p>}
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className={`text-sm font-semibold ${reso ? 'text-error' : regalo ? 'text-accent' : 'text-text-primary'}`}>
+                    {regalo ? <span className="flex items-center gap-1"><Gift className="w-3.5 h-3.5" /> Regalo</span> : formatCurrency(t.total)}
+                  </p>
+                  <p className={`text-[10px] ${m.classe}`}>{regalo ? 'nessun incasso' : m.testo}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
