@@ -4,19 +4,49 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Timer, BellRing, BellOff, ChevronDown, ChevronUp, AlarmClockCheck, X } from 'lucide-react';
+import { Timer, BellRing, BellOff, ChevronDown, ChevronUp, AlarmClockCheck, X, Volume2, VolumeX } from 'lucide-react';
 import { useAgendaStore } from '@/stores/useAgendaStore';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { formatCountdown, countdownTone, runningTreatments } from '@/lib/cabinTimer';
 import type { Appointment } from '@/types';
 
 const ALERTED_KEY = 'revo_cabin_alerted';
+const VOICE_KEY = 'revo_cabin_voce';
 // Non avvisare per trattamenti finiti da molto (es. gestionale riaperto il giorno dopo)
 const MAX_LATE_ALERT_MS = 30 * 60_000;
+// Il bip dura poco più di un secondo: la voce parte dopo, altrimenti si accavallano.
+const VOICE_DELAY_MS = 1400;
 
 function loadAlerted(): string[] {
   try { return JSON.parse(localStorage.getItem(ALERTED_KEY) || '[]'); } catch { return []; }
 }
+function loadVoiceOn(): boolean {
+  try { return localStorage.getItem(VOICE_KEY) !== 'off'; } catch { return true; }
+}
+function saveVoiceOn(on: boolean) {
+  try { localStorage.setItem(VOICE_KEY, on ? 'on' : 'off'); } catch { /* no-op */ }
+}
+
+/**
+ * Annuncio a voce con la sintesi vocale del browser (nessun file audio, nessun
+ * servizio esterno). Da dietro il bancone il bip da solo non dice chi ha finito:
+ * il nome pronunciato evita di dover guardare lo schermo.
+ */
+function speak(text: string) {
+  try {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'it-IT';
+    u.rate = 0.95;
+    // Se l'elenco voci è già pronto scegliamo quella italiana; se è ancora vuoto
+    // (succede al primo annuncio su Chrome) ci pensa `lang` a farne scegliere una.
+    const italiana = synth.getVoices().find(v => v.lang?.toLowerCase().startsWith('it'));
+    if (italiana) u.voice = italiana;
+    synth.speak(u);
+  } catch { /* sintesi vocale non disponibile */ }
+}
+
 function saveAlerted(ids: string[]) {
   try { localStorage.setItem(ALERTED_KEY, JSON.stringify(ids.slice(-50))); } catch { /* no-op */ }
 }
@@ -57,11 +87,16 @@ export default function CabinTimers() {
   const [collapsed, setCollapsed] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('unsupported');
   const [finished, setFinished] = useState<Appointment[]>([]);
+  const [voiceOn, setVoiceOn] = useState(true);
   const alertedRef = useRef<string[]>([]);
+  // L'effect dell'avviso legge la preferenza senza doverla avere fra le dipendenze
+  const voiceOnRef = useRef(true);
+  voiceOnRef.current = voiceOn;
 
   useEffect(() => {
     setMounted(true);
     alertedRef.current = loadAlerted();
+    setVoiceOn(loadVoiceOn());
     if (typeof Notification !== 'undefined') setPermission(Notification.permission);
   }, []);
 
@@ -89,6 +124,13 @@ export default function CabinTimers() {
     saveAlerted(alertedRef.current);
     setFinished(prev => [...prev, ...scaduti.map(s => ({ ...s.appt, treatmentName: s.label }))]);
     playBeep();
+
+    // Dopo il bip, la voce dice chi ha finito. Più clienti insieme: la sintesi
+    // vocale mette in coda gli annunci da sola, uno dietro l'altro.
+    if (voiceOnRef.current) {
+      const nomi = scaduti.map(s => s.appt.clientName).filter(Boolean);
+      setTimeout(() => nomi.forEach(n => speak(`${n} ha finito il trattamento`)), VOICE_DELAY_MS);
+    }
 
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       scaduti.forEach(({ appt, label }) => {
@@ -143,6 +185,16 @@ export default function CabinTimers() {
                   </div>
                 );
               })}
+
+              {/* Annuncio vocale: si può spegnere, la preferenza resta su questo dispositivo */}
+              <button onClick={() => { const on = !voiceOn; setVoiceOn(on); saveVoiceOn(on); if (on) speak('Annuncio vocale attivo'); }}
+                title={voiceOn ? 'A fine trattamento la voce dice il nome della cliente' : 'Solo bip, senza voce'}
+                className={`w-full flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-[11px] font-semibold transition-colors ${
+                  voiceOn ? 'bg-accent/10 text-accent hover:bg-accent/20' : 'bg-bg-tertiary text-text-muted hover:bg-bg-hover'
+                }`}>
+                {voiceOn ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                {voiceOn ? 'Voce attiva' : 'Voce spenta'}
+              </button>
 
               {permission === 'default' && (
                 <button onClick={askPermission}
