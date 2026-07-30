@@ -15,6 +15,7 @@ import { withdrawCassa } from '@/app/actions/cassaforte';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { formatCurrency } from '@/lib/helpers';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
+import CassaTabs from '@/components/CassaTabs';
 
 const IN_CATS = ['fondo', 'entrata', 'altro'];
 const OUT_CATS = ['spesa', 'prelievo', 'altro'];
@@ -142,6 +143,7 @@ export default function CassaContantiPage() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+      <CassaTabs />
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-display font-bold text-text-primary">Cassa Contanti</h2>

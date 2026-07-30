@@ -6,10 +6,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useUIStore } from '@/stores/useUIStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRolesStore } from '@/stores/useRolesStore';
-import { mockLocations, mockNotifications } from '@/lib/mock-data';
+import { mockNotifications } from '@/lib/mock-data';
 import {
   Search, Bell, Menu, ChevronDown,
-  MapPin, Command, LogOut, User as UserIcon, BookUser
+  Command, LogOut, User as UserIcon, BookUser, CheckSquare
 } from 'lucide-react';
 import { getInitials, getRelativeTime } from '@/lib/helpers';
 import ClientChat from '@/components/chat/ClientChat';
@@ -33,11 +33,10 @@ const pageTitles: Record<string, string> = {
 export default function Topbar() {
   const pathname = usePathname();
   const { setSidebarMobileOpen, setCommandPaletteOpen, sidebarCollapsed } = useUIStore();
-  const { user, currentLocationId, setCurrentLocation, logout } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const roles = useRolesStore(s => s.roles);
   const roleName = roles.find(r => r.id === user?.role)?.name ?? user?.role;
   const [showNotifications, setShowNotifications] = React.useState(false);
-  const [showLocationPicker, setShowLocationPicker] = React.useState(false);
   const [showUserMenu, setShowUserMenu] = React.useState(false);
   const [showRubrica, setShowRubrica] = React.useState(false);
   const router = useRouter();
@@ -47,7 +46,6 @@ export default function Topbar() {
     window.location.href = '/login';
   };
 
-  const currentLocation = mockLocations.find(l => l.id === currentLocationId);
   const unreadCount = mockNotifications.filter(n => !n.isRead).length;
   const pageTitle = pageTitles[pathname || ''] || 'Revobeauty';
 
@@ -94,6 +92,21 @@ export default function Topbar() {
           <Search className="w-5 h-5" />
         </button>
 
+        {/* To-Do: sta qui e non nel menu perché è una cosa che si apre di
+            continuo mentre si lavora su altre schermate */}
+        <button
+          onClick={() => router.push('/dashboard/todo')}
+          title="To-Do"
+          className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-sm font-medium transition-all duration-200 ${
+            pathname === '/dashboard/todo'
+              ? 'bg-accent/10 border-accent/30 text-accent'
+              : 'bg-bg-tertiary border-border text-text-secondary hover:border-accent hover:text-accent'
+          }`}
+        >
+          <CheckSquare className="w-4.5 h-4.5" />
+          <span className="hidden lg:inline">To-Do</span>
+        </button>
+
         {/* Rubrica contatti (commercialista, programmatore, fornitori...) */}
         <button
           onClick={() => setShowRubrica(true)}
@@ -103,57 +116,6 @@ export default function Topbar() {
           <BookUser className="w-4.5 h-4.5" />
           <span className="hidden lg:inline">Rubrica</span>
         </button>
-
-        {/* Location Picker */}
-        <div className="relative">
-          <button
-            onClick={() => setShowLocationPicker(!showLocationPicker)}
-            className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-bg-hover text-text-secondary transition-colors"
-          >
-            <MapPin className="w-4 h-4 text-accent" />
-            <span className="text-sm font-medium">{currentLocation?.name}</span>
-            <ChevronDown className="w-3.5 h-3.5" />
-          </button>
-
-          <AnimatePresence>
-            {showLocationPicker && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowLocationPicker(false)} />
-                <motion.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  className="absolute right-0 top-12 w-64 bg-bg-secondary border border-border rounded-2xl shadow-xl z-50 overflow-hidden"
-                >
-                  <div className="p-2">
-                    <p className="px-3 py-2 text-xs font-semibold text-text-muted uppercase tracking-wider">
-                      Seleziona Sede
-                    </p>
-                    {mockLocations.map((loc) => (
-                      <button
-                        key={loc.id}
-                        onClick={() => {
-                          setCurrentLocation(loc.id);
-                          setShowLocationPicker(false);
-                        }}
-                        className={`
-                          w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors
-                          ${loc.id === currentLocationId ? 'bg-accent/10 text-accent' : 'hover:bg-bg-hover text-text-primary'}
-                        `}
-                      >
-                        <MapPin className="w-4 h-4 flex-shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium">{loc.name}</p>
-                          <p className="text-xs text-text-muted">{loc.address}, {loc.city}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>
-        </div>
 
         {/* Notifications */}
         <div className="relative">

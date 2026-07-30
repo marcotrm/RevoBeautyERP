@@ -13,6 +13,7 @@ import {
 import { getCassaforte, closeCassa, withdrawCassa, CassaMovementRecord } from '@/app/actions/cassaforte';
 import { printThermalReceipt, primeVatRate } from '@/lib/printReceipt';
 import IncomeSummary from './IncomeSummary';
+import CassaTabs from '@/components/CassaTabs';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { useClientStore } from '@/stores/useClientStore';
 import { formatCurrency } from '@/lib/helpers';
@@ -661,6 +662,7 @@ function POSPageInner() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+      <CassaTabs />
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-display font-bold text-text-primary">Punto Cassa</h2>

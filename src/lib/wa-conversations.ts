@@ -35,6 +35,11 @@ export interface WaMessageRow {
   /** Solo in uscita: se l'invio a 360dialog è andato a buon fine. */
   ok?: boolean;
   error?: string;
+  /**
+   * Solo in uscita: dove è arrivato il messaggio secondo WhatsApp.
+   * sent = partito, delivered = sul telefono, read = letto dalla cliente.
+   */
+  deliveryStatus?: 'sent' | 'delivered' | 'read' | 'failed';
 }
 
 /** La finestra di servizio Meta: testo libero solo entro 24h dall'ultimo messaggio del cliente. */
@@ -301,10 +306,35 @@ export async function listUnreadChats(): Promise<WaUnreadChat[]> {
 /** Thread completo di un numero, dal più vecchio al più recente (ordine di lettura). */
 export async function listMessages(phone: string, limit = 200): Promise<WaMessageRow[]> {
   const messages = await recentMessages(600);
-  return messages
+  const thread = messages
     .filter(m => m.phone === phone)
     .slice(0, limit)
     .sort((a, b) => a.at.localeCompare(b.at));
+  return withDeliveryStatus(thread);
+}
+
+/**
+ * Attacca ai messaggi in uscita lo stato di consegna che WhatsApp ci ha
+ * rimandato via webhook (righe `wa_status`, una per messaggio, aggiornata a ogni
+ * passaggio: inviato → consegnato → letto). Senza questo in chat si vede solo
+ * che il messaggio è partito, non se la cliente l'ha davvero letto.
+ */
+async function withDeliveryStatus(rows: WaMessageRow[]): Promise<WaMessageRow[]> {
+  const ids = rows.filter(m => m.direction === 'out' && m.messageId).map(m => m.messageId as string);
+  if (ids.length === 0) return rows;
+
+  const statusRows = await prisma.adminEntry.findMany({
+    where: { rowId: { in: ids.map(id => `wa:status:${id}`) } },
+  });
+  const byId = new Map<string, WaMessageRow['deliveryStatus']>();
+  for (const r of statusRows) {
+    const d = (r.data || {}) as { messageId?: string; status?: string };
+    if (!d.messageId) continue;
+    const s = d.status;
+    if (s === 'sent' || s === 'delivered' || s === 'read' || s === 'failed') byId.set(d.messageId, s);
+  }
+
+  return rows.map(m => (m.messageId && byId.has(m.messageId) ? { ...m, deliveryStatus: byId.get(m.messageId) } : m));
 }
 
 /** Stato della finestra 24h per un singolo numero. */

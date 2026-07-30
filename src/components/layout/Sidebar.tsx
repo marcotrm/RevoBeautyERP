@@ -22,8 +22,8 @@ const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
   { id: 'agenda', label: 'Agenda', icon: Calendar, href: '/dashboard/agenda' },
   { id: 'clients', label: 'Clienti', icon: Users, href: '/dashboard/clients' },
+  // Cassa unica: vendite e contanti stanno nella stessa schermata, divisi in schede
   { id: 'pos', label: 'Cassa', icon: ShoppingBag, href: '/dashboard/pos', badge: 0 },
-  { id: 'cassa-contanti', label: 'Cassa Contanti', icon: Banknote, href: '/dashboard/cassa-contanti' },
   { id: 'scontrini', label: 'Scontrini Fiscali', icon: Receipt, href: '/dashboard/scontrini' },
   { id: 'packages', label: 'Trattamenti e Pacchetti', icon: Package, href: '/dashboard/packages' },
   { id: 'gift-cards', label: 'Buoni Regalo', icon: Gift, href: '/dashboard/packages/gift-cards' },
@@ -31,7 +31,6 @@ const menuItems = [
   { id: 'marketing', label: 'Marketing', icon: Megaphone, href: '/dashboard/marketing' },
   { id: 'reports', label: 'Report', icon: BarChart3, href: '/dashboard/reports' },
   { id: 'statistiche', label: 'Statistiche', icon: TrendingUp, href: '/dashboard/statistiche' },
-  { id: 'todo', label: 'To-Do', icon: CheckSquare, href: '/dashboard/todo' },
   { id: 'admin', label: 'Amministrazione', icon: Landmark, href: '/dashboard/admin' },
   { id: 'staff', label: 'Staff', icon: UserCog, href: '/dashboard/staff' },
   { id: 'settings', label: 'Impostazioni', icon: Settings, href: '/dashboard/settings' },

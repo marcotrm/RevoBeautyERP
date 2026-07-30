@@ -12,7 +12,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock } from 'lucide-react';
+import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck } from 'lucide-react';
 import { loadConversations, loadConversation, sendManualReply } from '@/app/actions/whatsapp';
 import { useWaInboxStore } from '@/stores/useWaInboxStore';
 // I tipi arrivano dalla libreria, non dal file di azioni: un 'use server' non
@@ -32,6 +32,36 @@ const SOURCE_META: Record<string, { label: string; icon: typeof Bot; cls: string
 
 function timeLabel(iso: string): string {
   return new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * Le spunte dei messaggi che mandiamo noi, come su WhatsApp: una spunta se è
+ * partito, due se è arrivato sul telefono, due azzurre quando la cliente l'ha
+ * aperto. Lo stato arriva dal webhook di WhatsApp, non lo decidiamo noi: se
+ * manca ancora (o la cliente ha spento le conferme di lettura) non si mostra nulla.
+ */
+function DeliveryMark({ status, direction }: { status?: WaMessageRow['deliveryStatus']; direction: 'in' | 'out' }) {
+  if (direction !== 'out' || !status) return null;
+  if (status === 'failed') return <span className="text-[10px] text-error">non consegnato</span>;
+  if (status === 'read') {
+    return (
+      <span className="flex items-center gap-0.5 text-[10px] text-sky-500 font-medium" title="La cliente ha letto il messaggio">
+        <CheckCheck className="w-3.5 h-3.5" /> visualizzato
+      </span>
+    );
+  }
+  if (status === 'delivered') {
+    return (
+      <span className="flex items-center gap-0.5 text-[10px] text-text-muted" title="Arrivato sul telefono della cliente">
+        <CheckCheck className="w-3.5 h-3.5" /> consegnato
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-0.5 text-[10px] text-text-muted/70" title="Partito, non ancora consegnato">
+      <Check className="w-3.5 h-3.5" /> inviato
+    </span>
+  );
 }
 
 export default function WhatsAppChat() {
@@ -196,8 +226,10 @@ export default function WhatsAppChat() {
                       <p className="text-sm text-text-primary whitespace-pre-line break-words">{m.text}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] text-text-muted/70">{timeLabel(m.at)}</span>
-                        {m.ok === false && (
+                        {m.ok === false ? (
                           <span className="text-[10px] text-error" title={m.error}>non consegnato</span>
+                        ) : (
+                          <DeliveryMark status={m.deliveryStatus} direction={m.direction} />
                         )}
                       </div>
                     </div>
