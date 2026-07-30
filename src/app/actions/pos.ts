@@ -55,6 +55,89 @@ export async function getTodayTransactions() {
   return transactions.map(toTransactionRecord);
 }
 
+// ============================================================
+// RIEPILOGO INCASSI PER PERIODO
+// ============================================================
+
+export interface DayIncome {
+  date: string;      // YYYY-MM-DD
+  contanti: number;  // entrati nel cassetto
+  carta: number;     // battuti sul POS
+  altro: number;     // Satispay, bonifici, buoni regalo
+  totale: number;
+  vendite: number;   // righe con importo positivo
+}
+
+export interface IncomeSummary {
+  days: DayIncome[];
+  contanti: number;
+  carta: number;
+  altro: number;
+  totale: number;
+  vendite: number;
+}
+
+/**
+ * Divide una transazione fra contante e POS.
+ *
+ * Il pagamento misto è salvato come "Misto (Contanti €30, Carta €20)": qui si
+ * rileggono i due importi, altrimenti l'intera vendita finirebbe da una parte
+ * sola e la chiusura di cassa non tornerebbe.
+ */
+function splitByMethod(method: string, total: number): { contanti: number; carta: number; altro: number } {
+  const m = String(method || '');
+  if (/misto/i.test(m)) {
+    const numeri = [...m.matchAll(/€\s*([\d.,]+)/g)].map(x => Number(x[1].replace(/\./g, '').replace(',', '.')) || 0);
+    const [contanti = 0, carta = 0] = numeri;
+    const somma = contanti + carta;
+    // Se il testo non si legge (formati vecchi) si tiene tutto sul contante,
+    // come faceva già la chiusura di cassa.
+    if (somma <= 0) return { contanti: total, carta: 0, altro: 0 };
+    // Riproporziona sui centesimi realmente incassati (resi compresi)
+    const k = total / somma;
+    return { contanti: contanti * k, carta: carta * k, altro: 0 };
+  }
+  if (/contant|cash/i.test(m)) return { contanti: total, carta: 0, altro: 0 };
+  if (/carta|pos|bancomat|credit/i.test(m)) return { contanti: 0, carta: total, altro: 0 };
+  return { contanti: 0, carta: 0, altro: total };
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Incassi giorno per giorno nel periodo scelto, divisi fra contanti, POS e altro. */
+export async function getIncomeSummary(from: string, to: string): Promise<IncomeSummary> {
+  const [start, end] = from <= to ? [from, to] : [to, from];
+  const txs = await prisma.posTransaction.findMany({
+    where: { date: { gte: start, lte: end } },
+    select: { date: true, total: true, paymentMethod: true },
+  });
+
+  const perDay = new Map<string, DayIncome>();
+  for (const t of txs) {
+    const q = splitByMethod(t.paymentMethod, t.total);
+    const d = perDay.get(t.date) ?? { date: t.date, contanti: 0, carta: 0, altro: 0, totale: 0, vendite: 0 };
+    d.contanti += q.contanti;
+    d.carta += q.carta;
+    d.altro += q.altro;
+    d.totale += t.total;
+    if (t.total > 0) d.vendite += 1;
+    perDay.set(t.date, d);
+  }
+
+  const days = [...perDay.values()]
+    .map(d => ({ ...d, contanti: round2(d.contanti), carta: round2(d.carta), altro: round2(d.altro), totale: round2(d.totale) }))
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+
+  return {
+    days,
+    contanti: round2(days.reduce((s, d) => s + d.contanti, 0)),
+    carta: round2(days.reduce((s, d) => s + d.carta, 0)),
+    altro: round2(days.reduce((s, d) => s + d.altro, 0)),
+    totale: round2(days.reduce((s, d) => s + d.totale, 0)),
+    vendite: days.reduce((s, d) => s + d.vendite, 0),
+  };
+}
+
 export async function deleteTransaction(id: string) {
   // Ricarica le giacenze dei prodotti prima di cancellare la transazione
   const tx = await prisma.posTransaction.findUnique({ where: { id } });

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { getCassaforte, closeCassa, withdrawCassa, CassaMovementRecord } from '@/app/actions/cassaforte';
 import { printThermalReceipt, primeVatRate } from '@/lib/printReceipt';
+import IncomeSummary from './IncomeSummary';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { useClientStore } from '@/stores/useClientStore';
 import { formatCurrency } from '@/lib/helpers';
@@ -701,6 +702,9 @@ function POSPageInner() {
         <div className="bg-bg-secondary border border-border rounded-2xl p-5"><p className="text-sm text-text-secondary">Scontrino Medio</p><p className="text-2xl font-display font-bold text-text-primary mt-1">{formatCurrency(Math.round(todayTotal / Math.max(transactions.filter(t => t.total > 0).length, 1)))}</p></div>
         <div className="bg-bg-secondary border border-border rounded-2xl p-5"><p className="text-sm text-text-secondary">Cassa Aperta</p><p className="text-2xl font-display font-bold text-accent mt-1">Attiva</p><p className="text-xs text-text-muted mt-1">dalle 08:55</p></div>
       </div>
+
+      {/* Incassi per periodo: giorno, settimana, mese o intervallo, divisi per metodo */}
+      <IncomeSummary />
 
       {/* Recent Transactions */}
       <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
