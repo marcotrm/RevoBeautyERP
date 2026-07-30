@@ -1147,6 +1147,11 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   // avviso quando dal nome del pacchetto non si capisce il trattamento
   const [pkgHint, setPkgHint] = useState('');
 
+  // Riempie il modale SOLO all'apertura (o al cambio di appuntamento/slot).
+  // Attenzione: qui dentro non vanno messe in dipendenza liste che arrivano dal
+  // server (operatrici, clienti, trattamenti): l'auto-aggiornamento dell'agenda
+  // le ricarica ogni 20 secondi con un nuovo array e l'effect ripartirebbe,
+  // svuotando il modulo mentre lo si sta compilando.
   useEffect(() => {
     if (isAppointmentModalOpen) {
       if (editingAppointment) {
@@ -1198,7 +1203,18 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
         setGender('female');
       }
     }
-  }, [isAppointmentModalOpen, editingAppointment, slotInfo, operators]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAppointmentModalOpen, editingAppointment, slotInfo]);
+
+  // Se le operatrici arrivano dopo l'apertura del modale, sceglie comunque un
+  // default — ma tocca solo questo campo, non azzera quello che si è già scritto.
+  useEffect(() => {
+    if (!isAppointmentModalOpen || editingAppointment || selectedOperatorId) return;
+    const firstWorking = operators.find(o => !o.isResource && operatorWorksOn(o, selectedDate, apptWeekMap))
+      || operators.find(o => !o.isResource) || operators[0];
+    if (firstWorking) setSelectedOperatorId(firstWorking.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAppointmentModalOpen, editingAppointment, selectedOperatorId, operators]);
 
   const allClients = useClientStore(s => s.clients);
   const filteredClients = useMemo(() => {
