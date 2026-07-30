@@ -16,6 +16,21 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.3 } }
 };
 
+/**
+ * Legge l'importo com'è stato scritto davvero: "150", "150 euro", "12,50 €",
+ * "€ 12.50". Prima il campo era di tipo numerico e buttava via tutto quello che
+ * non era una cifra — chi scriveva "150 euro" si ritrovava il tasto Salva
+ * spento senza capire perché.
+ */
+function parseAmount(raw: string): number {
+  const cleaned = String(raw)
+    .replace(/[^\d.,-]/g, '')   // via simboli, spazi e parole tipo "euro"
+    .replace(/\.(?=\d{3}\b)/g, '') // 1.250 -> 1250 (punto come separatore migliaia)
+    .replace(',', '.');          // virgola decimale italiana
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function PartnerExpensesPage() {
   const { expenses, addExpense, deleteExpense, clearExpenses, fetchExpenses } = usePartnerExpenseStore();
   const [showAddModal, setShowAddModal] = useState(false);
@@ -65,11 +80,14 @@ export default function PartnerExpensesPage() {
     };
   }, [expenses]);
 
+  const parsedAmount = parseAmount(amount);
+  const canSave = parsedAmount > 0 && description.trim().length > 0;
+
   const handleSave = () => {
-    if (!amount || isNaN(Number(amount)) || !description) return;
+    if (!canSave) return;
     addExpense({
       partner,
-      amount: Number(amount),
+      amount: parsedAmount,
       description,
       date,
     });
@@ -214,8 +232,15 @@ export default function PartnerExpensesPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-text-secondary mb-1.5">Importo Speso (€)</label>
-                    <input type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00"
+                    <input type="text" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="es. 150 oppure 12,50"
                       className="w-full px-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50" />
+                    {amount.trim() !== '' && (
+                      <p className={`text-[11px] mt-1 ${parsedAmount > 0 ? 'text-success' : 'text-error'}`}>
+                        {parsedAmount > 0
+                          ? `Verrà registrato: ${formatCurrency(parsedAmount)}`
+                          : 'Non riesco a leggere l\'importo: scrivi solo la cifra, es. 150 o 12,50'}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -235,9 +260,15 @@ export default function PartnerExpensesPage() {
 
                 </div>
                 <div className="p-6 border-t border-border bg-bg-tertiary/30 flex-shrink-0">
-                  <button onClick={handleSave} disabled={!amount || !description} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl gradient-accent text-white text-sm font-bold shadow-lg shadow-accent/20 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                  <button onClick={handleSave} disabled={!canSave} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl gradient-accent text-white text-sm font-bold shadow-lg shadow-accent/20 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                     <CheckCircle className="w-5 h-5" /> Salva Spesa
                   </button>
+                  {/* Tasto spento: qui c'è scritto cosa manca, invece di lasciarlo grigio e muto */}
+                  {!canSave && (
+                    <p className="text-[11px] text-text-muted text-center mt-2">
+                      {parsedAmount <= 0 ? 'Scrivi quanto hai speso' : 'Scrivi una descrizione della spesa'}
+                    </p>
+                  )}
                 </div>
               </div>
             </motion.div>
