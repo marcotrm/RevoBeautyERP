@@ -14,7 +14,7 @@ import { Appointment, AppointmentService, AgendaBlock, Operator, Treatment } fro
 import {
   ChevronLeft, ChevronRight, ChevronDown, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
-  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone, Sun
+  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone, Sun, MessageSquare
 } from 'lucide-react';
 import {
   formatDateLong, timeToMinutes, minutesToTime, getStatusLabel,
@@ -25,6 +25,7 @@ import { GIFT_OPTIONS, isGiftPackage } from '@/lib/giftOptions';
 import { changeGiftTreatment } from '@/app/actions/packages';
 import { type WeekScheduleMap } from '@/app/actions/weekShifts';
 import { resolveDaySchedule, mondayISO } from '@/lib/weekSchedule';
+import { isWalkIn } from '@/lib/walkIn';
 import { useWeekShiftsStore } from '@/stores/useWeekShiftsStore';
 import CabinCountdown from '@/components/CabinCountdown';
 import WaitlistModal from '@/components/WaitlistModal';
@@ -1614,6 +1615,15 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/5 border border-accent/10">
                 <Clock className="w-4 h-4 text-accent" />
                 <span className="text-sm text-text-secondary">Fine prevista: <strong className="text-text-primary">{endTime}</strong> ({totalDuration} min) • <strong className="text-text-primary">{formatCurrency(totalPrice)}</strong></span>
+              </div>
+            )}
+            {/* Cliente già in negozio: la conferma WhatsApp non parte, meglio dirlo prima */}
+            {!editingAppointment && isWalkIn(apptDate, startTime) && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-bg-tertiary border border-border/60">
+                <MessageSquare className="w-4 h-4 text-text-muted flex-shrink-0 mt-0.5" />
+                <span className="text-[11px] text-text-secondary leading-relaxed">
+                  La cliente è già qui: niente messaggio di conferma su WhatsApp.
+                </span>
               </div>
             )}
             {isOccupied && !editingAppointment && (

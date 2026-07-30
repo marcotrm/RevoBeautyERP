@@ -16,6 +16,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { todayRome } from '@/lib/date';
+import { isWalkIn } from '@/lib/walkIn';
 import { sendTelegram } from '@/lib/telegram';
 import { sendWhatsAppTemplate, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
 import { sanitizeParam, WA_TEMPLATES } from '@/lib/wa-templates';
@@ -23,6 +24,7 @@ import { getWaAutomationsConfig } from '@/lib/wa-automations';
 
 /** Un appuntamento già passato o annullato non si conferma né si sposta. */
 const OPEN_STATUSES = ['confirmed', 'pending', 'scheduled', 'booked'];
+
 
 export type ReminderIntent = 'confirm' | 'reschedule' | null;
 
@@ -158,6 +160,8 @@ export async function sendAppointmentConfirmation(appointmentId: string): Promis
     });
     if (!appt) return { sent: false, reason: 'appuntamento non trovato' };
     if (!OPEN_STATUSES.includes(appt.status)) return { sent: false, reason: `stato ${appt.status}` };
+    // Cliente entrata e servita al momento: la conferma non ha senso, è già qui.
+    if (isWalkIn(appt.date, appt.startTime)) return { sent: false, reason: 'cliente già in negozio' };
 
     const phone = appt.client?.phone;
     if (!isSendablePhone(phone)) return { sent: false, reason: 'numero non valido' };
