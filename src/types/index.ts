@@ -221,6 +221,7 @@ export interface Appointment {
   cancelledAt?: string; // quando è stato annullato
   checkInAt?: string; // ISO — inizio trattamento in cabina (check-in)
   checkOutAt?: string; // ISO — fine trattamento in cabina (check-out)
+  cabinNumber?: string; // cabina scelta al check-in: è quella che l'annuncio vocale chiama
   isLocked: boolean;
   color: string;
   createdAt: string;

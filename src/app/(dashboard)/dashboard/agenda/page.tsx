@@ -55,6 +55,9 @@ function fmtDate(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+// Ultima cabina usata su questo dispositivo: la proponiamo già pronta al check-in
+const LAST_CABIN_KEY = 'revo_ultima_cabina';
+
 /* ========== APPOINTMENT BLOCK (Day View) ========== */
 // Verifica se un'operatrice lavora in una certa data, in base al turno settimanale
 // (schedule keyed 1=Lun .. 6=Sab; domenica salone chiuso).
@@ -1682,6 +1685,9 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   const [addingTreatment, setAddingTreatment] = useState(false);
   const [treatmentQuery, setTreatmentQuery] = useState('');
   const [busySvc, setBusySvc] = useState(false);
+  // Check-in: prima si sceglie la cabina, è quella che la voce chiamerà a fine trattamento
+  const [askingCabin, setAskingCabin] = useState(false);
+  const [cabin, setCabin] = useState('');
 
   // Elenco dei trattamenti dell'appuntamento (i vecchi ne hanno uno solo)
   const services: AppointmentService[] = useMemo(() => (
@@ -1716,9 +1722,19 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
 
   // Check-in unico per tutto l'appuntamento (non per singolo trattamento):
   // il timer conta la durata totale di tutti i trattamenti.
-  const doCheckIn = () => {
-    onStatusChange(appointment.id, 'in_cabin', { checkInAt: new Date().toISOString() });
+  // La cabina scelta qui è quella che l'annuncio vocale chiamerà a tempo scaduto.
+  const doCheckIn = (cabinNumber?: string) => {
+    const n = (cabinNumber ?? '').trim();
+    if (n) { try { localStorage.setItem(LAST_CABIN_KEY, n); } catch { /* no-op */ } }
+    onStatusChange(appointment.id, 'in_cabin', { checkInAt: new Date().toISOString(), cabinNumber: n || undefined });
     onClose();
+  };
+
+  const openCabinPicker = () => {
+    let last = '';
+    try { last = localStorage.getItem(LAST_CABIN_KEY) || ''; } catch { /* no-op */ }
+    setCabin(appointment.cabinNumber || last);
+    setAskingCabin(true);
   };
 
   const addTreatmentToAppointment = (t: Treatment) => {
@@ -2082,6 +2098,35 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
               </button>
             )}
 
+            {/* Scelta della cabina prima del check-in: è il nome che la voce
+                annuncerà a tempo scaduto ("Cabina 4 ha finito il trattamento") */}
+            {askingCabin && (
+              <div className="mt-3 p-3 rounded-xl bg-pink-500/5 border border-pink-500/20 space-y-2.5">
+                <p className="text-xs font-semibold text-text-primary">In quale cabina entra?</p>
+                <div className="grid grid-cols-6 gap-1.5">
+                  {['1', '2', '3', '4', '5', '6'].map(n => (
+                    <button key={n} onClick={() => setCabin(n)}
+                      className={`py-2 rounded-lg text-sm font-bold transition-colors ${cabin === n ? 'bg-accent text-white' : 'bg-bg-tertiary text-text-primary hover:bg-bg-hover'}`}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                <input type="text" value={cabin} onChange={e => setCabin(e.target.value)} {...NO_AUTOFILL}
+                  placeholder="oppure scrivi (es. 7, Sala Laser)"
+                  className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
+                <div className="flex gap-2">
+                  <button onClick={() => setAskingCabin(false)}
+                    className="flex-1 py-2 rounded-lg border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+                    Annulla
+                  </button>
+                  <button onClick={() => doCheckIn(cabin)}
+                    className="flex-1 py-2 rounded-lg gradient-accent text-white text-xs font-bold hover:opacity-90 transition-opacity">
+                    {cabin.trim() ? `Check-in in cabina ${cabin.trim()}` : 'Check-in senza cabina'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Status buttons */}
             <p className="text-xs text-text-muted pt-2 pb-1">Cambia stato:</p>
             <div className="grid grid-cols-2 gap-2">
@@ -2092,7 +2137,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 </button>
               ) : (
                 <>
-                  <button onClick={doCheckIn}
+                  <button onClick={openCabinPicker}
                     className="py-2.5 rounded-xl text-sm font-medium transition-colors bg-pink-500/10 text-pink-400 hover:bg-pink-500/20">
                     <span className="flex items-center justify-center gap-1.5"><Play className="w-3.5 h-3.5" /> Check-in</span>
                   </button>

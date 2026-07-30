@@ -258,6 +258,8 @@ model Appointment {
   cancelledAt       String?
   checkInAt         String?
   checkOutAt        String?
+  /** Cabina scelta al check-in ("4"): è quella che l'annuncio vocale chiama a fine trattamento. */
+  cabinNumber       String?
   isLocked          Boolean  @default(false)
   color             String
   createdAt         String

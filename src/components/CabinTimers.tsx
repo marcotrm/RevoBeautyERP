@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Timer, BellRing, BellOff, ChevronDown, ChevronUp, AlarmClockCheck, X, Volume2, VolumeX } from 'lucide-react';
 import { useAgendaStore } from '@/stores/useAgendaStore';
+import { useOperatorStore } from '@/stores/useOperatorStore';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { formatCountdown, countdownTone, runningTreatments } from '@/lib/cabinTimer';
-import type { Appointment } from '@/types';
+import type { Appointment, Operator } from '@/types';
 
 const ALERTED_KEY = 'revo_cabin_alerted';
 const VOICE_KEY = 'revo_cabin_voce';
@@ -32,10 +33,10 @@ function saveVoiceOn(on: boolean) {
  * servizio esterno). Da dietro il bancone il bip da solo non dice chi ha finito:
  * il nome pronunciato evita di dover guardare lo schermo.
  */
-function speak(text: string) {
+function speak(text: string, esito?: { ok: () => void; ko: () => void }) {
   try {
     const synth = window.speechSynthesis;
-    if (!synth) return;
+    if (!synth) return esito?.ko();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'it-IT';
     u.rate = 0.95;
@@ -43,8 +44,33 @@ function speak(text: string) {
     // (succede al primo annuncio su Chrome) ci pensa `lang` a farne scegliere una.
     const italiana = synth.getVoices().find(v => v.lang?.toLowerCase().startsWith('it'));
     if (italiana) u.voice = italiana;
+    if (esito) {
+      let risposto = false;
+      u.onstart = () => { risposto = true; esito.ok(); };
+      u.onerror = () => { risposto = true; esito.ko(); };
+      // Se il browser blocca l'audio non arriva né onstart né onerror: dopo
+      // qualche secondo di silenzio lo diamo per non funzionante.
+      setTimeout(() => { if (!risposto) esito.ko(); }, 3000);
+    }
     synth.speak(u);
-  } catch { /* sintesi vocale non disponibile */ }
+  } catch { esito?.ko(); }
+}
+
+/**
+ * Come chiamare il posto dove è finito il trattamento — a voce e a schermo.
+ *
+ * Prima di tutto la cabina scelta al check-in ("Cabina 4"): è quella che serve
+ * davvero per sapere dove andare. Se non è stata indicata si ripiega sulla
+ * cabina/risorsa dell'appuntamento, e in ultimo sul nome dell'operatrice.
+ * Mai il nome della cliente: non deve girare a voce per il salone.
+ */
+function cabinLabel(appt: { cabinNumber?: string; operatorId?: string; operatorName?: string }, operators: Operator[]): string {
+  const n = (appt.cabinNumber || '').trim();
+  // "4" diventa "Cabina 4"; se hanno scritto "Sala Laser" resta com'è
+  if (n) return /^\d+$/.test(n) ? `Cabina ${n}` : n;
+  const op = operators.find(o => o.id === appt.operatorId);
+  if (op?.isResource) return `${op.firstName} ${op.lastName}`.trim();
+  return op?.firstName || appt.operatorName || 'La cabina';
 }
 
 function saveAlerted(ids: string[]) {
@@ -81,6 +107,8 @@ export default function CabinTimers() {
   const router = useRouter();
   const appointments = useAgendaStore(s => s.appointments);
   const fetchAppointments = useAgendaStore(s => s.fetchAppointments);
+  const operators = useOperatorStore(s => s.operators);
+  const fetchOperators = useOperatorStore(s => s.fetchOperators);
 
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -88,10 +116,15 @@ export default function CabinTimers() {
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('unsupported');
   const [finished, setFinished] = useState<Appointment[]>([]);
   const [voiceOn, setVoiceOn] = useState(true);
+  // Esito della prova voce: serve a capire su quale computer l'audio è muto
+  const [voiceTest, setVoiceTest] = useState<'idle' | 'provo' | 'ok' | 'muta'>('idle');
   const alertedRef = useRef<string[]>([]);
-  // L'effect dell'avviso legge la preferenza senza doverla avere fra le dipendenze
+  // L'effect dell'avviso legge preferenza e operatrici senza doverle avere fra
+  // le dipendenze: si rilancerebbe a ogni ricarica dati senza motivo.
   const voiceOnRef = useRef(true);
   voiceOnRef.current = voiceOn;
+  const operatorsRef = useRef(operators);
+  operatorsRef.current = operators;
 
   useEffect(() => {
     setMounted(true);
@@ -101,7 +134,7 @@ export default function CabinTimers() {
   }, []);
 
   // I dati arrivano anche dagli altri dispositivi: check-in fatto dal tablet in cabina
-  useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
+  useEffect(() => { fetchAppointments(); fetchOperators(); }, [fetchAppointments, fetchOperators]);
   useAutoRefresh(useCallback(() => { fetchAppointments(); }, [fetchAppointments]), 30000);
 
   useEffect(() => {
@@ -125,11 +158,12 @@ export default function CabinTimers() {
     setFinished(prev => [...prev, ...scaduti.map(s => ({ ...s.appt, treatmentName: s.label }))]);
     playBeep();
 
-    // Dopo il bip, la voce dice chi ha finito. Più clienti insieme: la sintesi
-    // vocale mette in coda gli annunci da sola, uno dietro l'altro.
+    // Dopo il bip, la voce dice DOVE è finito il trattamento, non chi c'è dentro:
+    // il nome della cliente detto ad alta voce in mezzo al salone non va bene.
+    // Più trattamenti insieme: la sintesi vocale li mette in coda da sola.
     if (voiceOnRef.current) {
-      const nomi = scaduti.map(s => s.appt.clientName).filter(Boolean);
-      setTimeout(() => nomi.forEach(n => speak(`${n} ha finito il trattamento`)), VOICE_DELAY_MS);
+      const luoghi = scaduti.map(s => cabinLabel(s.appt, operatorsRef.current));
+      setTimeout(() => luoghi.forEach(l => speak(`${l} ha finito il trattamento`)), VOICE_DELAY_MS);
     }
 
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
@@ -174,7 +208,14 @@ export default function CabinTimers() {
                 const toneCls = tone === 'over' ? 'bg-error/15 text-error' : tone === 'soon' ? 'bg-warning/15 text-warning' : 'bg-success/15 text-success';
                 return (
                   <div key={`${appt.id}-${endAt}`} className="rounded-xl border border-border/60 bg-bg-tertiary/40 p-2.5">
-                    <p className="text-xs font-semibold text-text-primary truncate">{appt.clientName}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-semibold text-text-primary truncate flex-1">{appt.clientName}</p>
+                      {appt.cabinNumber && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-accent/15 text-accent flex-shrink-0">
+                          {cabinLabel(appt, operators)}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] text-text-secondary truncate">{label}</p>
                     <div className="flex items-center justify-between mt-1.5 gap-2">
                       <span className="text-[10px] text-text-muted truncate">{appt.operatorName}</span>
@@ -186,15 +227,30 @@ export default function CabinTimers() {
                 );
               })}
 
-              {/* Annuncio vocale: si può spegnere, la preferenza resta su questo dispositivo */}
-              <button onClick={() => { const on = !voiceOn; setVoiceOn(on); saveVoiceOn(on); if (on) speak('Annuncio vocale attivo'); }}
-                title={voiceOn ? 'A fine trattamento la voce dice il nome della cliente' : 'Solo bip, senza voce'}
-                className={`w-full flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-[11px] font-semibold transition-colors ${
-                  voiceOn ? 'bg-accent/10 text-accent hover:bg-accent/20' : 'bg-bg-tertiary text-text-muted hover:bg-bg-hover'
-                }`}>
-                {voiceOn ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-                {voiceOn ? 'Voce attiva' : 'Voce spenta'}
-              </button>
+              {/* Annuncio vocale: si può spegnere, la preferenza resta su questo dispositivo.
+                  Accanto la prova, per sapere subito se su QUESTO computer si sente. */}
+              <div className="flex gap-1.5">
+                <button onClick={() => { const on = !voiceOn; setVoiceOn(on); saveVoiceOn(on); setVoiceTest('idle'); }}
+                  title={voiceOn ? 'A fine trattamento la voce annuncia la cabina' : 'Solo bip, senza voce'}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-[11px] font-semibold transition-colors ${
+                    voiceOn ? 'bg-accent/10 text-accent hover:bg-accent/20' : 'bg-bg-tertiary text-text-muted hover:bg-bg-hover'
+                  }`}>
+                  {voiceOn ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                  {voiceOn ? 'Voce attiva' : 'Voce spenta'}
+                </button>
+                <button onClick={() => { setVoiceTest('provo'); speak('Cabina 4 ha finito il trattamento', { ok: () => setVoiceTest('ok'), ko: () => setVoiceTest('muta') }); }}
+                  title="Fa dire una frase di prova: serve a controllare che su questo computer si senta"
+                  className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-[11px] font-semibold bg-bg-tertiary text-text-secondary hover:bg-bg-hover transition-colors">
+                  <Volume2 className="w-3.5 h-3.5" /> Prova
+                </button>
+              </div>
+              {voiceTest !== 'idle' && (
+                <p className={`text-[10px] leading-relaxed px-1 ${voiceTest === 'muta' ? 'text-error' : 'text-text-muted'}`}>
+                  {voiceTest === 'provo' && 'Sto provando…'}
+                  {voiceTest === 'ok' && '✓ La voce funziona su questo computer. Se non l\'hai sentita, controlla il volume.'}
+                  {voiceTest === 'muta' && '✗ Nessuna voce su questo computer: manca la voce italiana nel sistema oppure il browser sta bloccando l\'audio. Clicca una volta nella pagina e riprova.'}
+                </p>
+              )}
 
               {permission === 'default' && (
                 <button onClick={askPermission}
@@ -233,7 +289,12 @@ export default function CabinTimers() {
               <div className="p-4 space-y-2 max-h-[45vh] overflow-y-auto">
                 {finished.map(a => (
                   <div key={a.id} className="rounded-xl border border-border bg-bg-tertiary/40 p-3">
-                    <p className="text-sm font-bold text-text-primary">{a.clientName}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-text-primary flex-1">{a.clientName}</p>
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-error/15 text-error flex-shrink-0">
+                        {cabinLabel(a, operators)}
+                      </span>
+                    </div>
                     <p className="text-xs text-text-secondary">{a.treatmentName}</p>
                     <p className="text-[11px] text-text-muted mt-1">
                       {a.operatorName ? `${a.operatorName} · ` : ''}
