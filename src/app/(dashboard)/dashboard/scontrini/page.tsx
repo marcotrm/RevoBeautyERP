@@ -89,6 +89,27 @@ export default function ScontriniPage() {
   const emessi = rows.filter(r => r.c95Emitted).length;
   const mancanti = rows.filter(r => r.total > 0 && !r.c95Emitted && r.c95Status !== 'voided').length;
 
+  // Importi del periodo: sempre calcolati su quello che si sta guardando
+  // (filtro e ricerca compresi), altrimenti i numeri non tornano con l'elenco.
+  const totali = rows.reduce((acc, r) => {
+    acc.totale += r.total;
+    if (r.total < 0) acc.resi += r.total;
+    else if (r.c95Emitted && r.c95Status !== 'voided') acc.conScontrino += r.total;
+    else if (r.c95Status !== 'voided') acc.senzaScontrino += r.total;
+
+    const m = String(r.method || '');
+    if (/misto/i.test(m)) {
+      const n = [...m.matchAll(/€\s*([\d.,]+)/g)].map(x => Number(x[1].replace(/\./g, '').replace(',', '.')) || 0);
+      const [c = 0, k = 0] = n;
+      const somma = c + k;
+      if (somma > 0) { acc.contanti += (c / somma) * r.total; acc.carta += (k / somma) * r.total; }
+      else acc.contanti += r.total;
+    } else if (/contant|cash/i.test(m)) acc.contanti += r.total;
+    else if (/carta|pos|bancomat/i.test(m)) acc.carta += r.total;
+    else acc.altro += r.total;
+    return acc;
+  }, { totale: 0, conScontrino: 0, senzaScontrino: 0, resi: 0, contanti: 0, carta: 0, altro: 0 });
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -200,6 +221,41 @@ export default function ScontriniPage() {
             </div>
           )}
         </div>
+
+        {/* Totali in fondo: quanto vale davvero quello che si sta guardando */}
+        {rows.length > 0 && (
+          <div className="border-t border-border bg-bg-tertiary/30">
+            <div className="flex items-center justify-between gap-4 px-5 py-3.5 flex-wrap">
+              <div>
+                <p className="text-[11px] text-text-muted uppercase tracking-wider">Totale periodo</p>
+                <p className="text-xl font-display font-bold text-accent">{formatCurrency(totali.totale)}</p>
+                <p className="text-[11px] text-text-muted">{rows.length} movimenti</p>
+              </div>
+              <div className="flex items-center gap-5 flex-wrap">
+                <div className="text-right">
+                  <p className="text-[11px] text-text-muted">Con scontrino</p>
+                  <p className="text-sm font-semibold text-success">{formatCurrency(totali.conScontrino)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] text-text-muted">Senza scontrino</p>
+                  <p className={`text-sm font-semibold ${totali.senzaScontrino > 0 ? 'text-error' : 'text-text-muted'}`}>{formatCurrency(totali.senzaScontrino)}</p>
+                </div>
+                {totali.resi !== 0 && (
+                  <div className="text-right">
+                    <p className="text-[11px] text-text-muted">Resi</p>
+                    <p className="text-sm font-semibold text-warning">{formatCurrency(totali.resi)}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Come sono entrati i soldi, per far tornare la chiusura di cassa */}
+            <div className="flex items-center gap-5 px-5 py-2.5 border-t border-border/40 flex-wrap">
+              <span className="text-[11px] text-text-muted">Contanti <strong className="text-text-primary ml-1">{formatCurrency(totali.contanti)}</strong></span>
+              <span className="text-[11px] text-text-muted">POS / Carta <strong className="text-text-primary ml-1">{formatCurrency(totali.carta)}</strong></span>
+              <span className="text-[11px] text-text-muted">Altro <strong className="text-text-primary ml-1">{formatCurrency(totali.altro)}</strong></span>
+            </div>
+          </div>
+        )}
       </div>
     </motion.div>
   );
