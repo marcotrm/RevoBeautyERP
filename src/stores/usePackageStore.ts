@@ -15,10 +15,14 @@ export interface PackageItem {
 export interface PackagePayment {
   id: string;
   date: string;
+  /** Quanto è entrato davvero in cassa: per il regalo è 0. */
   amount: number;
-  method: 'Carta' | 'Contanti' | 'Satispay' | 'Bonifico';
+  // 'Regalo' non è un incasso: azzera il dovuto senza far entrare soldi.
+  method: 'Carta' | 'Contanti' | 'Satispay' | 'Bonifico' | 'Regalo';
   operator: string;
   note?: string;
+  /** Solo per i regali: quanto è stato condonato alla cliente. */
+  giftedAmount?: number;
 }
 
 export interface ClientPackage {

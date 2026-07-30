@@ -123,8 +123,43 @@ export async function activatePackage(
   return toClientPackage(created);
 }
 
+/**
+ * Regalo: il residuo viene condonato alla cliente.
+ *
+ * Non è un incasso, quindi non tocca `totalPaid` e non crea nessuna riga in
+ * cassa: cala il prezzo del pacchetto, così il dovuto va a zero e i conti del
+ * centro continuano a dire la verità su quanto è entrato davvero.
+ * Nello storico resta la riga "Regalo" con l'importo condonato e chi l'ha fatto.
+ */
+async function giftBalance(
+  cp: { id: string; pricePaid: number; totalPaid: number; remainingBalance: number; paymentPlan: string; payments: unknown },
+  amount: number, operator: string, note?: string,
+) {
+  const today = new Date().toISOString().split('T')[0];
+  const gifted = Math.min(amount, cp.remainingBalance || 0);
+  const newPricePaid = Math.max(0, cp.pricePaid - gifted);
+  const newRemaining = Math.max(0, newPricePaid - cp.totalPaid);
+  const payments = (cp.payments as unknown as PackagePayment[]) ?? [];
+
+  const updated = await prisma.clientPackage.update({
+    where: { id: cp.id },
+    data: {
+      pricePaid: newPricePaid,
+      remainingBalance: newRemaining,
+      paymentPlan: newRemaining <= 0 ? 'full' : cp.paymentPlan,
+      payments: JSON.parse(JSON.stringify([
+        ...payments,
+        { id: `pay-${Date.now()}`, date: today, amount: 0, giftedAmount: gifted, method: 'Regalo', operator, note },
+      ])),
+    },
+  });
+  return toClientPackage(updated);
+}
+
 export async function addPayment(cpId: string, amount: number, method: PackagePayment['method'], operator: string, note?: string) {
   const cp = await prisma.clientPackage.findUniqueOrThrow({ where: { id: cpId } });
+  if (method === 'Regalo') return giftBalance(cp, amount, operator, note);
+
   const today = new Date().toISOString().split('T')[0];
   const newTotalPaid = cp.totalPaid + amount;
   const newRemaining = Math.max(0, cp.pricePaid - newTotalPaid);

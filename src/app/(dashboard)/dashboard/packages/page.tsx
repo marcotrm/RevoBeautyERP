@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { usePackageStore, PackageItem, ClientPackage } from '@/stores/usePackageStore';
+import { usePackageStore, PackageItem, ClientPackage, PackagePayment } from '@/stores/usePackageStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package, Plus, CheckCircle, AlertCircle,
-  X, Trash2, Minus, Search, User, Users, Calendar, Clock, History, Euro, Pencil, ShoppingBag,
+  X, Trash2, Minus, Search, User, Users, Calendar, Clock, History, Euro, Pencil, ShoppingBag, Gift,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
 import { useClientStore } from '@/stores/useClientStore';
@@ -143,15 +143,22 @@ function HistoryModal({ cp, onClose, onAddPayment }: { cp: ClientPackage; onClos
               <div className="mb-4">
                 <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">📋 Storico Pagamenti</p>
                 <div className="space-y-1.5">
-                  {cp.payments.map((p, i) => (
-                    <div key={p.id || i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/5 border border-success/10">
-                      <span className="text-sm">{p.method === 'Carta' ? '💳' : p.method === 'Contanti' ? '💵' : p.method === 'Satispay' ? '📱' : '🏦'}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-text-primary">{formatCurrency(p.amount)} • {p.method}</p>
-                        <p className="text-[10px] text-text-muted">{new Date(p.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })} • {p.operator}</p>
+                  {cp.payments.map((p, i) => {
+                    // Il regalo non è un incasso: importo a zero e riquadro diverso,
+                    // con accanto quanto è stato condonato.
+                    const regalo = p.method === 'Regalo';
+                    return (
+                      <div key={p.id || i} className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${regalo ? 'bg-accent/5 border-accent/20' : 'bg-success/5 border-success/10'}`}>
+                        <span className="text-sm">{regalo ? '🎁' : p.method === 'Carta' ? '💳' : p.method === 'Contanti' ? '💵' : p.method === 'Satispay' ? '📱' : '🏦'}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-text-primary">
+                            {regalo ? `Regalo${p.giftedAmount ? ` • ${formatCurrency(p.giftedAmount)} non incassati` : ''}` : `${formatCurrency(p.amount)} • ${p.method}`}
+                          </p>
+                          <p className="text-[10px] text-text-muted">{new Date(p.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })} • {p.operator}</p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -630,10 +637,11 @@ function AddPackageModal({ onClose, onSave, editing }: { onClose: () => void; on
 /* ========== ADD PAYMENT INNER ========== */
 function AddPaymentInner({ cp, onClose, onPay }: {
   cp: ClientPackage; onClose: () => void;
-  onPay: (amount: number, method: 'Carta' | 'Contanti' | 'Satispay' | 'Bonifico', operator: string) => void;
+  onPay: (amount: number, method: PackagePayment['method'], operator: string) => void;
 }) {
   const [amount, setAmount] = useState(String(cp.remainingBalance || 0));
-  const [method, setMethod] = useState<'Carta' | 'Contanti' | 'Satispay' | 'Bonifico'>('Carta');
+  const [method, setMethod] = useState<PackagePayment['method']>('Carta');
+  const isGift = method === 'Regalo';
   const operators = useStaffNames();
   const [operator, setOperator] = useState('');
   useEffect(() => { if (!operator && operators.length > 0) setOperator(operators[0]); }, [operators, operator]);
@@ -662,10 +670,14 @@ function AddPaymentInner({ cp, onClose, onPay }: {
               className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
           </div>
           {payAmount > 0 && payAmount < (cp.remainingBalance || 0) && (
-            <p className="text-[10px] text-warning mt-1">Rimarranno {formatCurrency(newRemaining)} da incassare</p>
+            <p className="text-[10px] text-warning mt-1">
+              {isGift ? `Resteranno ${formatCurrency(newRemaining)} da incassare` : `Rimarranno ${formatCurrency(newRemaining)} da incassare`}
+            </p>
           )}
           {payAmount >= (cp.remainingBalance || 0) && payAmount > 0 && (
-            <p className="text-[10px] text-success mt-1">✓ Il pacchetto verrà saldato completamente</p>
+            <p className="text-[10px] text-success mt-1">
+              {isGift ? '🎁 Il pacchetto verrà regalato: niente più da pagare' : '✓ Il pacchetto verrà saldato completamente'}
+            </p>
           )}
         </div>
         <div>
@@ -678,10 +690,23 @@ function AddPaymentInner({ cp, onClose, onPay }: {
                 <span className={`text-xs font-medium ${method === m ? 'text-accent' : 'text-text-primary'}`}>{m}</span>
               </button>
             ))}
+            {/* Regalo: chiude il dovuto senza incassare nulla */}
+            <button onClick={() => setMethod('Regalo')}
+              className={`col-span-2 flex items-center gap-2 p-2.5 rounded-xl border-2 transition-all ${isGift ? 'border-accent bg-accent/5' : 'border-border hover:border-border-light'}`}>
+              <span className="text-base">🎁</span>
+              <span className={`text-xs font-medium ${isGift ? 'text-accent' : 'text-text-primary'}`}>Regalo</span>
+              <span className="text-[10px] text-text-muted ml-auto">non entra in cassa</span>
+            </button>
           </div>
+          {isGift && (
+            <p className="text-[10px] text-text-muted mt-2 leading-relaxed">
+              La cliente non deve più nulla, ma nessun soldo entra in cassa: l&apos;importo resta fuori
+              dall&apos;incasso e dai report. Nello storico del pacchetto resta scritto chi ha fatto il regalo.
+            </p>
+          )}
         </div>
         <div>
-          <label className="block text-sm font-medium text-text-secondary mb-1.5">Incassato da</label>
+          <label className="block text-sm font-medium text-text-secondary mb-1.5">{isGift ? 'Regalato da' : 'Incassato da'}</label>
           <select value={operator} onChange={e => setOperator(e.target.value)}
             className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
             {operators.map(o => <option key={o} value={o}>{o}</option>)}
@@ -692,7 +717,7 @@ function AddPaymentInner({ cp, onClose, onPay }: {
         <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Annulla</button>
         <button onClick={() => { if (payAmount > 0) onPay(payAmount, method, operator); }} disabled={payAmount <= 0}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${payAmount > 0 ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
-          <Euro className="w-4 h-4" /> Incassa {formatCurrency(payAmount)}
+          {isGift ? <><Gift className="w-4 h-4" /> Regala {formatCurrency(payAmount)}</> : <><Euro className="w-4 h-4" /> Incassa {formatCurrency(payAmount)}</>}
         </button>
       </div>
     </div>
