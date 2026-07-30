@@ -1817,6 +1817,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   );
 
   const packagesWithDebt = clientPkgs.filter(cp => cp.remainingBalance > 0);
+  const totalPkgDebt = packagesWithDebt.reduce((s, cp) => s + (cp.remainingBalance || 0), 0);
 
   const fmtClock = (iso?: string) => iso ? new Date(iso).toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' }) : '';
   const cabinMinutes = appointment.checkInAt && appointment.checkOutAt
@@ -2027,7 +2028,15 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
           {/* ===== PACCHETTI ATTIVI (info) ===== */}
           {clientPkgs.length > 0 && (
             <div className="mb-6">
-              <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">📦 Pacchetti Attivi</p>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">📦 Pacchetti Attivi</p>
+                {/* Con più pacchetti aperti conta il totale, non la singola riga */}
+                {clientPkgs.length > 1 && totalPkgDebt > 0 && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-error/10 text-error">
+                    In tutto deve {formatCurrency(totalPkgDebt)}
+                  </span>
+                )}
+              </div>
               <div className="space-y-2">
                 {clientPkgs.map(cp => {
                   const remaining = cp.totalSessions - cp.usedSessions;
@@ -2053,6 +2062,33 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                       {isPackageAppt && (
                         <p className="text-[10px] text-accent font-semibold mt-1.5">✓ Questo appuntamento usa una seduta di questo pacchetto</p>
                       )}
+
+                      {/* Parte economica: quanto ha già dato e quanto manca ancora.
+                          Serve qui perché è il momento in cui la cliente è davanti. */}
+                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/50">
+                        <div className="flex-1 min-w-0">
+                          {cp.pricePaid === 0 ? (
+                            <p className="text-[11px] font-semibold text-accent">🎁 Omaggio — niente da pagare</p>
+                          ) : (
+                            <>
+                              <p className="text-[10px] text-text-muted">
+                                Ha dato <strong className="text-success">{formatCurrency(cp.totalPaid || 0)}</strong> su {formatCurrency(cp.pricePaid)}
+                              </p>
+                              {(cp.remainingBalance || 0) > 0 ? (
+                                <p className="text-[11px] font-bold text-error">Deve ancora dare {formatCurrency(cp.remainingBalance)}</p>
+                              ) : (
+                                <p className="text-[11px] font-semibold text-success">✓ Saldato</p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        {(cp.remainingBalance || 0) > 0 && (
+                          <button type="button" onClick={() => goPayDebt(cp)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent/15 text-accent text-[10px] font-bold hover:bg-accent/25 transition-colors flex-shrink-0">
+                            <Euro className="w-3 h-3" /> Incassa
+                          </button>
+                        )}
+                      </div>
 
                       {/* L'omaggio inaugurazione si può cambiare finché non è stato usato */}
                       {isGiftPackage(cp.packageName) && cp.usedSessions === 0 && (
