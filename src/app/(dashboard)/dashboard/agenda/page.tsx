@@ -1833,6 +1833,9 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
 
   // Pacchetti da cui si può ancora scalare una seduta
   const usablePkgs = clientPkgs.filter(cp => cp.usedSessions < cp.totalSessions);
+  // Quanto resta comunque da incassare: i trattamenti della seduta che non sono
+  // a 0 € (la manicure fatta insieme al massaggio del pacchetto, per capirci).
+  const totaleDaIncassare = services.filter(s => s.price > 0).reduce((s, x) => s + x.price, 0);
   // Pacchetto indicato al momento della prenotazione (se c'è)
   const bookedPkg = appointment.notes?.includes('📦 Seduta da pacchetto')
     ? usablePkgs.find(cp => appointment.notes?.includes(cp.packageName)) || null
@@ -1858,22 +1861,31 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     if (pkg) {
       usePackageSession(pkg.id, appointment.operatorName, `Completato: ${appointment.treatmentName}`);
       setScaledPkgId(pkg.id);
-      onClose();
-    } else {
+    }
+
+    // Le due cose non si escludono: nella stessa seduta ci può essere il
+    // trattamento del pacchetto (a 0 €) più altri da pagare. Prima si scala la
+    // seduta, poi si va in cassa a incassare quello che resta.
+    const daIncassare = services.filter(s => s.price > 0);
+
+    if (totaleDaIncassare > 0) {
       onClose();
       try {
         sessionStorage.setItem('revo_pos_autosale', JSON.stringify({
           client: appointment.clientName,
           // Con più trattamenti il conto è unico: nome e totale di tutta la seduta
-          treatment: services.map(s => s.treatmentName).join(' + '),
+          treatment: daIncassare.map(s => s.treatmentName).join(' + '),
           treatmentId: appointment.treatmentId,
-          price: appointment.price,
+          price: totaleDaIncassare,
           operator: appointment.operatorName,
           cabinMinutes,
         }));
       } catch { /* no-op */ }
       router.push('/dashboard/pos');
+      return;
     }
+
+    onClose();
   };
 
   // Con dei pacchetti attivi si chiede sempre da quale scalare la seduta
@@ -2493,6 +2505,12 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                           {remaining} {remaining === 1 ? 'seduta rimanente' : 'sedute rimanenti'} su {cp.totalSessions}
                           {cp.id === bookedPkg?.id && ' · scelto in prenotazione'}
                         </p>
+                        {/* Seduta mista: si scala E si incassa, non è più o l'uno o l'altro */}
+                        {totaleDaIncassare > 0 && (
+                          <p className="text-[11px] text-accent mt-0.5">
+                            + incassa {formatCurrency(totaleDaIncassare)} degli altri trattamenti
+                          </p>
+                        )}
                       </div>
                       <span className="text-sm font-bold text-text-primary flex-shrink-0">0,00 €</span>
                     </div>
