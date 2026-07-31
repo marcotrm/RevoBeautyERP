@@ -283,6 +283,18 @@ export async function markConversationRead(phone: string): Promise<void> {
   });
 }
 
+/**
+ * Rimette una conversazione fra quelle da leggere.
+ *
+ * Si toglie proprio il segno di lettura: i messaggi del cliente tornano tutti
+ * non letti, quindi ricompaiono il pallino sul menu e l'avviso se restano
+ * senza risposta. Serve quando si apre una chat di corsa e si vuole
+ * ritrovarla dopo, senza affidarsi alla memoria.
+ */
+export async function markConversationUnread(phone: string): Promise<void> {
+  await prisma.adminEntry.deleteMany({ where: { rowId: READ_ROW(phone) } });
+}
+
 /** Elenco conversazioni, la più recente in cima. */
 export async function listConversations(limit = 50): Promise<WaConversation[]> {
   const [messages, windows, reads, clientNames] = await Promise.all([

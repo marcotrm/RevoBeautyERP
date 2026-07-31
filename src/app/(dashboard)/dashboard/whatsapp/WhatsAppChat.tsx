@@ -12,8 +12,8 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon } from 'lucide-react';
-import { loadConversations, loadConversation, sendManualReply } from '@/app/actions/whatsapp';
+import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion } from 'lucide-react';
+import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction } from '@/app/actions/whatsapp';
 import { useWaInboxStore } from '@/stores/useWaInboxStore';
 // I tipi arrivano dalla libreria, non dal file di azioni: un 'use server' non
 // può ri-esportarli senza rompersi a runtime.
@@ -207,6 +207,18 @@ export default function WhatsAppChat() {
     }
   }, []);
 
+  /**
+   * Rimette la conversazione fra quelle da leggere e la chiude: tornano il
+   * pallino sul menu e, se resta senza risposta, l'avviso a schermo.
+   */
+  const segnaDaLeggere = useCallback(async (phone: string) => {
+    setActive(null);
+    setThread([]);
+    await markConversationUnreadAction(phone);
+    await refreshList();
+    void useWaInboxStore.getState().fetchUnread();
+  }, [refreshList]);
+
   const openThread = useCallback((phone: string) => {
     setActive(phone);
     setThread([]); // il caricamento lo fa l'effect qui sotto, che riparte al cambio di `active`
@@ -299,10 +311,16 @@ export default function WhatsAppChat() {
           <>
             <div className="px-4 py-3 border-b border-border/40 flex items-center gap-3 flex-shrink-0">
               <button onClick={() => setActive(null)} className="md:hidden text-xs text-text-muted">←</button>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-text-primary truncate">{clientName || conversations?.find(c => c.phone === active)?.name || active}</p>
                 <p className="text-[11px] text-text-muted font-mono">+{active}</p>
               </div>
+              {/* Rimette la chat fra le non lette: chiude il thread, altrimenti
+                  restando aperta verrebbe subito risegnata come letta. */}
+              <button onClick={() => segnaDaLeggere(active)} title="Rimetti fra i messaggi da leggere"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-[11px] font-medium text-text-secondary hover:bg-bg-hover hover:text-accent transition-colors flex-shrink-0">
+                <MailQuestion className="w-3.5 h-3.5" /> Da leggere
+              </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">

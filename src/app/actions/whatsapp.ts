@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { waProvider, whatsappMissingVars, sendWhatsApp, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
 import {
-  listConversations, listMessages, markConversationRead, conversationWindow, listUnreadChats,
+  listConversations, listMessages, markConversationRead, markConversationUnread, conversationWindow, listUnreadChats,
   clientNameForPhone,
   type WaConversation, type WaMessageRow, type WaUnreadChat,
 } from '@/lib/wa-conversations';
@@ -97,6 +97,12 @@ export async function loadConversations(limit = 50): Promise<WaConversation[]> {
  */
 export async function loadWaUnread(): Promise<WaUnreadChat[]> {
   return listUnreadChats();
+}
+
+/** Rimette la conversazione fra quelle da leggere (torna il pallino e l'avviso). */
+export async function markConversationUnreadAction(phone: string): Promise<{ ok: boolean }> {
+  await markConversationUnread(normalizePhone(phone));
+  return { ok: true };
 }
 
 /**
