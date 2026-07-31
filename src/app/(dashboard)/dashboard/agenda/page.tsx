@@ -26,6 +26,7 @@ import { changeGiftTreatment } from '@/app/actions/packages';
 import { type WeekScheduleMap } from '@/app/actions/weekShifts';
 import { resolveDaySchedule, mondayISO } from '@/lib/weekSchedule';
 import { isWalkIn } from '@/lib/walkIn';
+import { todayRome } from '@/lib/date';
 import { useWeekShiftsStore } from '@/stores/useWeekShiftsStore';
 import CabinCountdown from '@/components/CabinCountdown';
 import WaitlistModal from '@/components/WaitlistModal';
@@ -1712,6 +1713,8 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   // Check-in: prima si sceglie la cabina, è quella che la voce chiamerà a fine trattamento
   const [askingCabin, setAskingCabin] = useState(false);
   const [cabin, setCabin] = useState('');
+  // Avviso "data diversa da oggi": ricorda quale gesto stava facendo l'operatrice
+  const [dateWarn, setDateWarn] = useState<null | 'checkin' | 'checkout'>(null);
 
   // Elenco dei trattamenti dell'appuntamento (i vecchi ne hanno uno solo)
   const services: AppointmentService[] = useMemo(() => (
@@ -1891,11 +1894,43 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     router.push('/dashboard/pos');
   };
 
-  const handleCheckoutClick = () => {
+  const proseguiCheckout = () => {
     // Prima cosa: da quale pacchetto scalo? (le rate in sospeso si vedono lì dentro)
     if (usablePkgs.length > 0) askWhichPackage();
     else if (packagesWithDebt.length > 0) setShowDebtModal(true);
     else processCheckout(null);
+  };
+
+  /**
+   * Chi sta davanti al bancone sta pagando OGGI: se l'appuntamento è di un
+   * altro giorno quasi sempre è stata sbagliata la data in prenotazione, e
+   * l'incasso finirebbe su una giornata che non c'entra. Prima di chiudere si
+   * chiede, con la possibilità di correggere la data al volo.
+   */
+  const handleCheckoutClick = () => {
+    if (appointment.date !== todayRome()) setDateWarn('checkout');
+    else proseguiCheckout();
+  };
+
+  const handleCheckInClick = () => {
+    if (appointment.date !== todayRome()) setDateWarn('checkin');
+    else openCabinPicker();
+  };
+
+  /** Porta l'appuntamento a oggi (stessi orari) e riprende da dove si era rimasti. */
+  const spostaAOggiEContinua = async () => {
+    const azione = dateWarn;
+    setDateWarn(null);
+    await updateAppt(appointment.id, { date: todayRome() });
+    if (azione === 'checkin') openCabinPicker();
+    else proseguiCheckout();
+  };
+
+  const continuaComunque = () => {
+    const azione = dateWarn;
+    setDateWarn(null);
+    if (azione === 'checkin') openCabinPicker();
+    else proseguiCheckout();
   };
 
   return (
@@ -2197,7 +2232,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 </button>
               ) : (
                 <>
-                  <button onClick={openCabinPicker}
+                  <button onClick={handleCheckInClick}
                     className="py-2.5 rounded-xl text-sm font-medium transition-colors bg-pink-500/10 text-pink-400 hover:bg-pink-500/20">
                     <span className="flex items-center justify-center gap-1.5"><Play className="w-3.5 h-3.5" /> Check-in</span>
                   </button>
@@ -2345,6 +2380,62 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
               }} className="flex-1 py-2.5 rounded-xl bg-bg-tertiary text-text-primary text-sm font-medium hover:bg-bg-hover transition-colors">
                 Salta per oggi
               </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Data diversa da oggi: quasi sempre è un errore di prenotazione */}
+      {dateWarn && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDateWarn(null)} />
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="relative z-10 w-full max-w-md rounded-2xl border-2 border-warning/40 bg-bg-secondary shadow-2xl overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-4 bg-warning/10">
+              <div className="w-11 h-11 rounded-full bg-warning/20 flex items-center justify-center text-warning flex-shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-display font-bold text-text-primary">La data non è quella di oggi</h3>
+                <p className="text-xs text-text-secondary">Controlla prima di {dateWarn === 'checkin' ? 'far entrare la cliente' : 'incassare'}</p>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <div className="rounded-xl border border-border bg-bg-tertiary/40 p-3 space-y-1.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-text-secondary">Appuntamento</span>
+                  <strong className="text-warning capitalize">{formatDateLong(appointment.date)}</strong>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-text-secondary">Oggi</span>
+                  <strong className="text-text-primary capitalize">{formatDateLong(todayRome())}</strong>
+                </div>
+              </div>
+              <p className="text-xs text-text-secondary leading-relaxed">
+                La cliente è qui adesso: se l&apos;appuntamento è su un altro giorno, con ogni probabilità
+                la data è stata sbagliata quando è stato preso.
+                {dateWarn === 'checkout'
+                  ? ' Continuando, l\'incasso resterà registrato su quella data e non su oggi.'
+                  : ' Continuando, il trattamento risulterà fatto in quel giorno.'}
+              </p>
+            </div>
+
+            <div className="p-5 pt-0 space-y-2">
+              <button onClick={spostaAOggiEContinua}
+                className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity">
+                Sposta a oggi e continua
+              </button>
+              <div className="flex gap-2">
+                <button onClick={() => setDateWarn(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+                  Annulla
+                </button>
+                <button onClick={continuaComunque}
+                  className="flex-1 py-2.5 rounded-xl bg-bg-tertiary text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+                  Continua comunque
+                </button>
+              </div>
             </div>
           </motion.div>
         </div>
