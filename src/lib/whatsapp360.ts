@@ -250,3 +250,52 @@ export async function listD360Templates(): Promise<
     return { ok: false, error: 'Connessione a 360dialog fallita' };
   }
 }
+
+/**
+ * Crea un template e lo manda in approvazione a Meta.
+ *
+ * È la stessa cosa che si fa a mano su 360dialog Hub → Templates → New: qui
+ * serve a poterlo fare dal gestionale. Meta risponde quasi sempre in pochi
+ * minuti, ma lo stato iniziale è PENDING: finché non è APPROVED i messaggi con
+ * quel template vengono rifiutati.
+ *
+ * `example` è obbligatorio quando il corpo ha dei {{n}}: Meta rifiuta la
+ * creazione senza un esempio per ogni segnaposto.
+ */
+export async function createD360Template(params: {
+  name: string;
+  category: 'MARKETING' | 'UTILITY';
+  language: string;
+  body: string;
+  example?: string[];
+}): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
+  if (!d360Configured()) return { ok: false, error: 'Manca D360_API_KEY' };
+  const base = (process.env.D360_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
+
+  const bodyComponent: Record<string, unknown> = { type: 'BODY', text: params.body };
+  if (params.example?.length) {
+    bodyComponent.example = { body_text: [params.example] };
+  }
+
+  try {
+    const res = await fetch(`${base}/v1/configs/templates`, {
+      method: 'POST',
+      headers: { 'D360-API-KEY': process.env.D360_API_KEY as string, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: params.name,
+        category: params.category,
+        language: params.language,
+        components: [bodyComponent],
+        allow_category_change: true,
+      }),
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      const msg = body?.error?.error_user_msg || body?.error?.message || body?.message || `HTTP ${res.status}`;
+      return { ok: false, error: String(msg) };
+    }
+    return { ok: true, status: String(body?.status || 'PENDING') };
+  } catch {
+    return { ok: false, error: 'Connessione a 360dialog fallita' };
+  }
+}

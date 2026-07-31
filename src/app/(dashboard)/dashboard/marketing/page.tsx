@@ -7,6 +7,7 @@ import {
   Zap, Users, Clock, Target, Plus, X, CheckCircle,
   Gift, Heart, Trash2, Send, Eye,
 } from 'lucide-react';
+import CampagneWhatsApp from './CampagneWhatsApp';
 
 interface Campaign {
   id: number; name: string; type: string; status: string; sent: number; opened: number; converted: number; color: string; target?: string; message?: string;
@@ -325,6 +326,9 @@ export default function MarketingPage() {
         <div className="bg-bg-secondary border border-border rounded-2xl p-5"><p className="text-sm text-text-secondary">Conversioni</p><p className="text-2xl font-display font-bold text-accent mt-1">{totalConverted}</p><p className="text-xs text-text-muted mt-1">prenotazioni generate</p></div>
         <div className="bg-bg-secondary border border-border rounded-2xl p-5"><p className="text-sm text-text-secondary">Campagne Attive</p><p className="text-2xl font-display font-bold text-text-primary mt-1">{campaigns.filter(c => c.status === 'active').length}</p></div>
       </div>
+
+      {/* Campagne WhatsApp vere: template + invio ai clienti scelti */}
+      <CampagneWhatsApp />
 
       {/* Test notifiche */}
       <TestNotificationsPanel />
