@@ -1713,8 +1713,8 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   // Check-in: prima si sceglie la cabina, è quella che la voce chiamerà a fine trattamento
   const [askingCabin, setAskingCabin] = useState(false);
   const [cabin, setCabin] = useState('');
-  // Avviso "data diversa da oggi": ricorda quale gesto stava facendo l'operatrice
-  const [dateWarn, setDateWarn] = useState<null | 'checkin' | 'checkout'>(null);
+  // Avviso "data diversa da oggi", mostrato prima del check-in
+  const [dateWarn, setDateWarn] = useState(false);
 
   // Elenco dei trattamenti dell'appuntamento (i vecchi ne hanno uno solo)
   const services: AppointmentService[] = useMemo(() => (
@@ -1894,7 +1894,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     router.push('/dashboard/pos');
   };
 
-  const proseguiCheckout = () => {
+  const handleCheckoutClick = () => {
     // Prima cosa: da quale pacchetto scalo? (le rate in sospeso si vedono lì dentro)
     if (usablePkgs.length > 0) askWhichPackage();
     else if (packagesWithDebt.length > 0) setShowDebtModal(true);
@@ -1902,35 +1902,26 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   };
 
   /**
-   * Chi sta davanti al bancone sta pagando OGGI: se l'appuntamento è di un
-   * altro giorno quasi sempre è stata sbagliata la data in prenotazione, e
-   * l'incasso finirebbe su una giornata che non c'entra. Prima di chiudere si
-   * chiede, con la possibilità di correggere la data al volo.
+   * La cliente sta entrando ADESSO: se l'appuntamento è su un altro giorno
+   * quasi sempre è stata sbagliata la data in prenotazione, e trattamento e
+   * incasso finirebbero su una giornata che non c'entra. Si avvisa qui, prima
+   * del check-in, con la possibilità di correggere la data al volo.
    */
-  const handleCheckoutClick = () => {
-    if (appointment.date !== todayRome()) setDateWarn('checkout');
-    else proseguiCheckout();
-  };
-
   const handleCheckInClick = () => {
-    if (appointment.date !== todayRome()) setDateWarn('checkin');
+    if (appointment.date !== todayRome()) setDateWarn(true);
     else openCabinPicker();
   };
 
-  /** Porta l'appuntamento a oggi (stessi orari) e riprende da dove si era rimasti. */
+  /** Porta l'appuntamento a oggi (stessi orari) e prosegue col check-in. */
   const spostaAOggiEContinua = async () => {
-    const azione = dateWarn;
-    setDateWarn(null);
+    setDateWarn(false);
     await updateAppt(appointment.id, { date: todayRome() });
-    if (azione === 'checkin') openCabinPicker();
-    else proseguiCheckout();
+    openCabinPicker();
   };
 
   const continuaComunque = () => {
-    const azione = dateWarn;
-    setDateWarn(null);
-    if (azione === 'checkin') openCabinPicker();
-    else proseguiCheckout();
+    setDateWarn(false);
+    openCabinPicker();
   };
 
   return (
@@ -2388,7 +2379,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
       {/* Data diversa da oggi: quasi sempre è un errore di prenotazione */}
       {dateWarn && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDateWarn(null)} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDateWarn(false)} />
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
             className="relative z-10 w-full max-w-md rounded-2xl border-2 border-warning/40 bg-bg-secondary shadow-2xl overflow-hidden">
             <div className="flex items-center gap-3 px-5 py-4 bg-warning/10">
@@ -2397,7 +2388,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
               </div>
               <div>
                 <h3 className="text-lg font-display font-bold text-text-primary">La data non è quella di oggi</h3>
-                <p className="text-xs text-text-secondary">Controlla prima di {dateWarn === 'checkin' ? 'far entrare la cliente' : 'incassare'}</p>
+                <p className="text-xs text-text-secondary">Controlla prima di far entrare la cliente</p>
               </div>
             </div>
 
@@ -2413,11 +2404,9 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 </div>
               </div>
               <p className="text-xs text-text-secondary leading-relaxed">
-                La cliente è qui adesso: se l&apos;appuntamento è su un altro giorno, con ogni probabilità
-                la data è stata sbagliata quando è stato preso.
-                {dateWarn === 'checkout'
-                  ? ' Continuando, l\'incasso resterà registrato su quella data e non su oggi.'
-                  : ' Continuando, il trattamento risulterà fatto in quel giorno.'}
+                La cliente sta entrando adesso: se l&apos;appuntamento è su un altro giorno, con ogni
+                probabilità la data è stata sbagliata quando è stato preso. Continuando, il trattamento
+                e il suo incasso resteranno registrati su quel giorno e non su oggi.
               </p>
             </div>
 
@@ -2427,7 +2416,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 Sposta a oggi e continua
               </button>
               <div className="flex gap-2">
-                <button onClick={() => setDateWarn(null)}
+                <button onClick={() => setDateWarn(false)}
                   className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
                   Annulla
                 </button>
