@@ -23,10 +23,36 @@ const WINDOW_KIND = 'wa_window';
 /** Chi ha scritto il messaggio in uscita. */
 export type WaSource = 'assistant' | 'booking' | 'automation' | 'manual' | 'system';
 
+/** Tipi di allegato che sappiamo mostrare in chat. */
+export type WaMediaKind = 'image' | 'sticker' | 'audio' | 'video' | 'document';
+
+/**
+ * Allegato ricevuto da un cliente.
+ *
+ * Del binario teniamo solo l'id: il file resta su Meta e viene scaricato al
+ * volo dalla rotta proxy quando l'operatrice apre la chat. Meta lo conserva
+ * circa 30 giorni, quindi gli allegati molto vecchi non si aprono più — è un
+ * limite della piattaforma, non un errore del gestionale.
+ */
+export interface WaMedia {
+  kind: WaMediaKind;
+  id: string;
+  mimeType?: string;
+  /** Nome originale del file, solo per i documenti. */
+  filename?: string;
+  /** Didascalia scritta dal cliente insieme all'allegato, se c'è. */
+  caption?: string;
+  /** Vero per i messaggi vocali (registrati sul momento), falso per un audio allegato. */
+  voice?: boolean;
+}
+
 export interface WaMessageRow {
   phone: string;
   direction: 'in' | 'out';
+  /** Per gli allegati è la didascalia, o un'etichetta tipo "Messaggio vocale". */
   text: string;
+  /** Presente solo se il messaggio conteneva un allegato. */
+  media?: WaMedia;
   /** Solo per i messaggi in uscita. */
   source?: WaSource;
   name?: string;
@@ -49,6 +75,8 @@ export interface WaConversation {
   phone: string;
   name?: string;
   lastText: string;
+  /** Allegato dell'ultimo messaggio, se ce n'era uno: serve all'anteprima in elenco. */
+  lastMedia?: WaMedia;
   lastAt: string;
   lastDirection: 'in' | 'out';
   /** Vero se possiamo ancora rispondere a testo libero (finestra 24h aperta). */
@@ -92,6 +120,7 @@ async function put(rowId: string, data: WaMessageRow): Promise<void> {
 export async function logInbound(params: {
   phone: string;
   text: string;
+  media?: WaMedia;
   name?: string;
   messageId?: string;
   at?: string;
@@ -102,6 +131,7 @@ export async function logInbound(params: {
     phone: params.phone,
     direction: 'in',
     text: params.text,
+    media: params.media,
     name: params.name,
     at,
     messageId: params.messageId,
@@ -154,10 +184,12 @@ function rowToMessage(rowId: string, data: Record<string, unknown>, createdAt: s
       at: String(data.receivedAt || createdAt),
     };
   }
+  const media = data.media as WaMedia | undefined;
   return {
     phone: String(data.phone || ''),
     direction: rowId.startsWith('wa:msg:out:') ? 'out' : 'in',
     text: String(data.text || ''),
+    media: media?.id ? media : undefined,
     source: data.source as WaSource | undefined,
     name: data.name ? String(data.name) : undefined,
     at: String(data.at || createdAt),
@@ -277,6 +309,7 @@ export async function listConversations(limit = 50): Promise<WaConversation[]> {
       // messaggi in entrata e spesso è un soprannome con emoji.
       name: clientNames.get(phoneKey(phone)) || msgs.find(m => m.name)?.name,
       lastText: last.text,
+      lastMedia: last.media,
       lastAt: last.at,
       lastDirection: last.direction,
       windowOpen: win.open,
@@ -335,6 +368,20 @@ async function withDeliveryStatus(rows: WaMessageRow[]): Promise<WaMessageRow[]>
   }
 
   return rows.map(m => (m.messageId && byId.has(m.messageId) ? { ...m, deliveryStatus: byId.get(m.messageId) } : m));
+}
+
+/**
+ * Vero se quell'id media compare davvero in una conversazione archiviata.
+ *
+ * La rotta proxy dei media la usa come lucchetto: senza, chiunque conosca
+ * l'indirizzo potrebbe farsi scaricare dal gestionale qualunque allegato del
+ * canale WhatsApp, anche di un altro numero.
+ */
+export async function mediaIsKnown(mediaId: string): Promise<boolean> {
+  const rows = await prisma.adminEntry.findMany({
+    where: { kind: MSG_KIND }, orderBy: { createdAt: 'desc' }, take: 600,
+  });
+  return rows.some(r => ((r.data || {}) as { media?: { id?: string } }).media?.id === mediaId);
 }
 
 /** Stato della finestra 24h per un singolo numero. */

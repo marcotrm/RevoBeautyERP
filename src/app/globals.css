@@ -48,8 +48,12 @@
   --color-apt-hair: #14B8A6;
   --color-apt-makeup: #F43F5E;
 
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-display: 'Outfit', system-ui, -apple-system, sans-serif;
+  /* Le emoji hanno bisogno di un font a colori esplicito in coda: Inter e Outfit
+     non hanno quei glifi e senza fallback dichiarato i messaggi WhatsApp dei
+     clienti mostrano quadratini al posto delle faccine. */
+  --font-emoji: 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif, var(--font-emoji);
+  --font-display: 'Outfit', system-ui, -apple-system, sans-serif, var(--font-emoji);
 
   --animate-fade-in: fade-in 0.3s ease-out;
   --animate-slide-up: slide-up 0.3s ease-out;

@@ -12,12 +12,12 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck } from 'lucide-react';
+import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon } from 'lucide-react';
 import { loadConversations, loadConversation, sendManualReply } from '@/app/actions/whatsapp';
 import { useWaInboxStore } from '@/stores/useWaInboxStore';
 // I tipi arrivano dalla libreria, non dal file di azioni: un 'use server' non
 // può ri-esportarli senza rompersi a runtime.
-import type { WaConversation, WaMessageRow } from '@/lib/wa-conversations';
+import type { WaConversation, WaMessageRow, WaMedia } from '@/lib/wa-conversations';
 
 const POLL_MS = 20_000;
 
@@ -62,6 +62,101 @@ function DeliveryMark({ status, direction }: { status?: WaMessageRow['deliverySt
       <Check className="w-3.5 h-3.5" /> inviato
     </span>
   );
+}
+
+/** Nome leggibile dell'allegato, per l'alt del file e i messaggi di errore. */
+function mediaLabel(media: WaMedia): string {
+  switch (media.kind) {
+    case 'image': return 'Foto';
+    case 'sticker': return 'Sticker';
+    case 'audio': return media.voice ? 'Messaggio vocale' : 'Audio';
+    case 'video': return 'Video';
+    case 'document': return media.filename || 'Documento';
+  }
+}
+
+/** Icona di ripiego quando l'allegato non è un'immagine (o non si carica più). */
+const MEDIA_ICON: Record<WaMedia['kind'], typeof Mic> = {
+  image: ImageIcon, sticker: ImageIcon, audio: Mic, video: Video, document: FileText,
+};
+
+/**
+ * Anteprima in elenco: miniatura vera per foto e sticker, icona per il resto.
+ *
+ * Vale la pena scaricare il file anche qui — è la differenza tra capire a colpo
+ * d'occhio quale cliente ha mandato cosa e leggere tre righe identiche "Foto".
+ */
+function MediaThumb({ media }: { media: WaMedia }) {
+  const [failed, setFailed] = useState(false);
+  const Icon = MEDIA_ICON[media.kind];
+  const isImage = media.kind === 'image' || media.kind === 'sticker';
+
+  if (!isImage || failed) {
+    return <Icon className="w-3.5 h-3.5 text-text-muted flex-shrink-0" />;
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/api/whatsapp/media/${encodeURIComponent(media.id)}`} alt="" onError={() => setFailed(true)}
+      className="w-7 h-7 rounded object-cover flex-shrink-0 bg-bg-tertiary"
+    />
+  );
+}
+
+/**
+ * Allegato dentro la bolla.
+ *
+ * La sorgente non è un URL di Meta ma la rotta del gestionale: il file viene
+ * scaricato dal server, che è l'unico ad avere la chiave del canale. Gli
+ * allegati più vecchi di un mese Meta li cancella, per questo ogni tipo ha un
+ * messaggio di ripiego invece di restare muto.
+ */
+function MediaBubble({ media }: { media: WaMedia }) {
+  const src = `/api/whatsapp/media/${encodeURIComponent(media.id)}`;
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <p className="text-[11px] text-text-muted italic flex items-center gap-1.5 py-1">
+        <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+        {mediaLabel(media)} non più disponibile
+      </p>
+    );
+  }
+
+  switch (media.kind) {
+    case 'audio':
+      return (
+        <div className="py-1">
+          <div className="flex items-center gap-1.5 text-[10px] text-text-muted mb-1">
+            <Mic className="w-3 h-3" />{mediaLabel(media)}
+          </div>
+          {/* Il player nativo basta: ha play, barra di avanzamento e velocità dal menu contestuale. */}
+          <audio controls preload="metadata" src={src} onError={() => setFailed(true)} className="w-56 max-w-full h-9" />
+        </div>
+      );
+    case 'image':
+    case 'sticker':
+      return (
+        <a href={src} target="_blank" rel="noreferrer" className="block py-1">
+          {/* Binario servito dalla nostra rotta proxy: next/image non può ottimizzarlo. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src} alt={mediaLabel(media)} onError={() => setFailed(true)}
+            className={media.kind === 'sticker' ? 'w-24 h-24 object-contain' : 'rounded-xl max-h-64 max-w-full object-cover'}
+          />
+        </a>
+      );
+    case 'video':
+      return <video controls preload="metadata" src={src} onError={() => setFailed(true)} className="rounded-xl max-h-64 max-w-full my-1" />;
+    case 'document':
+      return (
+        <a href={src} target="_blank" rel="noreferrer"
+          className="flex items-center gap-2 py-1 text-sm text-accent hover:underline break-all">
+          <FileText className="w-4 h-4 flex-shrink-0" />{mediaLabel(media)}
+        </a>
+      );
+  }
 }
 
 export default function WhatsAppChat() {
@@ -174,9 +269,12 @@ export default function WhatsAppChat() {
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-success text-white flex-shrink-0">{c.unread}</span>
                 )}
               </div>
-              <p className="text-[11px] text-text-muted truncate mt-0.5">
-                {c.lastDirection === 'out' && <span className="text-text-muted/70">Tu: </span>}{c.lastText}
-              </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {c.lastMedia && <MediaThumb media={c.lastMedia} />}
+                <p className="text-[11px] text-text-muted truncate">
+                  {c.lastDirection === 'out' && <span className="text-text-muted/70">Tu: </span>}{c.lastText}
+                </p>
+              </div>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-[10px] text-text-muted/70">{timeLabel(c.lastAt)}</span>
                 {/* Col nome dall'anagrafica il numero sparirebbe dalla riga: lo teniamo qui */}
@@ -223,7 +321,14 @@ export default function WhatsAppChat() {
                           <Icon className="w-3 h-3" />{meta.label}
                         </div>
                       )}
-                      <p className="text-sm text-text-primary whitespace-pre-line break-words">{m.text}</p>
+                      {m.media && <MediaBubble media={m.media} />}
+                      {/* Con un allegato si mostra solo la didascalia: il tipo
+                          ("📷 Foto") si vede già dal file stesso. */}
+                      {(m.media ? m.media.caption : m.text) && (
+                        <p className="text-sm text-text-primary whitespace-pre-line break-words">
+                          {m.media ? m.media.caption : m.text}
+                        </p>
+                      )}
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] text-text-muted/70">{timeLabel(m.at)}</span>
                         {m.ok === false ? (

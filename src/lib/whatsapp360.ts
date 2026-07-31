@@ -181,6 +181,51 @@ export async function markD360Read(messageId: string): Promise<D360Result> {
   return d360Post('/messages', { messaging_product: 'whatsapp', status: 'read', message_id: messageId });
 }
 
+// ============================================================
+// Media in ingresso (vocali, foto, sticker, documenti)
+// ============================================================
+
+/**
+ * Scarica un media ricevuto da un cliente.
+ *
+ * Sono due passaggi: prima `GET /{media-id}` restituisce un URL temporaneo di
+ * Meta, poi si scarica quell'URL. L'URL di Meta non è pubblico e non si può
+ * passare al browser: va richiamato attraverso 360dialog sostituendo l'host con
+ * quello del canale e tenendo l'header `D360-API-KEY`. Per questo il binario
+ * passa dal server (vedi api/whatsapp/media/[id]) e non direttamente dal client.
+ */
+export async function fetchD360Media(
+  mediaId: string
+): Promise<{ ok: true; body: ArrayBuffer; mimeType: string } | { ok: false; error: string; status?: number }> {
+  if (!d360Configured()) return { ok: false, error: 'Manca D360_API_KEY' };
+  const base = (process.env.D360_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
+  const headers = { 'D360-API-KEY': process.env.D360_API_KEY as string };
+
+  try {
+    const metaRes = await fetch(`${base}/${encodeURIComponent(mediaId)}`, { headers });
+    const meta = await metaRes.json().catch(() => null);
+    if (!metaRes.ok || !meta?.url) {
+      return { ok: false, status: metaRes.status, error: meta?.error?.message || `HTTP ${metaRes.status}` };
+    }
+
+    const mimeType = String(meta.mime_type || 'application/octet-stream');
+    // L'URL arriva con l'host di Meta (lookaside.fbsbx.com): da lì il download
+    // fallisce, perché serve il token Cloud API che non abbiamo. Riscriviamo
+    // l'origine su 360dialog, che lo inoltra autenticandolo con la nostra chiave.
+    const original = new URL(String(meta.url));
+    const proxied = `${base}${original.pathname}${original.search}`;
+
+    let binRes = await fetch(proxied, { headers });
+    if (!binRes.ok) binRes = await fetch(original.toString(), { headers });
+    if (!binRes.ok) return { ok: false, status: binRes.status, error: `Download media HTTP ${binRes.status}` };
+
+    return { ok: true, body: await binRes.arrayBuffer(), mimeType };
+  } catch (err) {
+    console.error('[wa360] download media fallito', err);
+    return { ok: false, error: 'Connessione a 360dialog fallita' };
+  }
+}
+
 /** Elenca i template del canale con il loro stato di approvazione. */
 export async function listD360Templates(): Promise<
   { ok: true; templates: Array<{ name: string; status: string; category: string; language: string }> } | { ok: false; error: string }

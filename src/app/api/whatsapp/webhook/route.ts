@@ -15,7 +15,7 @@ import { normalizePhone } from '@/lib/whatsapp';
 import { handleReminderReply } from '@/lib/wa-appointments';
 import { handleBookingMessage } from '@/lib/wa-booking';
 import { handleAssistantMessage } from '@/lib/wa-assistant';
-import { logInbound } from '@/lib/wa-conversations';
+import { logInbound, type WaMedia, type WaMediaKind } from '@/lib/wa-conversations';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,6 +44,8 @@ export async function GET(request: Request) {
 }
 
 interface WaContact { wa_id?: string; profile?: { name?: string } }
+/** Blocco allegato: Meta usa la stessa forma per foto, audio, video, sticker e documenti. */
+interface WaMediaPart { id?: string; mime_type?: string; caption?: string; filename?: string; voice?: boolean }
 interface WaMessage {
   id?: string;
   from?: string;
@@ -55,12 +57,12 @@ interface WaMessage {
   /** Emoji messo su un nostro messaggio (il "cuoricino" di WhatsApp). */
   reaction?: { emoji?: string; message_id?: string };
   /** Allegati: WhatsApp manda solo l'id del file, non il contenuto. */
-  image?: { caption?: string };
-  video?: { caption?: string };
-  document?: { caption?: string; filename?: string };
-  audio?: Record<string, unknown>;
-  voice?: Record<string, unknown>;
-  sticker?: Record<string, unknown>;
+  image?: WaMediaPart;
+  sticker?: WaMediaPart;
+  audio?: WaMediaPart;
+  video?: WaMediaPart;
+  document?: WaMediaPart;
+  /** La posizione non è un file: non c'è niente da scaricare, solo da leggere. */
   location?: { name?: string; address?: string };
 }
 
@@ -114,6 +116,32 @@ function messageText(m: WaMessage): string {
   );
 }
 
+const MEDIA_KINDS: WaMediaKind[] = ['image', 'sticker', 'audio', 'video', 'document'];
+
+/**
+ * Allegato del messaggio, se c'è.
+ *
+ * Del file non salviamo il binario: resta su Meta e lo scarica al bisogno la
+ * rotta proxy. Qui teniamo solo l'id e quanto basta a mostrarlo.
+ */
+function messageMedia(m: WaMessage): WaMedia | undefined {
+  for (const kind of MEDIA_KINDS) {
+    const part = m[kind];
+    if (part?.id) {
+      return {
+        kind,
+        id: part.id,
+        mimeType: part.mime_type,
+        filename: part.filename,
+        caption: part.caption,
+        // I vocali registrati sul momento arrivano con voice:true; un mp3 allegato no.
+        voice: kind === 'audio' ? part.voice !== false : undefined,
+      };
+    }
+  }
+  return undefined;
+}
+
 export async function POST(request: Request) {
   if (!authorized(request)) {
     return Response.json({ error: 'Token webhook non valido' }, { status: 401 });
@@ -141,6 +169,9 @@ export async function POST(request: Request) {
       for (const m of value.messages || []) {
         if (!m.from) continue;
         const phone = normalizePhone(m.from);
+        const media = messageMedia(m);
+        // `text` resta l'etichetta leggibile ("📷 Foto: ...") che alimenta
+        // l'anteprima in elenco; il file vero viaggia a parte in `media`.
         const text = messageText(m);
         handled++;
 
@@ -157,7 +188,12 @@ export async function POST(request: Request) {
         // Archivio del messaggio, così la chat resta nel gestionale. Va nello
         // stesso archivio delle risposte in uscita: è quello che alimenta la
         // schermata Conversazioni.
-        await logInbound({ phone, text, name: contactName, messageId: m.id, at: now });
+        await logInbound({ phone, text, media, name: contactName, messageId: m.id, at: now });
+
+        // Un vocale o una foto senza didascalia non sono interpretabili: farli
+        // passare ai bot significherebbe rispondere a caso a "📷 Foto".
+        // Restano in chat e li legge una persona.
+        if (media && !media.caption) continue;
 
         // Una reazione (il "cuoricino" su un messaggio) non è una richiesta:
         // resta in chat ma non deve far partire bot, promemoria o assistente.
