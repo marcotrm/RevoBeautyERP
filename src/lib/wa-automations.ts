@@ -14,6 +14,7 @@ import { prisma } from '@/lib/prisma';
 import { todayRome } from '@/lib/date';
 import { sendWhatsAppTemplate, normalizePhone, isSendablePhone, waProvider } from '@/lib/whatsapp';
 import { WA_TEMPLATES, sanitizeParam, isMarketing, type TemplateKey } from '@/lib/wa-templates';
+import { GIFT_OPTIONS } from '@/lib/giftOptions';
 
 const CONFIG_ROW = 'integration:wa_automations';
 const LOG_KIND = 'wa_log';
@@ -335,6 +336,64 @@ export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
   return runJobs('review', jobs, dryRun);
 }
 
+// ---- Campagna omaggio inaugurazione -------------------------
+
+/**
+ * Scrive a chi ha scaricato il coupon dell'inaugurazione e non ha ancora
+ * prenotato la seduta omaggio.
+ *
+ * "Non ha prenotato" ha lo stesso significato della pagina Inaugurazione: il
+ * contatto non risulta collegato a nessun appuntamento. L'abbinamento è sul
+ * numero (ultime 9 cifre) o sull'email, come nell'elenco.
+ *
+ * È marketing: chi ha revocato il consenso viene saltato, e il rowId per
+ * contatto garantisce che nessuno la riceva due volte anche rilanciandola.
+ */
+export async function runOmaggioInaugurazione(dryRun: boolean): Promise<RunResult> {
+  const [leads, clients, appts] = await Promise.all([
+    prisma.inaugurationLead.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.client.findMany({ select: { id: true, phone: true, email: true, marketingConsent: true } }),
+    prisma.appointment.findMany({ where: { status: { not: 'cancelled' } }, select: { clientId: true } }),
+  ]);
+
+  const conAppuntamento = new Set(appts.map(a => a.clientId).filter(Boolean) as string[]);
+  const tail = (p?: string | null) => (p || '').replace(/\D/g, '').slice(-9);
+
+  // Etichetta leggibile del trattamento omaggio scelto sul coupon
+  const etichettaOmaggio = (key: string) =>
+    GIFT_OPTIONS.find(o => o.key === key)?.label || 'la tua seduta omaggio';
+
+  const jobs: Job[] = [];
+  for (const l of leads) {
+    if (!isSendablePhone(l.phone)) continue;
+
+    const cliente = clients.find(c =>
+      (tail(l.phone) && tail(c.phone) === tail(l.phone)) ||
+      (l.email && (c.email || '').toLowerCase() === l.email.toLowerCase())
+    );
+    // Ha già prenotato (o è già venuto): non va disturbato
+    if (cliente && conAppuntamento.has(cliente.id)) continue;
+    // Consenso marketing: si rispetta quando il contatto è già in anagrafica
+    if (cliente && cliente.marketingConsent === false) continue;
+
+    const rowId = `wa:omaggio:${l.id}`;
+    if (await alreadySent(rowId)) continue;
+
+    jobs.push({
+      rowId,
+      clientId: cliente?.id,
+      name: `${l.firstName} ${l.lastName}`.trim(),
+      phone: normalizePhone(l.phone),
+      params: [
+        sanitizeParam(l.firstName || `${l.firstName} ${l.lastName}`),
+        sanitizeParam(etichettaOmaggio(l.treatment), 'la tua seduta omaggio'),
+      ],
+    });
+  }
+
+  return runJobs('omaggio', jobs, dryRun);
+}
+
 // ---- Orchestratore ------------------------------------------
 
 export interface RunOptions {
@@ -351,7 +410,10 @@ export async function runWaAutomations(opts: RunOptions = {}): Promise<RunResult
   const dryRun = opts.dryRun ?? cfg.dryRun;
   const results: RunResult[] = [];
 
-  const wants = (key: TemplateKey) => (which === 'all' || which === key) && (opts.force || cfg[key]);
+  // 'omaggio' non è fra gli interruttori di configurazione: è una campagna una
+  // tantum e si lancia solo a mano, quindi qui conta solo `force`.
+  const acceso = (key: TemplateKey) => (key === 'omaggio' ? false : Boolean(cfg[key as keyof WaAutomationsConfig]));
+  const wants = (key: TemplateKey) => (which === 'all' || which === key) && (opts.force || acceso(key));
 
   if (!waProvider()) {
     return [{ automation: 'reminder', skipped: 'WhatsApp non configurato (manca D360_API_KEY)', dryRun, candidates: 0, sent: 0, failed: 0, details: [] }];
@@ -361,6 +423,9 @@ export async function runWaAutomations(opts: RunOptions = {}): Promise<RunResult
   if (wants('recall')) results.push(await runRecall(cfg, dryRun));
   if (wants('birthday')) results.push(await runBirthdays(cfg, dryRun));
   if (wants('review')) results.push(await runReviewRequests(dryRun));
+  // 'omaggio' non ha un interruttore in configurazione: parte solo a mano
+  // dalla pagina Inaugurazione (which='omaggio' + force), mai da sola.
+  if (which === 'omaggio' && opts.force) results.push(await runOmaggioInaugurazione(dryRun));
 
   for (const r of results) {
     if (isMarketing(r.automation) && r.sent > 0) {

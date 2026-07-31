@@ -98,6 +98,21 @@ export const WA_TEMPLATES = {
     buttons: ['Lascia una recensione (bottone URL statico verso il link Google)'],
     note: 'Il link Google va messo come bottone URL statico in fase di approvazione, non nel corpo: così il testo resta UTILITY. Se Meta lo riclassifica MARKETING, servirà il consenso marketing.',
   },
+
+  omaggio: {
+    name: 'omaggio_inaugurazione',
+    category: 'MARKETING',
+    language: 'it',
+    params: ['nome contatto', 'trattamento omaggio'],
+    body:
+      'Ciao {{1}}, ti scriviamo da RevoBeauty: la tua seduta omaggio di {{2}} ti sta ancora aspettando.\n' +
+      'Quando ti fa comodo prenotarla? Rispondi a questo messaggio con il giorno che preferisci e la fissiamo noi.\n' +
+      'Ti aspettiamo in Via Caudina, Maddaloni.',
+    note:
+      'Campagna una tantum verso chi ha scaricato il coupon dell\'inaugurazione e non ha ancora ' +
+      'prenotato. Non è a orario: parte a mano dalla pagina Inaugurazione. È MARKETING, quindi va ' +
+      'solo a chi non ha revocato il consenso e ogni contatto la riceve una volta sola.',
+  },
 } as const satisfies Record<string, WaTemplate>;
 
 export type TemplateKey = keyof typeof WA_TEMPLATES;

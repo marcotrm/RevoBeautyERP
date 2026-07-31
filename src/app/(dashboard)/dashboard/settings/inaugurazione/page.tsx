@@ -5,6 +5,7 @@ import { treatmentLabel, TREATMENTS } from '@/lib/inaugurazione';
 import { PartyPopper, CheckCircle2, Clock, Users, Mail, Phone, RefreshCw, CalendarCheck, CalendarX, Sparkles } from 'lucide-react';
 import DeleteLeadButton from './DeleteLeadButton';
 import ImportToClientsButton from './ImportToClientsButton';
+import CampagnaOmaggio from './CampagnaOmaggio';
 
 // Pagina protetta dal gate client-side del layout dashboard (come il resto dell'ERP).
 export const dynamic = 'force-dynamic';
@@ -114,6 +115,7 @@ export default async function InaugurazionePage({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <CampagnaOmaggio />
           <ImportToClientsButton />
           <Link
             href="/dashboard/settings/inaugurazione"
