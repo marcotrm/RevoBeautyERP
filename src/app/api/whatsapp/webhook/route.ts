@@ -52,7 +52,29 @@ interface WaMessage {
   text?: { body?: string };
   button?: { text?: string; payload?: string };
   interactive?: { button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string } };
+  /** Emoji messo su un nostro messaggio (il "cuoricino" di WhatsApp). */
+  reaction?: { emoji?: string; message_id?: string };
+  /** Allegati: WhatsApp manda solo l'id del file, non il contenuto. */
+  image?: { caption?: string };
+  video?: { caption?: string };
+  document?: { caption?: string; filename?: string };
+  audio?: Record<string, unknown>;
+  voice?: Record<string, unknown>;
+  sticker?: Record<string, unknown>;
+  location?: { name?: string; address?: string };
 }
+
+/** Come chiamare a parole i messaggi che non sono testo. */
+const TIPI_LEGGIBILI: Record<string, string> = {
+  image: '📷 Foto',
+  video: '🎥 Video',
+  audio: '🎤 Messaggio vocale',
+  voice: '🎤 Messaggio vocale',
+  sticker: '🩷 Sticker',
+  document: '📎 Documento',
+  location: '📍 Posizione',
+  contacts: '👤 Contatto',
+};
 interface WaStatus {
   id?: string;
   status?: string;
@@ -61,13 +83,33 @@ interface WaStatus {
   errors?: Array<{ code?: number; title?: string }>;
 }
 
-/** Testo utile del messaggio, qualunque sia il tipo. */
+/**
+ * Testo utile del messaggio, qualunque sia il tipo.
+ *
+ * Foto, vocali e reazioni non hanno un corpo di testo: WhatsApp manda solo il
+ * tipo (e per le reazioni l'emoji). Senza tradurli, in chat compariva un secco
+ * "[reaction]" o "[image]" che non dice niente a chi legge.
+ */
 function messageText(m: WaMessage): string {
+  if (m.reaction?.emoji) return `${m.reaction.emoji} (reazione a un messaggio)`;
+
+  const didascalia = m.image?.caption || m.video?.caption || m.document?.caption;
+  const tipo = m.type ? TIPI_LEGGIBILI[m.type] : undefined;
+  if (tipo) {
+    if (m.type === 'document' && m.document?.filename) return `${tipo}: ${m.document.filename}`;
+    if (m.type === 'location') {
+      const dove = [m.location?.name, m.location?.address].filter(Boolean).join(' — ');
+      return dove ? `${tipo}: ${dove}` : tipo;
+    }
+    return didascalia ? `${tipo}: ${didascalia}` : tipo;
+  }
+
   return (
     m.text?.body ||
     m.button?.text ||
     m.interactive?.button_reply?.title ||
     m.interactive?.list_reply?.title ||
+    didascalia ||
     `[${m.type || 'messaggio'}]`
   );
 }
@@ -116,6 +158,10 @@ export async function POST(request: Request) {
         // stesso archivio delle risposte in uscita: è quello che alimenta la
         // schermata Conversazioni.
         await logInbound({ phone, text, name: contactName, messageId: m.id, at: now });
+
+        // Una reazione (il "cuoricino" su un messaggio) non è una richiesta:
+        // resta in chat ma non deve far partire bot, promemoria o assistente.
+        if (m.type === 'reaction') continue;
 
         // Opt-out: obbligatorio onorarlo, sia da bottone che da testo libero.
         const payloadId = m.button?.payload || m.interactive?.button_reply?.id || '';
