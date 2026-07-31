@@ -7,6 +7,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Timer, BellRing, BellOff, ChevronDown, ChevronUp, AlarmClockCheck, X, Volume2, VolumeX } from 'lucide-react';
 import { useAgendaStore } from '@/stores/useAgendaStore';
 import { useOperatorStore } from '@/stores/useOperatorStore';
+import { useCabinStore } from '@/stores/useCabinStore';
+import { cabinName, type Cabin } from '@/lib/cabins';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { formatCountdown, countdownTone, runningTreatments } from '@/lib/cabinTimer';
 import type { Appointment, Operator } from '@/types';
@@ -64,10 +66,14 @@ function speak(text: string, esito?: { ok: () => void; ko: () => void }) {
  * cabina/risorsa dell'appuntamento, e in ultimo sul nome dell'operatrice.
  * Mai il nome della cliente: non deve girare a voce per il salone.
  */
-function cabinLabel(appt: { cabinNumber?: string; operatorId?: string; operatorName?: string }, operators: Operator[]): string {
+function cabinLabel(
+  appt: { cabinNumber?: string; operatorId?: string; operatorName?: string },
+  operators: Operator[],
+  cabins: Cabin[] = [],
+): string {
   const n = (appt.cabinNumber || '').trim();
-  // "4" diventa "Cabina 4"; se hanno scritto "Sala Laser" resta com'è
-  if (n) return /^\d+$/.test(n) ? `Cabina ${n}` : n;
+  // Il nome dato in Impostazioni → Cabine vince ("Sala Laser"); altrimenti "Cabina 4"
+  if (n) return cabinName(n, cabins);
   const op = operators.find(o => o.id === appt.operatorId);
   if (op?.isResource) return `${op.firstName} ${op.lastName}`.trim();
   return op?.firstName || appt.operatorName || 'La cabina';
@@ -109,6 +115,8 @@ export default function CabinTimers() {
   const fetchAppointments = useAgendaStore(s => s.fetchAppointments);
   const operators = useOperatorStore(s => s.operators);
   const fetchOperators = useOperatorStore(s => s.fetchOperators);
+  const cabins = useCabinStore(s => s.cabins);
+  const fetchCabins = useCabinStore(s => s.fetchCabins);
 
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -125,6 +133,8 @@ export default function CabinTimers() {
   voiceOnRef.current = voiceOn;
   const operatorsRef = useRef(operators);
   operatorsRef.current = operators;
+  const cabinsRef = useRef(cabins);
+  cabinsRef.current = cabins;
 
   useEffect(() => {
     setMounted(true);
@@ -134,7 +144,7 @@ export default function CabinTimers() {
   }, []);
 
   // I dati arrivano anche dagli altri dispositivi: check-in fatto dal tablet in cabina
-  useEffect(() => { fetchAppointments(); fetchOperators(); }, [fetchAppointments, fetchOperators]);
+  useEffect(() => { fetchAppointments(); fetchOperators(); fetchCabins(); }, [fetchAppointments, fetchOperators, fetchCabins]);
   useAutoRefresh(useCallback(() => { fetchAppointments(); }, [fetchAppointments]), 30000);
 
   useEffect(() => {
@@ -162,7 +172,7 @@ export default function CabinTimers() {
     // il nome della cliente detto ad alta voce in mezzo al salone non va bene.
     // Più trattamenti insieme: la sintesi vocale li mette in coda da sola.
     if (voiceOnRef.current) {
-      const luoghi = scaduti.map(s => cabinLabel(s.appt, operatorsRef.current));
+      const luoghi = scaduti.map(s => cabinLabel(s.appt, operatorsRef.current, cabinsRef.current));
       setTimeout(() => luoghi.forEach(l => speak(`${l} ha finito il trattamento`)), VOICE_DELAY_MS);
     }
 
@@ -212,7 +222,7 @@ export default function CabinTimers() {
                       <p className="text-xs font-semibold text-text-primary truncate flex-1">{appt.clientName}</p>
                       {appt.cabinNumber && (
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-accent/15 text-accent flex-shrink-0">
-                          {cabinLabel(appt, operators)}
+                          {cabinLabel(appt, operators, cabins)}
                         </span>
                       )}
                     </div>
@@ -292,7 +302,7 @@ export default function CabinTimers() {
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-bold text-text-primary flex-1">{a.clientName}</p>
                       <span className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-error/15 text-error flex-shrink-0">
-                        {cabinLabel(a, operators)}
+                        {cabinLabel(a, operators, cabins)}
                       </span>
                     </div>
                     <p className="text-xs text-text-secondary">{a.treatmentName}</p>

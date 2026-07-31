@@ -27,6 +27,7 @@ import { type WeekScheduleMap } from '@/app/actions/weekShifts';
 import { resolveDaySchedule, mondayISO } from '@/lib/weekSchedule';
 import { isWalkIn } from '@/lib/walkIn';
 import { todayRome } from '@/lib/date';
+import { useCabinStore } from '@/stores/useCabinStore';
 import { useWeekShiftsStore } from '@/stores/useWeekShiftsStore';
 import CabinCountdown from '@/components/CabinCountdown';
 import WaitlistModal from '@/components/WaitlistModal';
@@ -1715,6 +1716,9 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   const [cabin, setCabin] = useState('');
   // Avviso "data diversa da oggi", mostrato prima del check-in
   const [dateWarn, setDateWarn] = useState(false);
+  const cabins = useCabinStore(s => s.cabins);
+  const fetchCabins = useCabinStore(s => s.fetchCabins);
+  useEffect(() => { fetchCabins(); }, [fetchCabins]);
 
   // Elenco dei trattamenti dell'appuntamento (i vecchi ne hanno uno solo)
   const services: AppointmentService[] = useMemo(() => (
@@ -2189,11 +2193,13 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
             {askingCabin && (
               <div className="mt-3 p-3 rounded-xl bg-pink-500/5 border border-pink-500/20 space-y-2.5">
                 <p className="text-xs font-semibold text-text-primary">In quale cabina entra?</p>
-                <div className="grid grid-cols-6 gap-1.5">
-                  {['1', '2', '3', '4', '5', '6'].map(n => (
-                    <button key={n} onClick={() => setCabin(n)}
-                      className={`py-2 rounded-lg text-sm font-bold transition-colors ${cabin === n ? 'bg-accent text-white' : 'bg-bg-tertiary text-text-primary hover:bg-bg-hover'}`}>
-                      {n}
+                {/* Le cabine arrivano da Impostazioni → Cabine: numero e, se c'è, nome */}
+                <div className={`grid gap-1.5 ${cabins.some(c => c.nome) ? 'grid-cols-3' : 'grid-cols-6'}`}>
+                  {cabins.map(c => (
+                    <button key={c.numero} onClick={() => setCabin(c.numero)}
+                      className={`py-2 px-1 rounded-lg transition-colors ${cabin === c.numero ? 'bg-accent text-white' : 'bg-bg-tertiary text-text-primary hover:bg-bg-hover'}`}>
+                      <span className="block text-sm font-bold leading-tight">{c.numero}</span>
+                      {c.nome && <span className="block text-[9px] leading-tight truncate opacity-80">{c.nome}</span>}
                     </button>
                   ))}
                 </div>
