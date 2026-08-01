@@ -15,10 +15,23 @@
 import { randomBytes } from 'crypto';
 import prisma from '@/lib/prisma';
 import { normalizePhone } from '@/lib/whatsapp';
-import { sendD360Template, d360Configured, listD360Templates, createD360AuthTemplate } from '@/lib/whatsapp360';
+import { sendD360Template, d360Configured, listD360Templates, createD360Template } from '@/lib/whatsapp360';
 
-/** Template WhatsApp di categoria AUTHENTICATION per il codice OTP. */
-export const OTP_TEMPLATE = 'codice_verifica_revobeauty';
+/**
+ * Template WhatsApp per il codice di conferma della registrazione.
+ *
+ * Sarebbe da categoria AUTHENTICATION, ma Meta non lascia creare quei template
+ * dall'API di 360dialog ("Application does not have permission", subcode
+ * 2388185): si usa un UTILITY con il codice nel corpo, che è creabile dal
+ * gestionale come tutti gli altri. È comunque un messaggio transazionale
+ * (completa una registrazione chiesta dall'utente), quindi la categoria regge.
+ */
+export const OTP_TEMPLATE = 'codice_registrazione_revobeauty';
+
+/** Testo esatto mandato in approvazione: cambiarlo = rifare l'approvazione. */
+const OTP_BODY =
+  'Per completare la tua registrazione da RevoBeauty inserisci questo codice nella pagina aperta sul telefono: {{1}}.\n'
+  + 'Il codice scade tra 10 minuti. Se non l\'hai richiesto tu, ignora questo messaggio.';
 
 /** Dove si trova il centro: compare su landing, voucher e locandine. */
 export const CENTRO = {
@@ -147,14 +160,12 @@ export async function statoEffettivo(qr: QrRow): Promise<string> {
 
 /**
  * Manda il codice OTP. La persona non ci ha mai scritto, quindi la finestra
- * 24h è chiusa: l'unica strada è il template di autenticazione approvato.
- * Il codice va sia nel corpo che nel bottone copia-codice (regola Meta).
+ * 24h è chiusa: l'unica strada è un template approvato.
  */
 export async function inviaOtp(phone: string, code: string): Promise<{ ok: boolean; error?: string }> {
   if (!d360Configured()) return { ok: false, error: 'WhatsApp non configurato' };
   const res = await sendD360Template(normalizePhone(phone), OTP_TEMPLATE, {
     bodyParams: [code],
-    buttonUrlSuffix: code,
     language: 'it',
   });
   return res.ok ? { ok: true } : { ok: false, error: res.error };
@@ -173,7 +184,13 @@ export async function statoTemplateOtp(): Promise<{ stato: 'manca' | 'pending' |
 
 /** Crea il template OTP e lo manda in approvazione (di solito è questione di minuti). */
 export async function preparaTemplateOtp(): Promise<{ ok: boolean; error?: string }> {
-  const res = await createD360AuthTemplate(OTP_TEMPLATE, 'it');
+  const res = await createD360Template({
+    name: OTP_TEMPLATE,
+    category: 'UTILITY',
+    language: 'it',
+    body: OTP_BODY,
+    example: ['482913'],
+  });
   return res.ok ? { ok: true } : { ok: false, error: res.error };
 }
 

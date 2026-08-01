@@ -26,6 +26,7 @@ import { changeGiftTreatment } from '@/app/actions/packages';
 import { type WeekScheduleMap } from '@/app/actions/weekShifts';
 import { resolveDaySchedule, mondayISO } from '@/lib/weekSchedule';
 import { isWalkIn } from '@/lib/walkIn';
+import { schedaCompleta, campiMancanti } from '@/lib/schedaCliente';
 import { todayRome } from '@/lib/date';
 import { useCabinStore } from '@/stores/useCabinStore';
 import { appointmentsForOperator, servicesOf, serviceOperatorId, hasMultipleOperators, type SplitAppointment } from '@/lib/appointmentSplit';
@@ -1811,6 +1812,11 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   const [cabin, setCabin] = useState('');
   // Avviso "data diversa da oggi", mostrato prima del check-in
   const [dateWarn, setDateWarn] = useState(false);
+  // Scheda cliente da completare: al telefono si prendono solo nome e numero,
+  // il resto si compila QUI, al check-in, quando la cliente è davanti al banco.
+  const [schedaOpen, setSchedaOpen] = useState(false);
+  const [schedaForm, setSchedaForm] = useState({ birthDate: '', gender: '' as '' | 'F' | 'M', address: '', city: '', email: '', marketing: false });
+  const [schedaBusy, setSchedaBusy] = useState(false);
   const cabins = useCabinStore(s => s.cabins);
   const fetchCabins = useCabinStore(s => s.fetchCabins);
   useEffect(() => { fetchCabins(); }, [fetchCabins]);
@@ -1901,7 +1907,8 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   const usePackageSession = usePackageStore(s => s.useSession);
   const allClientPkgs = usePackageStore(s => s.clientPackages);
   const allClients = useClientStore(s => s.clients);
-  
+  const updateClientInStore = useClientStore(s => s.updateClient);
+
   // Match by normalized name (word-order agnostic)
   const normalize = (n: string) => n.toLowerCase().trim().split(/\s+/).sort().join(' ');
   const targetName = normalize(appointment.clientName);
@@ -2019,8 +2026,49 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
    * del check-in, con la possibilità di correggere la data al volo.
    */
   const handleCheckInClick = () => {
+    // Prima di tutto la scheda: se mancano i dati chiave il check-in si ferma
+    // qui e si apre il modulo da completare. L'obiettivo è zero schede a metà.
+    if (clientData && !schedaCompleta(clientData)) {
+      setSchedaForm({
+        birthDate: clientData.birthDate || '',
+        gender: (clientData.gender === 'M' ? 'M' : clientData.gender === 'F' ? 'F' : ''),
+        address: clientData.address || '',
+        city: clientData.city || '',
+        email: clientData.email || '',
+        marketing: Boolean(clientData.marketingConsent),
+      });
+      setSchedaOpen(true);
+      return;
+    }
+    dopoControlloScheda();
+  };
+
+  /** Il check-in vero e proprio, dopo che la scheda risulta a posto. */
+  const dopoControlloScheda = () => {
     if (appointment.date !== todayRome()) setDateWarn(true);
     else openCabinPicker();
+  };
+
+  const schedaPronta = Boolean(schedaForm.birthDate && schedaForm.gender && schedaForm.address.trim() && schedaForm.city.trim());
+
+  /** Salva i dati completati e prosegue con il check-in. */
+  const salvaSchedaEContinua = async () => {
+    if (!clientData || !schedaPronta) return;
+    setSchedaBusy(true);
+    try {
+      await updateClientInStore(clientData.id, {
+        birthDate: schedaForm.birthDate,
+        gender: schedaForm.gender as 'F' | 'M',
+        address: schedaForm.address.trim(),
+        city: schedaForm.city.trim(),
+        email: schedaForm.email.trim() || undefined,
+        marketingConsent: schedaForm.marketing,
+      });
+      setSchedaOpen(false);
+      dopoControlloScheda();
+    } finally {
+      setSchedaBusy(false);
+    }
   };
 
   /** Porta l'appuntamento a oggi (stessi orari) e prosegue col check-in. */
@@ -2489,6 +2537,92 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 else processCheckout(null);
               }} className="flex-1 py-2.5 rounded-xl bg-bg-tertiary text-text-primary text-sm font-medium hover:bg-bg-hover transition-colors">
                 Salta per oggi
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Scheda cliente incompleta: il check-in aspetta finché non è a posto.
+          I dati si prendono ORA, con la cliente al banco: dopo non li recupera
+          più nessuno. Solo l'email può restare vuota (molti non la ricordano). */}
+      {schedaOpen && clientData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSchedaOpen(false)} />
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="relative z-10 w-full max-w-md rounded-2xl border-2 border-accent/40 bg-bg-secondary shadow-2xl overflow-hidden max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center gap-3 px-5 py-4 bg-accent/10">
+              <div className="w-11 h-11 rounded-full bg-accent/20 flex items-center justify-center text-accent flex-shrink-0">
+                <Users className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-display font-bold text-text-primary">Completa la scheda di {clientData.firstName}</h3>
+                <p className="text-xs text-text-secondary">
+                  Manca: {campiMancanti(clientData).join(', ')}. La cliente è qui: chiediglieli adesso.
+                </p>
+              </div>
+              <button onClick={() => setSchedaOpen(false)} className="p-1.5 rounded-lg hover:bg-bg-hover text-text-secondary flex-shrink-0">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-text-secondary mb-1">Data di nascita *</label>
+                  <input type="date" value={schedaForm.birthDate}
+                    onChange={e => setSchedaForm(f => ({ ...f, birthDate: e.target.value }))}
+                    className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-text-secondary mb-1">Sesso *</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(['F', 'M'] as const).map(g => (
+                      <button key={g} onClick={() => setSchedaForm(f => ({ ...f, gender: g }))}
+                        className={`py-2.5 rounded-xl text-sm font-bold transition-colors ${schedaForm.gender === g ? 'bg-accent text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
+                        {g === 'F' ? '♀ Donna' : '♂ Uomo'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-text-secondary mb-1">Indirizzo *</label>
+                <input type="text" value={schedaForm.address} {...NO_AUTOFILL}
+                  onChange={e => setSchedaForm(f => ({ ...f, address: e.target.value }))}
+                  placeholder="Via e numero civico"
+                  className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-text-secondary mb-1">Città *</label>
+                <input type="text" value={schedaForm.city} {...NO_AUTOFILL}
+                  onChange={e => setSchedaForm(f => ({ ...f, city: e.target.value }))}
+                  placeholder="Es. Maddaloni"
+                  className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-text-secondary mb-1">Email (facoltativa, ma chiedila)</label>
+                <input type="email" value={schedaForm.email} {...NO_AUTOFILL}
+                  onChange={e => setSchedaForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="Se non la ricorda, lascia vuoto"
+                  className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted" />
+              </div>
+              <label className="flex items-start gap-2 text-xs text-text-secondary cursor-pointer">
+                <input type="checkbox" checked={schedaForm.marketing}
+                  onChange={e => setSchedaForm(f => ({ ...f, marketing: e.target.checked }))}
+                  className="mt-0.5 w-4 h-4 rounded border-border accent-accent" />
+                <span>Acconsente a ricevere promozioni e auguri (WhatsApp): vale oro per il marketing</span>
+              </label>
+            </div>
+
+            <div className="p-5 pt-0 space-y-2">
+              <button onClick={salvaSchedaEContinua} disabled={!schedaPronta || schedaBusy}
+                className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed">
+                {schedaBusy ? 'Salvataggio…' : 'Salva la scheda e fai il check-in'}
+              </button>
+              <button onClick={() => setSchedaOpen(false)}
+                className="w-full py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+                Chiudi senza check-in
               </button>
             </div>
           </motion.div>

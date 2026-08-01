@@ -14,6 +14,7 @@ import {
 import { formatCurrency, getInitials } from '@/lib/helpers';
 import AddClientModal from '@/components/AddClientModal';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
+import { schedaCompleta } from '@/lib/schedaCliente';
 
 const container = {
   hidden: { opacity: 0 },
@@ -39,8 +40,9 @@ function VIPBadge({ level }: { level: number }) {
 }
 
 function isIncompleteClient(c: Client): boolean {
-  // Anagrafica considerata incompleta se mancano dati anagrafici chiave
-  return !c.birthDate || !c.address || !c.email;
+  // Stesso criterio del blocco al check-in (lib/schedaCliente): l'email è
+  // facoltativa, quindi da sola non rende la scheda "incompleta".
+  return !schedaCompleta(c);
 }
 
 function ClientRow({ client, checked, onToggle, onEdit, onDelete }: { client: Client; checked: boolean; onToggle: (id: string) => void; onEdit: (c: Client) => void; onDelete: (c: Client) => void }) {
