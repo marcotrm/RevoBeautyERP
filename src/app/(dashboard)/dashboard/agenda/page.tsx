@@ -1986,7 +1986,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
    * chosenPkgId: id del pacchetto da scalare, oppure null per incassare in cassa.
    * Se non passato, usa il pacchetto scelto in fase di prenotazione.
    */
-  const processCheckout = (chosenPkgId?: string | null) => {
+  const processCheckout = async (chosenPkgId?: string | null) => {
     const checkOutAt = new Date().toISOString();
     const cabinMinutes = appointment.checkInAt
       ? Math.max(1, Math.round((Date.parse(checkOutAt) - Date.parse(appointment.checkInAt)) / 60000))
@@ -2000,8 +2000,14 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
       : (chosenPkgId ? usablePkgs.find(cp => cp.id === chosenPkgId) || null : null);
 
     if (pkg) {
-      usePackageSession(pkg.id, appointment.operatorName, `Completato: ${appointment.treatmentName}`);
-      setScaledPkgId(pkg.id);
+      // Lo scalo va ATTESO e un suo fallimento va urlato: un errore silenzioso
+      // qui lascia il pacchetto pieno con la seduta già fatta (successo vero).
+      try {
+        await usePackageSession(pkg.id, appointment.operatorName, `Completato: ${appointment.treatmentName}`);
+        setScaledPkgId(pkg.id);
+      } catch {
+        alert(`ATTENZIONE: la seduta NON è stata scalata dal pacchetto "${pkg.packageName}". Scalala a mano da Trattamenti e Pacchetti.`);
+      }
     }
 
     // Le due cose non si escludono: nella stessa seduta ci può essere il
@@ -2059,9 +2065,13 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   };
 
   const handleCheckoutClick = () => {
-    // Prima cosa: da quale pacchetto scalo? (le rate in sospeso si vedono lì dentro)
-    if (usablePkgs.length > 0) askWhichPackage();
-    else if (packagesWithDebt.length > 0) setShowDebtModal(true);
+    // Prenotata come "Seduta da pacchetto"? Allora si scala QUEL pacchetto,
+    // in automatico e senza domande: il modale di scelta lasciava spazio a
+    // check-out completati senza scalare niente (vissuto, non teoria).
+    if (bookedPkg && packagesWithDebt.length === 0) { void processCheckout(undefined); return; }
+    // Negli altri casi: prima le rate in sospeso, poi l'eventuale scelta
+    if (packagesWithDebt.length > 0) setShowDebtModal(true);
+    else if (usablePkgs.length > 0) askWhichPackage();
     else processCheckout(null);
   };
 
@@ -2612,7 +2622,9 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
               </button>
               <button onClick={() => {
                 setShowDebtModal(false);
-                if (usablePkgs.length > 0) askWhichPackage();
+                // Anche da qui: la seduta prenotata da pacchetto si scala da sola
+                if (bookedPkg) void processCheckout(undefined);
+                else if (usablePkgs.length > 0) askWhichPackage();
                 else processCheckout(null);
               }} className="flex-1 py-2.5 rounded-xl bg-bg-tertiary text-text-primary text-sm font-medium hover:bg-bg-hover transition-colors">
                 Salta per oggi
