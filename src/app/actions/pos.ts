@@ -3,7 +3,8 @@
 import { prisma } from '@/lib/prisma';
 import { notifyIncasso } from '@/lib/telegram';
 import { todayRome } from '@/lib/date';
-import { emitC95Receipt, voidC95Receipt, resoParzialeC95Receipt, recoverC95Idtrx, getC95Config } from '@/lib/c95';
+import { voidC95Receipt, resoParzialeC95Receipt, recoverC95Idtrx, getC95Config } from '@/lib/c95';
+import { emettiScontrinoElettronico } from '@/lib/scontrino';
 
 export interface ProductLine { productId: string; qty: number }
 
@@ -200,29 +201,9 @@ export async function createTransaction(data: Omit<TransactionRecord, 'id'>, ori
   // così il POS può avvisare subito l'operatore se lo scontrino fiscale non è stato emesso.
   let outcome = created;
   if (created.total > 0 && !created.isRefund) {
-    try {
-      const c95Cfg = await getC95Config();
-      if (!c95Cfg.enabled) return toTransactionRecord(created);
-      const result = await emitC95Receipt({
-        amount: created.total,
-        paymentMethod: created.paymentMethod,
-        lines: [{ descrizione: data.items.slice(0, 100) || 'Servizi/prodotti', prezzoUnitario: created.total, quantita: 1 }],
-      });
-      outcome = await prisma.posTransaction.update({
-        where: { id: created.id },
-        data: {
-          c95Status: result.status,
-          c95Emitted: result.status === 'emitted',
-          c95IdScontrino: result.idScontrino,
-          c95Gid: result.gid,
-          c95Idtrx: result.idtrx,
-          c95Progressivo: result.progressivo,
-          c95Error: result.error,
-        },
-      });
-    } catch {
-      // integrazione non configurata o errore imprevisto: la vendita resta valida comunque
-    }
+    // Stessa emissione usata dai pacchetti (lib/scontrino): un punto solo.
+    const aggiornata = await emettiScontrinoElettronico(created, data.items);
+    if (aggiornata) outcome = aggiornata;
   }
   // Rimborso: se lo scontrino originale era stato emesso su C95, registra il RESO verso AdE
   // (reso totale se l'importo coincide col documento originale, altrimenti reso parziale).

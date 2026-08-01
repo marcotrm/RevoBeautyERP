@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { PackageItem, ClientPackage, PackagePayment } from '@/stores/usePackageStore';
 import { notifyIncasso } from '@/lib/telegram';
 import { FREE_PACKAGES } from '@/lib/giftOptions';
+import { emettiScontrinoElettronico } from '@/lib/scontrino';
 
 function toClientPackage(cp: {
   id: string; clientName: string; packageName: string; packageColor: string;
@@ -22,7 +23,8 @@ function toClientPackage(cp: {
 }
 
 // Registra un incasso in cassa (POS) collegato a un pacchetto, così il pagamento
-// compare tra le transazioni del giorno come qualsiasi altro incasso.
+// compare tra le transazioni del giorno come qualsiasi altro incasso — scontrino
+// elettronico compreso: chi paga un pacchetto (o una rata) è un incasso vero.
 async function recordPosPayment(params: {
   clientName: string; amount: number; method: string; operator: string; label: string;
 }) {
@@ -30,7 +32,7 @@ async function recordPosPayment(params: {
   const now = new Date();
   const today = now.toISOString().split('T')[0];
   const time = now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
-  await prisma.posTransaction.create({
+  const created = await prisma.posTransaction.create({
     data: {
       date: today,
       time,
@@ -42,6 +44,7 @@ async function recordPosPayment(params: {
       isRefund: false,
     },
   });
+  await emettiScontrinoElettronico(created, params.label);
   notifyIncasso({ amount: params.amount, client: params.clientName, items: params.label, method: params.method, operator: params.operator }).catch(() => {});
 }
 
