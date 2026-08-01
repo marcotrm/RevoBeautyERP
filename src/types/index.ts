@@ -196,6 +196,12 @@ export interface AppointmentService {
   gender?: 'male' | 'female';
   checkInAt?: string;  // ISO — inizio di QUESTO trattamento in cabina
   checkOutAt?: string; // ISO — fine di QUESTO trattamento
+  /**
+   * Chi esegue questo trattamento, se diverso dall'operatrice dell'appuntamento
+   * (es. l'acrygel lo fa Michela e la pedicure Veronica). Vuoto = la principale.
+   */
+  operatorId?: string;
+  operatorName?: string;
 }
 
 export interface Appointment {

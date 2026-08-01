@@ -14,7 +14,7 @@ import { Appointment, AppointmentService, AgendaBlock, Operator, Treatment } fro
 import {
   ChevronLeft, ChevronRight, ChevronDown, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
-  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone, Sun, MessageSquare
+  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone, Sun, MessageSquare, Users
 } from 'lucide-react';
 import {
   formatDateLong, timeToMinutes, minutesToTime, getStatusLabel,
@@ -28,6 +28,7 @@ import { resolveDaySchedule, mondayISO } from '@/lib/weekSchedule';
 import { isWalkIn } from '@/lib/walkIn';
 import { todayRome } from '@/lib/date';
 import { useCabinStore } from '@/stores/useCabinStore';
+import { appointmentsForOperator, servicesOf, serviceOperatorId, hasMultipleOperators, type SplitAppointment } from '@/lib/appointmentSplit';
 import { useWeekShiftsStore } from '@/stores/useWeekShiftsStore';
 import CabinCountdown from '@/components/CabinCountdown';
 import WaitlistModal from '@/components/WaitlistModal';
@@ -110,7 +111,7 @@ function isMinuteUnavailable(op: Operator, date: Date, minFromStart: number, wee
   return operatorUnavailableBands(op, date, weekMap).some(b => minFromStart >= b.startMin && minFromStart < b.endMin);
 }
 
-function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, color }: { appointment: Appointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties; color?: string }) {
+function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, color }: { appointment: SplitAppointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties; color?: string }) {
   const blockColor = color || appointment.color;
   const startMin = timeToMinutes(appointment.startTime) - START_HOUR * 60;
   const endMin = timeToMinutes(appointment.endTime) - START_HOUR * 60;
@@ -124,7 +125,9 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const isFrozen = appointment.isLocked || appointment.status === 'completed';
+  // Una fetta di appuntamento condiviso non si trascina: sposterebbe anche la
+  // parte dell'altra operatrice, che qui non si vede.
+  const isFrozen = appointment.isLocked || appointment.status === 'completed' || Boolean(appointment.parziale);
 
   return (
     <div
@@ -138,6 +141,9 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
         <div className="flex items-center gap-1 min-w-0">
           <span style={{ color: getStatusColor(appointment.status) }}>{statusIcons[appointment.status]}</span>
           <span className={`font-semibold text-text-primary truncate ${isSmall ? 'text-[10px]' : 'text-xs'}`}>{appointment.clientName}</span>
+          {appointment.parziale && (
+            <Users className="w-3 h-3 text-text-muted flex-shrink-0" />
+          )}
           <CabinCountdown appointment={appointment} />
         </div>
         <div className="flex items-center gap-1">
@@ -278,9 +284,12 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
     return map;
   }, [blocks, operators]);
 
+  // Ogni colonna mostra la parte di appuntamento che tocca a quell'operatrice:
+  // se l'acrygel è di Michela e la pedicure di Veronica, tutte e due vedono
+  // occupato solo il proprio pezzo e nessuno ci prenota sopra.
   const byOperator = useMemo(() => {
-    const map: Record<string, Appointment[]> = {};
-    operators.forEach(op => { map[op.id] = appointments.filter(a => a.operatorId === op.id); });
+    const map: Record<string, SplitAppointment[]> = {};
+    operators.forEach(op => { map[op.id] = appointmentsForOperator(appointments, op.id); });
     return map;
   }, [appointments, operators]);
 
@@ -443,7 +452,7 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
                 const sorted = [...operatorApts].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
                 
                 // Group overlapping
-                const overlappingGroups: Appointment[][] = [];
+                const overlappingGroups: SplitAppointment[][] = [];
                 sorted.forEach(apt => {
                   let placed = false;
                   for (const group of overlappingGroups) {
@@ -1286,6 +1295,16 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   };
   const removeService = (index: number) => setSelectedServices(prev => prev.filter((_, i) => i !== index));
 
+  /** Assegna un trattamento a un'altra operatrice (vuoto = quella principale). */
+  const setServiceOperator = (index: number, operatorId: string) => {
+    const op = operators.find(o => o.id === operatorId);
+    setSelectedServices(prev => prev.map((s, i) => (
+      i === index
+        ? { ...s, operatorId: operatorId || undefined, operatorName: op ? `${op.firstName} ${op.lastName}`.trim() : undefined }
+        : s
+    )));
+  };
+
   const totalDuration = useMemo(() => selectedServices.reduce((s, x) => s + x.duration, 0), [selectedServices]);
   const totalPrice = useMemo(() => selectedServices.reduce((s, x) => s + x.price, 0), [selectedServices]);
 
@@ -1332,10 +1351,17 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     const eStart = startMin;
     const eEnd = startMin + duration;
     if (eEnd > END_HOUR * 60) return false; // sfora l'orario di chiusura
-    const overlapsAppt = appointments.some(a =>
-      a.date === dateStr && a.operatorId === selectedOperatorId &&
-      a.id !== editingAppointment?.id &&
-      a.status !== 'cancelled' && a.status !== 'no_show' &&
+    // Conta anche i trattamenti che altri appuntamenti hanno affidato a questa
+    // operatrice: il suo tempo è occupato lo stesso, anche se l'appuntamento
+    // "principale" è di una collega.
+    const suoi = appointmentsForOperator(
+      appointments.filter(a =>
+        a.date === dateStr && a.id !== editingAppointment?.id &&
+        a.status !== 'cancelled' && a.status !== 'no_show'
+      ),
+      selectedOperatorId,
+    );
+    const overlapsAppt = suoi.some(a =>
       !(timeToMinutes(a.endTime) <= eStart || timeToMinutes(a.startTime) >= eEnd)
     );
     const overlapsBlock = blocks.some(b =>
@@ -1533,13 +1559,30 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
               {selectedServices.length > 0 && (
                 <div className="space-y-1.5 mb-2">
                   {selectedServices.map((s, i) => (
-                    <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-accent/5 border border-accent/20">
+                    <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-accent/5 border border-accent/20 flex-wrap">
                       <span className="flex items-center justify-center w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-bold flex-shrink-0">{i + 1}</span>
-                      <span className="text-sm text-text-primary flex-1 truncate">{s.treatmentName}</span>
+                      <span className="text-sm text-text-primary flex-1 min-w-0 truncate">{s.treatmentName}</span>
                       <span className="text-xs text-text-muted flex-shrink-0">{s.gender === 'male' ? '♂' : '♀'} {s.duration}min · {formatCurrency(s.price)}</span>
+                      {/* Chi lo fa: vuoto = l'operatrice principale scelta sotto.
+                          Serve quando due operatrici si dividono la stessa cliente. */}
+                      <select value={s.operatorId || ''} onChange={e => setServiceOperator(i, e.target.value)}
+                        title="Chi esegue questo trattamento"
+                        className="px-2 py-1 rounded-lg bg-bg-secondary border border-border text-[11px] text-text-secondary focus:outline-none focus:border-accent/50 flex-shrink-0 max-w-[130px]">
+                        <option value="">Operatrice principale</option>
+                        {operators.filter(o => !o.isResource).map(o => (
+                          <option key={o.id} value={o.id}>{o.firstName} {o.lastName}</option>
+                        ))}
+                      </select>
                       <button type="button" onClick={() => removeService(i)} className="p-1 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-colors flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
                     </div>
                   ))}
+                  {selectedServices.some(s => s.operatorId && s.operatorId !== selectedOperatorId) && (
+                    <p className="flex items-start gap-1.5 text-[11px] text-text-muted px-1">
+                      <Users className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
+                      I trattamenti si susseguono nell&apos;ordine dell&apos;elenco: ogni operatrice vedrà in agenda
+                      solo il proprio pezzo, con il suo orario.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -1985,7 +2028,13 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                   <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: appointment.color }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-text-primary truncate">{s.treatmentName}</p>
-                    <p className="text-xs text-text-secondary">{s.duration} min · {formatCurrency(s.price)}</p>
+                    <p className="text-xs text-text-secondary">
+                      {s.duration} min · {formatCurrency(s.price)}
+                      {/* Con due operatrici sullo stesso appuntamento va detto chi fa cosa */}
+                      {s.operatorId && s.operatorId !== appointment.operatorId && (
+                        <span className="text-accent"> · {s.operatorName || 'altra operatrice'}</span>
+                      )}
+                    </p>
                   </div>
                   {services.length > 1 && appointment.status !== 'completed' && (
                     <button onClick={() => removeServiceAt(i)} disabled={busySvc} title="Togli trattamento"
