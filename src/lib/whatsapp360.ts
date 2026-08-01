@@ -286,10 +286,11 @@ export async function createD360AuthTemplate(
   name: string,
   language = 'it'
 ): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
+  // Payload minimo: l'endpoint di 360dialog è più severo di Meta e rifiuta
+  // con un 400 secco gli extra (footer con scadenza, etichetta del bottone).
   return submitTemplate(name, 'AUTHENTICATION', language, [
-    { type: 'BODY', add_security_recommendation: false },
-    { type: 'FOOTER', code_expiration_minutes: 10 },
-    { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE', text: 'Copia codice' }] },
+    { type: 'BODY', add_security_recommendation: true },
+    { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE' }] },
   ]);
 }
 
@@ -317,7 +318,12 @@ async function submitTemplate(
     });
     const body = await res.json().catch(() => null);
     if (!res.ok) {
-      const msg = body?.error?.error_user_msg || body?.error?.message || body?.message || `HTTP ${res.status}`;
+      // Il corpo dell'errore di 360dialog cambia forma a seconda del caso:
+      // senza il grezzo in coda si resta con un "HTTP 400" inutilizzabile.
+      const raw = body ? JSON.stringify(body).slice(0, 300) : '';
+      const msg = body?.error?.error_user_msg || body?.error?.message || body?.message
+        || body?.meta?.developer_message
+        || (raw ? `HTTP ${res.status} — ${raw}` : `HTTP ${res.status}`);
       return { ok: false, error: String(msg) };
     }
     return { ok: true, status: String(body?.status || 'PENDING') };

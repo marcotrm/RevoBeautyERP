@@ -51,6 +51,7 @@ export default function AffiliatiPage() {
   const [caricamento, setCaricamento] = useState(true);
   const [otpStato, setOtpStato] = useState<{ stato: string; dettaglio?: string } | null>(null);
   const [otpLavoro, setOtpLavoro] = useState(false);
+  const [otpErrore, setOtpErrore] = useState<string | null>(null);
   const [copiato, setCopiato] = useState('');
 
   const ricarica = useCallback(async () => {
@@ -71,9 +72,10 @@ export default function AffiliatiPage() {
 
   const preparaOtp = async () => {
     setOtpLavoro(true);
+    setOtpErrore(null);
     const res = await creaTemplateOtp();
     if (res.ok) setOtpStato({ stato: 'pending' });
-    else alert(res.error || 'Creazione non riuscita');
+    else setOtpErrore(res.error || 'Creazione non riuscita');
     setOtpLavoro(false);
   };
 
@@ -107,6 +109,7 @@ export default function AffiliatiPage() {
             {otpStato.stato === 'pending' && <>Il template del codice di verifica è <b>in approvazione da Meta</b>: appena approvato le registrazioni funzioneranno da sole. Di solito è questione di minuti.</>}
             {otpStato.stato === 'rifiutato' && <>Il template del codice di verifica è stato <b>rifiutato da Meta</b>: contattare l&apos;assistenza 360dialog.</>}
             {otpStato.stato === 'ignoto' && <>Non riesco a leggere lo stato del template OTP{otpStato.dettaglio ? ` (${otpStato.dettaglio})` : ''}.</>}
+            {otpErrore && <p className="mt-1 text-error font-semibold">Creazione non riuscita: {otpErrore}</p>}
           </div>
           {otpStato.stato === 'manca' && (
             <button onClick={preparaOtp} disabled={otpLavoro}
