@@ -31,6 +31,9 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { id: 'staff_view', label: 'Staff (Visualizza)', group: 'Staff' },
   { id: 'staff_edit', label: 'Staff (Modifica)', group: 'Staff' },
   { id: 'settings', label: 'Impostazioni', group: 'Sistema' },
+  // Permesso leggero: apre Impostazioni ma fa vedere SOLO la categoria
+  // Autoclave. Serve a reception ed estetiste per il registro serale.
+  { id: 'autoclave', label: 'Autoclave (registro disinfezioni)', group: 'Sistema' },
   { id: 'roles', label: 'Ruoli e Permessi', group: 'Sistema' },
 ];
 
@@ -72,9 +75,9 @@ export const DEFAULT_ROLES: RoleConfig[] = [
   { id: 'manager', name: 'Manager', color: '#3B82F6', isSystem: false,
     permissions: permsFor(PERMISSION_MODULES.filter((m) => !['roles', 'settings', 'clients_delete'].includes(m.id)).map((m) => m.id)) },
   { id: 'reception', name: 'Reception', color: '#22C55E', isSystem: false,
-    permissions: permsFor(['dashboard', 'agenda_view', 'agenda_edit', 'clients_view', 'clients_edit', 'pos', 'packages']) },
+    permissions: permsFor(['dashboard', 'agenda_view', 'agenda_edit', 'clients_view', 'clients_edit', 'pos', 'packages', 'autoclave']) },
   { id: 'estetista', name: 'Estetista', color: '#F59E0B', isSystem: false,
-    permissions: permsFor(['dashboard', 'agenda_view', 'clients_view']) },
+    permissions: permsFor(['dashboard', 'agenda_view', 'clients_view', 'autoclave']) },
   { id: 'warehouse', name: 'Magazziniere', color: '#EC4899', isSystem: false,
     permissions: permsFor(['dashboard', 'inventory_view', 'inventory_edit']) },
 ];

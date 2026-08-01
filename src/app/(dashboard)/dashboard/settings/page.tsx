@@ -21,6 +21,8 @@ import { AccountsSection } from './AccountsSection';
 import C95Config from './C95Config';
 import CabinsSection from './CabinsSection';
 import AutoclaveSection from './AutoclaveSection';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { roleHasPermission } from '@/lib/permissions';
 
 const settingSections = [
   { id: 'general', label: 'Centro', icon: Building2, description: 'Nome, indirizzo, contatti' },
@@ -544,6 +546,15 @@ function RolesPermissionsSection() {
 export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState('general');
   const { isDark, toggleTheme } = useThemeStore();
+
+  // Chi ha solo il permesso Autoclave (reception, estetiste) entra qui per il
+  // registro serale: vede quella categoria e nient'altro.
+  const user = useAuthStore(s => s.user);
+  const roles = useRolesStore(s => s.roles);
+  const role = roles.find(r => r.id === user?.role);
+  const puoTutto = roleHasPermission(role, 'settings');
+  const sezioniVisibili = puoTutto ? settingSections : settingSections.filter(s => s.id === 'autoclave');
+  const sezioneAttiva = puoTutto ? activeSection : 'autoclave';
   const [toggleStates, setToggleStates] = useState<Record<string, boolean>>(
     Object.fromEntries(notifications.map((n, i) => [i.toString(), n.active]))
   );
@@ -567,14 +578,14 @@ export default function SettingsPage() {
         {/* Settings Navigation */}
         <div className="lg:col-span-1">
           <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
-            {settingSections.map((section) => {
+            {sezioniVisibili.map((section) => {
               const Icon = section.icon;
               return (
                 <button
                   key={section.id}
                   onClick={() => setActiveSection(section.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors border-b border-border/30 last:border-b-0 ${
-                    activeSection === section.id
+                    sezioneAttiva === section.id
                       ? 'bg-accent/10 text-accent'
                       : 'hover:bg-bg-hover text-text-secondary'
                   }`}
@@ -594,13 +605,13 @@ export default function SettingsPage() {
         {/* Settings Content */}
         <div className="lg:col-span-3">
           <motion.div
-            key={activeSection}
+            key={sezioneAttiva}
             initial={{ opacity: 0, x: 12 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.2 }}
           >
             {/* CENTRO */}
-            {activeSection === 'general' && (
+            {sezioneAttiva === 'general' && (
               <div className="bg-bg-secondary border border-border rounded-2xl p-6 space-y-5">
                 <h3 className="text-lg font-display font-semibold text-text-primary">Informazioni Centro</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -633,7 +644,7 @@ export default function SettingsPage() {
             )}
 
             {/* ORARI */}
-            {activeSection === 'hours' && (
+            {sezioneAttiva === 'hours' && (
               <div className="bg-bg-secondary border border-border rounded-2xl p-6 space-y-5">
                 <h3 className="text-lg font-display font-semibold text-text-primary">Orari di Apertura</h3>
                 <div className="space-y-3">
@@ -680,27 +691,27 @@ export default function SettingsPage() {
             )}
 
             {/* ASPETTO */}
-            {activeSection === 'appearance' && (
+            {sezioneAttiva === 'appearance' && (
               <AppearanceSection />
             )}
 
             {/* NOTIFICHE */}
-            {activeSection === 'notifications' && (
+            {sezioneAttiva === 'notifications' && (
               <NotificationsSection toggleStates={toggleStates} handleToggle={handleToggle} />
             )}
 
             {/* ACCOUNT GESTIONALE */}
-            {activeSection === 'accounts' && (
+            {sezioneAttiva === 'accounts' && (
               <AccountsSection />
             )}
 
             {/* RUOLI E PERMESSI */}
-            {activeSection === 'roles' && (
+            {sezioneAttiva === 'roles' && (
               <RolesPermissionsSection />
             )}
 
             {/* FATTURAZIONE */}
-            {activeSection === 'billing' && (
+            {sezioneAttiva === 'billing' && (
               <div className="bg-bg-secondary border border-border rounded-2xl p-6 space-y-5">
                 <h3 className="text-lg font-display font-semibold text-text-primary">Dati Fatturazione</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -734,20 +745,20 @@ export default function SettingsPage() {
             )}
 
             {/* LISTINI */}
-            {activeSection === 'cabins' && (
+            {sezioneAttiva === 'cabins' && (
               <CabinsSection />
             )}
 
-            {activeSection === 'autoclave' && (
+            {sezioneAttiva === 'autoclave' && (
               <AutoclaveSection />
             )}
 
-            {activeSection === 'price_lists' && (
+            {sezioneAttiva === 'price_lists' && (
               <PriceListsSection />
             )}
 
             {/* INTEGRAZIONI */}
-            {activeSection === 'integrations' && (
+            {sezioneAttiva === 'integrations' && (
               <div className="space-y-4">
               <a href="/dashboard/automazioni" className="flex items-center gap-3 p-4 rounded-2xl bg-accent/5 border border-accent/20 hover:border-accent/40 transition-colors">
                 <div className="w-10 h-10 rounded-xl bg-accent/15 text-accent flex items-center justify-center flex-shrink-0"><Sparkles className="w-5 h-5" /></div>

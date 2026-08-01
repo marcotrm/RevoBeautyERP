@@ -22,7 +22,9 @@ export const MENU_PERMISSIONS: Record<string, string> = {
   todo: 'dashboard',
   admin: 'admin_dashboard',
   staff: 'staff_view',
-  settings: 'settings',
+  // Impostazioni si apre anche col solo permesso Autoclave: dentro, la pagina
+  // mostra a quei ruoli soltanto la categoria del registro disinfezioni.
+  settings: 'settings|autoclave',
   inaugurazione: 'settings',
   automazioni: 'admin_automations',
   // Le chat contengono dati personali dei clienti: stesso permesso della rubrica.
@@ -54,7 +56,7 @@ const ROUTE_PERMISSIONS: { prefix: string; permission: string }[] = [
   { prefix: '/dashboard/todo', permission: 'dashboard' },
   { prefix: '/dashboard/staff', permission: 'staff_view' },
   { prefix: '/dashboard/settings/inaugurazione', permission: 'settings' },
-  { prefix: '/dashboard/settings', permission: 'settings' },
+  { prefix: '/dashboard/settings', permission: 'settings|autoclave' },
   { prefix: '/dashboard/automazioni', permission: 'admin_automations' },
   { prefix: '/dashboard', permission: 'dashboard' },
 ]
@@ -70,9 +72,12 @@ export function permissionForPath(pathname: string | null): string | null {
   return match?.permission ?? null;
 }
 
-/** true se il ruolo ha il permesso indicato. */
+/**
+ * true se il ruolo ha il permesso indicato. Il permesso può essere una lista
+ * in OR separata da "|" (es. 'settings|autoclave'): basta averne uno.
+ */
 export function roleHasPermission(role: RoleConfig | undefined, permission: string | null): boolean {
   if (!permission) return true; // route/voce non protetta
   if (!role) return false;
-  return !!role.permissions[permission];
+  return permission.split('|').some(p => !!role.permissions[p]);
 }
