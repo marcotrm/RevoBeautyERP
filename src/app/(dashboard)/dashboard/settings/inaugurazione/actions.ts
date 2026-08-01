@@ -33,10 +33,13 @@ export async function importInaugurationLeadsToClients() {
     const p = normPhone(l.phone);
     const e = (l.email || '').toLowerCase();
 
-    // Trova il cliente esistente (per telefono o email) oppure crealo.
-    let client = clients.find(c =>
-      (p && normPhone(c.phone) === p) || (e && (c.email || '').toLowerCase() === e)
-    );
+    // Trova il cliente esistente oppure crealo. PRIMA per telefono, e solo se
+    // il telefono non aggancia nessuno si prova l'email: madre e figlia spesso
+    // condividono l'email, e con l'OR il pacchetto omaggio finiva alla persona
+    // sbagliata (successo davvero: Di Vico/Letizia).
+    let client = (p && clients.find(c => normPhone(c.phone) === p))
+      || (e && clients.find(c => (c.email || '').toLowerCase() === e))
+      || undefined;
     if (!client) {
       client = await prisma.client.create({
         data: {

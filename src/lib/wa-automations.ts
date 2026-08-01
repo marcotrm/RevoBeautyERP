@@ -370,10 +370,11 @@ export async function runOmaggioInaugurazione(dryRun: boolean): Promise<RunResul
     // non è un contatto valido (scelta di Dino, 01/08/2026)
     if (l.status !== 'confirmed') continue;
 
-    const cliente = clients.find(c =>
-      (tail(l.phone) && tail(c.phone) === tail(l.phone)) ||
-      (l.email && (c.email || '').toLowerCase() === l.email.toLowerCase())
-    );
+    // Prima il telefono, poi l'email: le email condivise in famiglia con l'OR
+    // facevano risolvere il coupon sul familiare sbagliato.
+    const cliente = (tail(l.phone) && clients.find(c => tail(c.phone) === tail(l.phone)))
+      || (l.email && clients.find(c => (c.email || '').toLowerCase() === l.email!.toLowerCase()))
+      || undefined;
     // Ha già prenotato (o è già venuto): non va disturbato
     if (cliente && conAppuntamento.has(cliente.id)) continue;
     // Consenso marketing: si rispetta quando il contatto è già in anagrafica

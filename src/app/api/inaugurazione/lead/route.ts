@@ -104,10 +104,13 @@ export async function POST(request: Request) {
       });
       clientId = createdClient.id;
     } else {
-      const existing = clients_full.find(c =>
-        (normPhone(c.phone) && normPhone(c.phone) === normPhone(phone)) ||
-        (c.email && emailLc && c.email.toLowerCase() === emailLc)
-      );
+      // Prima il telefono, poi l'email: con l'email condivisa in famiglia
+      // l'OR agganciava il cliente sbagliato (e il suo pacchetto omaggio).
+      const perTelefono = normPhone(phone)
+        ? clients_full.find(c => normPhone(c.phone) === normPhone(phone))
+        : undefined;
+      const existing = perTelefono
+        || (emailLc ? clients_full.find(c => (c.email || '').toLowerCase() === emailLc) : undefined);
       clientId = existing?.id ?? null;
     }
 
