@@ -1345,31 +1345,69 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     closeAppointmentModal();
   };
 
-  // Verifica se una data ora di inizio è libera per l'operatrice (considera durata, appuntamenti e blocchi)
-  const slotIsFree = useCallback((startMin: number, duration: number) => {
-    if (!selectedOperatorId) return true;
-    const eStart = startMin;
-    const eEnd = startMin + duration;
-    if (eEnd > END_HOUR * 60) return false; // sfora l'orario di chiusura
-    // Conta anche i trattamenti che altri appuntamenti hanno affidato a questa
-    // operatrice: il suo tempo è occupato lo stesso, anche se l'appuntamento
-    // "principale" è di una collega.
-    const suoi = appointmentsForOperator(
-      appointments.filter(a =>
-        a.date === dateStr && a.id !== editingAppointment?.id &&
-        a.status !== 'cancelled' && a.status !== 'no_show'
-      ),
-      selectedOperatorId,
+  /**
+   * Chi è occupato se l'appuntamento comincia a una certa ora.
+   *
+   * Non basta controllare l'operatrice principale: da quando i singoli
+   * trattamenti si possono affidare ad altre, ognuna va verificata sul proprio
+   * pezzo, altrimenti si prenota Rosaria in un orario in cui è già impegnata.
+   */
+  const conflictsAt = useCallback((startMin: number, durataSeVuoto = 15) => {
+    if (!selectedOperatorId) return [] as { operatorId: string; nome: string; motivo: string }[];
+
+    // Fette dell'appuntamento che si sta scrivendo: una per operatrice coinvolta
+    const fette = new Map<string, { from: number; to: number }>();
+    if (selectedServices.length === 0) {
+      fette.set(selectedOperatorId, { from: startMin, to: startMin + durataSeVuoto });
+    } else {
+      let cursore = startMin;
+      for (const s of selectedServices) {
+        const opId = s.operatorId || selectedOperatorId;
+        const from = cursore;
+        const to = cursore + (s.duration || 0);
+        const gia = fette.get(opId);
+        fette.set(opId, gia ? { from: Math.min(gia.from, from), to: Math.max(gia.to, to) } : { from, to });
+        cursore = to;
+      }
+    }
+
+    const altri = appointments.filter(a =>
+      a.date === dateStr && a.id !== editingAppointment?.id &&
+      a.status !== 'cancelled' && a.status !== 'no_show'
     );
-    const overlapsAppt = suoi.some(a =>
-      !(timeToMinutes(a.endTime) <= eStart || timeToMinutes(a.startTime) >= eEnd)
-    );
-    const overlapsBlock = blocks.some(b =>
-      b.date === dateStr && b.operatorId === selectedOperatorId &&
-      !(timeToMinutes(b.endTime) <= eStart || timeToMinutes(b.startTime) >= eEnd)
-    );
-    return !overlapsAppt && !overlapsBlock;
-  }, [selectedOperatorId, dateStr, appointments, blocks, editingAppointment]);
+
+    const conflitti: { operatorId: string; nome: string; motivo: string }[] = [];
+    for (const [opId, range] of fette) {
+      const op = operators.find(o => o.id === opId);
+      const nome = op ? `${op.firstName} ${op.lastName}`.trim() : 'Operatrice';
+
+      if (range.to > END_HOUR * 60) {
+        conflitti.push({ operatorId: opId, nome, motivo: 'l\'orario sfora la chiusura' });
+        continue;
+      }
+      // Anche i trattamenti che altri appuntamenti hanno affidato a lei occupano il suo tempo
+      const scontro = appointmentsForOperator(altri, opId).find(a =>
+        !(timeToMinutes(a.endTime) <= range.from || timeToMinutes(a.startTime) >= range.to)
+      );
+      if (scontro) {
+        conflitti.push({ operatorId: opId, nome, motivo: `ha già ${scontro.clientName} dalle ${scontro.startTime} alle ${scontro.endTime}` });
+        continue;
+      }
+      const blocco = blocks.find(b =>
+        b.date === dateStr && b.operatorId === opId &&
+        !(timeToMinutes(b.endTime) <= range.from || timeToMinutes(b.startTime) >= range.to)
+      );
+      if (blocco) {
+        conflitti.push({ operatorId: opId, nome, motivo: `ha una fascia bloccata ${blocco.startTime}-${blocco.endTime}` });
+      }
+    }
+    return conflitti;
+  }, [selectedOperatorId, selectedServices, dateStr, appointments, blocks, editingAppointment, operators]);
+
+  const slotIsFree = useCallback(
+    (startMin: number, duration: number) => conflictsAt(startMin, duration).length === 0,
+    [conflictsAt],
+  );
 
   // Orari di inizio effettivamente selezionabili (nascondiamo quelli occupati)
   const availableStartTimes = useMemo(() => {
@@ -1394,10 +1432,14 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableStartTimes]);
 
-  const isOccupied = useMemo(() => {
-    if (selectedServices.length === 0 || !selectedOperatorId) return false;
-    return !slotIsFree(timeToMinutes(startTime), totalDuration);
-  }, [startTime, selectedServices, selectedOperatorId, slotIsFree, totalDuration]);
+  // Chi risulta occupato con gli orari attuali: serve sia a bloccare il salvataggio
+  // sia a dire per nome chi è impegnata, altrimenti si cambia a tentativi.
+  const conflitti = useMemo(() => {
+    if (selectedServices.length === 0 || !selectedOperatorId) return [];
+    return conflictsAt(timeToMinutes(startTime), totalDuration);
+  }, [startTime, selectedServices, selectedOperatorId, conflictsAt, totalDuration]);
+
+  const isOccupied = conflitti.length > 0;
 
   const handleWaitlist = () => {
     closeAppointmentModal();
@@ -1689,8 +1731,18 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
               <div className="flex items-start gap-3 p-3 rounded-xl bg-error/10 border border-error/20">
                 <AlertCircle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-error">Orario Occupato</p>
-                  <p className="text-xs text-text-secondary mt-0.5">Questa fascia oraria è già occupata. Vuoi mettere la cliente in lista d'attesa?</p>
+                  <p className="text-sm font-semibold text-error">
+                    {conflitti.length === 1 ? `${conflitti[0].nome} è occupata` : 'Operatrici occupate'}
+                  </p>
+                  {/* Il nome di chi è impegnata e con chi: senza, si cambia orario a tentativi */}
+                  <ul className="text-xs text-text-secondary mt-1 space-y-0.5">
+                    {conflitti.map(c => (
+                      <li key={c.operatorId}><strong className="text-text-primary">{c.nome}</strong> {c.motivo}</li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-text-muted mt-1.5">
+                    Cambia orario, affida il trattamento a un&apos;altra operatrice, oppure metti la cliente in lista d&apos;attesa.
+                  </p>
                 </div>
               </div>
             )}

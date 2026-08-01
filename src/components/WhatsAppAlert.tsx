@@ -21,6 +21,19 @@ import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 const ALERT_AFTER_MS = 10 * 60_000;
 /** Quanto dura il "ricordamelo dopo" prima che l'avviso torni. */
 const SNOOZE_MS = 5 * 60_000;
+/**
+ * La pausa va tenuta fuori dal componente: il guscio della dashboard si
+ * rimonta (ricarica ruoli, cambio pagina) e con lo stato in memoria l'avviso
+ * tornava a schermo un istante dopo averlo rimandato.
+ */
+const SNOOZE_KEY = 'revo_wa_snooze_fino';
+
+function leggiSnooze(): number {
+  try { return Number(localStorage.getItem(SNOOZE_KEY)) || 0; } catch { return 0; }
+}
+function salvaSnooze(fino: number) {
+  try { localStorage.setItem(SNOOZE_KEY, String(fino)); } catch { /* no-op */ }
+}
 const POLL_MS = 20_000;
 
 /** Due bip con la Web Audio API (nessun file audio da caricare). */
@@ -59,10 +72,17 @@ export default function WhatsAppAlert() {
 
   const [mounted, setMounted] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const [snoozeUntil, setSnoozeUntil] = useState(0);
+  const [snoozeUntil, setSnoozeUntil] = useState(() => 0);
   const prevTotal = useRef<number | null>(null);
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => { setMounted(true); setSnoozeUntil(leggiSnooze()); }, []);
+
+  /** Rimanda l'avviso e ricordalo, così non torna al primo rerender. */
+  const rimanda = useCallback(() => {
+    const fino = Date.now() + SNOOZE_MS;
+    salvaSnooze(fino);
+    setSnoozeUntil(fino);
+  }, []);
 
   useEffect(() => { void fetchUnread(); }, [fetchUnread]);
   useAutoRefresh(useCallback(() => { void fetchUnread(); }, [fetchUnread]), POLL_MS);
@@ -137,11 +157,11 @@ export default function WhatsAppAlert() {
             </div>
 
             <div className="p-4 pt-0 flex gap-2">
-              <button onClick={() => setSnoozeUntil(Date.now() + SNOOZE_MS)}
+              <button onClick={rimanda}
                 className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors flex items-center justify-center gap-1.5">
                 <X className="w-4 h-4" /> Tra 5 min
               </button>
-              <button onClick={() => { setSnoozeUntil(Date.now() + SNOOZE_MS); router.push('/dashboard/whatsapp'); }}
+              <button onClick={() => { rimanda(); router.push('/dashboard/whatsapp'); }}
                 className="flex-1 py-2.5 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity">
                 Apri WhatsApp
               </button>
