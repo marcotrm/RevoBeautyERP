@@ -1410,28 +1410,28 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     [conflictsAt],
   );
 
-  // Orari di inizio effettivamente selezionabili (nascondiamo quelli occupati)
+  // Orari di inizio effettivamente selezionabili: niente slot occupati e
+  // niente orari in cui l'operatrice non lavora (fuori turno, pausa, riposo).
+  // Il centro apre alle 9: le 8 non devono proprio comparire.
   const availableStartTimes = useMemo(() => {
     const dur = totalDuration || 15;
     const list: string[] = [];
     for (let t = START_HOUR * 60; t < END_HOUR * 60; t += 15) {
       // In modifica, mantieni sempre disponibile l'orario attuale dell'appuntamento
       const isCurrent = editingAppointment && t === timeToMinutes(startTime);
-      if (isCurrent || slotIsFree(t, dur)) {
+      const fuoriTurno = selectedOperator && !selectedOperator.isResource
+        && isMinuteUnavailable(selectedOperator, apptDateObj, t - START_HOUR * 60, apptWeekMap);
+      if (isCurrent || (!fuoriTurno && slotIsFree(t, dur))) {
         list.push(`${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`);
       }
     }
     return list;
-  }, [totalDuration, slotIsFree, editingAppointment, startTime]);
+  }, [totalDuration, slotIsFree, editingAppointment, startTime, selectedOperator, apptDateObj, apptWeekMap]);
 
-  // Se l'orario selezionato non è più disponibile (es. dopo aver scelto operatrice/trattamento), passa al primo libero
-  useEffect(() => {
-    if (availableStartTimes.length === 0) return;
-    if (!availableStartTimes.includes(startTime)) {
-      setStartTime(availableStartTimes[0]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableStartTimes]);
+  // NIENTE cambio d'orario automatico: l'orario che l'operatrice ha cliccato
+  // in agenda resta quello. Se poi risulta occupato, lo dice l'avviso rosso e
+  // il salvataggio si blocca — ma la scelta non si tocca (richiesta di Dino:
+  // "voglio che mi porti le 11 e non muove l'orario").
 
   // Chi risulta occupato con gli orari attuali: serve sia a bloccare il salvataggio
   // sia a dire per nome chi è impegnata, altrimenti si cambia a tentativi.
@@ -1701,13 +1701,17 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
               </div>
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1.5">Ora Inizio *</label>
-                {availableStartTimes.length === 0 ? (
+                {availableStartTimes.length === 0 && !startTime ? (
                   <div className="w-full px-3 py-2.5 rounded-xl bg-error/5 border border-error/20 text-sm text-error">
                     Nessun orario libero
                   </div>
                 ) : (
                   <select value={startTime} onChange={e => setStartTime(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
+                    {/* L'orario scelto resta visibile anche se occupato: si segnala, non si cambia */}
+                    {startTime && !availableStartTimes.includes(startTime) && (
+                      <option value={startTime}>{startTime} — occupato</option>
+                    )}
                     {availableStartTimes.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 )}
