@@ -366,6 +366,9 @@ export async function runOmaggioInaugurazione(dryRun: boolean): Promise<RunResul
   const jobs: Job[] = [];
   for (const l of leads) {
     if (!isSendablePhone(l.phone)) continue;
+    // Solo chi ha CONFERMATO via email: il coupon scaricato e mai confermato
+    // non è un contatto valido (scelta di Dino, 01/08/2026)
+    if (l.status !== 'confirmed') continue;
 
     const cliente = clients.find(c =>
       (tail(l.phone) && tail(c.phone) === tail(l.phone)) ||
