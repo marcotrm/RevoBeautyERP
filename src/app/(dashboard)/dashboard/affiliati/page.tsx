@@ -372,9 +372,19 @@ function TabQr({ qrs, affiliati, ricarica, copia, copiato }: {
 
 function TabRegistrazioni({ leads, ricarica }: { leads: LeadRiga[]; ricarica: () => Promise<void> }) {
   const [filtro, setFiltro] = useState<'tutte' | 'verified' | 'otp' | 'blocked'>('tutte');
+  const [cerca, setCerca] = useState('');
   const [lavoro, setLavoro] = useState('');
 
-  const filtrate = filtro === 'tutte' ? leads : leads.filter(l => l.status === filtro);
+  // La cliente arriva al banco col buono: l'operatrice digita qui il codice
+  // (o il nome/numero) e spunta "omaggio usato". Non serve altro.
+  const perStato = filtro === 'tutte' ? leads : leads.filter(l => l.status === filtro);
+  const q = cerca.trim().toLowerCase();
+  const filtrate = q
+    ? perStato.filter(l =>
+        (l.voucherCode || '').toLowerCase().includes(q) ||
+        l.nome.toLowerCase().includes(q) ||
+        l.phone.includes(q.replace(/\D/g, '') || '~'))
+    : perStato;
 
   const azione = async (id: string, fn: () => Promise<unknown>) => {
     setLavoro(id);
@@ -385,8 +395,18 @@ function TabRegistrazioni({ leads, ricarica }: { leads: LeadRiga[]; ricarica: ()
 
   return (
     <div className="space-y-4">
+      {/* Riscatto del buono: si digita il codice che la cliente mostra */}
+      <div className="rounded-2xl border border-accent/30 bg-accent/5 p-4">
+        <label className="block text-xs font-bold text-text-secondary mb-1.5">
+          La cliente è al banco col buono? Cerca qui il codice e spunta &quot;Omaggio usato&quot;
+        </label>
+        <input value={cerca} onChange={e => setCerca(e.target.value)}
+          placeholder="Codice del buono (es. RB-ABC123), nome o telefono…"
+          className="w-full max-w-md px-4 py-2.5 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary placeholder:text-text-muted" />
+      </div>
+
       <div className="flex gap-1.5 flex-wrap">
-        {([['tutte', `Tutte (${leads.length})`], ['verified', `Verificate (${leads.filter(l => l.status === 'verified').length})`], ['otp', `In attesa (${leads.filter(l => l.status === 'otp').length})`], ['blocked', `Bloccate (${leads.filter(l => l.status === 'blocked').length})`]] as const).map(([id, label]) => (
+        {([['tutte', `Tutte (${leads.length})`], ['verified', `Verificate (${leads.filter(l => l.status === 'verified').length})`], ['otp', `Rimaste a metà (${leads.filter(l => l.status === 'otp').length})`], ['blocked', `Bloccate (${leads.filter(l => l.status === 'blocked').length})`]] as const).map(([id, label]) => (
           <button key={id} onClick={() => setFiltro(id)}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold ${filtro === id ? 'gradient-accent text-white' : 'border border-border text-text-secondary hover:bg-bg-hover'}`}>
             {label}
@@ -414,8 +434,12 @@ function TabRegistrazioni({ leads, ricarica }: { leads: LeadRiga[]; ricarica: ()
               <p className="text-xs text-text-secondary mt-0.5">
                 +{l.phone}{l.email ? ` · ${l.email}` : ''} · da <b>{l.affiliato}</b> ({l.qrNome})
                 {l.device ? ` · ${l.device}` : ''} · {dataIt(l.createdAt)}
-                {l.voucherCode && <> · buono <b className="text-text-primary">{l.voucherCode}</b></>}
               </p>
+              {l.voucherCode && (
+                <p className="text-xs mt-0.5">
+                  Buono <b className="text-accent">{l.voucherCode}</b> · omaggio: <b className="text-text-primary">{l.trattamento}</b>
+                </p>
+              )}
             </div>
             <div className="flex gap-1.5">
               {l.status === 'verified' && (

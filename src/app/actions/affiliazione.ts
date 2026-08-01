@@ -272,6 +272,7 @@ export interface LeadRiga {
   email: string | null;
   affiliato: string;
   qrNome: string;
+  trattamento: string;
   status: string;
   blockReason: string | null;
   voucherCode: string | null;
@@ -288,7 +289,7 @@ export async function listaRegistrazioni(): Promise<LeadRiga[]> {
     take: 300,
     include: {
       affiliate: { select: { businessName: true } },
-      qr: { select: { name: true } },
+      qr: { select: { name: true, treatment: true } },
     },
   });
   return leads.map(l => ({
@@ -298,6 +299,7 @@ export async function listaRegistrazioni(): Promise<LeadRiga[]> {
     email: l.email,
     affiliato: l.affiliate.businessName,
     qrNome: l.qr.name,
+    trattamento: l.qr.treatment,
     status: l.status,
     blockReason: l.blockReason,
     voucherCode: l.voucherCode,

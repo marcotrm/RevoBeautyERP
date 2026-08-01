@@ -161,6 +161,8 @@ interface LeadPerStats {
   status: string;
   clientId: string | null;
   voucherUsedAt: string | null;
+  verifiedAt: string | null;
+  createdAt: string;
 }
 
 /**
@@ -169,6 +171,9 @@ interface LeadPerStats {
  * Il fatturato si aggancia per nome cliente: la cassa (PosTransaction) non
  * salva l'id del cliente ma solo il nome, quindi si sommano gli incassi veri
  * (non resi, importo > 0) intestati ai clienti portati dall'affiliato.
+ * Contano SOLO le spese dal giorno della registrazione in poi: se un omonimo
+ * (o la stessa persona con un altro numero) aveva già speso in passato, quei
+ * soldi non c'entrano niente con l'affiliato e non devono generare commissioni.
  */
 export async function statsPerQrIds(qrIds: string[], commissionPercent: number): Promise<AffStats> {
   if (qrIds.length === 0) return { ...STATS_VUOTE };
@@ -177,7 +182,7 @@ export async function statsPerQrIds(qrIds: string[], commissionPercent: number):
     prisma.affiliateScan.findMany({ where: { qrId: { in: qrIds } }, select: { visitorId: true } }),
     prisma.affiliateLead.findMany({
       where: { qrId: { in: qrIds } },
-      select: { qrId: true, status: true, clientId: true, voucherUsedAt: true },
+      select: { qrId: true, status: true, clientId: true, voucherUsedAt: true, verifiedAt: true, createdAt: true },
     }) as Promise<LeadPerStats[]>,
   ]);
 
@@ -206,16 +211,29 @@ export async function statsPerQrIds(qrIds: string[], commissionPercent: number):
       where: { clientId: { in: clientIds }, status: { notIn: ['cancelled', 'no_show'] } },
     });
 
-    const nomi = new Set(clienti.map(c => `${c.firstName} ${c.lastName}`.trim().toLowerCase()));
-    if (nomi.size > 0) {
+    // Per ogni nome, il giorno (italiano) in cui quel cliente è stato portato:
+    // gli incassi precedenti non contano. Con più registrazioni omonime vale
+    // la più vecchia.
+    const registratoIl = new Map<string, string>();
+    for (const l of verificatiLeads) {
+      const c = clienti.find(x => x.id === l.clientId);
+      if (!c) continue;
+      const nome = `${c.firstName} ${c.lastName}`.trim().toLowerCase();
+      const giorno = new Date(l.verifiedAt || l.createdAt).toLocaleDateString('en-CA', { timeZone: 'Europe/Rome' });
+      const attuale = registratoIl.get(nome);
+      if (!attuale || giorno < attuale) registratoIl.set(nome, giorno);
+    }
+
+    if (registratoIl.size > 0) {
       const vendite = await prisma.posTransaction.findMany({
         where: { isRefund: false, total: { gt: 0 } },
-        select: { clientName: true, total: true },
+        select: { clientName: true, total: true, date: true },
       });
       const pagatori = new Set<string>();
       for (const v of vendite) {
         const nome = String(v.clientName || '').trim().toLowerCase();
-        if (nome && nomi.has(nome)) {
+        const dal = nome ? registratoIl.get(nome) : undefined;
+        if (dal && v.date >= dal) {
           fatturato += v.total;
           pagatori.add(nome);
         }
