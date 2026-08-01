@@ -136,7 +136,11 @@ export function normalizePhone(raw: string): string {
   let n = raw.replace(/[^\d+]/g, '');
   if (n.startsWith('+')) n = n.slice(1);
   if (n.startsWith('00')) n = n.slice(2);
-  if (!n.startsWith('39') && n.length === 10 && n.startsWith('3')) n = '39' + n;
+  // Un cellulare nazionale ha 9 o 10 cifre e inizia per 3; col prefisso 39
+  // diventa di 11-12. Attenzione ai numeri che iniziano per 393 (es.
+  // 3934324735): quel "39" è parte del numero, NON il prefisso — per questo
+  // si guarda la lunghezza e non l'inizio.
+  if ((n.length === 10 || n.length === 9) && n.startsWith('3')) n = '39' + n;
   return n;
 }
 
