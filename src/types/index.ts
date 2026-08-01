@@ -202,6 +202,13 @@ export interface AppointmentService {
    */
   operatorId?: string;
   operatorName?: string;
+  /**
+   * Upsell: trattamento aggiunto quando la cliente era GIÀ in cabina — cioè
+   * venduto dall'estetista durante la seduta, non prenotato. È la base della
+   * classifica upsell in Statistiche.
+   */
+  upsell?: boolean;
+  upsellAt?: string; // ISO
 }
 
 export interface Appointment {

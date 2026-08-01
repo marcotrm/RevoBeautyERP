@@ -1877,9 +1877,13 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     const gender = services[0]?.gender ?? 'female';
     const duration = gender === 'male' ? (t.durationMale ?? t.durationFemale ?? t.duration) : (t.durationFemale ?? t.duration);
     const price = gender === 'male' ? (t.priceMale ?? t.priceFemale ?? t.price) : (t.priceFemale ?? t.price);
+    // Cliente già in cabina = trattamento VENDUTO dall'estetista durante la
+    // seduta, non prenotato: è un upsell e finisce nella sua classifica.
+    const inCabina = appointment.status === 'in_cabin' || appointment.status === 'in_progress';
     saveServices([...services, {
       treatmentId: t.id, treatmentName: t.name, treatmentCategory: t.category,
       duration, price, gender,
+      ...(inCabina ? { upsell: true, upsellAt: new Date().toISOString() } : {}),
     }]);
     setAddingTreatment(false);
     setTreatmentQuery('');
