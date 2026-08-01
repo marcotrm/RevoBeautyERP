@@ -149,8 +149,8 @@ function ClassificaUpsell() {
         </div>
       </div>
       <p className="text-xs text-text-secondary -mt-1">
-        Trattamenti venduti dall&apos;estetista mentre la cliente era già in cabina (aggiunti dall&apos;agenda dopo il check-in):
-        la cliente era venuta per una cosa, è uscita avendone fatte due.
+        Tutto quello che le estetiste vendono in più: trattamenti aggiunti quando la cliente era già in cabina
+        (dall&apos;agenda, dopo il check-in) e prodotti battuti in cassa — creme, kit, cosmetici.
       </p>
 
       {righe === null ? (
@@ -176,6 +176,7 @@ function ClassificaUpsell() {
                   {r.voci.map((v, j) => (
                     <div key={j} className="flex items-center gap-3 text-xs text-text-secondary rounded-lg bg-bg-tertiary/40 px-3 py-2">
                       <span className="text-text-muted">{new Date(v.data + 'T12:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })}</span>
+                      <span className="flex-shrink-0">{v.tipo === 'prodotto' ? '🧴' : '💆'}</span>
                       <span className="flex-1 truncate"><b className="text-text-primary">{v.cliente}</b> · {v.trattamento}</span>
                       <span className="font-semibold text-text-primary">{eur(v.prezzo)}</span>
                     </div>
