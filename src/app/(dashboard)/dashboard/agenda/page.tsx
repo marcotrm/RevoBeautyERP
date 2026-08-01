@@ -10,7 +10,7 @@ import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { usePackageStore } from '@/stores/usePackageStore';
 import { useWaitlistStore, WaitlistEntry } from '@/stores/useWaitlistStore';
-import { Appointment, AppointmentService, AgendaBlock, Operator, Treatment } from '@/types';
+import { Appointment, AppointmentService, AgendaBlock, Operator, Treatment, Product } from '@/types';
 import {
   ChevronLeft, ChevronRight, ChevronDown, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
@@ -29,6 +29,7 @@ import { isWalkIn } from '@/lib/walkIn';
 import { schedaCompleta, campiMancanti } from '@/lib/schedaCliente';
 import { todayRome } from '@/lib/date';
 import { useCabinStore } from '@/stores/useCabinStore';
+import { useProductStore } from '@/stores/useProductStore';
 import { appointmentsForOperator, servicesOf, serviceOperatorId, hasMultipleOperators, type SplitAppointment } from '@/lib/appointmentSplit';
 import { useWeekShiftsStore } from '@/stores/useWeekShiftsStore';
 import CabinCountdown from '@/components/CabinCountdown';
@@ -1810,6 +1811,10 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   const treatments = useTreatmentStore(s => s.treatments);
   const [addingTreatment, setAddingTreatment] = useState(false);
   const [treatmentQuery, setTreatmentQuery] = useState('');
+  // Carrello della seduta: oltre ai trattamenti si aggiungono anche i prodotti
+  // (creme, kit) dall'anagrafica magazzino. Un totale solo, incassato insieme.
+  const [addingProduct, setAddingProduct] = useState(false);
+  const [productQuery, setProductQuery] = useState('');
   const [busySvc, setBusySvc] = useState(false);
   // Check-in: prima si sceglie la cabina, è quella che la voce chiamerà a fine trattamento
   const [askingCabin, setAskingCabin] = useState(false);
@@ -1824,6 +1829,9 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   const cabins = useCabinStore(s => s.cabins);
   const fetchCabins = useCabinStore(s => s.fetchCabins);
   useEffect(() => { fetchCabins(); }, [fetchCabins]);
+  const prodotti = useProductStore(s => s.products);
+  const fetchProducts = useProductStore(s => s.fetchProducts);
+  useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
   // Elenco dei trattamenti dell'appuntamento (i vecchi ne hanno uno solo)
   const services: AppointmentService[] = useMemo(() => (
@@ -1889,6 +1897,21 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     setTreatmentQuery('');
   };
 
+  /**
+   * Prodotto nel carrello della seduta: durata zero (non sposta gli orari),
+   * prezzo nel totale, incassato al check-out insieme ai trattamenti — dove
+   * scala anche la giacenza e conta nella classifica upsell di chi vende.
+   */
+  const addProductToAppointment = (p: Product) => {
+    saveServices([...services, {
+      treatmentId: `prod-${p.id}`, productId: p.id,
+      treatmentName: p.name, treatmentCategory: 'prodotto',
+      duration: 0, price: p.price,
+    }]);
+    setAddingProduct(false);
+    setProductQuery('');
+  };
+
   const removeServiceAt = (i: number) => {
     if (services.length <= 1) return;
     saveServices(services.filter((_, idx) => idx !== i));
@@ -1900,6 +1923,14 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     if (!q) return list.slice(0, 8);
     return list.filter(t => t.name.toLowerCase().includes(q) || getCategoryLabel(t.category).toLowerCase().includes(q)).slice(0, 8);
   }, [treatmentQuery, treatments]);
+
+  // Tutta l'anagrafica prodotti del magazzino, cercabile per nome o marca
+  const productResults = useMemo(() => {
+    const q = productQuery.trim().toLowerCase();
+    const list = prodotti.filter(p => p.isActive !== false);
+    if (!q) return list.slice(0, 8);
+    return list.filter(p => p.name.toLowerCase().includes(q) || (p.brand || '').toLowerCase().includes(q)).slice(0, 8);
+  }, [productQuery, prodotti]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reasonText, setReasonText] = useState('');
@@ -1977,6 +2008,12 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     // trattamento del pacchetto (a 0 €) più altri da pagare. Prima si scala la
     // seduta, poi si va in cassa a incassare quello che resta.
     const daIncassare = services.filter(s => s.price > 0);
+    // Carrello unico ma in cassa viaggiano separati: i trattamenti come conto
+    // della seduta, i prodotti come righe di magazzino (scaricano la giacenza
+    // e contano nella classifica upsell di chi li ha venduti).
+    const trattamentiPagati = daIncassare.filter(s => !s.productId);
+    const prodottiInCarrello = daIncassare.filter(s => s.productId);
+    const totaleTrattamenti = trattamentiPagati.reduce((sum, s) => sum + s.price, 0);
 
     if (totaleDaIncassare > 0) {
       onClose();
@@ -1984,9 +2021,10 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
         sessionStorage.setItem('revo_pos_autosale', JSON.stringify({
           client: appointment.clientName,
           // Con più trattamenti il conto è unico: nome e totale di tutta la seduta
-          treatment: daIncassare.map(s => s.treatmentName).join(' + '),
-          treatmentId: appointment.treatmentId,
-          price: totaleDaIncassare,
+          treatment: trattamentiPagati.map(s => s.treatmentName).join(' + '),
+          treatmentId: trattamentiPagati.length > 0 ? appointment.treatmentId : '',
+          price: totaleTrattamenti,
+          products: prodottiInCarrello.map(s => ({ id: s.productId, name: s.treatmentName, price: s.price, qty: 1 })),
           operator: appointment.operatorName,
           cabinMinutes,
         }));
@@ -2123,11 +2161,17 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
                   Trattamenti {services.length > 1 && <span className="text-text-muted">({services.length})</span>}
                 </p>
-                {appointment.status !== 'completed' && !addingTreatment && (
-                  <button onClick={() => setAddingTreatment(true)} disabled={busySvc}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-accent/10 text-accent text-[11px] font-semibold hover:bg-accent/20 transition-colors disabled:opacity-50">
-                    <Plus className="w-3 h-3" /> Aggiungi
-                  </button>
+                {appointment.status !== 'completed' && !addingTreatment && !addingProduct && (
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => setAddingTreatment(true)} disabled={busySvc}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-accent/10 text-accent text-[11px] font-semibold hover:bg-accent/20 transition-colors disabled:opacity-50">
+                      <Plus className="w-3 h-3" /> Aggiungi
+                    </button>
+                    <button onClick={() => setAddingProduct(true)} disabled={busySvc}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-warning/10 text-warning text-[11px] font-semibold hover:bg-warning/20 transition-colors disabled:opacity-50">
+                      <Plus className="w-3 h-3" /> Prodotto
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -2135,9 +2179,9 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 <div key={`${s.treatmentId}-${i}`} className="flex items-center gap-2 rounded-lg bg-bg-secondary/70 border border-border/60 p-2.5">
                   <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: appointment.color }} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-text-primary truncate">{s.treatmentName}</p>
+                    <p className="text-sm font-medium text-text-primary truncate">{s.productId ? `🧴 ${s.treatmentName}` : s.treatmentName}</p>
                     <p className="text-xs text-text-secondary">
-                      {s.duration} min · {formatCurrency(s.price)}
+                      {s.productId ? 'Prodotto' : `${s.duration} min`} · {formatCurrency(s.price)}
                       {/* Con due operatrici sullo stesso appuntamento va detto chi fa cosa */}
                       {s.operatorId && s.operatorId !== appointment.operatorId && (
                         <span className="text-accent"> · {s.operatorName || 'altra operatrice'}</span>
@@ -2170,6 +2214,33 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                         <span className="flex-1 min-w-0 text-sm text-text-primary truncate">{t.name}</span>
                         <span className="text-[11px] text-text-muted flex-shrink-0">
                           {t.durationFemale ?? t.duration}min · {formatCurrency(t.priceFemale ?? t.price)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Prodotti dal magazzino: la crema consigliata entra nel carrello della seduta */}
+              {addingProduct && (
+                <div className="relative">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                    <input autoFocus type="text" value={productQuery} onChange={e => setProductQuery(e.target.value)}
+                      placeholder="Cerca prodotto da aggiungere..."
+                      className="w-full pl-9 pr-8 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-warning/50" />
+                    <button onClick={() => { setAddingProduct(false); setProductQuery(''); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text-primary"><X className="w-4 h-4" /></button>
+                  </div>
+                  <div className="mt-1 max-h-44 overflow-y-auto rounded-xl border border-border bg-bg-secondary shadow-xl">
+                    {productResults.length === 0 ? (
+                      <p className="px-3 py-3 text-xs text-text-muted text-center">Nessun prodotto trovato</p>
+                    ) : productResults.map(p => (
+                      <button key={p.id} onClick={() => addProductToAppointment(p)}
+                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-bg-hover transition-colors text-left">
+                        <span className="flex-1 min-w-0 text-sm text-text-primary truncate">🧴 {p.name}</span>
+                        <span className="text-[11px] text-text-muted flex-shrink-0">
+                          {p.stock <= 0 ? 'esaurito · ' : p.stock <= p.minStock ? `${p.stock} rimasti · ` : ''}{formatCurrency(p.price)}
                         </span>
                       </button>
                     ))}

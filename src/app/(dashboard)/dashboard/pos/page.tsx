@@ -41,27 +41,29 @@ const PAYMENT_METHODS = [
 
 function NewSaleModal({ onClose, onComplete, initialData }: {
   onClose: () => void; onComplete: (tx: Omit<TransactionRecord, 'id'>, debtPkgId?: string) => Promise<TransactionRecord | undefined>;
-  initialData?: { client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string; cabinMinutes?: number } | null;
+  initialData?: { client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string; cabinMinutes?: number; products?: { id: string; name: string; price: number; qty: number }[] } | null;
 }) {
   const treatments = useTreatmentStore(s => s.treatments);
   const products = useProductStore(s => s.products);
   const [cart, setCart] = useState<CartItem[]>(() => {
     if (!initialData) return [];
+    const base: CartItem[] = [];
     // Try find by ID first
-    if (initialData.treatmentId) {
-      const t = treatments.find(t => t.id === initialData.treatmentId);
-      if (t) return [{ id: t.id, name: t.name, price: initialData.price !== undefined ? initialData.price : t.price, qty: 1, type: 'service' }];
+    const t = (initialData.treatmentId && treatments.find(x => x.id === initialData.treatmentId))
+      || (initialData.treatmentName && treatments.find(x => x.name === initialData.treatmentName))
+      || null;
+    if (t) {
+      base.push({ id: t.id, name: t.name, price: initialData.price !== undefined ? initialData.price : t.price, qty: 1, type: 'service' });
+    } else if (initialData.treatmentName && initialData.price !== undefined) {
+      // Fallback: create custom entry from initialData
+      base.push({ id: `agenda-${Date.now()}`, name: initialData.treatmentName, price: initialData.price, qty: 1, type: 'service' });
     }
-    // Try find by name
-    if (initialData.treatmentName) {
-      const t = treatments.find(t => t.name === initialData.treatmentName);
-      if (t) return [{ id: t.id, name: t.name, price: initialData.price !== undefined ? initialData.price : t.price, qty: 1, type: 'service' }];
+    // I prodotti del carrello della seduta arrivano come vere righe di
+    // magazzino: al salvataggio finiscono in productLines e scalano la giacenza.
+    for (const p of initialData.products || []) {
+      if (p?.id) base.push({ id: p.id, name: `🧴 ${p.name}`, price: Number(p.price) || 0, qty: Number(p.qty) || 1, type: 'product' });
     }
-    // Fallback: create custom entry from initialData
-    if (initialData.treatmentName && initialData.price !== undefined) {
-      return [{ id: `agenda-${Date.now()}`, name: initialData.treatmentName, price: initialData.price, qty: 1, type: 'service' }];
-    }
-    return [];
+    return base;
   });
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(initialData?.client || '');
@@ -560,7 +562,7 @@ function POSPageInner() {
   const fetchClients = useClientStore(s => s.fetchClients);
   const fetchTreatments = useTreatmentStore(s => s.fetchTreatments);
   const [showSaleModal, setShowSaleModal] = useState(false);
-  const [saleInitialData, setSaleInitialData] = useState<{ client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string; cabinMinutes?: number } | null>(null);
+  const [saleInitialData, setSaleInitialData] = useState<{ client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string; cabinMinutes?: number; products?: { id: string; name: string; price: number; qty: number }[] } | null>(null);
   const [showCloseCassa, setShowCloseCassa] = useState(false);
   const [showLastReceipt, setShowLastReceipt] = useState(false);
   const [showRefund, setShowRefund] = useState(false);
@@ -614,12 +616,14 @@ function POSPageInner() {
       try { sessionStorage.removeItem('revo_pos_autosale'); } catch {}
       try {
         const d = JSON.parse(raw);
-        if (d?.client && d?.treatment) {
+        const prodotti = Array.isArray(d?.products) ? d.products : [];
+        if (d?.client && (d?.treatment || prodotti.length > 0)) {
           setSaleInitialData({
             client: d.client, treatmentName: d.treatment, treatmentId: d.treatmentId || '',
             price: Number(d.price) || 0, operator: d.operator || 'Staff',
             debtPkgId: d.debtPkgId || undefined,
             cabinMinutes: d.cabinMinutes ? Number(d.cabinMinutes) : undefined,
+            products: prodotti,
           });
           setShowSaleModal(true);
         }

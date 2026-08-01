@@ -69,6 +69,9 @@ export async function classificaUpsell(dal: string, al: string): Promise<RigaCla
     const services = (a.services as unknown as AppointmentService[] | null) || [];
     for (const s of services) {
       if (!s.upsell) continue;
+      // I prodotti nel carrello della seduta si contano SOLO quando vengono
+      // incassati (dalle righe di cassa qui sotto): niente doppioni.
+      if (s.productId) continue;
       const opId = s.operatorId || a.operatorId;
       const riga = rigaDi(opId, nomeDi.get(opId) || 'Operatrice');
       riga.numero += 1;

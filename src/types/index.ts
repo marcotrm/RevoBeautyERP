@@ -81,7 +81,9 @@ export interface Client {
 }
 
 // --- Treatments ---
-export type TreatmentCategory = 'facial' | 'body' | 'laser' | 'massage' | 'nails' | 'waxing' | 'consultation' | 'hair' | 'makeup';
+// 'prodotto' non è un vero trattamento: è la crema/cosmetico aggiunto al
+// carrello della seduta dall'agenda (durata 0, si incassa al check-out).
+export type TreatmentCategory = 'facial' | 'body' | 'laser' | 'massage' | 'nails' | 'waxing' | 'consultation' | 'hair' | 'makeup' | 'prodotto';
 
 export interface CustomTreatment {
   treatmentId: string;
@@ -209,6 +211,11 @@ export interface AppointmentService {
    */
   upsell?: boolean;
   upsellAt?: string; // ISO
+  /**
+   * Prodotto del magazzino aggiunto al carrello della seduta (crema, kit...):
+   * al check-out va in cassa insieme ai trattamenti e scala la giacenza.
+   */
+  productId?: string;
 }
 
 export interface Appointment {

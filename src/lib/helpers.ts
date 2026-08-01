@@ -80,6 +80,7 @@ export function getCategoryLabel(category: string): string {
     consultation: 'Consulenza',
     hair: 'Capelli',
     makeup: 'Trucco',
+    prodotto: 'Prodotto',
   };
   return labels[category] || category;
 }
