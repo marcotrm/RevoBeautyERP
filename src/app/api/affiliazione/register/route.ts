@@ -1,26 +1,21 @@
 /**
- * Registrazione dalla landing di un QR affiliato.
- *
- * Qui vive l'antifrode: la scansione da sola non vale niente, e prima ancora
- * di mandare l'OTP si scartano i casi che non devono generare commissioni:
+ * Registrazione dalla landing di un QR affiliato: registrati e il buono
+ * appare subito, senza codici di conferma. La difesa vera è economica —
+ * l'affiliato non guadagna finché il cliente non viene in centro e spende —
+ * quindi qui basta l'antifrode sui dati:
  *  - numero già cliente RevoBeauty (l'offerta è per i nuovi);
  *  - numero o email che hanno già usato un'offerta di benvenuto (anche di un
  *    altro affiliato: il cliente resta di chi l'ha portato per primo);
  *  - il numero dell'affiliato stesso (auto-registrazione);
  *  - QR sospeso, scaduto, disattivato o oltre il limite di utilizzi.
- *
- * Se la stessa persona riprova sullo stesso QR mentre l'OTP è in sospeso, non
- * si crea un doppione: si rigenera il codice sullo stesso lead.
  */
 
 import prisma from '@/lib/prisma';
 import { normalizePhone, isSendablePhone } from '@/lib/whatsapp';
-import { statoEffettivo, phoneKey, nuovoOtp, inviaOtp, descriviDevice } from '@/lib/affiliazione';
+import { statoEffettivo, phoneKey, nuovoVoucher, descriviDevice, CENTRO } from '@/lib/affiliazione';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const OTP_MINUTI = 10;
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -30,6 +25,7 @@ export async function POST(request: Request) {
   const phoneRaw = String(body?.phone || '').trim();
   const email = String(body?.email || '').trim().toLowerCase() || null;
   const privacy = Boolean(body?.privacy);
+  const marketing = Boolean(body?.marketing);
   const visitorId = body?.visitorId ? String(body.visitorId).slice(0, 64) : null;
 
   if (!slug || !firstName || !lastName || !phoneRaw) {
@@ -39,12 +35,12 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: 'Per continuare serve il consenso al trattamento dei dati.' }, { status: 400 });
   }
   if (!isSendablePhone(phoneRaw)) {
-    return Response.json({ ok: false, error: 'Inserisci un numero di cellulare italiano valido: il codice di verifica arriva su WhatsApp.' }, { status: 400 });
+    return Response.json({ ok: false, error: 'Inserisci un numero di cellulare italiano valido: il buono è legato al tuo numero.' }, { status: 400 });
   }
 
   const qr = await prisma.affiliateQr.findUnique({
     where: { slug },
-    include: { affiliate: { select: { id: true, phone: true, isActive: true } } },
+    include: { affiliate: { select: { id: true, phone: true, isActive: true, businessName: true } } },
   });
   if (!qr || !qr.affiliate.isActive) {
     return Response.json({ ok: false, error: 'Offerta non trovata.' }, { status: 404 });
@@ -102,46 +98,51 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: 'Questo numero non può usare l\'offerta.' }, { status: 409 });
   }
 
-  // --- Lead + OTP ------------------------------------------------------
+  // --- Cliente + voucher, subito ---------------------------------------
+  // Niente codice di conferma: tanto l'affiliato non guadagna niente finché
+  // il cliente non viene in centro e spende davvero. Il controllo vero è al
+  // banco, col buono in mano — un numero inventato non produce commissioni.
 
-  const otp = nuovoOtp();
-  const scadenza = new Date(Date.now() + OTP_MINUTI * 60_000).toISOString();
-
-  // Stessa persona che riprova: si aggiorna il lead in sospeso, niente doppioni.
-  const inSospeso = await prisma.affiliateLead.findFirst({
-    where: { qrId: qr.id, status: 'otp' },
-    orderBy: { createdAt: 'desc' },
-    // il filtro sul numero si fa a mano: in DB è normalizzato ma non indicizzato per suffisso
-  }).then(async l => {
-    if (l && phoneKey(l.phone) === key) return l;
-    const tutti = await prisma.affiliateLead.findMany({ where: { qrId: qr.id, status: 'otp' } });
-    return tutti.find(x => phoneKey(x.phone) === key) || null;
+  const cliente = await prisma.client.create({
+    data: {
+      firstName,
+      lastName,
+      phone,
+      email,
+      gdprConsent: true,
+      marketingConsent: marketing,
+      // Il legame con l'affiliato è permanente: si scrive qui e non si tocca più.
+      referredBy: `Affiliato: ${qr.affiliate.businessName}`,
+      tags: ['affiliazione'],
+      createdAt: adesso.split('T')[0],
+    },
   });
 
-  const lead = inSospeso
-    ? await prisma.affiliateLead.update({
-        where: { id: inSospeso.id },
-        // Al reinvio l'email si tocca solo se ne arriva una: il "manda di nuovo
-        // il codice" non deve cancellare quella scritta la prima volta.
-        data: { firstName, lastName, ...(email ? { email } : {}), otpCode: otp, otpExpiresAt: scadenza, otpAttempts: 0 },
-      })
-    : await prisma.affiliateLead.create({
-        data: {
-          qrId: qr.id, affiliateId: qr.affiliate.id, firstName, lastName, phone, email,
-          status: 'otp', otpCode: otp, otpExpiresAt: scadenza, visitorId, device, createdAt: adesso,
-        },
-      });
+  const voucher = nuovoVoucher();
 
-  const invio = await inviaOtp(phone, otp);
-  if (!invio.ok) {
-    console.error('[affiliazione] invio OTP fallito', phone, invio.error);
-    return Response.json({
-      ok: true,
-      leadId: lead.id,
-      otpInviato: false,
-      error: 'Non siamo riusciti a inviarti il codice su WhatsApp. Riprova tra poco, oppure chiama il centro per completare la registrazione.',
+  // Un eventuale tentativo rimasto a metà (dai tempi del codice di conferma)
+  // si completa invece di creare un doppione.
+  const inSospeso = await prisma.affiliateLead.findMany({ where: { qrId: qr.id, status: 'otp' } })
+    .then(tutti => tutti.find(x => phoneKey(x.phone) === key) || null);
+
+  if (inSospeso) {
+    await prisma.affiliateLead.update({
+      where: { id: inSospeso.id },
+      data: {
+        firstName, lastName, ...(email ? { email } : {}),
+        status: 'verified', verifiedAt: adesso, otpCode: null,
+        voucherCode: voucher, clientId: cliente.id,
+      },
+    });
+  } else {
+    await prisma.affiliateLead.create({
+      data: {
+        qrId: qr.id, affiliateId: qr.affiliate.id, firstName, lastName, phone, email,
+        status: 'verified', verifiedAt: adesso, voucherCode: voucher,
+        clientId: cliente.id, visitorId, device, createdAt: adesso,
+      },
     });
   }
 
-  return Response.json({ ok: true, leadId: lead.id, otpInviato: true, scadeMinuti: OTP_MINUTI });
+  return Response.json({ ok: true, voucher, centro: CENTRO });
 }

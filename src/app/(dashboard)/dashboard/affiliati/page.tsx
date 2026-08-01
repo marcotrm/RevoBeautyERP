@@ -13,13 +13,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   QrCode, Users, Plus, Copy, Download, Printer, ExternalLink,
-  RefreshCw, Pause, Play, Ban, Check, Gift, ShieldAlert, MessageSquare, X,
+  RefreshCw, Pause, Play, Ban, Check, Gift, ShieldAlert, X,
 } from 'lucide-react';
 import {
   listaAffiliati, creaAffiliato, aggiornaAffiliato,
   listaQr, creaQr, cambiaStatoQr, sostituisciQr,
   listaRegistrazioni, segnaOmaggioUsato, verificaManualmente,
-  statoOtpWhatsApp, creaTemplateOtp,
   type AffiliatoRiga, type QrRiga, type LeadRiga,
 } from '@/app/actions/affiliazione';
 
@@ -49,9 +48,6 @@ export default function AffiliatiPage() {
   const [qrs, setQrs] = useState<QrRiga[]>([]);
   const [leads, setLeads] = useState<LeadRiga[]>([]);
   const [caricamento, setCaricamento] = useState(true);
-  const [otpStato, setOtpStato] = useState<{ stato: string; dettaglio?: string } | null>(null);
-  const [otpLavoro, setOtpLavoro] = useState(false);
-  const [otpErrore, setOtpErrore] = useState<string | null>(null);
   const [copiato, setCopiato] = useState('');
 
   const ricarica = useCallback(async () => {
@@ -63,20 +59,10 @@ export default function AffiliatiPage() {
   useEffect(() => {
     // Il primo caricamento passa dal .then: gli stati si toccano solo a dati arrivati.
     Promise.resolve().then(ricarica).catch(() => {});
-    statoOtpWhatsApp().then(setOtpStato).catch(() => {});
   }, [ricarica]);
 
   const copia = async (testo: string, chiave: string) => {
     try { await navigator.clipboard.writeText(testo); setCopiato(chiave); setTimeout(() => setCopiato(''), 2000); } catch {}
-  };
-
-  const preparaOtp = async () => {
-    setOtpLavoro(true);
-    setOtpErrore(null);
-    const res = await creaTemplateOtp();
-    if (res.ok) setOtpStato({ stato: 'pending' });
-    else setOtpErrore(res.error || 'Creazione non riuscita');
-    setOtpLavoro(false);
   };
 
   return (
@@ -99,26 +85,6 @@ export default function AffiliatiPage() {
           ))}
         </div>
       </div>
-
-      {/* Il codice OTP viaggia su WhatsApp: senza template approvato non parte niente. */}
-      {otpStato && otpStato.stato !== 'approvato' && (
-        <div className="rounded-xl border border-warning/40 bg-warning/10 p-4 flex items-center gap-3 flex-wrap">
-          <MessageSquare className="w-5 h-5 text-warning flex-shrink-0" />
-          <div className="flex-1 min-w-[240px] text-sm text-text-primary">
-            {otpStato.stato === 'manca' && <>Manca il template WhatsApp per il codice di verifica: <b>senza, le registrazioni dai QR non possono completarsi</b>. Crealo con un clic, Meta di solito approva in pochi minuti.</>}
-            {otpStato.stato === 'pending' && <>Il template del codice di verifica è <b>in approvazione da Meta</b>: appena approvato le registrazioni funzioneranno da sole. Di solito è questione di minuti.</>}
-            {otpStato.stato === 'rifiutato' && <>Il template del codice di verifica è stato <b>rifiutato da Meta</b>: contattare l&apos;assistenza 360dialog.</>}
-            {otpStato.stato === 'ignoto' && <>Non riesco a leggere lo stato del template OTP{otpStato.dettaglio ? ` (${otpStato.dettaglio})` : ''}.</>}
-            {otpErrore && <p className="mt-1 text-error font-semibold">Creazione non riuscita: {otpErrore}</p>}
-          </div>
-          {otpStato.stato === 'manca' && (
-            <button onClick={preparaOtp} disabled={otpLavoro}
-              className="px-4 py-2 rounded-lg gradient-accent text-white text-sm font-bold disabled:opacity-50">
-              {otpLavoro ? 'Creazione…' : 'Crea il template OTP'}
-            </button>
-          )}
-        </div>
-      )}
 
       {caricamento ? (
         <p className="text-sm text-text-secondary">Carico i dati…</p>
@@ -437,7 +403,7 @@ function TabRegistrazioni({ leads, ricarica }: { leads: LeadRiga[]; ricarica: ()
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="font-bold text-text-primary text-sm">{l.nome}</p>
                 {l.status === 'verified' && <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-success/15 text-success">Verificato</span>}
-                {l.status === 'otp' && <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-warning/15 text-warning">In attesa del codice</span>}
+                {l.status === 'otp' && <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-warning/15 text-warning">Rimasta a metà</span>}
                 {l.status === 'blocked' && (
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-error/15 text-error flex items-center gap-1">
                     <ShieldAlert className="w-3 h-3" /> Bloccato: {MOTIVO_BLOCCO[l.blockReason || ''] || l.blockReason}

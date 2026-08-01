@@ -14,24 +14,6 @@
 
 import { randomBytes } from 'crypto';
 import prisma from '@/lib/prisma';
-import { normalizePhone } from '@/lib/whatsapp';
-import { sendD360Template, d360Configured, listD360Templates, createD360Template } from '@/lib/whatsapp360';
-
-/**
- * Template WhatsApp per il codice di conferma della registrazione.
- *
- * Sarebbe da categoria AUTHENTICATION, ma Meta non lascia creare quei template
- * dall'API di 360dialog ("Application does not have permission", subcode
- * 2388185): si usa un UTILITY con il codice nel corpo, che è creabile dal
- * gestionale come tutti gli altri. È comunque un messaggio transazionale
- * (completa una registrazione chiesta dall'utente), quindi la categoria regge.
- */
-export const OTP_TEMPLATE = 'codice_registrazione_revobeauty';
-
-/** Testo esatto mandato in approvazione: cambiarlo = rifare l'approvazione. */
-const OTP_BODY =
-  'Per completare la tua registrazione da RevoBeauty inserisci questo codice nella pagina aperta sul telefono: {{1}}.\n'
-  + 'Il codice scade tra 10 minuti. Se non l\'hai richiesto tu, ignora questo messaggio.';
 
 /** Dove si trova il centro: compare su landing, voucher e locandine. */
 export const CENTRO = {
@@ -75,11 +57,6 @@ export function nuovoPortalToken(): string {
 /** Codice del voucher omaggio, da dire a voce in negozio: corto e leggibile. */
 export function nuovoVoucher(): string {
   return `RB-${codiceCasuale(6)}`;
-}
-
-/** Codice OTP a 6 cifre. */
-export function nuovoOtp(): string {
-  return String(100000 + (randomBytes(4).readUInt32BE(0) % 900000));
 }
 
 /** Codice affiliato leggibile ricavato dal nome attività (es. "Bar Rossi" → BAR-ROSSI). */
@@ -152,46 +129,6 @@ export async function statoEffettivo(qr: QrRow): Promise<string> {
     if (usati >= qr.maxUses) return 'expired';
   }
   return 'active';
-}
-
-// ------------------------------------------------------------
-// OTP su WhatsApp
-// ------------------------------------------------------------
-
-/**
- * Manda il codice OTP. La persona non ci ha mai scritto, quindi la finestra
- * 24h è chiusa: l'unica strada è un template approvato.
- */
-export async function inviaOtp(phone: string, code: string): Promise<{ ok: boolean; error?: string }> {
-  if (!d360Configured()) return { ok: false, error: 'WhatsApp non configurato' };
-  const res = await sendD360Template(normalizePhone(phone), OTP_TEMPLATE, {
-    bodyParams: [code],
-    language: 'it',
-  });
-  return res.ok ? { ok: true } : { ok: false, error: res.error };
-}
-
-/** Stato del template OTP sul canale: manca / in revisione / approvato. */
-export async function statoTemplateOtp(): Promise<{ stato: 'manca' | 'pending' | 'approvato' | 'rifiutato' | 'ignoto'; dettaglio?: string }> {
-  const res = await listD360Templates();
-  if (!res.ok) return { stato: 'ignoto', dettaglio: res.error };
-  const t = res.templates.find(t => t.name === OTP_TEMPLATE);
-  if (!t) return { stato: 'manca' };
-  if (t.status === 'APPROVED') return { stato: 'approvato' };
-  if (t.status === 'REJECTED') return { stato: 'rifiutato' };
-  return { stato: 'pending', dettaglio: t.status };
-}
-
-/** Crea il template OTP e lo manda in approvazione (di solito è questione di minuti). */
-export async function preparaTemplateOtp(): Promise<{ ok: boolean; error?: string }> {
-  const res = await createD360Template({
-    name: OTP_TEMPLATE,
-    category: 'UTILITY',
-    language: 'it',
-    body: OTP_BODY,
-    example: ['482913'],
-  });
-  return res.ok ? { ok: true } : { ok: false, error: res.error };
 }
 
 // ------------------------------------------------------------

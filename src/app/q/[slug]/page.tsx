@@ -2,9 +2,10 @@
 
 /**
  * Landing pubblica dei QR affiliati: è la pagina che si apre inquadrando il
- * QR di un'attività partner. Tre passi: presentazione dell'omaggio → dati +
- * consenso → codice OTP su WhatsApp → voucher del trattamento gratuito.
- * Stesso stile "carta su sfondo sfumato" della pagina Prenota.
+ * QR di un'attività partner. Due passi: presentazione dell'omaggio → dati +
+ * consenso → voucher subito sullo schermo. Nessun codice di conferma: la
+ * difesa vera è che l'affiliato guadagna solo quando il cliente viene in
+ * centro e spende. Stesso stile "carta su sfondo sfumato" della pagina Prenota.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -51,14 +52,11 @@ export default function LandingAffiliato() {
   const [marketing, setMarketing] = useState(false);
 
   // flusso
-  const [passo, setPasso] = useState<'form' | 'otp' | 'fatto'>('form');
-  const [leadId, setLeadId] = useState('');
-  const [otp, setOtp] = useState('');
+  const [passo, setPasso] = useState<'form' | 'fatto'>('form');
   const [voucher, setVoucher] = useState('');
   const [copiato, setCopiato] = useState(false);
   const [invio, setInvio] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
-  const [avviso, setAvviso] = useState<string | null>(null);
   const scanFatto = useRef(false);
 
   useEffect(() => {
@@ -81,37 +79,18 @@ export default function LandingAffiliato() {
   }, [slug, landing]);
 
   const registra = async () => {
-    setInvio(true); setErrore(null); setAvviso(null);
+    setInvio(true); setErrore(null);
     try {
       const res = await fetch('/api/affiliazione/register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slug, firstName: firstName.trim(), lastName: lastName.trim(),
           phone: phone.trim(), email: email.trim() || null,
-          privacy, visitorId: visitorId(),
+          privacy, marketing, visitorId: visitorId(),
         }),
       });
       const d = await res.json();
       if (!res.ok || !d.ok) throw new Error(d.error || 'Registrazione non riuscita. Riprova.');
-      setLeadId(d.leadId);
-      setPasso('otp');
-      if (!d.otpInviato) setAvviso(d.error || 'Il codice potrebbe tardare: se non arriva, riprova tra poco.');
-    } catch (e) {
-      setErrore(e instanceof Error ? e.message : 'Errore. Riprova.');
-    } finally {
-      setInvio(false);
-    }
-  };
-
-  const verifica = async () => {
-    setInvio(true); setErrore(null);
-    try {
-      const res = await fetch('/api/affiliazione/verify', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadId, code: otp, marketing }),
-      });
-      const d = await res.json();
-      if (!res.ok || !d.ok) throw new Error(d.error || 'Codice non valido.');
       setVoucher(d.voucher);
       setPasso('fatto');
     } catch (e) {
@@ -162,7 +141,7 @@ export default function LandingAffiliato() {
         <div style={styles.card}>
           <div style={styles.checkCircle}>✓</div>
           <h1 style={styles.doneTitle}>Il tuo omaggio è pronto!</h1>
-          <p style={styles.doneSub}>Numero verificato. Ecco il tuo buono per <b>{landing.trattamento}</b>.</p>
+          <p style={styles.doneSub}>Ecco il tuo buono per <b>{landing.trattamento}</b>. Fai uno screenshot!</p>
           <div style={styles.voucherBox}>
             <div style={styles.voucherLabel}>Codice omaggio</div>
             <div style={styles.voucherCode}>{voucher}</div>
@@ -174,40 +153,6 @@ export default function LandingAffiliato() {
           </p>
           <a href="/prenota" style={styles.ctaLink}>Prenota subito il tuo appuntamento</a>
           <p style={{ ...styles.smallNote, textAlign: 'center' }}>Oppure passa a trovarci quando vuoi: il buono ti aspetta.</p>
-        </div>
-      </main>
-    );
-  }
-
-  // --- Codice OTP -------------------------------------------------------
-  if (passo === 'otp') {
-    return (
-      <main style={styles.page}>
-        <div style={styles.card}>
-          <div style={styles.brand}>RevoBeauty</div>
-          <h1 style={styles.title}>Controlla WhatsApp</h1>
-          <p style={styles.sub}>Ti abbiamo inviato un codice a 6 cifre su WhatsApp al numero che hai indicato. Inseriscilo qui per confermare.</p>
-          {avviso && <div style={styles.warn}>{avviso}</div>}
-          <input
-            style={{ ...styles.input, ...styles.otpInput }}
-            {...NO_AUTOFILL}
-            placeholder="······"
-            inputMode="numeric"
-            maxLength={6}
-            value={otp}
-            onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-          />
-          {errore && <div style={styles.error}>{errore}</div>}
-          <button
-            style={{ ...styles.cta, ...(otp.length === 6 && !invio ? {} : styles.ctaDisabled) }}
-            disabled={otp.length !== 6 || invio}
-            onClick={verifica}
-          >
-            {invio ? 'Verifica in corso…' : 'Conferma il codice'}
-          </button>
-          <button style={styles.linkBtn} disabled={invio} onClick={registra}>
-            Non è arrivato? Invia un nuovo codice
-          </button>
         </div>
       </main>
     );
@@ -254,7 +199,7 @@ export default function LandingAffiliato() {
           {invio ? 'Un attimo…' : 'Ricevi il tuo omaggio'}
         </button>
         <p style={styles.smallNote}>
-          Ti invieremo un codice di verifica su WhatsApp: serve solo a confermare che il numero è tuo.
+          Il buono appare subito qui sullo schermo: mostralo quando vieni in centro.
           {landing.condizioni ? ` ${landing.condizioni}` : ''}
         </p>
       </div>

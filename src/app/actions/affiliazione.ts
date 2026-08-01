@@ -12,7 +12,7 @@
 import { prisma } from '@/lib/prisma';
 import {
   nuovoSlug, nuovoPortalToken, nuovoVoucher, codiceDaNome, statoEffettivo,
-  statsPerQrIds, statoTemplateOtp, preparaTemplateOtp, publicOrigin,
+  statsPerQrIds, publicOrigin,
   type AffStats,
 } from '@/lib/affiliazione';
 
@@ -353,14 +353,3 @@ export async function verificaManualmente(leadId: string): Promise<{ ok: boolean
   return { ok: true };
 }
 
-// ------------------------------------------------------------
-// Template OTP WhatsApp
-// ------------------------------------------------------------
-
-export async function statoOtpWhatsApp(): Promise<{ stato: string; dettaglio?: string }> {
-  return statoTemplateOtp();
-}
-
-export async function creaTemplateOtp(): Promise<{ ok: boolean; error?: string }> {
-  return preparaTemplateOtp();
-}
