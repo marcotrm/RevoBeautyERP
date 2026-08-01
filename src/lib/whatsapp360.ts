@@ -269,24 +269,50 @@ export async function createD360Template(params: {
   body: string;
   example?: string[];
 }): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
+  return submitTemplate(params.name, params.category, params.language, (() => {
+    const bodyComponent: Record<string, unknown> = { type: 'BODY', text: params.body };
+    if (params.example?.length) bodyComponent.example = { body_text: [params.example] };
+    return [bodyComponent];
+  })());
+}
+
+/**
+ * Template di AUTENTICAZIONE (codici OTP). Meta non accetta testo libero per
+ * questa categoria: il corpo lo scrive lei ("{{1}} è il tuo codice di
+ * verifica"), qui si dichiarano solo scadenza e bottone copia-codice.
+ * All'invio si passa il codice sia come parametro del corpo sia del bottone.
+ */
+export async function createD360AuthTemplate(
+  name: string,
+  language = 'it'
+): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
+  return submitTemplate(name, 'AUTHENTICATION', language, [
+    { type: 'BODY', add_security_recommendation: false },
+    { type: 'FOOTER', code_expiration_minutes: 10 },
+    { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE', text: 'Copia codice' }] },
+  ]);
+}
+
+async function submitTemplate(
+  name: string,
+  category: string,
+  language: string,
+  components: unknown[]
+): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
   if (!d360Configured()) return { ok: false, error: 'Manca D360_API_KEY' };
   const base = (process.env.D360_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
-
-  const bodyComponent: Record<string, unknown> = { type: 'BODY', text: params.body };
-  if (params.example?.length) {
-    bodyComponent.example = { body_text: [params.example] };
-  }
 
   try {
     const res = await fetch(`${base}/v1/configs/templates`, {
       method: 'POST',
       headers: { 'D360-API-KEY': process.env.D360_API_KEY as string, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: params.name,
-        category: params.category,
-        language: params.language,
-        components: [bodyComponent],
-        allow_category_change: true,
+        name,
+        category,
+        language,
+        components,
+        // I template di autenticazione non possono cambiare categoria.
+        ...(category === 'AUTHENTICATION' ? {} : { allow_category_change: true }),
       }),
     });
     const body = await res.json().catch(() => null);

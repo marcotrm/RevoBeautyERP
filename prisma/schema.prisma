@@ -539,3 +539,95 @@ model OperatorWeekSchedule {
   @@index([weekStart])
   @@map("operator_week_schedules")
 }
+
+// ============================================================
+// AFFILIAZIONE TRAMITE QR CODE
+// Ogni attività partner (bar, palestra, parrucchiere...) ha uno o più QR
+// personali: chi li scansiona atterra su una pagina Revobeauty brandizzata,
+// si registra con verifica OTP su WhatsApp e riceve un voucher per il
+// trattamento gratuito. Il cliente resta legato per sempre all'affiliato
+// che l'ha portato, e su ogni suo incasso matura la commissione.
+// ============================================================
+model Affiliate {
+  id                String  @id @default(cuid())
+  code              String  @unique // codice affiliato leggibile (es. BAR-ROSSI)
+  businessName      String  // nome attività mostrato sulla landing
+  contactName       String?
+  phone             String?
+  email             String?
+  commissionPercent Float   @default(10)
+  portalToken       String  @unique // link segreto del portale affiliato
+  isActive          Boolean @default(true)
+  notes             String?
+  createdAt         String
+
+  qrs   AffiliateQr[]
+  leads AffiliateLead[]
+
+  @@map("affiliates")
+}
+
+model AffiliateQr {
+  id         String  @id @default(cuid())
+  slug       String  @unique // finisce nell'URL: corto e non indovinabile
+  affiliateId String
+  name       String  // nome interno: "Espositore banco", "Volantino"...
+  channel    String? // canale/campagna di provenienza
+  treatment  String  // trattamento gratuito offerto
+  message    String? // messaggio personalizzato sulla landing
+  conditions String? // condizioni dell'offerta
+  status     String  @default("active") // draft|active|suspended|expired|disabled|blocked
+  expiresAt  String? // YYYY-MM-DD, dopo questa data non accetta registrazioni
+  maxUses    Int?    // massimo di registrazioni verificate
+  replacesId String? // QR che questo sostituisce (lo storico resta sul vecchio)
+  createdAt  String
+
+  affiliate Affiliate       @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  scans     AffiliateScan[]
+  leads     AffiliateLead[]
+
+  @@index([affiliateId])
+  @@map("affiliate_qrs")
+}
+
+model AffiliateScan {
+  id        String  @id @default(cuid())
+  qrId      String
+  visitorId String? // id anonimo salvato sul telefono: serve per le scansioni uniche
+  device    String? // "iPhone", "Android", "Computer"
+  at        String  // ISO
+
+  qr AffiliateQr @relation(fields: [qrId], references: [id], onDelete: Cascade)
+
+  @@index([qrId])
+  @@map("affiliate_scans")
+}
+
+model AffiliateLead {
+  id           String  @id @default(cuid())
+  qrId         String
+  affiliateId  String
+  firstName    String
+  lastName     String
+  phone        String  // normalizzato con prefisso (39...)
+  email        String?
+  status       String  @default("otp") // otp = in attesa del codice | verified | blocked
+  blockReason  String? // gia_cliente | doppione | auto_registrazione | qr_non_valido
+  otpCode      String?
+  otpExpiresAt String? // ISO
+  otpAttempts  Int     @default(0)
+  voucherCode  String? @unique // buono del trattamento gratuito
+  voucherUsedAt String? // quando l'omaggio è stato consumato in negozio
+  clientId     String? // cliente in anagrafica creato/collegato alla verifica
+  visitorId    String?
+  device       String?
+  createdAt    String  // ISO
+  verifiedAt   String? // ISO
+
+  qr        AffiliateQr @relation(fields: [qrId], references: [id], onDelete: Cascade)
+  affiliate Affiliate   @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([phone])
+  @@index([affiliateId])
+  @@map("affiliate_leads")
+}

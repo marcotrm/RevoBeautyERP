@@ -16,6 +16,7 @@ export const MENU_PERMISSIONS: Record<string, string> = {
   'gift-cards': 'packages',
   inventory: 'inventory_view',
   marketing: 'marketing',
+  affiliati: 'marketing',
   reports: 'reports',
   statistiche: 'reports',
   todo: 'dashboard',
