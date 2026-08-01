@@ -18,23 +18,45 @@ function initials(f: string, l: string) {
   return ((f?.[0] || '') + (l?.[0] || '')).toUpperCase();
 }
 
+/** Il lunedì (YYYY-MM-DD) della settimana corrente più un certo numero di settimane. */
+function mondayISO(settimaneAvanti: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + settimaneAvanti * 7);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export default function TurniPage() {
-  const [operators, setOperators] = useState<Operator[]>([]);
-  const [loading, setLoading] = useState(true);
   // Giorno di default: oggi (1-6 = Lun-Sab; domenica → mostra Lunedì)
   const todayKey = useMemo(() => {
     const d = new Date().getDay();
     return d === 0 ? 1 : d;
   }, []);
   const [day, setDay] = useState<number>(todayKey);
+  // Questa settimana o la prossima: cambia i turni (contano le settimane
+  // personalizzate in Staff → Turni) e le date sotto i giorni.
+  const [settimana, setSettimana] = useState<0 | 1>(0);
+  const weekStart = mondayISO(settimana);
 
+  // I dati ricordano di che settimana sono: cambiando settimana si vede il
+  // caricamento finché non arrivano quelli giusti (mai i turni sbagliati).
+  const [dati, setDati] = useState<{ week: string; operators: Operator[] } | null>(null);
   useEffect(() => {
-    fetch('/api/turni')
+    const mia = weekStart;
+    fetch(`/api/turni?week=${mia}`)
       .then((r) => r.json())
-      .then((d) => setOperators(d.operators || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+      .then((d) => setDati({ week: mia, operators: d.operators || [] }))
+      .catch(() => setDati({ week: mia, operators: [] }));
+  }, [weekStart]);
+  const operators = dati?.week === weekStart ? dati.operators : null;
+  const loading = operators === null;
+
+  /** La data (es. "3") che cade in un certo giorno della settimana mostrata. */
+  const dataDel = (dayKey: number): Date => {
+    const [y, m, d] = weekStart.split('-').map(Number);
+    const data = new Date(y, m - 1, d);
+    data.setDate(data.getDate() + (dayKey - 1));
+    return data;
+  };
 
   const shiftFor = (op: Operator): { working: boolean; label: string } => {
     const s = op.schedule?.[String(day)];
@@ -43,9 +65,8 @@ export default function TurniPage() {
     return { working: true, label: 'In servizio' };
   };
 
-  const dayInfo = DAYS.find((d) => d.key === day)!;
-  const working = operators.filter((o) => shiftFor(o).working);
-  const off = operators.filter((o) => !shiftFor(o).working);
+  const working = (operators || []).filter((o) => shiftFor(o).working);
+  const off = (operators || []).filter((o) => !shiftFor(o).working);
 
   return (
     <main style={s.page}>
@@ -54,19 +75,33 @@ export default function TurniPage() {
         <h1 style={s.title}>Turni della settimana</h1>
         <p style={s.sub}>Seleziona il giorno per vedere chi è in servizio.</p>
 
+        <div style={s.weekRow}>
+          <button style={{ ...s.weekBtn, ...(settimana === 0 ? s.weekActive : {}) }}
+            onClick={() => { setSettimana(0); setDay(todayKey); }}>
+            Questa settimana
+          </button>
+          <button style={{ ...s.weekBtn, ...(settimana === 1 ? s.weekActive : {}) }}
+            onClick={() => { setSettimana(1); setDay(1); }}>
+            Prossima settimana
+          </button>
+        </div>
+
         <div style={s.daysRow}>
           {DAYS.map((d) => (
             <button key={d.key} style={{ ...s.dayBtn, ...(day === d.key ? s.dayActive : {}) }} onClick={() => setDay(d.key)}>
-              {d.short}
+              <span style={{ display: 'block' }}>{d.short}</span>
+              <span style={{ display: 'block', fontSize: 11, fontWeight: 600, opacity: 0.75 }}>{dataDel(d.key).getDate()}</span>
             </button>
           ))}
         </div>
 
-        <h2 style={s.dayTitle}>{dayInfo.long}</h2>
+        <h2 style={s.dayTitle}>
+          {dataDel(day).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </h2>
 
         {loading ? (
           <p style={s.muted}>Carico i turni…</p>
-        ) : operators.length === 0 ? (
+        ) : (operators || []).length === 0 ? (
           <p style={s.muted}>Nessuna operatrice registrata.</p>
         ) : (
           <>
@@ -107,7 +142,10 @@ const s: Record<string, React.CSSProperties> = {
   brand: { fontWeight: 800, fontSize: 13, letterSpacing: '.16em', textTransform: 'uppercase', background: `linear-gradient(90deg,${P},#EC4899)`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' },
   title: { fontSize: 24, fontWeight: 800, margin: '6px 0 4px', lineHeight: 1.15 },
   sub: { color: '#6b6577', fontSize: 14, margin: 0 },
-  daysRow: { display: 'flex', gap: 6, marginTop: 18, overflowX: 'auto', paddingBottom: 4 },
+  weekRow: { display: 'flex', gap: 8, marginTop: 16 },
+  weekBtn: { flex: 1, padding: '10px 8px', borderRadius: 12, border: '1px solid #ece6f4', background: '#faf8fd', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', color: '#6b6577' },
+  weekActive: { background: `linear-gradient(90deg,${P},#EC4899)`, color: '#fff', borderColor: 'transparent' },
+  daysRow: { display: 'flex', gap: 6, marginTop: 12, overflowX: 'auto', paddingBottom: 4 },
   dayBtn: { flex: 1, minWidth: 46, padding: '10px 0', borderRadius: 12, border: '1px solid #ece6f4', background: '#faf8fd', fontWeight: 700, fontSize: 14, cursor: 'pointer', color: '#6b6577' },
   dayActive: { background: P, color: '#fff', borderColor: P },
   dayTitle: { fontSize: 17, fontWeight: 700, margin: '18px 0 12px', textTransform: 'capitalize' },
