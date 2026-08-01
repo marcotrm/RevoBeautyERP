@@ -121,7 +121,9 @@ export async function POST(request: Request) {
   const lead = inSospeso
     ? await prisma.affiliateLead.update({
         where: { id: inSospeso.id },
-        data: { firstName, lastName, email, otpCode: otp, otpExpiresAt: scadenza, otpAttempts: 0 },
+        // Al reinvio l'email si tocca solo se ne arriva una: il "manda di nuovo
+        // il codice" non deve cancellare quella scritta la prima volta.
+        data: { firstName, lastName, ...(email ? { email } : {}), otpCode: otp, otpExpiresAt: scadenza, otpAttempts: 0 },
       })
     : await prisma.affiliateLead.create({
         data: {
