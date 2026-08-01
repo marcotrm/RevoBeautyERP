@@ -332,7 +332,18 @@ export async function listConversations(limit = 50): Promise<WaConversation[]> {
     });
   }
 
-  return conversations.sort((a, b) => b.lastAt.localeCompare(a.lastAt)).slice(0, limit);
+  // Le chat DA LEGGERE stanno sempre in cima (e non vengono mai tagliate dal
+  // limite): con l'ordinamento solo per orario, le conversazioni già risposte
+  // più recenti seppellivano quelle in attesa e il pallino diceva "4" senza
+  // che si capisse quali fossero.
+  return conversations
+    .sort((a, b) => {
+      const aDaLeggere = a.unread > 0 ? 1 : 0;
+      const bDaLeggere = b.unread > 0 ? 1 : 0;
+      if (aDaLeggere !== bDaLeggere) return bDaLeggere - aDaLeggere;
+      return b.lastAt.localeCompare(a.lastAt);
+    })
+    .slice(0, limit);
 }
 
 /**
