@@ -631,3 +631,23 @@ model AffiliateLead {
   @@index([affiliateId])
   @@map("affiliate_leads")
 }
+
+// ============================================================
+// AUTOCLAVE (registro disinfezioni serali degli attrezzi)
+// Ogni sera si registra il ciclo: chi l'ha fatto, quando, quanti
+// pezzi. È il registro da esibire ai controlli: le righe non hanno
+// FK verso l'operatrice, il nome resta scritto anche se un giorno
+// l'operatrice viene tolta dall'anagrafica.
+// ============================================================
+model AutoclaveCycle {
+  id           String  @id @default(cuid())
+  date         String  // giorno italiano YYYY-MM-DD
+  operatorId   String
+  operatorName String
+  pieces       Int     // pezzi inseriti nella macchina
+  notes        String?
+  createdAt    String  // ISO
+
+  @@index([date])
+  @@map("autoclave_cycles")
+}

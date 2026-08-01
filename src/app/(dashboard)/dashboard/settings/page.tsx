@@ -7,7 +7,7 @@ import {
   Settings, Building2, Clock, Palette, Shield,
   Bell, Globe, CreditCard, Users,
   ChevronRight, Save, Plus, Search, X, CheckCircle,
-  Sparkles, DoorOpen,
+  Sparkles, DoorOpen, FlaskConical,
 } from 'lucide-react';
 import { useThemeStore } from '@/stores/useThemeStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
@@ -20,12 +20,14 @@ import { PriceListsSection } from './PriceListsSection';
 import { AccountsSection } from './AccountsSection';
 import C95Config from './C95Config';
 import CabinsSection from './CabinsSection';
+import AutoclaveSection from './AutoclaveSection';
 
 const settingSections = [
   { id: 'general', label: 'Centro', icon: Building2, description: 'Nome, indirizzo, contatti' },
   { id: 'price_lists', label: 'Listini', icon: Tag, description: 'Listini sconti clienti' },
   { id: 'hours', label: 'Orari', icon: Clock, description: 'Orari apertura e chiusura' },
   { id: 'cabins', label: 'Cabine', icon: DoorOpen, description: 'Numero e nome di ogni cabina' },
+  { id: 'autoclave', label: 'Autoclave', icon: FlaskConical, description: 'Registro disinfezioni serali' },
   { id: 'appearance', label: 'Aspetto', icon: Palette, description: 'Tema, colori, logo' },
   { id: 'notifications', label: 'Notifiche', icon: Bell, description: 'Email, SMS, push' },
   { id: 'accounts', label: 'Account Gestionale', icon: Users, description: 'Crea accessi staff e assegna i permessi' },
@@ -734,6 +736,10 @@ export default function SettingsPage() {
             {/* LISTINI */}
             {activeSection === 'cabins' && (
               <CabinsSection />
+            )}
+
+            {activeSection === 'autoclave' && (
+              <AutoclaveSection />
             )}
 
             {activeSection === 'price_lists' && (
