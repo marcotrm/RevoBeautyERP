@@ -48,9 +48,10 @@ export default function Sidebar() {
   const roles = useRolesStore(s => s.roles);
   const role = roles.find(r => r.id === user?.role);
   const roleName = role?.name ?? user?.role;
-  // Messaggi WhatsApp da leggere: fanno lampeggiare la voce di menu.
-  // Il polling lo fa WhatsAppAlert, montato nel layout della dashboard.
-  const waUnread = useWaInboxStore(s => s.total);
+  // CONVERSAZIONI WhatsApp da leggere: il numero sul menu conta le chat da
+  // aprire, non i messaggi dentro (scelta di Dino: una cliente che scrive
+  // tre volte è comunque UNA chat da leggere).
+  const waUnread = useWaInboxStore(s => s.chats.length);
 
   // Mostra solo le voci per cui il ruolo dell'utente ha il permesso
   const visibleMenuItems = menuItems.filter(item =>

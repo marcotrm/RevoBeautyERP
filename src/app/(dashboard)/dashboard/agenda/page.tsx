@@ -1243,6 +1243,13 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   // Active packages for selected client
   const allPkgData = usePackageStore(s => s.clientPackages);
   const catalogPackages = usePackageStore(s => s.packages);
+  const ricaricaPacchetti = usePackageStore(s => s.fetchPackages);
+  // I pacchetti si ricaricano a OGNI apertura del modale: la lista caricata
+  // all'apertura della pagina invecchia, e un pacchetto appena creato (o
+  // scalato da un altro computer) non si vedeva finché non si ricaricava tutto.
+  useEffect(() => {
+    if (isAppointmentModalOpen) void ricaricaPacchetti();
+  }, [isAppointmentModalOpen, ricaricaPacchetti]);
   // Pacchetti già in mano alla cliente, da richiamare qui invece di rivenderli.
   // L'abbinamento è sulla scheda cliente quando il pacchetto ce l'ha salvata;
   // i pacchetti vecchi hanno solo il nome scritto a mano, quindi si confronta
