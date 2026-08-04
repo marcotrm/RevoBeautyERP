@@ -8,6 +8,7 @@ import {
   type WaStatus, type TemplateCheck, type WaInboxMessage,
 } from '@/app/actions/whatsapp';
 import type { WaAutomationsConfig, RunResult } from '@/lib/wa-automations';
+import { GOOGLE_REVIEW_URL } from '@/lib/links';
 
 type Key = 'reminder' | 'recall' | 'birthday' | 'review';
 
@@ -185,6 +186,14 @@ export default function WhatsAppAutomationsConfig() {
                       {a.marketing && <span className="ml-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-accent/15 text-accent align-middle">MARKETING</span>}
                       <p className="text-[11px] text-text-muted">{a.desc}</p>
                       {a.marketing && <p className="text-[10px] text-text-muted/70">Solo ai clienti con consenso marketing.</p>}
+                      {/* Il link non viaggia nel testo del messaggio: sta nel bottone
+                          URL del template, che si configura a mano su 360dialog. Averlo
+                          qui evita di andarlo a ricostruire ogni volta. */}
+                      {a.key === 'review' && (
+                        <p className="text-[10px] text-text-muted/70 mt-1 leading-relaxed">
+                          Bottone del template → <a href={GOOGLE_REVIEW_URL} target="_blank" rel="noreferrer" className="text-accent hover:underline">link recensione</a> (scheda di Maddaloni).
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">

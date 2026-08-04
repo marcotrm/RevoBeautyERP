@@ -99,11 +99,10 @@ export const WA_TEMPLATES = {
     note:
       'Il link Google va messo come bottone URL statico in fase di approvazione, non nel corpo: così il ' +
       'testo resta UTILITY. Se Meta lo riclassifica MARKETING, servirà il consenso marketing.\n' +
-      'Quale link: quello di Google Business Profile → "Chiedi recensioni" (https://g.page/r/<codice>/review) ' +
-      'oppure https://search.google.com/local/writereview?placeid=<PLACE_ID>. Non vale un indirizzo copiato ' +
-      'dalla barra durante una ricerca Google: contiene token di sessione (sxsrf, ved, si) e le dimensioni ' +
-      'della finestra di chi l\'ha copiato, quindi altrove può scadere. Il link in uso si imposta in ' +
-      'GOOGLE_REVIEW_URL (vedi lib/links.ts).',
+      'Quale link: quello in GOOGLE_REVIEW_URL (lib/links.ts), che punta alla scheda di Maddaloni. Su Google ' +
+      'esiste anche una seconda scheda "Revo Beauty" a Marcianise: con quella le recensioni finirebbero ' +
+      'sull\'altra sede. Non vale un indirizzo copiato dalla barra durante una ricerca Google: contiene token ' +
+      'di sessione (sxsrf, ved, si) e le dimensioni della finestra di chi l\'ha copiato, quindi altrove può scadere.',
   },
 
   omaggio: {

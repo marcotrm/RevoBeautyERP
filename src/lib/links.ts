@@ -7,7 +7,14 @@
  * accorge per settimane.
  */
 
-import { siteBaseUrl } from '@/lib/inaugurazione';
+/**
+ * Il dominio del sito è ripetuto qui invece di arrivare da `lib/inaugurazione`:
+ * quel modulo importa `crypto` di Node per i token di conferma, e questo file
+ * viene letto anche da componenti client, dove `crypto` non esiste.
+ */
+function siteBaseUrl(): string {
+  return (process.env.SITE_URL || 'https://revobeauty.it').replace(/\/$/, '');
+}
 
 /**
  * Da dove arriva chi apre il modulo del coupon.
@@ -25,20 +32,25 @@ export function couponFormUrl(source: CouponSource = 'post-inaugurazione'): stri
 }
 
 /**
- * Link per lasciare una recensione su Google.
+ * Link per lasciare una recensione su Google: apre direttamente il modulo con
+ * le stelle, senza passaggi intermedi.
  *
- * Va preso da Google Business Profile → "Chiedi recensioni" (forma
- * `https://g.page/r/<codice>/review`) e messo in `GOOGLE_REVIEW_URL`. NON vale
- * un indirizzo copiato dalla barra del browser durante una ricerca: quelli
- * contengono token di sessione (`sxsrf`, `ved`, `si`) e le dimensioni della
- * finestra di chi l'ha copiato, e su un altro dispositivo possono scadere.
+ * Punta alla scheda di MADDALONI (Via Caudina, 30), che è la sede di questo
+ * gestionale. Attenzione: su Google esiste anche una seconda scheda verificata
+ * "Revo Beauty" a Marcianise (SS87), con più recensioni. Sono profili distinti:
+ * mandare i clienti di Maddaloni all'altro link significa regalargli le
+ * recensioni e lasciare questa sede a zero.
+ *
+ * La parte `1s0x...:0x...` è l'identificativo del luogo e `!12e1` è ciò che
+ * apre la scrittura della recensione. Non ci sono token di sessione, quindi il
+ * link non scade e funziona da qualsiasi dispositivo — al contrario di un
+ * indirizzo copiato dalla barra durante una ricerca (`sxsrf`, `ved`, `si`).
  */
-export function googleReviewUrl(): string | undefined {
-  const raw = process.env.GOOGLE_REVIEW_URL?.trim();
-  return raw || undefined;
-}
+export const GOOGLE_REVIEW_URL =
+  'https://www.google.com/maps/place//data=!4m3!3m2!1s0x133a536521a3c273:0x148c145390b2793d!12e1';
 
 /** Vero se l'indirizzo è un link di recensione stabile e non una ricerca Google. */
 export function isStableReviewUrl(url: string): boolean {
-  return /^https:\/\/(g\.page\/r\/[^/]+\/review|search\.google\.com\/local\/writereview\?placeid=)/.test(url.trim());
+  return /^https:\/\/(g\.page\/r\/[^/]+\/review|search\.google\.com\/local\/writereview\?placeid=|www\.google\.com\/maps\/place\/\/data=)/
+    .test(url.trim());
 }

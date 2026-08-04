@@ -6,8 +6,9 @@ import { PartyPopper, CheckCircle2, Clock, Users, Mail, Phone, RefreshCw, Calend
 import DeleteLeadButton from './DeleteLeadButton';
 import ImportToClientsButton from './ImportToClientsButton';
 import CampagnaOmaggio from './CampagnaOmaggio';
-import LinkCoupon from './LinkCoupon';
+import LinkCopiabile from '@/components/ui/LinkCopiabile';
 import { couponFormUrl } from '@/lib/links';
+import { Gift } from 'lucide-react';
 
 // Pagina protetta dal gate client-side del layout dashboard (come il resto dell'ERP).
 export const dynamic = 'force-dynamic';
@@ -129,7 +130,13 @@ export default async function InaugurazionePage({
         </div>
       </div>
 
-      <LinkCoupon url={couponFormUrl('post-inaugurazione')} />
+      <LinkCopiabile
+        icon={Gift}
+        titolo="Link del trattamento in omaggio"
+        descrizione="Il modulo sul sito è ancora attivo: chi lo compila sceglie il trattamento e riceve il coupon via email. Mandalo su WhatsApp a chi chiede informazioni."
+        url={couponFormUrl('post-inaugurazione')}
+        nota={<>Il <code>src=post-inaugurazione</code> in fondo serve a riconoscere questi contatti: arrivano da un nostro messaggio, non dall&apos;apertura del centro.</>}
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
