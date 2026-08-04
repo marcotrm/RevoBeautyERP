@@ -186,7 +186,8 @@ export async function creaTemplateRecensione(): Promise<{ ok: boolean; status?: 
   if (esistente?.id) {
     const res = await updateD360Template(
       esistente.id,
-      templateComponents({ body: tpl.body, example, buttons })
+      templateComponents({ body: tpl.body, example, buttons }),
+      tpl.name
     );
     return res.ok ? { ok: true, status: res.status } : { ok: false, error: res.error };
   }

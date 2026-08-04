@@ -320,7 +320,8 @@ export async function createD360AuthTemplate(
  */
 export async function updateD360Template(
   templateId: string,
-  components: unknown[]
+  components: unknown[],
+  nameFallback: string
 ): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
   if (!d360Configured()) return { ok: false, error: 'Manca D360_API_KEY' };
   const base = (process.env.D360_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
@@ -331,10 +332,12 @@ export async function updateD360Template(
   // 360dialog non documenta un solo modo di modificare un template: a seconda
   // della versione del canale risponde su uno di questi. Si provano in ordine e
   // ci si ferma al primo che accetta; gli altri falliscono senza toccare nulla.
+  // PATCH sullo stesso path risponde 405 (metodo non ammesso) e non 404: il
+  // percorso è quello giusto, cambia il verbo. PUT è l'unico rimasto.
   const tentativi: Array<{ method: string; path: string }> = [
-    { method: 'PATCH', path: `/v1/configs/templates/${encodeURIComponent(templateId)}` },
+    { method: 'PUT', path: `/v1/configs/templates/${encodeURIComponent(templateId)}` },
+    { method: 'PUT', path: `/v1/configs/templates/${encodeURIComponent(nameFallback)}` },
     { method: 'POST', path: `/v1/configs/templates/${encodeURIComponent(templateId)}` },
-    { method: 'POST', path: `/${encodeURIComponent(templateId)}` },
   ];
 
   const errori: string[] = [];
