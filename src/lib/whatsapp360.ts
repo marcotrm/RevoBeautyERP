@@ -244,7 +244,9 @@ export async function listD360Templates(): Promise<
       status: t.status || 'UNKNOWN',
       category: t.category || '',
       language: t.language || '',
-      // Serve solo per modificare un template già esistente (vedi updateD360Template).
+      // Id interno di 360dialog (non quello numerico di Meta). Serve solo a
+      // riconoscere un template già presente: modificarlo da qui non si può,
+      // vedi la nota in creaTemplateRecensione.
       id: t.id ? String(t.id) : undefined,
     }));
     return { ok: true, templates };
@@ -306,57 +308,6 @@ export async function createD360AuthTemplate(
     { type: 'BODY', add_security_recommendation: true },
     { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE' }] },
   ]);
-}
-
-/**
- * Modifica un template che esiste già, per esempio per aggiungergli un bottone.
- *
- * È l'unica strada praticabile su un template approvato: cancellarlo e rifarlo
- * sembra più semplice, ma Meta blocca il riutilizzo dello stesso nome per 30
- * giorni, e in quel mese l'automazione che lo usa resterebbe ferma.
- *
- * Si può cambiare il contenuto, non la categoria; Meta concede una decina di
- * modifiche al mese. Dopo la modifica il template torna in revisione.
- */
-export async function updateD360Template(
-  templateId: string,
-  components: unknown[],
-  nameFallback: string
-): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
-  if (!d360Configured()) return { ok: false, error: 'Manca D360_API_KEY' };
-  const base = (process.env.D360_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
-
-  const headers = { 'D360-API-KEY': process.env.D360_API_KEY as string, 'Content-Type': 'application/json' };
-  const payload = JSON.stringify({ components });
-
-  // 360dialog non documenta un solo modo di modificare un template: a seconda
-  // della versione del canale risponde su uno di questi. Si provano in ordine e
-  // ci si ferma al primo che accetta; gli altri falliscono senza toccare nulla.
-  // PATCH sullo stesso path risponde 405 (metodo non ammesso) e non 404: il
-  // percorso è quello giusto, cambia il verbo. PUT è l'unico rimasto.
-  const tentativi: Array<{ method: string; path: string }> = [
-    { method: 'PUT', path: `/v1/configs/templates/${encodeURIComponent(templateId)}` },
-    { method: 'PUT', path: `/v1/configs/templates/${encodeURIComponent(nameFallback)}` },
-    { method: 'POST', path: `/v1/configs/templates/${encodeURIComponent(templateId)}` },
-  ];
-
-  const errori: string[] = [];
-  for (const t of tentativi) {
-    try {
-      const res = await fetch(`${base}${t.path}`, { method: t.method, headers, body: payload });
-      const body = await res.json().catch(() => null);
-      if (res.ok) return { ok: true, status: String(body?.status || 'PENDING') };
-
-      const raw = body ? JSON.stringify(body).slice(0, 200) : '';
-      const msg = body?.error?.error_user_msg || body?.error?.message || body?.message
-        || (raw ? `HTTP ${res.status} — ${raw}` : `HTTP ${res.status}`);
-      errori.push(`${t.method} ${t.path}: ${msg}`);
-    } catch {
-      errori.push(`${t.method} ${t.path}: connessione fallita`);
-    }
-  }
-
-  return { ok: false, error: errori.join(' · ') };
 }
 
 /** I componenti di un template: corpo con esempi e, se serve, i bottoni. */

@@ -7,7 +7,7 @@ import {
   clientNameForPhone,
   type WaConversation, type WaMessageRow, type WaUnreadChat,
 } from '@/lib/wa-conversations';
-import { listD360Templates, createD360Template, updateD360Template, templateComponents } from '@/lib/whatsapp360';
+import { listD360Templates, createD360Template } from '@/lib/whatsapp360';
 import { reviewRedirectUrl } from '@/lib/links';
 import { WA_TEMPLATES, type TemplateKey } from '@/lib/wa-templates';
 import {
@@ -162,13 +162,13 @@ export async function sendManualReply(phone: string, text: string): Promise<{ ok
  * Crea su 360dialog il template della richiesta recensione, col bottone che
  * porta al modulo di Google.
  *
- * I bottoni Meta li approva insieme al testo, quindi non si aggiungono a un
- * template già fatto senza rimandarlo in revisione. Se il template esiste
- * (il caso normale: è nato senza bottone) lo si modifica; solo se manca del
- * tutto lo si crea da zero.
+ * Vale solo se il template non esiste ancora: i bottoni Meta li approva
+ * insieme al testo, e un template già creato non si modifica da qui (la
+ * chiave del canale non arriva alla Partner API di 360dialog). In quel caso
+ * torna un errore che dice cosa fare a mano.
  *
- * In entrambi i casi torna PENDING: finché Meta non approva, l'automazione
- * delle recensioni continua a usare la versione approvata precedente.
+ * Appena creato lo stato è PENDING: finché Meta non approva, l'automazione
+ * delle recensioni non parte.
  */
 export async function creaTemplateRecensione(): Promise<{ ok: boolean; status?: string; error?: string }> {
   const tpl = WA_TEMPLATES.review;
@@ -176,26 +176,22 @@ export async function creaTemplateRecensione(): Promise<{ ok: boolean; status?: 
   const example = ['Maria', 'pressoterapia'];
   const buttons = [{ type: 'URL' as const, text: 'Lascia una recensione', url: reviewRedirectUrl() }];
 
-  // Se esiste già (è il caso normale: il template è nato senza bottone) va
-  // modificato, non ricreato. Cancellarlo bloccherebbe il nome per 30 giorni.
+  // Cancellarlo per rifarlo col bottone non è una via d'uscita: Meta blocca
+  // il riutilizzo dello stesso nome per 30 giorni, e in quel mese l'automazione
+  // delle recensioni resterebbe ferma.
   const remote = await listD360Templates();
   const esistente = remote.ok
     ? remote.templates.find(t => t.name === tpl.name && t.language === tpl.language)
     : undefined;
 
-  if (esistente?.id) {
-    const res = await updateD360Template(
-      esistente.id,
-      templateComponents({ body: tpl.body, example, buttons }),
-      tpl.name
-    );
-    return res.ok ? { ok: true, status: res.status } : { ok: false, error: res.error };
-  }
-
   if (esistente) {
     return {
       ok: false,
-      error: 'Il template esiste ma 360dialog non ne restituisce l\'identificativo: il bottone va aggiunto a mano da 360dialog Hub → Templates.',
+      error:
+        `Il template "${tpl.name}" esiste già (${esistente.status}) senza bottone. Con la chiave del canale i ` +
+        'template si creano ma non si modificano: la modifica sta sulla Partner API di 360dialog, che vuole ' +
+        'un token diverso. Il bottone va aggiunto a mano da 360dialog Hub → Templates, incollando come URL ' +
+        `${reviewRedirectUrl()}`,
     };
   }
 
