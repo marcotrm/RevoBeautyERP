@@ -96,7 +96,14 @@ export const WA_TEMPLATES = {
       'Ciao {{1}}, grazie per la tua visita da RevoBeauty per {{2}}.\n' +
       'Se ti è piaciuta l\'esperienza, ci lasci una recensione? Bastano 30 secondi e per noi conta molto.',
     buttons: ['Lascia una recensione (bottone URL statico verso il link Google)'],
-    note: 'Il link Google va messo come bottone URL statico in fase di approvazione, non nel corpo: così il testo resta UTILITY. Se Meta lo riclassifica MARKETING, servirà il consenso marketing.',
+    note:
+      'Il link Google va messo come bottone URL statico in fase di approvazione, non nel corpo: così il ' +
+      'testo resta UTILITY. Se Meta lo riclassifica MARKETING, servirà il consenso marketing.\n' +
+      'Quale link: quello di Google Business Profile → "Chiedi recensioni" (https://g.page/r/<codice>/review) ' +
+      'oppure https://search.google.com/local/writereview?placeid=<PLACE_ID>. Non vale un indirizzo copiato ' +
+      'dalla barra durante una ricerca Google: contiene token di sessione (sxsrf, ved, si) e le dimensioni ' +
+      'della finestra di chi l\'ha copiato, quindi altrove può scadere. Il link in uso si imposta in ' +
+      'GOOGLE_REVIEW_URL (vedi lib/links.ts).',
   },
 
   omaggio: {

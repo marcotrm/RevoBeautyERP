@@ -6,6 +6,8 @@ import { PartyPopper, CheckCircle2, Clock, Users, Mail, Phone, RefreshCw, Calend
 import DeleteLeadButton from './DeleteLeadButton';
 import ImportToClientsButton from './ImportToClientsButton';
 import CampagnaOmaggio from './CampagnaOmaggio';
+import LinkCoupon from './LinkCoupon';
+import { couponFormUrl } from '@/lib/links';
 
 // Pagina protetta dal gate client-side del layout dashboard (come il resto dell'ERP).
 export const dynamic = 'force-dynamic';
@@ -126,6 +128,8 @@ export default async function InaugurazionePage({
           </Link>
         </div>
       </div>
+
+      <LinkCoupon url={couponFormUrl('post-inaugurazione')} />
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
