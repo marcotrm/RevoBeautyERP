@@ -325,25 +325,35 @@ export async function updateD360Template(
   if (!d360Configured()) return { ok: false, error: 'Manca D360_API_KEY' };
   const base = (process.env.D360_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
 
-  try {
-    // Come per i media, 360dialog rispecchia i path della Cloud API di Meta:
-    // l'id del template è la risorsa, senza prefisso.
-    const res = await fetch(`${base}/${encodeURIComponent(templateId)}`, {
-      method: 'POST',
-      headers: { 'D360-API-KEY': process.env.D360_API_KEY as string, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ components }),
-    });
-    const body = await res.json().catch(() => null);
-    if (!res.ok) {
-      const raw = body ? JSON.stringify(body).slice(0, 300) : '';
+  const headers = { 'D360-API-KEY': process.env.D360_API_KEY as string, 'Content-Type': 'application/json' };
+  const payload = JSON.stringify({ components });
+
+  // 360dialog non documenta un solo modo di modificare un template: a seconda
+  // della versione del canale risponde su uno di questi. Si provano in ordine e
+  // ci si ferma al primo che accetta; gli altri falliscono senza toccare nulla.
+  const tentativi: Array<{ method: string; path: string }> = [
+    { method: 'PATCH', path: `/v1/configs/templates/${encodeURIComponent(templateId)}` },
+    { method: 'POST', path: `/v1/configs/templates/${encodeURIComponent(templateId)}` },
+    { method: 'POST', path: `/${encodeURIComponent(templateId)}` },
+  ];
+
+  const errori: string[] = [];
+  for (const t of tentativi) {
+    try {
+      const res = await fetch(`${base}${t.path}`, { method: t.method, headers, body: payload });
+      const body = await res.json().catch(() => null);
+      if (res.ok) return { ok: true, status: String(body?.status || 'PENDING') };
+
+      const raw = body ? JSON.stringify(body).slice(0, 200) : '';
       const msg = body?.error?.error_user_msg || body?.error?.message || body?.message
         || (raw ? `HTTP ${res.status} — ${raw}` : `HTTP ${res.status}`);
-      return { ok: false, error: String(msg) };
+      errori.push(`${t.method} ${t.path}: ${msg}`);
+    } catch {
+      errori.push(`${t.method} ${t.path}: connessione fallita`);
     }
-    return { ok: true, status: String(body?.status || 'PENDING') };
-  } catch {
-    return { ok: false, error: 'Connessione a 360dialog fallita' };
   }
+
+  return { ok: false, error: errori.join(' · ') };
 }
 
 /** I componenti di un template: corpo con esempi e, se serve, i bottoni. */
