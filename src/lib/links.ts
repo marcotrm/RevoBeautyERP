@@ -16,6 +16,23 @@ function siteBaseUrl(): string {
   return (process.env.SITE_URL || 'https://revobeauty.it').replace(/\/$/, '');
 }
 
+function erpBaseUrl(): string {
+  return (process.env.ERP_URL || 'https://erp.revobeauty.it').replace(/\/$/, '');
+}
+
+/**
+ * Indirizzo che finisce nel bottone del template recensione.
+ *
+ * Non è il link di Google ma un nostro rimando, per due motivi. Il primo: un
+ * template approvato da Meta non si modifica a piacere, quindi se il link
+ * Google cambiasse (o le due schede venissero unite) bisognerebbe rifare
+ * l'approvazione; così basta cambiare una riga qui. Il secondo: passando da
+ * noi possiamo contare quanti aprono davvero il modulo.
+ */
+export function reviewRedirectUrl(): string {
+  return `${erpBaseUrl()}/r/recensione`;
+}
+
 /**
  * Da dove arriva chi apre il modulo del coupon.
  *

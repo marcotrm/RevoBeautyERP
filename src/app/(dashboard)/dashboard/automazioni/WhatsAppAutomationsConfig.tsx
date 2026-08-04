@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { MessageSquare, ChevronDown, Loader2, CheckCircle2, AlertTriangle, Clock, Heart, Gift, Star, CalendarPlus, Bot } from 'lucide-react';
 import {
   loadWaConfig, saveWaConfig, loadWaStatus, previewAutomation, runAutomationNow, checkTemplates, loadWaInbox,
+  creaTemplateRecensione,
   type WaStatus, type TemplateCheck, type WaInboxMessage,
 } from '@/app/actions/whatsapp';
 import type { WaAutomationsConfig, RunResult } from '@/lib/wa-automations';
@@ -32,6 +33,7 @@ export default function WhatsAppAutomationsConfig() {
   const [status, setStatus] = useState<WaStatus | null>(null);
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [esitoTemplate, setEsitoTemplate] = useState<string | null>(null);
   const [result, setResult] = useState<RunResult | null>(null);
   const [checks, setChecks] = useState<TemplateCheck[] | null>(null);
   const [inbox, setInbox] = useState<WaInboxMessage[] | null>(null);
@@ -64,6 +66,21 @@ export default function WhatsAppAutomationsConfig() {
     if (!r) return flash(false, 'Nessun risultato');
     if (r.skipped) return flash(false, r.skipped);
     setResult(r);
+  };
+
+  /**
+   * Manda il template a Meta per l'approvazione. Non è annullabile dal
+   * gestionale: se il testo va cambiato, il template si elimina da 360dialog Hub
+   * e si ricrea.
+   */
+  const creaTemplateReview = async () => {
+    setBusy('tpl:review');
+    setEsitoTemplate(null);
+    const r = await creaTemplateRecensione();
+    setBusy(null);
+    setEsitoTemplate(r.ok
+      ? `Inviato a Meta (${r.status || 'PENDING'}). L'approvazione richiede da pochi minuti a qualche ora: fino ad allora l'automazione non parte.`
+      : `Non creato: ${r.error}`);
   };
 
   const doSend = async (key: Key, title: string) => {
@@ -190,9 +207,18 @@ export default function WhatsAppAutomationsConfig() {
                           URL del template, che si configura a mano su 360dialog. Averlo
                           qui evita di andarlo a ricostruire ogni volta. */}
                       {a.key === 'review' && (
-                        <p className="text-[10px] text-text-muted/70 mt-1 leading-relaxed">
-                          Bottone del template → <a href={GOOGLE_REVIEW_URL} target="_blank" rel="noreferrer" className="text-accent hover:underline">link recensione</a> (scheda di Maddaloni).
-                        </p>
+                        <div className="mt-1 space-y-1">
+                          <p className="text-[10px] text-text-muted/70 leading-relaxed">
+                            Il bottone del template porta al{' '}
+                            <a href={GOOGLE_REVIEW_URL} target="_blank" rel="noreferrer" className="text-accent hover:underline">modulo recensioni</a>
+                            {' '}della scheda di Maddaloni.
+                          </p>
+                          <button onClick={creaTemplateReview} disabled={busy !== null || !configured}
+                            className="text-[10px] px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-text-secondary hover:bg-bg-hover disabled:opacity-40">
+                            {busy === 'tpl:review' ? 'invio a Meta…' : 'Crea il template con il bottone'}
+                          </button>
+                          {esitoTemplate && <p className="text-[10px] text-text-secondary leading-relaxed">{esitoTemplate}</p>}
+                        </div>
                       )}
                     </div>
                   </div>

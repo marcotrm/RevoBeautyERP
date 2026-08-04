@@ -7,7 +7,8 @@ import {
   clientNameForPhone,
   type WaConversation, type WaMessageRow, type WaUnreadChat,
 } from '@/lib/wa-conversations';
-import { listD360Templates } from '@/lib/whatsapp360';
+import { listD360Templates, createD360Template } from '@/lib/whatsapp360';
+import { reviewRedirectUrl } from '@/lib/links';
 import { WA_TEMPLATES, type TemplateKey } from '@/lib/wa-templates';
 import {
   getWaAutomationsConfig, saveWaAutomationsConfig, runWaAutomations,
@@ -155,6 +156,32 @@ export async function sendManualReply(phone: string, text: string): Promise<{ ok
 
   const res = await sendWhatsApp(normalized, body, 'manual');
   return res.ok ? { ok: true } : { ok: false, error: res.error || 'Invio fallito' };
+}
+
+/**
+ * Crea su 360dialog il template della richiesta recensione, col bottone che
+ * porta al modulo di Google.
+ *
+ * Il bottone non si può aggiungere a mano dal gestionale una volta che il
+ * template esiste: Meta li approva insieme al testo. Se il template c'è già
+ * senza bottone va prima eliminato dal Hub, altrimenti qui torna l'errore di
+ * nome duplicato.
+ *
+ * Lo stato iniziale è PENDING: finché Meta non approva, l'automazione delle
+ * recensioni non parte.
+ */
+export async function creaTemplateRecensione(): Promise<{ ok: boolean; status?: string; error?: string }> {
+  const tpl = WA_TEMPLATES.review;
+  const res = await createD360Template({
+    name: tpl.name,
+    category: tpl.category,
+    language: tpl.language,
+    body: tpl.body,
+    // Un esempio per ogni {{n}}: senza, Meta rifiuta la creazione.
+    example: ['Maria', 'pressoterapia'],
+    buttons: [{ type: 'URL', text: 'Lascia una recensione', url: reviewRedirectUrl() }],
+  });
+  return res.ok ? { ok: true, status: res.status } : { ok: false, error: res.error };
 }
 
 export interface TemplateCheck {

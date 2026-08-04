@@ -262,18 +262,46 @@ export async function listD360Templates(): Promise<
  * `example` è obbligatorio quando il corpo ha dei {{n}}: Meta rifiuta la
  * creazione senza un esempio per ogni segnaposto.
  */
+/**
+ * Bottone del template.
+ *
+ * `URL` statico: l'indirizzo è fisso e approvato insieme al template, quindi
+ * cambiarlo dopo vuol dire rifare l'approvazione — meglio farlo puntare a un
+ * nostro rimando (vedi lib/links.ts). `QUICK_REPLY`: il cliente tocca e ci
+ * risponde, aprendo la finestra 24h.
+ */
+export type TemplateButton =
+  | { type: 'URL'; text: string; url: string }
+  | { type: 'QUICK_REPLY'; text: string };
+
 export async function createD360Template(params: {
   name: string;
   category: 'MARKETING' | 'UTILITY';
   language: string;
   body: string;
   example?: string[];
+  buttons?: TemplateButton[];
 }): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
-  return submitTemplate(params.name, params.category, params.language, (() => {
-    const bodyComponent: Record<string, unknown> = { type: 'BODY', text: params.body };
-    if (params.example?.length) bodyComponent.example = { body_text: [params.example] };
-    return [bodyComponent];
-  })());
+  const components: unknown[] = [];
+
+  const bodyComponent: Record<string, unknown> = { type: 'BODY', text: params.body };
+  if (params.example?.length) bodyComponent.example = { body_text: [params.example] };
+  components.push(bodyComponent);
+
+  if (params.buttons?.length) {
+    components.push({
+      type: 'BUTTONS',
+      // Meta tronca a 25 caratteri le etichette più lunghe: meglio tagliarle qui
+      // che ritrovarsi un bottone con la parola a metà.
+      buttons: params.buttons.map(b =>
+        b.type === 'URL'
+          ? { type: 'URL', text: b.text.slice(0, 25), url: b.url }
+          : { type: 'QUICK_REPLY', text: b.text.slice(0, 25) }
+      ),
+    });
+  }
+
+  return submitTemplate(params.name, params.category, params.language, components);
 }
 
 /**
