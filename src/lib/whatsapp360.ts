@@ -228,7 +228,7 @@ export async function fetchD360Media(
 
 /** Elenca i template del canale con il loro stato di approvazione. */
 export async function listD360Templates(): Promise<
-  { ok: true; templates: Array<{ name: string; status: string; category: string; language: string }> } | { ok: false; error: string }
+  { ok: true; templates: Array<{ name: string; status: string; category: string; language: string; id?: string }> } | { ok: false; error: string }
 > {
   if (!d360Configured()) return { ok: false, error: 'Manca D360_API_KEY' };
   const base = (process.env.D360_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
@@ -238,12 +238,14 @@ export async function listD360Templates(): Promise<
     });
     const body = await res.json().catch(() => null);
     if (!res.ok) return { ok: false, error: body?.error?.message || `HTTP ${res.status}` };
-    type Raw = { name?: string; status?: string; category?: string; language?: string };
+    type Raw = { name?: string; status?: string; category?: string; language?: string; id?: string };
     const templates = (body?.waba_templates || body?.data || []).map((t: Raw) => ({
       name: t.name || '',
       status: t.status || 'UNKNOWN',
       category: t.category || '',
       language: t.language || '',
+      // Serve solo per modificare un template già esistente (vedi updateD360Template).
+      id: t.id ? String(t.id) : undefined,
     }));
     return { ok: true, templates };
   } catch {
@@ -282,26 +284,10 @@ export async function createD360Template(params: {
   example?: string[];
   buttons?: TemplateButton[];
 }): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
-  const components: unknown[] = [];
-
-  const bodyComponent: Record<string, unknown> = { type: 'BODY', text: params.body };
-  if (params.example?.length) bodyComponent.example = { body_text: [params.example] };
-  components.push(bodyComponent);
-
-  if (params.buttons?.length) {
-    components.push({
-      type: 'BUTTONS',
-      // Meta tronca a 25 caratteri le etichette più lunghe: meglio tagliarle qui
-      // che ritrovarsi un bottone con la parola a metà.
-      buttons: params.buttons.map(b =>
-        b.type === 'URL'
-          ? { type: 'URL', text: b.text.slice(0, 25), url: b.url }
-          : { type: 'QUICK_REPLY', text: b.text.slice(0, 25) }
-      ),
-    });
-  }
-
-  return submitTemplate(params.name, params.category, params.language, components);
+  return submitTemplate(
+    params.name, params.category, params.language,
+    templateComponents({ body: params.body, example: params.example, buttons: params.buttons })
+  );
 }
 
 /**
@@ -320,6 +306,70 @@ export async function createD360AuthTemplate(
     { type: 'BODY', add_security_recommendation: true },
     { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE' }] },
   ]);
+}
+
+/**
+ * Modifica un template che esiste già, per esempio per aggiungergli un bottone.
+ *
+ * È l'unica strada praticabile su un template approvato: cancellarlo e rifarlo
+ * sembra più semplice, ma Meta blocca il riutilizzo dello stesso nome per 30
+ * giorni, e in quel mese l'automazione che lo usa resterebbe ferma.
+ *
+ * Si può cambiare il contenuto, non la categoria; Meta concede una decina di
+ * modifiche al mese. Dopo la modifica il template torna in revisione.
+ */
+export async function updateD360Template(
+  templateId: string,
+  components: unknown[]
+): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
+  if (!d360Configured()) return { ok: false, error: 'Manca D360_API_KEY' };
+  const base = (process.env.D360_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
+
+  try {
+    // Come per i media, 360dialog rispecchia i path della Cloud API di Meta:
+    // l'id del template è la risorsa, senza prefisso.
+    const res = await fetch(`${base}/${encodeURIComponent(templateId)}`, {
+      method: 'POST',
+      headers: { 'D360-API-KEY': process.env.D360_API_KEY as string, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ components }),
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      const raw = body ? JSON.stringify(body).slice(0, 300) : '';
+      const msg = body?.error?.error_user_msg || body?.error?.message || body?.message
+        || (raw ? `HTTP ${res.status} — ${raw}` : `HTTP ${res.status}`);
+      return { ok: false, error: String(msg) };
+    }
+    return { ok: true, status: String(body?.status || 'PENDING') };
+  } catch {
+    return { ok: false, error: 'Connessione a 360dialog fallita' };
+  }
+}
+
+/** I componenti di un template: corpo con esempi e, se serve, i bottoni. */
+export function templateComponents(params: {
+  body: string;
+  example?: string[];
+  buttons?: TemplateButton[];
+}): unknown[] {
+  const components: unknown[] = [];
+  const bodyComponent: Record<string, unknown> = { type: 'BODY', text: params.body };
+  if (params.example?.length) bodyComponent.example = { body_text: [params.example] };
+  components.push(bodyComponent);
+
+  if (params.buttons?.length) {
+    components.push({
+      type: 'BUTTONS',
+      // Meta tronca a 25 caratteri le etichette più lunghe: meglio tagliarle qui
+      // che ritrovarsi un bottone con la parola a metà.
+      buttons: params.buttons.map(b =>
+        b.type === 'URL'
+          ? { type: 'URL', text: b.text.slice(0, 25), url: b.url }
+          : { type: 'QUICK_REPLY', text: b.text.slice(0, 25) }
+      ),
+    });
+  }
+  return components;
 }
 
 async function submitTemplate(

@@ -7,7 +7,7 @@ import {
   clientNameForPhone,
   type WaConversation, type WaMessageRow, type WaUnreadChat,
 } from '@/lib/wa-conversations';
-import { listD360Templates, createD360Template } from '@/lib/whatsapp360';
+import { listD360Templates, createD360Template, updateD360Template, templateComponents } from '@/lib/whatsapp360';
 import { reviewRedirectUrl } from '@/lib/links';
 import { WA_TEMPLATES, type TemplateKey } from '@/lib/wa-templates';
 import {
@@ -162,24 +162,49 @@ export async function sendManualReply(phone: string, text: string): Promise<{ ok
  * Crea su 360dialog il template della richiesta recensione, col bottone che
  * porta al modulo di Google.
  *
- * Il bottone non si può aggiungere a mano dal gestionale una volta che il
- * template esiste: Meta li approva insieme al testo. Se il template c'è già
- * senza bottone va prima eliminato dal Hub, altrimenti qui torna l'errore di
- * nome duplicato.
+ * I bottoni Meta li approva insieme al testo, quindi non si aggiungono a un
+ * template già fatto senza rimandarlo in revisione. Se il template esiste
+ * (il caso normale: è nato senza bottone) lo si modifica; solo se manca del
+ * tutto lo si crea da zero.
  *
- * Lo stato iniziale è PENDING: finché Meta non approva, l'automazione delle
- * recensioni non parte.
+ * In entrambi i casi torna PENDING: finché Meta non approva, l'automazione
+ * delle recensioni continua a usare la versione approvata precedente.
  */
 export async function creaTemplateRecensione(): Promise<{ ok: boolean; status?: string; error?: string }> {
   const tpl = WA_TEMPLATES.review;
+  // Un esempio per ogni {{n}}: senza, Meta rifiuta.
+  const example = ['Maria', 'pressoterapia'];
+  const buttons = [{ type: 'URL' as const, text: 'Lascia una recensione', url: reviewRedirectUrl() }];
+
+  // Se esiste già (è il caso normale: il template è nato senza bottone) va
+  // modificato, non ricreato. Cancellarlo bloccherebbe il nome per 30 giorni.
+  const remote = await listD360Templates();
+  const esistente = remote.ok
+    ? remote.templates.find(t => t.name === tpl.name && t.language === tpl.language)
+    : undefined;
+
+  if (esistente?.id) {
+    const res = await updateD360Template(
+      esistente.id,
+      templateComponents({ body: tpl.body, example, buttons })
+    );
+    return res.ok ? { ok: true, status: res.status } : { ok: false, error: res.error };
+  }
+
+  if (esistente) {
+    return {
+      ok: false,
+      error: 'Il template esiste ma 360dialog non ne restituisce l\'identificativo: il bottone va aggiunto a mano da 360dialog Hub → Templates.',
+    };
+  }
+
   const res = await createD360Template({
     name: tpl.name,
     category: tpl.category,
     language: tpl.language,
     body: tpl.body,
-    // Un esempio per ogni {{n}}: senza, Meta rifiuta la creazione.
-    example: ['Maria', 'pressoterapia'],
-    buttons: [{ type: 'URL', text: 'Lascia una recensione', url: reviewRedirectUrl() }],
+    example,
+    buttons,
   });
   return res.ok ? { ok: true, status: res.status } : { ok: false, error: res.error };
 }
