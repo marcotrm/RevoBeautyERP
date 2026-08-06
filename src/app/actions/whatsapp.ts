@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { waProvider, whatsappMissingVars, sendWhatsApp, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
+import { waProvider, whatsappMissingVars, sendWhatsApp, sendWhatsAppTemplate, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
 import {
   listConversations, listMessages, markConversationRead, markConversationUnread, conversationWindow, listUnreadChats,
   clientNameForPhone,
@@ -204,6 +204,45 @@ export async function creaTemplateRecensione(): Promise<{ ok: boolean; status?: 
     buttons,
   });
   return res.ok ? { ok: true, status: res.status } : { ok: false, error: res.error };
+}
+
+/**
+ * Parametri di esempio per provare un template senza avere sotto mano un
+ * appuntamento vero. Devono essere quanti quelli approvati: se il numero non
+ * combacia Meta risponde 132000 e il messaggio non parte.
+ */
+const ESEMPI_PARAMETRI: Record<TemplateKey, string[]> = {
+  confirm: ['Maria', 'pulizia viso', 'domani', '15:30'],
+  reminder: ['Maria', 'pulizia viso', 'domani', '15:30'],
+  recall: ['Maria'],
+  birthday: ['Maria', 'il 20%', '31/12'],
+  review: ['Maria', 'pulizia viso'],
+  omaggio: ['Maria', 'pressoterapia'],
+};
+
+/**
+ * Manda un template a un numero scelto, per vedere com'è fatto davvero.
+ *
+ * Serve perché "Invia ora" scrive ai clienti veri dell'automazione: per
+ * controllare un bottone o un testo appena modificato non si può disturbare
+ * chi è venuto ieri. Il messaggio parte per davvero, con parametri finti.
+ */
+export async function inviaTemplateDiProva(
+  phone: string,
+  key: TemplateKey
+): Promise<{ ok: boolean; error?: string }> {
+  if (!isSendablePhone(phone)) return { ok: false, error: 'Numero non valido' };
+
+  const tpl = WA_TEMPLATES[key];
+  const params = ESEMPI_PARAMETRI[key];
+  const testo = tpl.body.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1] ?? `{{${i}}}`);
+
+  const res = await sendWhatsAppTemplate(normalizePhone(phone), key, {
+    bodyParams: params,
+    fallbackText: testo,
+    source: 'manual',
+  });
+  return res.ok ? { ok: true } : { ok: false, error: res.error || 'Invio fallito' };
 }
 
 export interface TemplateCheck {

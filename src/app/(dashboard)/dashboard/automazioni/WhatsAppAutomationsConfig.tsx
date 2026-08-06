@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { MessageSquare, ChevronDown, Loader2, CheckCircle2, AlertTriangle, Clock, Heart, Gift, Star, CalendarPlus, Bot } from 'lucide-react';
 import {
   loadWaConfig, saveWaConfig, loadWaStatus, previewAutomation, runAutomationNow, checkTemplates, loadWaInbox,
-  creaTemplateRecensione,
+  creaTemplateRecensione, inviaTemplateDiProva,
   type WaStatus, type TemplateCheck, type WaInboxMessage,
 } from '@/app/actions/whatsapp';
 import type { WaAutomationsConfig, RunResult } from '@/lib/wa-automations';
@@ -34,6 +34,7 @@ export default function WhatsAppAutomationsConfig() {
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [esitoTemplate, setEsitoTemplate] = useState<string | null>(null);
+  const [numeroProva, setNumeroProva] = useState('');
   const [result, setResult] = useState<RunResult | null>(null);
   const [checks, setChecks] = useState<TemplateCheck[] | null>(null);
   const [inbox, setInbox] = useState<WaInboxMessage[] | null>(null);
@@ -68,10 +69,20 @@ export default function WhatsAppAutomationsConfig() {
     setResult(r);
   };
 
+  /** Manda il template a un numero scelto, per vedere com'è fatto davvero. */
+  const provaTemplate = async (key: Key) => {
+    setBusy(`prova:${key}`);
+    setEsitoTemplate(null);
+    const r = await inviaTemplateDiProva(numeroProva, key);
+    setBusy(null);
+    setEsitoTemplate(r.ok
+      ? `Mandato a ${numeroProva}. Se non arriva entro un minuto, controlla lo stato del template.`
+      : `Non partito: ${r.error}`);
+  };
+
   /**
-   * Manda il template a Meta per l'approvazione. Non è annullabile dal
-   * gestionale: se il testo va cambiato, il template si elimina da 360dialog Hub
-   * e si ricrea.
+   * Manda il template a Meta per l'approvazione. Serve solo se non esiste
+   * ancora: uno già approvato non si modifica da qui.
    */
   const creaTemplateReview = async () => {
     setBusy('tpl:review');
@@ -213,10 +224,22 @@ export default function WhatsAppAutomationsConfig() {
                             <a href={GOOGLE_REVIEW_URL} target="_blank" rel="noreferrer" className="text-accent hover:underline">modulo recensioni</a>
                             {' '}della scheda di Maddaloni.
                           </p>
-                          <button onClick={creaTemplateReview} disabled={busy !== null || !configured}
-                            className="text-[10px] px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-text-secondary hover:bg-bg-hover disabled:opacity-40">
-                            {busy === 'tpl:review' ? 'invio a Meta…' : 'Crea il template con il bottone'}
-                          </button>
+                          {/* "Invia ora" scrive ai clienti veri dell'automazione:
+                              per controllare com'è fatto il messaggio serve un
+                              numero scelto a mano. */}
+                          <div className="flex items-center gap-1.5">
+                            <input value={numeroProva} onChange={e => setNumeroProva(e.target.value)}
+                              placeholder="333 1234567" inputMode="tel"
+                              className="w-28 px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-[10px] text-text-primary focus:outline-none focus:border-accent/50" />
+                            <button onClick={() => provaTemplate('review')} disabled={busy !== null || !configured || !numeroProva.trim()}
+                              className="text-[10px] px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-text-secondary hover:bg-bg-hover disabled:opacity-40">
+                              {busy === 'prova:review' ? 'invio…' : 'Manda una prova'}
+                            </button>
+                            <button onClick={creaTemplateReview} disabled={busy !== null || !configured}
+                              className="text-[10px] px-2 py-1 rounded-lg text-text-muted/70 hover:text-text-secondary disabled:opacity-40">
+                              {busy === 'tpl:review' ? 'invio a Meta…' : 'ricrea template'}
+                            </button>
+                          </div>
                           {esitoTemplate && <p className="text-[10px] text-text-secondary leading-relaxed">{esitoTemplate}</p>}
                         </div>
                       )}
