@@ -212,6 +212,12 @@ export interface TemplateCheck {
   category: string;
   /** Stato su 360dialog: APPROVED, PENDING, REJECTED, MISSING. */
   status: string;
+  /**
+   * Indirizzi dei bottoni nella versione che Meta consegna davvero. Se il
+   * bottone è stato aggiunto sul Hub ma la modifica è ancora in revisione, qui
+   * non compare: è la differenza fra "l'ho messo" e "arriva ai clienti".
+   */
+  buttonUrls?: string[];
 }
 
 /**
@@ -227,7 +233,11 @@ export async function checkTemplates(): Promise<{ ok: boolean; error?: string; c
     const found = remote.templates.find(t => t.name === tpl.name && t.language === tpl.language);
     // 360dialog risponde in minuscolo ("approved"): senza normalizzare, la UI non
     // riconosce lo stato e mostra la stringa grezza in grigio invece di "Approvato".
-    return { key, name: tpl.name, category: tpl.category, status: (found?.status || 'MISSING').toUpperCase() };
+    return {
+      key, name: tpl.name, category: tpl.category,
+      status: (found?.status || 'MISSING').toUpperCase(),
+      buttonUrls: found?.buttonUrls,
+    };
   });
   return { ok: true, checks };
 }

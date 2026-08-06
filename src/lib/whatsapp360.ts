@@ -228,7 +228,7 @@ export async function fetchD360Media(
 
 /** Elenca i template del canale con il loro stato di approvazione. */
 export async function listD360Templates(): Promise<
-  { ok: true; templates: Array<{ name: string; status: string; category: string; language: string; id?: string }> } | { ok: false; error: string }
+  { ok: true; templates: Array<{ name: string; status: string; category: string; language: string; id?: string; buttonUrls?: string[] }> } | { ok: false; error: string }
 > {
   if (!d360Configured()) return { ok: false, error: 'Manca D360_API_KEY' };
   const base = (process.env.D360_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
@@ -238,7 +238,9 @@ export async function listD360Templates(): Promise<
     });
     const body = await res.json().catch(() => null);
     if (!res.ok) return { ok: false, error: body?.error?.message || `HTTP ${res.status}` };
-    type Raw = { name?: string; status?: string; category?: string; language?: string; id?: string };
+    type RawButton = { type?: string; url?: string; text?: string };
+    type RawComponent = { type?: string; buttons?: RawButton[] };
+    type Raw = { name?: string; status?: string; category?: string; language?: string; id?: string; components?: RawComponent[] };
     const templates = (body?.waba_templates || body?.data || []).map((t: Raw) => ({
       name: t.name || '',
       status: t.status || 'UNKNOWN',
@@ -248,6 +250,13 @@ export async function listD360Templates(): Promise<
       // riconoscere un template già presente: modificarlo da qui non si può,
       // vedi la nota in creaTemplateRecensione.
       id: t.id ? String(t.id) : undefined,
+      // Gli indirizzi dei bottoni della versione ATTIVA. Servono a distinguere
+      // "il bottone l'ho aggiunto sul Hub" da "il bottone è già in quello che
+      // Meta consegna": finché una modifica è in revisione, i due non
+      // coincidono e i clienti continuano a ricevere il template senza.
+      buttonUrls: (t.components || [])
+        .filter(c => c.type?.toUpperCase() === 'BUTTONS')
+        .flatMap(c => (c.buttons || []).map(b => b.url || `[${b.type}] ${b.text || ''}`)),
     }));
     return { ok: true, templates };
   } catch {

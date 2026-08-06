@@ -374,9 +374,19 @@ export default function WhatsAppAutomationsConfig() {
             {checks ? checks.map(c => {
               const st = TPL_STATUS[c.status] || { label: c.status, cls: 'text-text-muted' };
               return (
-                <div key={c.key} className="flex items-center justify-between text-[11px]">
-                  <span className="font-mono text-text-muted truncate">{c.name}</span>
-                  <span className={`font-semibold flex-shrink-0 ml-2 ${st.cls}`}>{st.label}</span>
+                <div key={c.key} className="text-[11px]">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-text-muted truncate">{c.name}</span>
+                    <span className={`font-semibold flex-shrink-0 ml-2 ${st.cls}`}>{st.label}</span>
+                  </div>
+                  {/* I bottoni della versione che Meta consegna davvero: se ne
+                      è stato aggiunto uno sul Hub ma la modifica è ancora in
+                      revisione, qui non compare ancora. */}
+                  {c.buttonUrls?.length ? (
+                    <p className="text-[10px] text-text-muted/70 pl-2 truncate">↳ bottone: {c.buttonUrls.join(', ')}</p>
+                  ) : c.status === 'APPROVED' ? (
+                    <p className="text-[10px] text-text-muted/50 pl-2">↳ nessun bottone</p>
+                  ) : null}
                 </div>
               );
             }) : (
