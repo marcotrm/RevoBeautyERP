@@ -135,6 +135,42 @@ async function alreadySent(rowId: string): Promise<boolean> {
   return Boolean(row && (row.data as SendLogData | null)?.ok);
 }
 
+/** Vero se almeno uno di questi invii è già partito (usata per i lock vecchi). */
+async function qualcunoGiaInviato(rowIds: string[]): Promise<boolean> {
+  if (!rowIds.length) return false;
+  const righe = await prisma.adminEntry.findMany({ where: { rowId: { in: rowIds } } });
+  return righe.some(r => (r.data as SendLogData | null)?.ok);
+}
+
+/**
+ * Prende il posto per un invio, prima di mandarlo.
+ *
+ * Controllare e poi mandare non basta: fra il controllo e l'invio ci sta
+ * un'altra esecuzione che fa lo stesso controllo, trova ancora libero e manda
+ * pure lei. Capita davvero durante i deploy, quando per qualche secondo il
+ * container vecchio e quello nuovo girano insieme e hanno entrambi lo
+ * scheduler acceso: alle 19:30 partono in due e la cliente riceve due volte lo
+ * stesso messaggio (che paghiamo due volte).
+ *
+ * `create` su un rowId univoco è atomico: passa uno solo, l'altro sbatte sul
+ * vincolo e si ferma. L'esito vero lo scrive dopo `logSend`.
+ */
+async function prenotaInvio(rowId: string, data: Omit<SendLogData, 'ok'>): Promise<boolean> {
+  try {
+    await prisma.adminEntry.create({
+      data: {
+        rowId, kind: LOG_KIND, entityId: rowId,
+        data: { ...data, ok: false, inCorso: true } as unknown as object,
+        createdAt: data.sentAt,
+      },
+    });
+    return true;
+  } catch {
+    // Riga già presente: l'invio è di qualcun altro (o è già stato fatto).
+    return false;
+  }
+}
+
 async function logSend(rowId: string, data: SendLogData): Promise<void> {
   await prisma.adminEntry.upsert({
     where: { rowId },
@@ -192,6 +228,19 @@ async function runJobs(key: TemplateKey, jobs: Job[], dryRun: boolean): Promise<
       continue;
     }
 
+    // Il posto si prende PRIMA di mandare: se un'altra esecuzione è già
+    // partita su questo stesso messaggio, qui ci si ferma senza spendere.
+    const mio = await prenotaInvio(job.rowId, {
+      automation: key,
+      clientId: job.clientId,
+      phone: job.phone,
+      sentAt: new Date().toISOString(),
+    });
+    if (!mio) {
+      console.warn(`[wa-automations] ${key}: ${job.rowId} già in carico a un'altra esecuzione, saltato`);
+      continue;
+    }
+
     const res = await sendWhatsAppTemplate(job.phone, key, {
       bodyParams: job.params,
       fallbackText: preview,
@@ -227,20 +276,35 @@ export async function runReminders(dryRun: boolean): Promise<RunResult> {
     orderBy: { startTime: 'asc' },
   });
 
-  const jobs: Job[] = [];
+  // Un promemoria per cliente, non uno per appuntamento: chi ha due
+  // appuntamenti domani riceveva due messaggi quasi identici. Si annuncia il
+  // primo della giornata (gli appuntamenti arrivano ordinati per orario).
+  const perCliente = new Map<string, typeof appts>();
   for (const a of appts) {
+    const lista = perCliente.get(a.clientId);
+    if (lista) lista.push(a);
+    else perCliente.set(a.clientId, [a]);
+  }
+
+  const jobs: Job[] = [];
+  for (const [clientId, giornata] of perCliente) {
+    const a = giornata[0];
     const phone = a.client?.phone;
     if (!isSendablePhone(phone)) continue;
-    const rowId = `wa:reminder:${a.clientId}:${a.id}`;
+
+    const rowId = `wa:reminder:${clientId}:${target}`;
     if (await alreadySent(rowId)) continue;
+    if (await qualcunoGiaInviato(giornata.map(v => `wa:reminder:${clientId}:${v.id}`))) continue;
+
     jobs.push({
       rowId,
-      clientId: a.clientId,
+      clientId,
       name: a.clientName,
       phone: normalizePhone(phone as string),
       params: [
         sanitizeParam(a.client?.firstName || a.clientName.split(' ')[0]),
-        sanitizeParam(a.treatmentName, 'il tuo trattamento'),
+        // Con più trattamenti in giornata il singolo nome sarebbe fuorviante.
+        sanitizeParam(giornata.length > 1 ? 'i tuoi trattamenti' : a.treatmentName, 'il tuo trattamento'),
         sanitizeParam(humanDate(a.date)),
         sanitizeParam(a.startTime),
       ],
@@ -316,15 +380,33 @@ export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
     include: { client: true },
   });
 
-  const jobs: Job[] = [];
+  // Una cliente che in giornata ha due appuntamenti (mattina e pomeriggio, o
+  // due prenotazioni fatte separatamente) ha fatto UNA visita: di "com'è
+  // andata" le si chiede una volta sola. Prima il blocco anti-doppione era per
+  // appuntamento, e infatti arrivavano due richieste di recensione.
+  const perCliente = new Map<string, typeof appts>();
   for (const a of appts) {
+    const lista = perCliente.get(a.clientId);
+    if (lista) lista.push(a);
+    else perCliente.set(a.clientId, [a]);
+  }
+
+  const jobs: Job[] = [];
+  for (const [clientId, visite] of perCliente) {
+    const a = visite[0];
     const phone = a.client?.phone;
     if (!isSendablePhone(phone)) continue;
-    const rowId = `wa:review:${a.clientId}:${a.id}`;
+
+    const rowId = `wa:review:${clientId}:${target}`;
+    // Anche i lock del vecchio formato (uno per appuntamento) valgono: senza
+    // questo controllo, il primo giro dopo il cambio rimanderebbe a chi ha già
+    // ricevuto.
     if (await alreadySent(rowId)) continue;
+    if (await qualcunoGiaInviato(visite.map(v => `wa:review:${clientId}:${v.id}`))) continue;
+
     jobs.push({
       rowId,
-      clientId: a.clientId,
+      clientId,
       name: a.clientName,
       phone: normalizePhone(phone as string),
       params: [
