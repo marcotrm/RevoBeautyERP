@@ -134,8 +134,8 @@ export async function getInaugurationStats(): Promise<InaugurationStats> {
   revenueAfter = Math.round(revenueAfter * 100) / 100;
 
   return {
-    totalLeads: leads,
-    inClients: inaugClients.length,
+    totalLeads,
+    inClients: inaugIds.size,
     withGift,
     came,
     booked: withGift - came,
