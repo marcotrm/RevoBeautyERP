@@ -57,7 +57,7 @@ export default function ServiziPage() {
         <Card titolo="Trattamenti che fatturano di più"
           spiega="Valore dei trattamenti completati negli ultimi 12 mesi. Non è la stessa classifica del numero: un servizio fatto poco ma caro può valere più di uno fatto sempre.">
           {trends
-            ? <Classifica righe={trends.topTrattamentiFatturato} formato={eur} etichettaExtra={n => `${n} volte`} />
+            ? <Classifica righe={trends.topTrattamentiFatturato} formato={eur} etichettaExtra={n => `${n} ${n === 1 ? 'volta' : 'volte'}`} />
             : <Caricamento />}
         </Card>
 

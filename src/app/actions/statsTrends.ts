@@ -94,21 +94,22 @@ export async function getTrends(mesiIndietro = 12): Promise<Trends> {
   // Primo giorno del periodo osservato: serve per filtrare le query
   const inizioPeriodo = new Date(anno, meseCorrente - (mesiIndietro - 1), 1).toISOString().slice(0, 10);
 
-  const [clients, appts, txs, products] = await Promise.all([
-    prisma.client.findMany({ select: { id: true, firstName: true, lastName: true, createdAt: true } }),
-    prisma.appointment.findMany({
+  // Le query girano una per volta, non in parallelo: il pool di connessioni
+  // Prisma è piccolo e questa sezione lancia più statistiche insieme — a
+  // raffica satura il pool e le pagine muoiono con "connection pool timeout".
+  const clients = await prisma.client.findMany({ select: { id: true, firstName: true, lastName: true, createdAt: true } });
+  const appts = await prisma.appointment.findMany({
       where: { date: { gte: inizioPeriodo } },
       select: {
         clientId: true, date: true, startTime: true, price: true, status: true,
         operatorName: true, treatmentName: true, treatmentCategory: true, duration: true,
       },
-    }),
-    prisma.posTransaction.findMany({
+    });
+  const txs = await prisma.posTransaction.findMany({
       where: { date: { gte: inizioPeriodo } },
       select: { clientName: true, total: true, date: true, paymentMethod: true, isRefund: true, productLines: true },
-    }),
-    prisma.product.findMany({ select: { id: true, name: true, price: true } }),
-  ]);
+    });
+  const products = await prisma.product.findMany({ select: { id: true, name: true, price: true } });
 
   const income = txs.filter(t => !t.isRefund && t.total > 0);
   const completati = appts.filter(a => a.status === 'completed');

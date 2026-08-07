@@ -42,29 +42,40 @@ export interface ClientAnalytics {
 }
 
 export function getKPIs(clients: ClientAnalytics[]) {
-  const active90 = clients.filter(c => c.daysSinceLastVisit <= 90);
-  const inactive = clients.filter(c => c.daysSinceLastVisit > 90);
+  // Le medie si fanno su chi è davvero venuta o ha speso. In anagrafica ci sono
+  // sempre parecchi contatti mai entrati in negozio (campagne, coupon): tenerli
+  // dentro schiaccerebbe ticket medio e frequenza su numeri che non descrivono
+  // nessuna cliente reale.
+  const venute = clients.filter(c => c.totalAppointments > 0);
+  const paganti = clients.filter(c => c.totalRevenue > 0);
+  const maiVenute = clients.filter(c => c.totalAppointments === 0);
+
+  const active90 = venute.filter(c => c.daysSinceLastVisit <= 90);
+  const inactive = venute.filter(c => c.daysSinceLastVisit > 90);
   const newMonth = clients.filter(c => c.isNew);
   const totalRev = clients.reduce((s, c) => s + c.totalRevenue, 0);
   const monthRev = clients.reduce((s, c) => s + c.revenueThisMonth, 0);
   const yearRev = clients.reduce((s, c) => s + c.revenueThisYear, 0);
-  const avgTicket = clients.length > 0 ? Math.round(clients.reduce((s, c) => s + c.avgTicket, 0) / clients.length) : 0;
+  const avgTicket = paganti.length > 0 ? Math.round(paganti.reduce((s, c) => s + c.avgTicket, 0) / paganti.length) : 0;
   const totalAppts = clients.reduce((s, c) => s + c.totalAppointments, 0);
-  const avgFreq = clients.length > 0 ? +(totalAppts / clients.length).toFixed(1) : 0;
-  const avgDays = clients.filter(c => c.avgDaysBetweenVisits > 0).length > 0
-    ? Math.round(clients.filter(c => c.avgDaysBetweenVisits > 0).reduce((s, c) => s + c.avgDaysBetweenVisits, 0) / clients.filter(c => c.avgDaysBetweenVisits > 0).length)
+  const avgFreq = venute.length > 0 ? +(totalAppts / venute.length).toFixed(1) : 0;
+  const conCadenza = clients.filter(c => c.avgDaysBetweenVisits > 0);
+  const avgDays = conCadenza.length > 0
+    ? Math.round(conCadenza.reduce((s, c) => s + c.avgDaysBetweenVisits, 0) / conCadenza.length)
     : 0;
   const returning = clients.filter(c => c.totalAppointments > 1).length;
-  const returnRate = clients.length > 0 ? Math.round((returning / clients.length) * 100) : 0;
+  const returnRate = venute.length > 0 ? Math.round((returning / venute.length) * 100) : 0;
   const loyal = clients.filter(c => c.totalAppointments >= 5 && c.daysSinceLastVisit <= 60).length;
-  const retentionRate = clients.length > 0 ? Math.round((loyal / clients.length) * 100) : 0;
+  const retentionRate = venute.length > 0 ? Math.round((loyal / venute.length) * 100) : 0;
 
   return {
     totalClients: clients.length,
     activeClients90Days: active90.length,
     inactiveClients: inactive.length,
+    neverCameClients: maiVenute.length,
+    payingClients: paganti.length,
     newClientsMonth: newMonth.length,
-    avgClientValue: clients.length > 0 ? Math.round(totalRev / clients.length) : 0,
+    avgClientValue: paganti.length > 0 ? Math.round(totalRev / paganti.length) : 0,
     monthlyRevenue: monthRev,
     yearlyRevenue: yearRev,
     avgTicket,

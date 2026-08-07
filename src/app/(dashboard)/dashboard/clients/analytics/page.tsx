@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 import {
@@ -61,10 +61,11 @@ function OverviewTab({ clients, trend }: { clients: ClientAnalytics[]; trend: Cl
 
   const kpis = [
     { icon: Users, label: 'Totale Clienti', value: kpi.totalClients, color: '#8B5CF6' },
-    { icon: UserCheck, label: 'Attivi (90gg)', value: kpi.activeClients90Days, color: '#22C55E', sub: `${Math.round((kpi.activeClients90Days / kpi.totalClients) * 100)}%` },
-    { icon: UserX, label: 'Inattivi', value: kpi.inactiveClients, color: '#EF4444' },
+    { icon: UserCheck, label: 'Attivi (90gg)', value: kpi.activeClients90Days, color: '#22C55E', sub: `${Math.round((kpi.activeClients90Days / Math.max(kpi.totalClients, 1)) * 100)}%` },
+    { icon: UserX, label: 'Inattivi (90gg+)', value: kpi.inactiveClients, color: '#EF4444' },
+    { icon: UserX, label: 'Mai venute', value: kpi.neverCameClients, color: '#F97316' },
     { icon: UserPlus, label: 'Nuovi del Mese', value: kpi.newClientsMonth, color: '#3B82F6' },
-    { icon: DollarSign, label: 'Valore Medio Cliente', value: fmt(kpi.avgClientValue), color: '#F59E0B' },
+    { icon: DollarSign, label: 'Valore Medio Cliente', value: fmt(kpi.avgClientValue), sub: `${kpi.payingClients} paganti`, color: '#F59E0B' },
     { icon: TrendingUp, label: 'Fatturato Mese', value: fmt(kpi.monthlyRevenue), color: '#22C55E' },
     { icon: Target, label: 'Fatturato Anno', value: fmt(kpi.yearlyRevenue), color: '#8B5CF6' },
     { icon: DollarSign, label: 'Ticket Medio', value: fmt(kpi.avgTicket), color: '#EC4899' },
@@ -732,10 +733,13 @@ export default function ClientAnalyticsPage() {
         </div>
       )}
 
-      {/* Tab Content */}
+      {/* Contenuto della scheda.
+          Niente AnimatePresence in "wait": l'uscita della scheda precedente non
+          si concludeva mai e il contenuto restava bloccato sulla Panoramica
+          anche dopo aver cambiato scheda. La chiave sul motion.div basta a
+          rianimare l'entrata. */}
       {dati && (
-      <AnimatePresence mode="wait">
-        <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
+      <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
           {activeTab === 'overview' && <OverviewTab clients={clients} trend={dati?.monthlyRevenueTrend ?? []} />}
           {activeTab === 'ranking' && <RankingTab clients={clients} />}
           {activeTab === 'noshow' && <ReliabilityTab clients={clients} />}
@@ -745,8 +749,7 @@ export default function ClientAnalyticsPage() {
           {activeTab === 'treatments' && <TreatmentsTab stats={dati?.treatmentStats ?? []} />}
           {activeTab === 'upsell' && <UpsellTab clients={clients} />}
           {activeTab === 'alerts' && <AlertsTab clients={clients} />}
-        </motion.div>
-      </AnimatePresence>
+      </motion.div>
       )}
     </motion.div>
   );

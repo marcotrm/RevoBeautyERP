@@ -44,7 +44,7 @@ export default function IncassiPage() {
       <Card titolo="Le clienti che spendono di più"
         spiega="Top 10 per incasso in cassa negli ultimi 12 mesi. Sono le persone da trattare meglio di tutte: perderne una pesa come perderne dieci normali.">
         {trends
-          ? <Classifica righe={trends.topClienti} formato={eur} etichettaExtra={n => `${n} volte`} />
+          ? <Classifica righe={trends.topClienti} formato={eur} etichettaExtra={n => `${n} ${n === 1 ? 'volta' : 'volte'}`} />
           : <Caricamento />}
       </Card>
     </motion.div>

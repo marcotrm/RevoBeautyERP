@@ -88,22 +88,23 @@ export async function getClientAnalyticsData(): Promise<ClientAnalyticsData> {
   const yearStart = today.slice(0, 4) + '-01-01';
   const dodiciMesiFa = new Date(oggi.getFullYear(), oggi.getMonth() - 11, 1).toISOString().slice(0, 10);
 
-  const [clients, appts, txs, packages] = await Promise.all([
-    prisma.client.findMany({
+  // Le query girano una per volta, non in parallelo: il pool di connessioni
+  // Prisma è piccolo e questa sezione lancia più statistiche insieme — a
+  // raffica satura il pool e le pagine muoiono con "connection pool timeout".
+  const clients = await prisma.client.findMany({
       select: {
         id: true, firstName: true, lastName: true, phone: true, email: true,
         birthDate: true, tags: true, createdAt: true,
       },
-    }),
-    prisma.appointment.findMany({
+    });
+  const appts = await prisma.appointment.findMany({
       select: { clientId: true, date: true, status: true, price: true, treatmentName: true, operatorName: true },
-    }),
-    prisma.posTransaction.findMany({
+    });
+  const txs = await prisma.posTransaction.findMany({
       where: { isRefund: false, total: { gt: 0 } },
       select: { clientName: true, total: true, date: true },
-    }),
-    prisma.clientPackage.findMany({ select: { clientId: true, status: true, payments: true } }),
-  ]);
+    });
+  const packages = await prisma.clientPackage.findMany({ select: { clientId: true, status: true, payments: true } });
 
   // ---------- Incassi per cliente, riagganciati per nome ----------
   const idPerNome = new Map<string, string>();
@@ -245,7 +246,13 @@ export async function getClientAnalyticsData(): Promise<ClientAnalyticsData> {
       noShowCount: ag?.noShow || 0,
       cancelledCount: ag?.disdette || 0,
       totalBooked: prenotati,
-      reliabilityScore: prenotati ? round((completati / prenotati) * 100) : 100,
+      // Affidabilità sui soli appuntamenti già conclusi: gli appuntamenti
+      // futuri non sono ancora né onorati né saltati, contarli farebbe
+      // risultare inaffidabile chi ha semplicemente prenotato in anticipo.
+      reliabilityScore: (() => {
+        const conclusi = completati + (ag?.disdette || 0) + (ag?.noShow || 0);
+        return conclusi ? round((completati / conclusi) * 100) : 100;
+      })(),
     };
   });
 

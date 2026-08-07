@@ -28,14 +28,15 @@ export interface InaugurationStats {
 }
 
 export async function getInaugurationStats(): Promise<InaugurationStats> {
-  const [totalLeads, leadRows, allClients, allPkgs, transactions, appts] = await Promise.all([
-    prisma.inaugurationLead.count(),
-    prisma.inaugurationLead.findMany({ select: { phone: true, email: true } }),
-    prisma.client.findMany({ select: { id: true, firstName: true, lastName: true, phone: true, email: true, tags: true } }),
-    prisma.clientPackage.findMany({ select: { clientId: true, usedSessions: true, pricePaid: true, purchaseDate: true, history: true } }),
-    prisma.posTransaction.findMany({ where: { total: { gt: 0 }, isRefund: false }, select: { clientName: true, total: true, date: true } }),
-    prisma.appointment.findMany({ where: { status: { not: 'cancelled' } }, select: { clientId: true, date: true, status: true } }),
-  ]);
+  // Una query per volta: in parallelo, sommate a quelle delle altre statistiche
+  // aperte nella stessa pagina, saturano il pool di connessioni Prisma e tutto
+  // muore con "connection pool timeout".
+  const totalLeads = await prisma.inaugurationLead.count();
+  const leadRows = await prisma.inaugurationLead.findMany({ select: { phone: true, email: true } });
+  const allClients = await prisma.client.findMany({ select: { id: true, firstName: true, lastName: true, phone: true, email: true, tags: true } });
+  const allPkgs = await prisma.clientPackage.findMany({ select: { clientId: true, usedSessions: true, pricePaid: true, purchaseDate: true, history: true } });
+  const transactions = await prisma.posTransaction.findMany({ where: { total: { gt: 0 }, isRefund: false }, select: { clientName: true, total: true, date: true } });
+  const appts = await prisma.appointment.findMany({ where: { status: { not: 'cancelled' } }, select: { clientId: true, date: true, status: true } });
 
   // --- Chi sono le clienti dell'inaugurazione ---
   // Dal COUPON al cliente: telefono prima, email come ripiego (le email
@@ -177,11 +178,9 @@ export async function getClientValue(clientId: string): Promise<ClientValue> {
   }
   const fullName = norm(`${client.firstName} ${client.lastName}`);
 
-  const [appts, transactions, packages] = await Promise.all([
-    prisma.appointment.findMany({ where: { clientId, status: 'completed' }, select: { date: true, price: true } }),
-    prisma.posTransaction.findMany({ select: { clientName: true, total: true, date: true } }),
-    prisma.clientPackage.findMany({ where: { clientId }, select: { payments: true } }),
-  ]);
+  const appts = await prisma.appointment.findMany({ where: { clientId, status: 'completed' }, select: { date: true, price: true } });
+  const transactions = await prisma.posTransaction.findMany({ select: { clientName: true, total: true, date: true } });
+  const packages = await prisma.clientPackage.findMany({ where: { clientId }, select: { payments: true } });
 
   // Incasso cassa a nome del cliente (solo importi positivi)
   const posTotal = transactions
@@ -256,16 +255,16 @@ export async function getBusinessKPIs(): Promise<KpiGroup[]> {
   const prevMonthStart = prevMonthEnd.slice(0, 8) + '01';
   const weekStart = new Date(Date.parse(today) - ((d.getDay() + 6) % 7) * dayMs).toISOString().slice(0, 10);
 
-  const [clients, appts, txs, pkgs, operators, products, giftCards, inaug] = await Promise.all([
-    prisma.client.findMany({ select: { id: true, firstName: true, lastName: true, createdAt: true, birthDate: true, marketingConsent: true } }),
-    prisma.appointment.findMany({ select: { clientId: true, date: true, price: true, status: true, operatorName: true, treatmentName: true, checkInAt: true, checkOutAt: true, duration: true, startTime: true, createdAt: true } }),
-    prisma.posTransaction.findMany({ select: { clientName: true, total: true, date: true, paymentMethod: true, isRefund: true, productLines: true } }),
-    prisma.clientPackage.findMany({ select: { clientId: true, pricePaid: true, totalPaid: true, remainingBalance: true, usedSessions: true, totalSessions: true, status: true, expiryDate: true } }),
-    prisma.operator.findMany({ where: { isResource: false }, select: { firstName: true, lastName: true, monthlyCost: true, contractHours: true } }),
-    prisma.product.findMany({ where: { isActive: true }, select: { name: true, price: true, costPrice: true, stock: true, minStock: true } }),
-    prisma.giftCard.findMany({ select: { amount: true, status: true } }),
-    getInaugurationStats(),
-  ]);
+  // Anche qui una alla volta, per lo stesso motivo: questa funzione da sola
+  // aprirebbe otto connessioni, e getInaugurationStats ne vuole altre sei.
+  const clients = await prisma.client.findMany({ select: { id: true, firstName: true, lastName: true, createdAt: true, birthDate: true, marketingConsent: true } });
+  const appts = await prisma.appointment.findMany({ select: { clientId: true, date: true, price: true, status: true, operatorName: true, treatmentName: true, checkInAt: true, checkOutAt: true, duration: true, startTime: true, createdAt: true } });
+  const txs = await prisma.posTransaction.findMany({ select: { clientName: true, total: true, date: true, paymentMethod: true, isRefund: true, productLines: true } });
+  const pkgs = await prisma.clientPackage.findMany({ select: { clientId: true, pricePaid: true, totalPaid: true, remainingBalance: true, usedSessions: true, totalSessions: true, status: true, expiryDate: true } });
+  const operators = await prisma.operator.findMany({ where: { isResource: false }, select: { firstName: true, lastName: true, monthlyCost: true, contractHours: true } });
+  const products = await prisma.product.findMany({ where: { isActive: true }, select: { name: true, price: true, costPrice: true, stock: true, minStock: true } });
+  const giftCards = await prisma.giftCard.findMany({ select: { amount: true, status: true } });
+  const inaug = await getInaugurationStats();
 
   const top = (arr: string[]) => {
     const m = new Map<string, number>();
@@ -482,11 +481,11 @@ export async function getBusinessKPIs(): Promise<KpiGroup[]> {
       kpis: [
         { key: 'leads', label: '1· Contatti raccolti', value: String(inaug.totalLeads), hint: 'Persone che hanno richiesto il coupon inaugurazione.' },
         { key: 'withGift', label: '2· Con omaggio assegnato', value: String(inaug.withGift), hint: 'Hanno il pacchetto omaggio pronto da usare.' },
-        { key: 'bookedGift', label: '3· Hanno fissato l\'omaggio', value: String(inaug.bookedGift), hint: 'Hanno preso appuntamento ma non sono ancora venute.' },
-        { key: 'came', label: '4· Sono venute', value: String(inaug.came), sub: `${pct(inaug.showRate)} di chi ha l'omaggio`, hint: 'Hanno fatto la seduta gratis (omaggio scalato al check-out). È il primo vero contatto in negozio.', tone: inaug.showRate >= 50 ? 'good' : inaug.showRate >= 25 ? 'warn' : 'bad' },
+        { key: 'bookedGift', label: 'Hanno già fissato l\'omaggio', value: String(inaug.bookedGift), hint: 'Hanno preso appuntamento ma non sono ancora venute.' },
+        { key: 'came', label: '3· Sono venute', value: String(inaug.came), sub: `${pct(inaug.showRate)} di chi ha l'omaggio`, hint: 'Hanno fatto la seduta gratis (omaggio scalato al check-out). È il primo vero contatto in negozio.', tone: inaug.showRate >= 50 ? 'good' : inaug.showRate >= 25 ? 'warn' : 'bad' },
         { key: 'pending', label: 'Non ancora venute', value: String(inaug.booked), hint: 'Hanno l\'omaggio ma non l\'hanno usato: da richiamare, l\'omaggio lo stai già pagando tu.', tone: inaug.booked > 0 ? 'warn' : 'neutral' },
-        { key: 'returned', label: '5· Sono tornate paganti', value: String(inaug.returnedPaying), sub: inaug.came > 0 ? `${pct(inaug.conversionRate)} di chi è venuta` : '', hint: 'Dopo l\'omaggio hanno speso qualcosa: un trattamento, un prodotto o un pacchetto. È la prova che il servizio ha convinto.', tone: inaug.came === 0 ? 'neutral' : inaug.conversionRate >= 30 ? 'good' : inaug.conversionRate >= 15 ? 'warn' : 'bad' },
-        { key: 'boughtPkg', label: '6· Hanno comprato un pacchetto', value: String(inaug.boughtPackage), sub: inaug.came > 0 ? `${pct(inaug.packageRate)} di chi è venuta` : '', hint: 'Hanno acquistato un pacchetto a pagamento dopo l\'omaggio: è il risultato che vale di più, perché lega la cliente per più sedute.', tone: inaug.came === 0 ? 'neutral' : inaug.packageRate >= 20 ? 'good' : inaug.packageRate >= 10 ? 'warn' : 'bad' },
+        { key: 'returned', label: '4· Sono tornate paganti', value: String(inaug.returnedPaying), sub: inaug.came > 0 ? `${pct(inaug.conversionRate)} di chi è venuta` : '', hint: 'Dopo l\'omaggio hanno speso qualcosa: un trattamento, un prodotto o un pacchetto. È la prova che il servizio ha convinto.', tone: inaug.came === 0 ? 'neutral' : inaug.conversionRate >= 30 ? 'good' : inaug.conversionRate >= 15 ? 'warn' : 'bad' },
+        { key: 'boughtPkg', label: '5· Hanno comprato un pacchetto', value: String(inaug.boughtPackage), sub: inaug.came > 0 ? `${pct(inaug.packageRate)} di chi è venuta` : '', hint: 'Hanno acquistato un pacchetto a pagamento dopo l\'omaggio: è il risultato che vale di più, perché lega la cliente per più sedute.', tone: inaug.came === 0 ? 'neutral' : inaug.packageRate >= 20 ? 'good' : inaug.packageRate >= 10 ? 'warn' : 'bad' },
         { key: 'revAfter', label: 'Fatturato generato', value: eur(inaug.revenueAfter), hint: 'Quanto hanno speso in totale queste clienti DOPO aver usato l\'omaggio. Confrontalo con quanto ti è costata la campagna.', tone: inaug.revenueAfter > 0 ? 'good' : 'neutral' },
         { key: 'valuePerGift', label: 'Valore per omaggio erogato', value: eur(inaug.avgValuePerGift), hint: 'Quanto rende in media ogni seduta omaggio regalata. Se supera il costo del trattamento gratis, la campagna è in utile.', tone: inaug.avgValuePerGift > 0 ? 'good' : 'neutral' },
         { key: 'daysToBuy', label: 'Giorni prima di ricomprare', value: inaug.avgDaysToPurchase ? `${inaug.avgDaysToPurchase} gg` : '—', hint: 'Tempo medio tra la seduta omaggio e il primo acquisto: ti dice dopo quanti giorni ha senso richiamare chi non è ancora tornata.' },

@@ -26,7 +26,7 @@ export interface ClientRow {
   prenotati: number;        // appuntamenti presi (qualunque esito)
   visite: number;           // appuntamenti completati
   disdette: number;         // disdette + no show
-  affidabilita: number;     // % completati sui prenotati
+  affidabilita: number;     // % completati sugli appuntamenti già conclusi
   trattamentoTop: string;
   ultimaVisita: string | null;
   primaVisita: string | null;
@@ -48,22 +48,23 @@ export interface ClientRankingResult {
 export async function getClientRanking(from: string, to: string): Promise<ClientRankingResult> {
   const [start, end] = from <= to ? [from, to] : [to, from];
 
-  const [clients, apptsPeriodo, txs, primeVisite] = await Promise.all([
-    prisma.client.findMany({ select: { id: true, firstName: true, lastName: true, phone: true } }),
-    prisma.appointment.findMany({
-      where: { date: { gte: start, lte: end } },
-      select: { clientId: true, date: true, status: true, treatmentName: true },
-    }),
-    prisma.posTransaction.findMany({
-      where: { date: { gte: start, lte: end }, isRefund: false, total: { gt: 0 } },
-      select: { clientName: true, total: true, date: true },
-    }),
-    // Serve solo per sapere se, nel periodo, la cliente era alla sua prima volta
-    prisma.appointment.findMany({
-      where: { status: 'completed' },
-      select: { clientId: true, date: true },
-    }),
-  ]);
+  // Le query girano una per volta, non in parallelo: il pool di connessioni
+  // Prisma è piccolo e questa sezione lancia più statistiche insieme — a
+  // raffica satura il pool e le pagine muoiono con "connection pool timeout".
+  const clients = await prisma.client.findMany({ select: { id: true, firstName: true, lastName: true, phone: true } });
+  const apptsPeriodo = await prisma.appointment.findMany({
+    where: { date: { gte: start, lte: end } },
+    select: { clientId: true, date: true, status: true, treatmentName: true },
+  });
+  const txs = await prisma.posTransaction.findMany({
+    where: { date: { gte: start, lte: end }, isRefund: false, total: { gt: 0 } },
+    select: { clientName: true, total: true, date: true },
+  });
+  // Serve solo per sapere se, nel periodo, la cliente era alla sua prima volta
+  const primeVisite = await prisma.appointment.findMany({
+    where: { status: 'completed' },
+    select: { clientId: true, date: true },
+  });
 
   const primaAssoluta = new Map<string, string>();
   for (const a of primeVisite) {
@@ -135,7 +136,11 @@ export async function getClientRanking(from: string, to: string): Promise<Client
       prenotati: x.prenotati,
       visite: date.length,
       disdette: x.disdette,
-      affidabilita: x.prenotati ? Math.round((date.length / x.prenotati) * 100) : 0,
+      // Solo appuntamenti già conclusi: quelli ancora da fare non dicono nulla
+      affidabilita: (() => {
+        const conclusi = date.length + x.disdette;
+        return conclusi ? Math.round((date.length / conclusi) * 100) : 100;
+      })(),
       trattamentoTop: top ? top[0] : '—',
       ultimaVisita: ultima,
       primaVisita: prima,
@@ -181,16 +186,15 @@ export async function getMarketingStats(from: string, to: string): Promise<Marke
   const [start, end] = from <= to ? [from, to] : [to, from];
   const oggi = new Date().toISOString().slice(0, 10);
 
-  const [clients, giftCards, leads, affiliati, appts, txs] = await Promise.all([
-    prisma.client.findMany({
-      select: { id: true, firstName: true, lastName: true, phone: true, email: true, tags: true, birthDate: true, marketingConsent: true, createdAt: true },
-    }),
-    prisma.giftCard.findMany({ select: { amount: true, remainingBalance: true, status: true, purchaseDate: true } }),
-    prisma.affiliateLead.findMany({ select: { affiliateId: true, status: true, voucherUsedAt: true, clientId: true, createdAt: true } }),
-    prisma.affiliate.findMany({ select: { id: true, businessName: true } }),
-    prisma.appointment.findMany({ where: { status: 'completed' }, select: { clientId: true, date: true } }),
-    prisma.posTransaction.findMany({ where: { isRefund: false, total: { gt: 0 } }, select: { clientName: true, total: true, date: true } }),
-  ]);
+  // Una query per volta: vedi la nota in getClientRanking sul pool Prisma.
+  const clients = await prisma.client.findMany({
+    select: { id: true, firstName: true, lastName: true, phone: true, email: true, tags: true, birthDate: true, marketingConsent: true, createdAt: true },
+  });
+  const giftCards = await prisma.giftCard.findMany({ select: { amount: true, remainingBalance: true, status: true, purchaseDate: true } });
+  const leads = await prisma.affiliateLead.findMany({ select: { affiliateId: true, status: true, voucherUsedAt: true, clientId: true, createdAt: true } });
+  const affiliati = await prisma.affiliate.findMany({ select: { id: true, businessName: true } });
+  const appts = await prisma.appointment.findMany({ where: { status: 'completed' }, select: { clientId: true, date: true } });
+  const txs = await prisma.posTransaction.findMany({ where: { isRefund: false, total: { gt: 0 } }, select: { clientName: true, total: true, date: true } });
 
   const nelPeriodo = (d: string | null | undefined) => !!d && d.slice(0, 10) >= start && d.slice(0, 10) <= end;
 
