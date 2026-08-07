@@ -62,7 +62,9 @@ function etichettaPeriodo(from: string, to: string): string {
   return from === to ? g(a) : `${g(a)} → ${g(b)}`;
 }
 
-export default function IncomeSummary() {
+/** `onPeriodChange` avvisa la pagina cassa del periodo scelto: l'elenco delle
+ *  transazioni qui sotto deve seguire lo stesso intervallo, non solo oggi. */
+export default function IncomeSummary({ onPeriodChange }: { onPeriodChange?: (from: string, to: string) => void } = {}) {
   const [mode, setMode] = useState<Mode>('day');
   const [from, setFrom] = useState(() => todayRome());
   const [to, setTo] = useState(() => todayRome());
@@ -98,6 +100,12 @@ export default function IncomeSummary() {
     setFrom(fmt(addDays(a, verso * giorni)));
     setTo(fmt(addDays(b, verso * giorni)));
   };
+
+  useEffect(() => {
+    onPeriodChange?.(from, to);
+    // onPeriodChange arriva dal padre e non deve rilanciare la fetch
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from, to]);
 
   useEffect(() => {
     let vivo = true;

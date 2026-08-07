@@ -11,6 +11,7 @@ import {
   Trash2, Search, Smartphone, Lock, Vault, ArrowDownToLine, Printer, Gift,
 } from 'lucide-react';
 import { getCassaforte, closeCassa, withdrawCassa, CassaMovementRecord } from '@/app/actions/cassaforte';
+import { getTransactionsByRange } from '@/app/actions/pos';
 import { printThermalReceipt, primeVatRate } from '@/lib/printReceipt';
 import IncomeSummary from './IncomeSummary';
 import CassaTabs from '@/components/CassaTabs';
@@ -578,6 +579,37 @@ function POSPageInner() {
   const todayRomeStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const closedToday = safeMovements.some(m => m.type === 'deposit' && m.date === todayRomeStr);
 
+  // Elenco transazioni: segue il periodo scelto nel Riepilogo Incassi. Finché
+  // il periodo è "oggi" si usa lo store (si aggiorna da solo dopo una vendita),
+  // altrimenti si caricano le transazioni di quelle date.
+  const [period, setPeriod] = useState<{ from: string; to: string }>({ from: todayRomeStr, to: todayRomeStr });
+  const [periodTxs, setPeriodTxs] = useState<TransactionRecord[] | null>(null);
+  const [periodLoading, setPeriodLoading] = useState(false);
+  const isToday = period.from === todayRomeStr && period.to === todayRomeStr;
+
+  const loadPeriodTxs = React.useCallback(async (from: string, to: string) => {
+    setPeriodLoading(true);
+    try {
+      setPeriodTxs(await getTransactionsByRange(from, to));
+    } catch {
+      setPeriodTxs([]);
+    } finally {
+      setPeriodLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isToday) { setPeriodTxs(null); return; }
+    loadPeriodTxs(period.from, period.to);
+  }, [isToday, period.from, period.to, loadPeriodTxs]);
+
+  const listTxs = isToday ? transactions : (periodTxs ?? []);
+  const periodLabel = isToday
+    ? 'oggi'
+    : period.from === period.to
+      ? new Date(period.from + 'T00:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })
+      : `${new Date(period.from + 'T00:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })} → ${new Date(period.to + 'T00:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}`;
+
   const refreshSafe = async () => {
     const s = await getCassaforte();
     setSafeBalance(s.balance);
@@ -710,15 +742,18 @@ function POSPageInner() {
       </div>
 
       {/* Incassi per periodo: giorno, settimana, mese o intervallo, divisi per metodo */}
-      <IncomeSummary />
+      <IncomeSummary onPeriodChange={(from, to) => setPeriod({ from, to })} />
 
       {/* Recent Transactions */}
       <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-          <h3 className="text-base font-display font-semibold text-text-primary">Ultime Transazioni</h3>
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3">
+          <h3 className="text-base font-display font-semibold text-text-primary">
+            {isToday ? 'Ultime Transazioni' : 'Transazioni del periodo'}
+          </h3>
+          <span className="text-xs text-text-muted capitalize">{periodLabel}</span>
         </div>
         <div className="divide-y divide-border/30">
-          {transactions.map(tx => {
+          {listTxs.map(tx => {
             // Regalo: sta in elenco per sapere che è successo, ma non è un incasso
             const isGift = tx.method === 'Regalo';
             return (
@@ -743,9 +778,9 @@ function POSPageInner() {
                 <p className={`text-sm font-semibold ${tx.total < 0 ? 'text-error' : isGift ? 'text-accent' : 'text-text-primary'}`}>
                   {isGift ? 'Regalo' : `${tx.total < 0 ? '-' : ''}${formatCurrency(Math.abs(tx.total))}`}
                 </p>
-                <p className="text-[11px] text-text-muted">{isGift ? 'nessun incasso' : tx.method} • {tx.time}</p>
+                <p className="text-[11px] text-text-muted">{isGift ? 'nessun incasso' : tx.method} • {isToday ? tx.time : `${new Date(tx.date + 'T00:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'numeric' })} ${tx.time}`}</p>
               </div>
-              <button onClick={() => { if (window.confirm(isGift ? `Eliminare questa riga di regalo (${tx.client})? Il pacchetto resta regalato: sparisce solo la traccia in cassa.` : `Eliminare questa transazione di ${formatCurrency(Math.abs(tx.total))} (${tx.client})? L'incasso verrà ricalcolato.`)) removeTransaction(tx.id); }}
+              <button onClick={() => { if (window.confirm(isGift ? `Eliminare questa riga di regalo (${tx.client})? Il pacchetto resta regalato: sparisce solo la traccia in cassa.` : `Eliminare questa transazione di ${formatCurrency(Math.abs(tx.total))} (${tx.client})? L'incasso verrà ricalcolato.`)) { removeTransaction(tx.id).then(() => { if (!isToday) loadPeriodTxs(period.from, period.to); }); } }}
                 title="Elimina transazione"
                 className="p-2 rounded-lg text-text-muted hover:text-error hover:bg-error/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0">
                 <Trash2 className="w-4 h-4" />
@@ -753,8 +788,8 @@ function POSPageInner() {
             </div>
             );
           })}
-          {transactions.length === 0 && (
-            <div className="text-center py-10"><p className="text-text-muted">Nessuna transazione</p></div>
+          {listTxs.length === 0 && (
+            <div className="text-center py-10"><p className="text-text-muted">{periodLoading ? 'Carico le transazioni…' : 'Nessuna transazione'}</p></div>
           )}
         </div>
       </div>

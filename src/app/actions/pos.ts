@@ -10,6 +10,7 @@ export interface ProductLine { productId: string; qty: number }
 
 export interface TransactionRecord {
   id: string;
+  date?: string; // giorno della vendita (YYYY-MM-DD): serve quando si guardano periodi passati
   client: string;
   items: string;
   total: number;
@@ -26,13 +27,14 @@ export interface TransactionRecord {
 }
 
 function toTransactionRecord(tx: {
-  id: string; clientName: string | null; items: unknown; total: number; paymentMethod: string; time: string; operator: string;
+  id: string; date?: string; clientName: string | null; items: unknown; total: number; paymentMethod: string; time: string; operator: string;
   c95Status?: string | null; c95Error?: string | null;
   c95Progressivo?: string | null; c95Idtrx?: string | null; c95IdScontrino?: string | null;
 }): TransactionRecord {
   const itemsArr = Array.isArray(tx.items) ? (tx.items as string[]) : [String(tx.items ?? '')];
   return {
     id: tx.id,
+    date: tx.date,
     client: tx.clientName ?? '',
     items: itemsArr.join(', '),
     total: tx.total,
@@ -144,6 +146,16 @@ export async function getTransactionsByDate(date: string): Promise<TransactionRe
   const transactions = await prisma.posTransaction.findMany({
     where: { date },
     orderBy: { time: 'asc' },
+  });
+  return transactions.map(toTransactionRecord);
+}
+
+/** Vendite di un intervallo di date, dalla più recente: alimenta l'elenco sotto al riepilogo. */
+export async function getTransactionsByRange(from: string, to: string): Promise<TransactionRecord[]> {
+  const [start, end] = from <= to ? [from, to] : [to, from];
+  const transactions = await prisma.posTransaction.findMany({
+    where: { date: { gte: start, lte: end } },
+    orderBy: [{ date: 'desc' }, { time: 'desc' }],
   });
   return transactions.map(toTransactionRecord);
 }

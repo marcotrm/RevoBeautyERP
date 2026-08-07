@@ -28,71 +28,95 @@ export interface InaugurationStats {
 }
 
 export async function getInaugurationStats(): Promise<InaugurationStats> {
-  const [leads, inaugClients, allPkgs, transactions, appts] = await Promise.all([
+  const [totalLeads, leadRows, allClients, allPkgs, transactions, appts] = await Promise.all([
     prisma.inaugurationLead.count(),
-    prisma.client.findMany({ where: { tags: { has: 'Inaugurazione' } }, select: { id: true, firstName: true, lastName: true } }),
-    prisma.clientPackage.findMany({ select: { clientId: true, usedSessions: true, pricePaid: true, totalPaid: true, purchaseDate: true, history: true } }),
-    prisma.posTransaction.findMany({ where: { total: { gt: 0 } }, select: { clientName: true, total: true, date: true } }),
-    prisma.appointment.findMany({ where: { status: { not: 'cancelled' } }, select: { clientId: true, date: true, price: true, status: true } }),
+    prisma.inaugurationLead.findMany({ select: { phone: true, email: true } }),
+    prisma.client.findMany({ select: { id: true, firstName: true, lastName: true, phone: true, email: true, tags: true } }),
+    prisma.clientPackage.findMany({ select: { clientId: true, usedSessions: true, pricePaid: true, purchaseDate: true, history: true } }),
+    prisma.posTransaction.findMany({ where: { total: { gt: 0 }, isRefund: false }, select: { clientName: true, total: true, date: true } }),
+    prisma.appointment.findMany({ where: { status: { not: 'cancelled' } }, select: { clientId: true, date: true, status: true } }),
   ]);
 
-  const inaugIds = new Set(inaugClients.map(c => c.id));
-  const nameById = new Map(inaugClients.map(c => [c.id, norm(`${c.firstName} ${c.lastName}`)]));
+  // --- Chi sono le clienti dell'inaugurazione ---
+  // Dal COUPON al cliente: telefono prima, email come ripiego (le email
+  // condivise in famiglia agganciano la persona sbagliata). In più chi porta
+  // l'etichetta 'Inaugurazione': così chi è stato creato a mano senza etichetta
+  // ma con un coupon suo non sparisce dal funnel (successo davvero).
+  const tail = (p: string | null | undefined) => (p || '').replace(/\D/g, '').slice(-9);
+  const inaugIds = new Set<string>();
+  for (const c of allClients) {
+    if ((c.tags || []).some(t => t.toLowerCase() === 'inaugurazione')) inaugIds.add(c.id);
+  }
+  for (const l of leadRows) {
+    const c = (tail(l.phone) && allClients.find(x => tail(x.phone) === tail(l.phone)))
+      || (l.email && allClients.find(x => (x.email || '').toLowerCase() === l.email!.toLowerCase()))
+      || null;
+    if (c) inaugIds.add(c.id);
+  }
+  const nameById = new Map(allClients.filter(c => inaugIds.has(c.id)).map(c => [c.id, norm(`${c.firstName} ${c.lastName}`)]));
 
-  // --- Omaggi (pacchetti a 0€) dei clienti inaugurazione ---
+  // --- Omaggi (pacchetti a 0€) delle clienti inaugurazione ---
   const gifts = allPkgs.filter(g => g.pricePaid === 0 && g.clientId && inaugIds.has(g.clientId));
   const withGift = new Set(gifts.map(g => g.clientId)).size;
 
-  // Data in cui l'omaggio è stato usato (dalla cronologia sedute)
-  const giftUsedDate = new Map<string, string>();
+  // --- Sono venute = omaggio scalato OPPURE almeno un appuntamento completato.
+  // Guardare solo lo scalo del pacchetto sottostimava: nei giorni storti
+  // diversi check-out non hanno scalato l'omaggio, ma la cliente era in negozio.
+  const completatiPerCliente = new Map<string, string[]>();
+  for (const a of appts) {
+    if (a.status !== 'completed' || !inaugIds.has(a.clientId)) continue;
+    const arr = completatiPerCliente.get(a.clientId) || [];
+    arr.push(a.date);
+    completatiPerCliente.set(a.clientId, arr);
+  }
+
+  const visitDate = new Map<string, string>(); // clientId -> giorno della prima visita
   for (const g of gifts) {
     if (g.usedSessions < 1 || !g.clientId) continue;
     const hist = Array.isArray(g.history) ? (g.history as { date?: string }[]) : [];
     const d = hist.map(h => h.date).filter(Boolean).sort()[0] || g.purchaseDate;
-    if (d) giftUsedDate.set(g.clientId, d);
+    if (d) visitDate.set(g.clientId, d);
   }
-  const came = giftUsedDate.size;
+  for (const [clientId, date] of completatiPerCliente) {
+    const prima = [...date].sort()[0];
+    const attuale = visitDate.get(clientId);
+    if (!attuale || prima < attuale) visitDate.set(clientId, prima);
+  }
+  const came = visitDate.size;
 
-  // Chi ha l'omaggio non ancora usato ma ha già fissato un appuntamento
+  // Chi ha l'omaggio, non è ancora venuta, ma ha già fissato un appuntamento
   const giftClientIds = new Set(gifts.map(g => g.clientId as string));
-  const pendingIds = [...giftClientIds].filter(id => !giftUsedDate.has(id));
+  const pendingIds = [...giftClientIds].filter(id => !visitDate.has(id));
   const apptByClient = new Set(appts.map(a => a.clientId));
   const bookedGift = pendingIds.filter(id => apptByClient.has(id)).length;
 
-  // --- Cosa hanno fatto DOPO l'omaggio ---
+  // --- Cosa hanno speso, dalla prima visita in poi (giorno stesso compreso:
+  // la crema comprata uscendo dalla seduta omaggio È la conversione).
+  // Il fatturato si conta SOLO dalla cassa: anche i pacchetti passano da lì,
+  // sommare pure ClientPackage.totalPaid contava i soldi due volte.
   const returnedIds = new Set<string>();
   const packageIds = new Set<string>();
   let revenueAfter = 0;
   const daysToPurchase: number[] = [];
 
-  for (const [clientId, giftDate] of giftUsedDate) {
+  for (const [clientId, giorno] of visitDate) {
     const fullName = nameById.get(clientId) || '';
     let firstPurchase: string | null = null;
 
-    // Pacchetti a pagamento acquistati dopo l'omaggio
+    // Pacchetti a pagamento acquistati dalla visita in poi
     for (const pkg of allPkgs) {
       if (pkg.clientId !== clientId || pkg.pricePaid <= 0) continue;
-      if (pkg.purchaseDate && pkg.purchaseDate >= giftDate) {
+      if (pkg.purchaseDate && pkg.purchaseDate >= giorno) {
         packageIds.add(clientId);
         returnedIds.add(clientId);
-        revenueAfter += pkg.totalPaid || 0;
         if (!firstPurchase || pkg.purchaseDate < firstPurchase) firstPurchase = pkg.purchaseDate;
       }
     }
 
-    // Trattamenti a pagamento completati dopo l'omaggio
-    for (const a of appts) {
-      if (a.clientId !== clientId || a.status !== 'completed' || a.price <= 0) continue;
-      if (a.date > giftDate) {
-        returnedIds.add(clientId);
-        if (!firstPurchase || a.date < firstPurchase) firstPurchase = a.date;
-      }
-    }
-
-    // Vendite in cassa a suo nome dopo l'omaggio
+    // Incassi in cassa a suo nome dalla visita in poi
     for (const t of transactions) {
       if (!fullName || norm(t.clientName) !== fullName) continue;
-      if (t.date > giftDate) {
+      if (t.date >= giorno) {
         returnedIds.add(clientId);
         revenueAfter += t.total;
         if (!firstPurchase || t.date < firstPurchase) firstPurchase = t.date;
@@ -100,7 +124,7 @@ export async function getInaugurationStats(): Promise<InaugurationStats> {
     }
 
     if (firstPurchase) {
-      const d = Math.round((Date.parse(firstPurchase) - Date.parse(giftDate)) / 86400000);
+      const d = Math.round((Date.parse(firstPurchase) - Date.parse(giorno)) / 86400000);
       if (d >= 0 && d < 400) daysToPurchase.push(d);
     }
   }
