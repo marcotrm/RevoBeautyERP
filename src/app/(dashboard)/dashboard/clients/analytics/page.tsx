@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
@@ -15,12 +15,12 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import {
-  mockClientAnalytics, getKPIs, getTopClients, getAtRiskClients,
+  getKPIs, getTopClients, getAtRiskClients,
   getRFMDistribution, getRevenueDistribution, getParetoData,
-  getMonthlyNewClients, getTreatmentStats, getUpsellOpportunities,
-  getAlerts, getVisitDistribution, getSourceDistribution,
-  monthlyRevenueTrend, LOYALTY_COLORS, ClientAnalytics,
+  getUpsellOpportunities, getAlerts, getVisitDistribution, getSourceDistribution,
+  LOYALTY_COLORS, ClientAnalytics,
 } from '@/lib/client-analytics';
+import { getClientAnalyticsData, type ClientAnalyticsData } from '@/app/actions/clientAnalytics';
 
 const fmt = (n: number) => '€' + n.toLocaleString('it-IT');
 
@@ -54,7 +54,7 @@ function KPICard({ icon: Icon, label, value, sub, color }: { icon: React.Element
 }
 
 /* ======== OVERVIEW TAB ======== */
-function OverviewTab({ clients }: { clients: ClientAnalytics[] }) {
+function OverviewTab({ clients, trend }: { clients: ClientAnalytics[]; trend: ClientAnalyticsData['monthlyRevenueTrend'] }) {
   const kpi = useMemo(() => getKPIs(clients), [clients]);
   const rfmData = useMemo(() => getRFMDistribution(clients), [clients]);
   const srcData = useMemo(() => getSourceDistribution(clients), [clients]);
@@ -84,7 +84,7 @@ function OverviewTab({ clients }: { clients: ClientAnalytics[] }) {
       <div className="bg-bg-secondary border border-border rounded-2xl p-5">
         <h3 className="text-sm font-display font-semibold text-text-primary mb-4">📈 Andamento Fatturato Clienti (12 mesi)</h3>
         <ResponsiveContainer width="100%" height={280}>
-          <AreaChart data={monthlyRevenueTrend}>
+          <AreaChart data={trend}>
             <defs>
               <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.3} />
@@ -541,8 +541,7 @@ function RevenueTab({ clients }: { clients: ClientAnalytics[] }) {
 }
 
 /* ======== TREATMENTS TAB ======== */
-function TreatmentsTab({ clients }: { clients: ClientAnalytics[] }) {
-  const stats = useMemo(() => getTreatmentStats(clients), [clients]);
+function TreatmentsTab({ stats }: { stats: ClientAnalyticsData['treatmentStats'] }) {
   return (
     <div className="space-y-6">
       <div className="bg-bg-secondary border border-border rounded-2xl p-5">
@@ -682,7 +681,16 @@ function AlertsTab({ clients }: { clients: ClientAnalytics[] }) {
 /* ======== MAIN PAGE ======== */
 export default function ClientAnalyticsPage() {
   const [activeTab, setActiveTab] = useState('overview');
-  const clients = mockClientAnalytics;
+  const [dati, setDati] = useState<ClientAnalyticsData | null>(null);
+  const [errore, setErrore] = useState('');
+
+  useEffect(() => {
+    getClientAnalyticsData()
+      .then(setDati)
+      .catch(e => { console.error(e); setErrore('Impossibile caricare i dati delle clienti.'); });
+  }, []);
+
+  const clients = dati?.clients ?? [];
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -694,7 +702,9 @@ export default function ClientAnalyticsPage() {
           </Link>
           <div>
             <h2 className="text-xl font-display font-bold text-text-primary">Dashboard Clienti</h2>
-            <p className="text-sm text-text-secondary">{clients.length} clienti • Analisi completa del portafoglio</p>
+            <p className="text-sm text-text-secondary">
+              {dati ? `${clients.length} clienti • Analisi completa del portafoglio` : 'Carico i dati del centro…'}
+            </p>
           </div>
         </div>
       </div>
@@ -714,20 +724,30 @@ export default function ClientAnalyticsPage() {
         })}
       </div>
 
+      {errore && <div className="p-4 rounded-xl bg-error/10 border border-error/20 text-error text-sm">{errore}</div>}
+
+      {!dati && !errore && (
+        <div className="flex items-center justify-center py-20 text-text-muted text-sm">
+          <RefreshCw className="w-4 h-4 animate-spin mr-2" /> Calcolo i dati sulle clienti reali…
+        </div>
+      )}
+
       {/* Tab Content */}
+      {dati && (
       <AnimatePresence mode="wait">
         <motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-          {activeTab === 'overview' && <OverviewTab clients={clients} />}
+          {activeTab === 'overview' && <OverviewTab clients={clients} trend={dati?.monthlyRevenueTrend ?? []} />}
           {activeTab === 'ranking' && <RankingTab clients={clients} />}
           {activeTab === 'noshow' && <ReliabilityTab clients={clients} />}
           {activeTab === 'risk' && <RiskTab clients={clients} />}
           {activeTab === 'rfm' && <RFMTab clients={clients} />}
           {activeTab === 'revenue' && <RevenueTab clients={clients} />}
-          {activeTab === 'treatments' && <TreatmentsTab clients={clients} />}
+          {activeTab === 'treatments' && <TreatmentsTab stats={dati?.treatmentStats ?? []} />}
           {activeTab === 'upsell' && <UpsellTab clients={clients} />}
           {activeTab === 'alerts' && <AlertsTab clients={clients} />}
         </motion.div>
       </AnimatePresence>
+      )}
     </motion.div>
   );
 }
