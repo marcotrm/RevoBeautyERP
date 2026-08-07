@@ -21,6 +21,7 @@ import {
 } from '@/lib/helpers';
 import Link from 'next/link';
 import { usePosStore } from '@/stores/usePosStore';
+import { coperturaPacchetto } from '@/lib/coperturaPacchetto';
 
 const container = {
   hidden: { opacity: 0 },
@@ -427,7 +428,21 @@ export default function DashboardPage() {
               </div>
               <div className="text-right flex-shrink-0">
                 <p className="text-xs text-text-muted">{apt.operatorName.split(' ')[0]}</p>
-                <p className="text-sm font-semibold text-text-primary">{formatCurrency(apt.price)}</p>
+                {/* Un trattamento incluso in un pacchetto ha prezzo 0: da solo
+                    "0,00 €" sembra un regalo o un errore, quindi si dice da
+                    dove viene e quante sedute restano. */}
+                {(() => {
+                  const cop = coperturaPacchetto(apt, clientPackages);
+                  if (!cop) return <p className="text-sm font-semibold text-text-primary">{formatCurrency(apt.price)}</p>;
+                  return (
+                    <>
+                      <p className="text-sm font-semibold text-accent">Pacchetto</p>
+                      <p className="text-[10px] text-text-muted whitespace-nowrap">
+                        {cop.rimaste} {cop.rimaste === 1 ? 'seduta rimasta' : 'sedute rimaste'}
+                      </p>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           ))}

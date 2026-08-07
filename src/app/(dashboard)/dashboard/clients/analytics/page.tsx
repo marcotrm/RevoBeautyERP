@@ -24,6 +24,21 @@ import { getClientAnalyticsData, type ClientAnalyticsData } from '@/app/actions/
 
 const fmt = (n: number) => '€' + n.toLocaleString('it-IT');
 
+/* Stile del tooltip dei grafici.
+   Era un blu notte fisso: in tema chiaro il testo delle voci restava scuro sul
+   fondo scuro e il riquadro risultava illeggibile. Ora segue il tema. */
+const TOOLTIP = {
+  contentStyle: {
+    backgroundColor: 'var(--color-bg-primary)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 12,
+    color: 'var(--color-text-primary)',
+    boxShadow: '0 10px 30px rgba(0,0,0,.18)',
+  },
+  labelStyle: { color: 'var(--color-text-primary)', fontWeight: 600 },
+  itemStyle: { color: 'var(--color-text-secondary)' },
+};
+
 const tabs = [
   { id: 'overview', label: 'Panoramica', icon: BarChart3 },
   { id: 'ranking', label: 'Classifica', icon: Award },
@@ -92,10 +107,10 @@ function OverviewTab({ clients, trend }: { clients: ClientAnalytics[]; trend: Cl
                 <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-            <XAxis dataKey="month" tick={{ fill: '#999', fontSize: 11 }} />
-            <YAxis tick={{ fill: '#999', fontSize: 11 }} tickFormatter={v => `€${(v/1000).toFixed(0)}k`} />
-            <Tooltip contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333', borderRadius: 12 }} labelStyle={{ color: '#fff' }} formatter={(v: any) => [fmt(v), 'Fatturato']} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <XAxis dataKey="month" tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} />
+            <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} tickFormatter={v => `€${(v/1000).toFixed(0)}k`} />
+            <Tooltip {...TOOLTIP} formatter={(v: any) => [fmt(v), 'Fatturato']} />
             <Area type="monotone" dataKey="revenue" stroke="#8B5CF6" fill="url(#revGrad)" strokeWidth={2.5} />
           </AreaChart>
         </ResponsiveContainer>
@@ -110,7 +125,7 @@ function OverviewTab({ clients, trend }: { clients: ClientAnalytics[]; trend: Cl
               <Pie data={srcData} dataKey="count" nameKey="source" cx="50%" cy="50%" outerRadius={80} innerRadius={45} paddingAngle={3}>
                 {srcData.map((_, i) => <Cell key={i} fill={chartColors[i % chartColors.length]} />)}
               </Pie>
-              <Tooltip contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333', borderRadius: 12 }} />
+              <Tooltip {...TOOLTIP} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
             </PieChart>
           </ResponsiveContainer>
@@ -119,10 +134,10 @@ function OverviewTab({ clients, trend }: { clients: ClientAnalytics[]; trend: Cl
           <h3 className="text-sm font-display font-semibold text-text-primary mb-4">🎯 Segmentazione RFM</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={rfmData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-              <XAxis type="number" tick={{ fill: '#999', fontSize: 11 }} />
-              <YAxis type="category" dataKey="segment" tick={{ fill: '#ccc', fontSize: 11 }} width={100} />
-              <Tooltip contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333', borderRadius: 12 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+              <XAxis type="number" tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} />
+              <YAxis type="category" dataKey="segment" tick={{ fill: 'var(--color-text-secondary)', fontSize: 11 }} width={100} />
+              <Tooltip {...TOOLTIP} />
               <Bar dataKey="count" name="Clienti" radius={[0, 6, 6, 0]}>
                 {rfmData.map((d, i) => <Cell key={i} fill={d.color} />)}
               </Bar>
@@ -465,10 +480,10 @@ function RFMTab({ clients }: { clients: ClientAnalytics[] }) {
         <h3 className="text-sm font-display font-semibold text-text-primary mb-4">Distribuzione Fatturato per Segmento</h3>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={rfm}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-            <XAxis dataKey="segment" tick={{ fill: '#999', fontSize: 11 }} />
-            <YAxis tick={{ fill: '#999', fontSize: 11 }} tickFormatter={v => `€${(v/1000).toFixed(0)}k`} />
-            <Tooltip contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333', borderRadius: 12 }} formatter={(v: any) => [fmt(v), 'Fatturato']} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <XAxis dataKey="segment" tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} />
+            <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} tickFormatter={v => `€${(v/1000).toFixed(0)}k`} />
+            <Tooltip {...TOOLTIP} formatter={(v: any) => [fmt(v), 'Fatturato']} />
             <Bar dataKey="revenue" name="Fatturato" radius={[8, 8, 0, 0]}>
               {rfm.map((d, i) => <Cell key={i} fill={d.color} />)}
             </Bar>
@@ -502,10 +517,10 @@ function RevenueTab({ clients }: { clients: ClientAnalytics[] }) {
                 <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-            <XAxis dataKey="clientPercent" tick={{ fill: '#999', fontSize: 11 }} tickFormatter={v => `${v}%`} />
-            <YAxis tick={{ fill: '#999', fontSize: 11 }} tickFormatter={v => `${v}%`} />
-            <Tooltip contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333', borderRadius: 12 }} formatter={(v: any) => [`${v}%`, 'Fatturato cumulativo']} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <XAxis dataKey="clientPercent" tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} tickFormatter={v => `${v}%`} />
+            <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} tickFormatter={v => `${v}%`} />
+            <Tooltip {...TOOLTIP} formatter={(v: any) => [`${v}%`, 'Fatturato cumulativo']} />
             <Area type="monotone" dataKey="revenuePercent" stroke="#8B5CF6" fill="url(#paretoGrad)" strokeWidth={2.5} />
           </AreaChart>
         </ResponsiveContainer>
@@ -516,10 +531,10 @@ function RevenueTab({ clients }: { clients: ClientAnalytics[] }) {
           <h3 className="text-sm font-display font-semibold text-text-primary mb-4">💰 Distribuzione Spesa</h3>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={revDist}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-              <XAxis dataKey="range" tick={{ fill: '#999', fontSize: 10 }} />
-              <YAxis tick={{ fill: '#999', fontSize: 11 }} />
-              <Tooltip contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333', borderRadius: 12 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+              <XAxis dataKey="range" tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} />
+              <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} />
+              <Tooltip {...TOOLTIP} />
               <Bar dataKey="count" name="Clienti" fill="#3B82F6" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -528,10 +543,10 @@ function RevenueTab({ clients }: { clients: ClientAnalytics[] }) {
           <h3 className="text-sm font-display font-semibold text-text-primary mb-4">📅 Distribuzione Visite</h3>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={visitDist}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-              <XAxis dataKey="range" tick={{ fill: '#999', fontSize: 10 }} />
-              <YAxis tick={{ fill: '#999', fontSize: 11 }} />
-              <Tooltip contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333', borderRadius: 12 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+              <XAxis dataKey="range" tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} />
+              <YAxis tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} />
+              <Tooltip {...TOOLTIP} />
               <Bar dataKey="count" name="Clienti" fill="#22C55E" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -549,10 +564,10 @@ function TreatmentsTab({ stats }: { stats: ClientAnalyticsData['treatmentStats']
         <h3 className="text-sm font-display font-semibold text-text-primary mb-4">💅 Top Trattamenti per Fatturato</h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={stats.slice(0, 8)} layout="vertical">
-            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
-            <XAxis type="number" tick={{ fill: '#999', fontSize: 11 }} tickFormatter={v => `€${(v/1000).toFixed(0)}k`} />
-            <YAxis type="category" dataKey="name" tick={{ fill: '#ccc', fontSize: 10 }} width={160} />
-            <Tooltip contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333', borderRadius: 12 }} formatter={(v: any) => [fmt(v), 'Fatturato']} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <XAxis type="number" tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }} tickFormatter={v => `€${(v/1000).toFixed(0)}k`} />
+            <YAxis type="category" dataKey="name" tick={{ fill: 'var(--color-text-secondary)', fontSize: 10 }} width={160} />
+            <Tooltip {...TOOLTIP} formatter={(v: any) => [fmt(v), 'Fatturato']} />
             <Bar dataKey="revenue" name="Fatturato" radius={[0, 6, 6, 0]}>
               {stats.slice(0, 8).map((_, i) => <Cell key={i} fill={chartColors[i % chartColors.length]} />)}
             </Bar>
@@ -725,7 +740,7 @@ export default function ClientAnalyticsPage() {
         })}
       </div>
 
-      {errore && <div className="p-4 rounded-xl bg-error/10 border border-error/20 text-error text-sm">{errore}</div>}
+      {errore && !dati && <div className="p-4 rounded-xl bg-error/10 border border-error/20 text-error text-sm">{errore}</div>}
 
       {!dati && !errore && (
         <div className="flex items-center justify-center py-20 text-text-muted text-sm">
