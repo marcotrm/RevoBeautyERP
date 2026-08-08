@@ -9,6 +9,7 @@ import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { usePackageStore } from '@/stores/usePackageStore';
+import { coperturaPacchetto } from '@/lib/coperturaPacchetto';
 import { useWaitlistStore, WaitlistEntry } from '@/stores/useWaitlistStore';
 import { Appointment, AppointmentService, AgendaBlock, Operator, Treatment, Product } from '@/types';
 import {
@@ -114,12 +115,22 @@ function isMinuteUnavailable(op: Operator, date: Date, minFromStart: number, wee
 }
 
 function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, color }: { appointment: SplitAppointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties; color?: string }) {
+  const pacchettiCliente = usePackageStore(s => s.clientPackages);
   const blockColor = color || appointment.color;
   const startMin = timeToMinutes(appointment.startTime) - START_HOUR * 60;
   const endMin = timeToMinutes(appointment.endTime) - START_HOUR * 60;
   const top = (startMin / 60) * HOUR_HEIGHT;
   const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT - 2, 18);
   const isSmall = height < 44;
+
+  // Quanto deve pagare la cliente, sempre in chiaro sul blocco: prima si vedeva
+  // solo sugli appuntamenti abbastanza alti e solo se il prezzo era maggiore di
+  // zero, così i trattamenti brevi e quelli inclusi in un pacchetto sembravano
+  // senza importo e bisognava aprirli uno per uno per saperlo.
+  const copertura = coperturaPacchetto(appointment, pacchettiCliente);
+  const prezzoBreve = appointment.price > 0
+    ? formatCurrency(appointment.price)
+    : copertura ? copertura.titolo : formatCurrency(0);
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('appointmentId', appointment.id);
@@ -149,6 +160,11 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
           <CabinCountdown appointment={appointment} />
         </div>
         <div className="flex items-center gap-1">
+          {isSmall && (
+            <span className={`text-[10px] font-semibold flex-shrink-0 ${appointment.price > 0 ? 'text-text-primary' : 'text-accent'}`}>
+              {prezzoBreve}
+            </span>
+          )}
           {onWaitlistAdd && (
             <button 
               onClick={(e) => { e.stopPropagation(); onWaitlistAdd(appointment); }}
@@ -176,7 +192,13 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
           <div className="flex flex-wrap items-center gap-1 mt-auto text-[10px] text-text-muted">
             <Clock className="w-2.5 h-2.5 flex-shrink-0" />
             {appointment.startTime} - {appointment.endTime}
-            {appointment.price > 0 && <span className="ml-auto font-medium">{formatCurrency(appointment.price)}</span>}
+            {appointment.price > 0
+              ? <span className="ml-auto font-medium text-text-primary">{formatCurrency(appointment.price)}</span>
+              : copertura
+                ? <span className="ml-auto font-medium text-accent" title={copertura.etichetta}>
+                    {copertura.titolo} · {copertura.rimaste} {copertura.rimaste === 1 ? 'seduta' : 'sedute'}
+                  </span>
+                : <span className="ml-auto font-medium text-text-primary">{formatCurrency(0)}</span>}
           </div>
         </>
       )}

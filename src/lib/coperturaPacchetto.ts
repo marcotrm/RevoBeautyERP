@@ -23,6 +23,7 @@ export interface PacchettoCliente {
   packageName: string;
   totalSessions: number;
   usedSessions: number;
+  pricePaid: number;
   status: string;
 }
 
@@ -30,6 +31,10 @@ export interface Copertura {
   packageName: string;
   rimaste: number;
   totali: number;
+  /** Pacchetto a 0 €: è un omaggio, non una seduta già pagata. */
+  omaggio: boolean;
+  /** Come chiamarlo in una riga stretta: "Pacchetto" oppure "Omaggio". */
+  titolo: string;
   /** Testo pronto: "Scalata dal pacchetto · 3 sedute rimaste" */
   etichetta: string;
 }
@@ -60,10 +65,13 @@ export function coperturaPacchetto(
   if (!scelto) return null;
 
   const rimaste = scelto.totalSessions - scelto.usedSessions;
+  const omaggio = (scelto.pricePaid ?? 0) === 0;
   return {
     packageName: scelto.packageName,
     rimaste,
     totali: scelto.totalSessions,
-    etichetta: `Scalata dal pacchetto · ${rimaste} ${rimaste === 1 ? 'seduta rimasta' : 'sedute rimaste'}`,
+    omaggio,
+    titolo: omaggio ? 'Omaggio' : 'Pacchetto',
+    etichetta: `${omaggio ? 'Seduta omaggio' : 'Scalata dal pacchetto'} · ${rimaste} ${rimaste === 1 ? 'seduta rimasta' : 'sedute rimaste'}`,
   };
 }
