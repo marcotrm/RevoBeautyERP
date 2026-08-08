@@ -9,17 +9,28 @@
  */
 
 import React, { useState } from 'react';
-import { Copy, Check, ExternalLink } from 'lucide-react';
+import { Copy, Check, ExternalLink, Link2, Gift, QrCode, MessageCircle } from 'lucide-react';
+
+/**
+ * L'icona si sceglie per nome, non passando il componente.
+ *
+ * Chi usa questo riquadro è quasi sempre una pagina server (l'elenco
+ * inaugurazione, per esempio) e React non lascia passare un componente da
+ * server a client: la pagina restava bianca. Con un nome si passa una stringa,
+ * e la scelta vera avviene qui.
+ */
+const ICONE = { link: Link2, gift: Gift, qr: QrCode, chat: MessageCircle } as const;
 
 export default function LinkCopiabile({
-  titolo, descrizione, url, nota, icon: Icon,
+  titolo, descrizione, url, nota, icona = 'link',
 }: {
   titolo: string;
   descrizione?: string;
   url: string;
   nota?: React.ReactNode;
-  icon: React.ComponentType<{ className?: string }>;
+  icona?: keyof typeof ICONE;
 }) {
+  const Icon = ICONE[icona] ?? Link2;
   const [copiato, setCopiato] = useState(false);
 
   const copia = async () => {

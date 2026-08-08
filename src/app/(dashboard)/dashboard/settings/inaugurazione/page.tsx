@@ -8,7 +8,6 @@ import ImportToClientsButton from './ImportToClientsButton';
 import CampagnaOmaggio from './CampagnaOmaggio';
 import LinkCopiabile from '@/components/ui/LinkCopiabile';
 import { couponFormUrl } from '@/lib/links';
-import { Gift } from 'lucide-react';
 
 // Pagina protetta dal gate client-side del layout dashboard (come il resto dell'ERP).
 export const dynamic = 'force-dynamic';
@@ -131,7 +130,7 @@ export default async function InaugurazionePage({
       </div>
 
       <LinkCopiabile
-        icon={Gift}
+        icona="gift"
         titolo="Link del trattamento in omaggio"
         descrizione="Il modulo sul sito è ancora attivo: chi lo compila sceglie il trattamento e riceve il coupon via email. Mandalo su WhatsApp a chi chiede informazioni."
         url={couponFormUrl('post-inaugurazione')}
