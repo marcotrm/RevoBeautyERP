@@ -13,7 +13,7 @@
 import { prisma } from '@/lib/prisma';
 import { todayRome } from '@/lib/date';
 import { sendWhatsAppTemplate, normalizePhone, isSendablePhone, waProvider } from '@/lib/whatsapp';
-import { WA_TEMPLATES, sanitizeParam, isMarketing, type TemplateKey } from '@/lib/wa-templates';
+import { WA_TEMPLATES, sanitizeParam, isMarketing, templateButtonLabels, type TemplateKey } from '@/lib/wa-templates';
 import { GIFT_OPTIONS } from '@/lib/giftOptions';
 import { phonesWithInbound } from '@/lib/wa-conversations';
 
@@ -213,16 +213,39 @@ interface Job {
   params: string[];
 }
 
-/** Anteprima leggibile del messaggio, con i {{n}} già sostituiti. */
-function renderPreview(key: TemplateKey, params: string[]): string {
+/** Corpo del messaggio con i {{n}} già sostituiti. È il testo, senza i bottoni. */
+function renderBody(key: TemplateKey, params: string[]): string {
   return WA_TEMPLATES[key].body.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1] ?? `{{${i}}}`);
+}
+
+/**
+ * Anteprima di quello che il cliente riceve davvero: corpo PIÙ bottoni.
+ *
+ * Prima mostrava il solo corpo, e per la richiesta recensione questo significava
+ * un messaggio senza nessun link — perché il link non è nel testo, è nel bottone
+ * URL del template. Dalla schermata sembrava che l'automazione mandasse messaggi
+ * monchi, mentre il bottone partiva regolarmente.
+ *
+ * I bottoni arrivano dal catalogo interno, che è quello che abbiamo fatto
+ * approvare: se qualcuno li cambiasse su 360dialog Hub senza aggiornare il
+ * catalogo, l'anteprima resterebbe indietro. Il confronto con la versione
+ * davvero attiva su Meta lo fa il riquadro "Template su 360dialog".
+ */
+function renderPreview(key: TemplateKey, params: string[]): string {
+  const labels = templateButtonLabels(key);
+  const body = renderBody(key, params);
+  return labels.length ? `${body}\n\n${labels.map(b => `[ ${b} ]`).join('\n')}` : body;
 }
 
 async function runJobs(key: TemplateKey, jobs: Job[], dryRun: boolean): Promise<RunResult> {
   const result: RunResult = { automation: key, dryRun, candidates: jobs.length, sent: 0, failed: 0, details: [] };
 
   for (const job of jobs.slice(0, MAX_PER_RUN)) {
+    // Due testi diversi, apposta: `preview` è per gli occhi (corpo + bottoni),
+    // `body` è il testo vero e proprio. Mettere i bottoni nel fallback
+    // significherebbe mandarli scritti dentro al messaggio.
     const preview = renderPreview(key, job.params);
+    const body = renderBody(key, job.params);
 
     if (dryRun) {
       result.details.push({ to: job.phone, name: job.name, ok: true, preview });
@@ -244,7 +267,7 @@ async function runJobs(key: TemplateKey, jobs: Job[], dryRun: boolean): Promise<
 
     const res = await sendWhatsAppTemplate(job.phone, key, {
       bodyParams: job.params,
-      fallbackText: preview,
+      fallbackText: body,
     });
 
     await logSend(job.rowId, {

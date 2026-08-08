@@ -13,7 +13,34 @@
  *               (Client.marketingConsent) e costa di più.
  */
 
+import { reviewRedirectUrl } from '@/lib/links';
+
 export type TemplateCategory = 'UTILITY' | 'MARKETING';
+
+/**
+ * Destinazioni ammesse per un bottone URL.
+ *
+ * Non si scrive l'indirizzo qui dentro: gli URL veri vivono in lib/links.ts e
+ * dipendono dall'ambiente (ERP_URL). Il catalogo nomina la destinazione, chi
+ * gliela serve è `resolveButtonUrl`.
+ */
+export type ButtonLink = 'review-redirect';
+
+/**
+ * Bottone del template, come approvato su Meta.
+ *
+ * Era una riga di prosa ("Confermo (risposta rapida)"), che andava bene finché
+ * serviva solo da promemoria per chi creava il template a mano. Da quando
+ * l'anteprima e l'archivio devono mostrare i bottoni davvero mandati, serve il
+ * dato strutturato: l'etichetta esatta e, per gli URL, dove portano.
+ */
+export interface WaTemplateButton {
+  type: 'URL' | 'QUICK_REPLY';
+  /** Etichetta esatta approvata su Meta (max 25 caratteri). */
+  text: string;
+  /** Solo per i bottoni URL: quale link del gestionale aprono. */
+  link?: ButtonLink;
+}
 
 export interface WaTemplate {
   /** Nome tecnico: minuscolo, underscore. Deve combaciare con quello su 360dialog. */
@@ -25,7 +52,7 @@ export interface WaTemplate {
   /** Testo esatto da far approvare. */
   body: string;
   /** Bottoni da configurare in fase di approvazione. */
-  buttons?: string[];
+  buttons?: readonly WaTemplateButton[];
   note?: string;
 }
 
@@ -60,7 +87,10 @@ export const WA_TEMPLATES = {
     body:
       'Ciao {{1}}, ti ricordiamo il tuo appuntamento da RevoBeauty per {{2}}: {{3}} alle {{4}}.\n' +
       'Se hai bisogno di spostarlo, rispondi a questo messaggio. A presto!',
-    buttons: ['Confermo (risposta rapida)', 'Devo spostare (risposta rapida)'],
+    buttons: [
+      { type: 'QUICK_REPLY', text: 'Confermo' },
+      { type: 'QUICK_REPLY', text: 'Devo spostare' },
+    ],
     note: 'I due bottoni di risposta rapida aprono la finestra 24h: dopo che il cliente ne tocca uno potete rispondere a testo libero senza costi di template.',
   },
 
@@ -72,7 +102,10 @@ export const WA_TEMPLATES = {
     body:
       'Ciao {{1}}, è passato un po\' dal tuo ultimo trattamento da RevoBeauty.\n' +
       'Se vuoi riprendere il percorso o valutare qualcosa di nuovo, rispondi a questo messaggio: troviamo insieme il momento giusto.',
-    buttons: ['Voglio prenotare (risposta rapida)', 'Non inviarmi più messaggi (opt-out)'],
+    buttons: [
+      { type: 'QUICK_REPLY', text: 'Voglio prenotare' },
+      { type: 'QUICK_REPLY', text: 'Non inviarmi piu\' messaggi' },
+    ],
     note: 'Marketing: parte solo ai clienti con consenso marketing. Il bottone di opt-out è richiesto da Meta sulle categorie marketing ed è già gestito nel webhook.',
   },
 
@@ -84,7 +117,10 @@ export const WA_TEMPLATES = {
     body:
       'Tanti auguri {{1}}! Per il tuo compleanno RevoBeauty ti riserva {{2}} sul prossimo trattamento, valido fino al {{3}}.\n' +
       'Scrivici per fissare l\'appuntamento: ti aspettiamo.',
-    buttons: ['Prenota ora (risposta rapida)', 'Non inviarmi più messaggi (opt-out)'],
+    buttons: [
+      { type: 'QUICK_REPLY', text: 'Prenota ora' },
+      { type: 'QUICK_REPLY', text: 'Non inviarmi piu\' messaggi' },
+    ],
   },
 
   review: {
@@ -95,7 +131,7 @@ export const WA_TEMPLATES = {
     body:
       'Ciao {{1}}, grazie per la tua visita da RevoBeauty per {{2}}.\n' +
       'Se ti è piaciuta l\'esperienza, ci lasci una recensione? Bastano 30 secondi e per noi conta molto.',
-    buttons: ['Lascia una recensione (bottone URL statico verso il link Google)'],
+    buttons: [{ type: 'URL', text: 'Lascia una recensione', link: 'review-redirect' }],
     note:
       'Il link Google va messo come bottone URL statico in fase di approvazione, non nel corpo: così il ' +
       'testo resta UTILITY. Se Meta lo riclassifica MARKETING, servirà il consenso marketing.\n' +
@@ -126,6 +162,37 @@ export type TemplateKey = keyof typeof WA_TEMPLATES;
 /** Le automazioni che mandano messaggi di marketing (servono consenso + opt-out). */
 export function isMarketing(key: TemplateKey): boolean {
   return WA_TEMPLATES[key].category === 'MARKETING';
+}
+
+/** Indirizzo vero dietro il nome della destinazione di un bottone URL. */
+export function resolveButtonUrl(link: ButtonLink): string {
+  switch (link) {
+    case 'review-redirect':
+      return reviewRedirectUrl();
+  }
+}
+
+/**
+ * I bottoni di un template in forma leggibile, per l'anteprima e per l'archivio
+ * conversazioni.
+ *
+ * Esiste perché il corpo del messaggio da solo mente: nel template recensione
+ * il link NON sta nel testo, sta solo nel bottone. Chi guardava l'anteprima o la
+ * chat dal gestionale vedeva un invito a lasciare una recensione senza nessun
+ * link e concludeva, ragionevolmente, che il link non fosse partito.
+ */
+export function templateButtonLabels(key: TemplateKey): string[] {
+  // Il passaggio per WaTemplate non è decorativo: `WA_TEMPLATES` è dichiarato
+  // `as const`, quindi i template senza bottoni non hanno proprio la chiave
+  // `buttons` e leggerla dall'unione non compilerebbe.
+  const tpl: WaTemplate = WA_TEMPLATES[key];
+  const buttons = tpl.buttons;
+  if (!buttons?.length) return [];
+  return buttons.map(b =>
+    b.type === 'URL'
+      ? `${b.text} → ${b.link ? resolveButtonUrl(b.link) : 'link statico'}`
+      : `${b.text} (risposta rapida)`
+  );
 }
 
 /**

@@ -9,7 +9,7 @@ import {
 } from '@/lib/wa-conversations';
 import { listD360Templates, createD360Template } from '@/lib/whatsapp360';
 import { reviewRedirectUrl } from '@/lib/links';
-import { WA_TEMPLATES, type TemplateKey } from '@/lib/wa-templates';
+import { WA_TEMPLATES, templateButtonLabels, type TemplateKey } from '@/lib/wa-templates';
 import {
   getWaAutomationsConfig, saveWaAutomationsConfig, runWaAutomations,
   type WaAutomationsConfig, type RunResult,
@@ -174,7 +174,10 @@ export async function creaTemplateRecensione(): Promise<{ ok: boolean; status?: 
   const tpl = WA_TEMPLATES.review;
   // Un esempio per ogni {{n}}: senza, Meta rifiuta.
   const example = ['Maria', 'pressoterapia'];
-  const buttons = [{ type: 'URL' as const, text: 'Lascia una recensione', url: reviewRedirectUrl() }];
+  // L'etichetta viene dal catalogo, così creazione, anteprima e archivio
+  // raccontano tutti lo stesso bottone.
+  const etichetta = tpl.buttons?.[0]?.text || 'Lascia una recensione';
+  const buttons = [{ type: 'URL' as const, text: etichetta, url: reviewRedirectUrl() }];
 
   // Cancellarlo per rifarlo col bottone non è una via d'uscita: Meta blocca
   // il riutilizzo dello stesso nome per 30 giorni, e in quel mese l'automazione
@@ -257,17 +260,59 @@ export interface TemplateCheck {
    * non compare: è la differenza fra "l'ho messo" e "arriva ai clienti".
    */
   buttonUrls?: string[];
+  /** Testo della versione attiva su 360dialog, coi segnaposto {{n}}. */
+  remoteBody?: string;
+  remoteFooter?: string;
+  /** Bottoni della versione attiva, in forma leggibile. */
+  remoteButtons?: string[];
+  /** Testo che il catalogo del gestionale si aspetta. */
+  localBody: string;
+  /** Bottoni che il catalogo si aspetta. */
+  localButtons?: string[];
+  /**
+   * Vero se il testo su 360dialog e quello del catalogo non coincidono. Non è
+   * un errore di per sé (qualcuno può aver ritoccato il testo sul Hub), ma è
+   * l'unica spia che il messaggio consegnato non è quello che si legge qui.
+   */
+  diverso?: boolean;
+}
+
+/** Un template che sta sul canale ma non nel catalogo del gestionale. */
+export interface TemplateExtra {
+  name: string;
+  status: string;
+  category: string;
+  language: string;
+  body?: string;
+  footer?: string;
+  buttons?: string[];
+}
+
+/** Normalizza per il confronto: gli a capo e gli spazi doppi non contano. */
+function normalizzaTesto(s: string | undefined): string {
+  return (s || '').replace(/\s+/g, ' ').trim();
 }
 
 /**
- * Confronta i template del catalogo con quelli davvero approvati su 360dialog.
- * Un'automazione con template MISSING o PENDING non può partire.
+ * Confronta i template del catalogo con quelli davvero approvati su 360dialog,
+ * e riporta anche il testo di entrambi.
+ *
+ * Il solo stato non basta: un template può essere "Approvato" e consegnare
+ * comunque qualcosa di diverso da quello che il gestionale mostra, perché la
+ * versione attiva su Meta e il catalogo interno sono due cose distinte. Vedere
+ * i due testi affiancati è l'unico modo, da qui, di sapere cosa riceve davvero
+ * un cliente.
  */
-export async function checkTemplates(): Promise<{ ok: boolean; error?: string; checks?: TemplateCheck[] }> {
+export async function checkTemplates(): Promise<{
+  ok: boolean; error?: string; checks?: TemplateCheck[]; extra?: TemplateExtra[];
+}> {
   const remote = await listD360Templates();
   if (!remote.ok) return { ok: false, error: remote.error };
 
-  const checks = (Object.keys(WA_TEMPLATES) as TemplateKey[]).map(key => {
+  const leggibile = (b: { type: string; text?: string; url?: string }) =>
+    b.url ? `${b.text || 'Apri'} → ${b.url}` : `${b.text || ''} (${b.type === 'QUICK_REPLY' ? 'risposta rapida' : b.type})`;
+
+  const checks: TemplateCheck[] = (Object.keys(WA_TEMPLATES) as TemplateKey[]).map(key => {
     const tpl = WA_TEMPLATES[key];
     const found = remote.templates.find(t => t.name === tpl.name && t.language === tpl.language);
     // 360dialog risponde in minuscolo ("approved"): senza normalizzare, la UI non
@@ -276,7 +321,32 @@ export async function checkTemplates(): Promise<{ ok: boolean; error?: string; c
       key, name: tpl.name, category: tpl.category,
       status: (found?.status || 'MISSING').toUpperCase(),
       buttonUrls: found?.buttonUrls,
+      remoteBody: found?.body,
+      remoteFooter: found?.footer,
+      remoteButtons: found?.buttons?.map(leggibile),
+      localBody: tpl.body,
+      localButtons: templateButtonLabels(key),
+      // Solo se il template esiste: un MISSING è già segnalato dallo stato.
+      diverso: found?.body ? normalizzaTesto(found.body) !== normalizzaTesto(tpl.body) : undefined,
     };
   });
-  return { ok: true, checks };
+
+  // I template creati direttamente sul Hub o dalle campagne non stanno nel
+  // catalogo: senza questo elenco, dal gestionale risultavano invisibili.
+  // `Set<string>` esplicito: senza, i nomi del catalogo diventano tipi letterali
+  // e `has()` rifiuta una stringa qualunque come quella che arriva da 360dialog.
+  const nomiCatalogo = new Set<string>(Object.values(WA_TEMPLATES).map(t => t.name));
+  const extra: TemplateExtra[] = remote.templates
+    .filter(t => !nomiCatalogo.has(t.name))
+    .map(t => ({
+      name: t.name,
+      status: (t.status || 'UNKNOWN').toUpperCase(),
+      category: t.category,
+      language: t.language,
+      body: t.body,
+      footer: t.footer,
+      buttons: t.buttons?.map(leggibile),
+    }));
+
+  return { ok: true, checks, extra };
 }

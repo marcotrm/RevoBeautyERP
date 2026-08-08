@@ -6,7 +6,7 @@ import { MessageSquare, ChevronDown, Loader2, CheckCircle2, AlertTriangle, Clock
 import {
   loadWaConfig, saveWaConfig, loadWaStatus, previewAutomation, runAutomationNow, checkTemplates, loadWaInbox,
   creaTemplateRecensione, inviaTemplateDiProva,
-  type WaStatus, type TemplateCheck, type WaInboxMessage,
+  type WaStatus, type TemplateCheck, type TemplateExtra, type WaInboxMessage,
 } from '@/app/actions/whatsapp';
 import type { WaAutomationsConfig, RunResult } from '@/lib/wa-automations';
 import { GOOGLE_REVIEW_URL } from '@/lib/links';
@@ -37,6 +37,9 @@ export default function WhatsAppAutomationsConfig() {
   const [numeroProva, setNumeroProva] = useState('');
   const [result, setResult] = useState<RunResult | null>(null);
   const [checks, setChecks] = useState<TemplateCheck[] | null>(null);
+  const [extra, setExtra] = useState<TemplateExtra[] | null>(null);
+  /** Nome del template di cui si sta leggendo il testo per esteso. */
+  const [tplAperto, setTplAperto] = useState<string | null>(null);
   const [inbox, setInbox] = useState<WaInboxMessage[] | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -117,6 +120,7 @@ export default function WhatsAppAutomationsConfig() {
     setBusy(null);
     if (!r.ok) return flash(false, r.error || 'Verifica fallita');
     setChecks(r.checks || []);
+    setExtra(r.extra || []);
   };
 
   const configured = status?.provider === '360dialog';
@@ -388,32 +392,97 @@ export default function WhatsAppAutomationsConfig() {
           {/* Template */}
           <div className="p-3 rounded-xl bg-bg-secondary border border-border/50 space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-text-secondary">Template approvati da Meta</p>
+              <p className="text-xs font-semibold text-text-secondary">Template su 360dialog</p>
               <button onClick={doCheckTemplates} disabled={busy !== null || !configured}
                 className="text-[11px] px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-text-secondary hover:bg-bg-hover disabled:opacity-50">
                 {busy === 'templates' ? '...' : 'Verifica'}
               </button>
             </div>
-            {checks ? checks.map(c => {
-              const st = TPL_STATUS[c.status] || { label: c.status, cls: 'text-text-muted' };
-              return (
-                <div key={c.key} className="text-[11px]">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-text-muted truncate">{c.name}</span>
-                    <span className={`font-semibold flex-shrink-0 ml-2 ${st.cls}`}>{st.label}</span>
+            {checks ? (
+              <>
+                <p className="text-[10px] text-text-muted/70 leading-relaxed">
+                  Quello che vedi qui è la versione che Meta <b>consegna adesso</b>. Una modifica fatta sul Hub e
+                  ancora in revisione non compare: i clienti continuano a ricevere questa.
+                </p>
+                {checks.map(c => {
+                  const st = TPL_STATUS[c.status] || { label: c.status, cls: 'text-text-muted' };
+                  const aperto = tplAperto === c.name;
+                  return (
+                    <div key={c.key} className="text-[11px] border-t border-border/40 pt-2">
+                      <button onClick={() => setTplAperto(aperto ? null : c.name)} className="w-full flex items-center justify-between gap-2 text-left">
+                        <span className="font-mono text-text-muted truncate">{c.name}</span>
+                        <span className="flex items-center gap-1.5 flex-shrink-0">
+                          {c.diverso && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-warning/15 text-warning">TESTO DIVERSO</span>}
+                          <span className={`font-semibold ${st.cls}`}>{st.label}</span>
+                          <ChevronDown className={`w-3 h-3 text-text-muted transition-transform ${aperto ? 'rotate-180' : ''}`} />
+                        </span>
+                      </button>
+                      {/* I bottoni della versione che Meta consegna davvero: se ne
+                          è stato aggiunto uno sul Hub ma la modifica è ancora in
+                          revisione, qui non compare ancora. */}
+                      {c.remoteButtons?.length ? (
+                        <p className="text-[10px] text-success/80 pl-2 break-all">↳ bottone: {c.remoteButtons.join(' · ')}</p>
+                      ) : c.status === 'APPROVED' ? (
+                        <p className="text-[10px] text-text-muted/50 pl-2">↳ nessun bottone</p>
+                      ) : null}
+                      {aperto && (
+                        <div className="mt-1.5 pl-2 space-y-1.5">
+                          <div>
+                            <p className="text-[9px] font-semibold text-text-muted/60 uppercase tracking-wide">Testo su 360dialog</p>
+                            <p className="text-[10px] text-text-secondary whitespace-pre-line bg-bg-tertiary rounded-lg p-2 mt-0.5">
+                              {c.remoteBody || '— non disponibile —'}
+                            </p>
+                          </div>
+                          {/* Il confronto col catalogo interno serve solo quando i
+                              due divergono: affiancarli sempre raddoppia il testo
+                              da leggere senza dire niente di nuovo. */}
+                          {c.diverso && (
+                            <div>
+                              <p className="text-[9px] font-semibold text-warning/80 uppercase tracking-wide">Testo atteso dal gestionale</p>
+                              <p className="text-[10px] text-text-muted whitespace-pre-line bg-bg-tertiary rounded-lg p-2 mt-0.5">{c.localBody}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {/* Creati sul Hub o dalle campagne: non stanno nel catalogo del
+                    gestionale, ma sul canale ci sono e vanno visti. */}
+                {extra && extra.length > 0 && (
+                  <div className="border-t border-border/40 pt-2 space-y-1.5">
+                    <p className="text-[10px] font-semibold text-text-muted/70">Altri template sul canale ({extra.length})</p>
+                    {extra.map(t => {
+                      const st = TPL_STATUS[t.status] || { label: t.status, cls: 'text-text-muted' };
+                      const aperto = tplAperto === t.name;
+                      return (
+                        <div key={`${t.name}:${t.language}`} className="text-[11px]">
+                          <button onClick={() => setTplAperto(aperto ? null : t.name)} className="w-full flex items-center justify-between gap-2 text-left">
+                            <span className="font-mono text-text-muted truncate">{t.name} <span className="text-text-muted/50">·{t.language}</span></span>
+                            <span className="flex items-center gap-1.5 flex-shrink-0">
+                              <span className={`font-semibold ${st.cls}`}>{st.label}</span>
+                              <ChevronDown className={`w-3 h-3 text-text-muted transition-transform ${aperto ? 'rotate-180' : ''}`} />
+                            </span>
+                          </button>
+                          {t.buttons?.length ? (
+                            <p className="text-[10px] text-success/80 pl-2 break-all">↳ bottone: {t.buttons.join(' · ')}</p>
+                          ) : null}
+                          {aperto && (
+                            <p className="text-[10px] text-text-secondary whitespace-pre-line bg-bg-tertiary rounded-lg p-2 mt-1 ml-2">
+                              {t.body || '— non disponibile —'}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  {/* I bottoni della versione che Meta consegna davvero: se ne
-                      è stato aggiunto uno sul Hub ma la modifica è ancora in
-                      revisione, qui non compare ancora. */}
-                  {c.buttonUrls?.length ? (
-                    <p className="text-[10px] text-text-muted/70 pl-2 truncate">↳ bottone: {c.buttonUrls.join(', ')}</p>
-                  ) : c.status === 'APPROVED' ? (
-                    <p className="text-[10px] text-text-muted/50 pl-2">↳ nessun bottone</p>
-                  ) : null}
-                </div>
-              );
-            }) : (
-              <p className="text-[11px] text-text-muted">Un&apos;automazione parte solo se il suo template è <b>Approvato</b> su 360dialog.</p>
+                )}
+              </>
+            ) : (
+              <p className="text-[11px] text-text-muted">
+                Un&apos;automazione parte solo se il suo template è <b>Approvato</b> su 360dialog.
+                Premi <b>Verifica</b> per vedere testo e bottoni di quelli attivi.
+              </p>
             )}
           </div>
 

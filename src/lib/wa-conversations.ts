@@ -56,6 +56,20 @@ export interface WaMessageRow {
   media?: WaMedia;
   /** Solo per i messaggi in uscita. */
   source?: WaSource;
+  /**
+   * Solo in uscita, e solo se il messaggio è partito come template approvato.
+   *
+   * Senza questo, in chat un template si vedeva identico a un messaggio scritto
+   * a mano: solo il corpo, senza traccia dei bottoni. Per la richiesta
+   * recensione — dove il link vive unicamente nel bottone — voleva dire
+   * rileggere l'archivio e concludere che il link non fosse mai partito.
+   */
+  template?: {
+    /** Nome tecnico approvato su Meta, es. `richiesta_recensione`. */
+    name: string;
+    /** Bottoni allegati al messaggio, in forma leggibile. */
+    buttons?: string[];
+  };
   name?: string;
   at: string;
   messageId?: string;
@@ -150,6 +164,8 @@ export async function logOutbound(params: {
   messageId?: string;
   ok: boolean;
   error?: string;
+  /** Presente solo se è partito come template approvato, non come testo libero. */
+  template?: WaMessageRow['template'];
 }): Promise<void> {
   try {
     const at = new Date().toISOString();
@@ -165,6 +181,7 @@ export async function logOutbound(params: {
       messageId: params.messageId,
       ok: params.ok,
       error: params.error,
+      template: params.template,
     });
   } catch (err) {
     console.error('[wa-conversations] log uscita fallito', err);

@@ -226,9 +226,38 @@ export async function fetchD360Media(
   }
 }
 
+/** Un bottone così come Meta lo ha approvato sul canale. */
+export interface D360TemplateButton {
+  /** URL, QUICK_REPLY, PHONE_NUMBER, OTP… così come lo riporta Meta. */
+  type: string;
+  text?: string;
+  /** Solo per i bottoni URL. */
+  url?: string;
+}
+
+/**
+ * Un template come sta davvero su 360dialog, non come lo immagina il catalogo
+ * interno. È la versione ATTIVA, cioè quella che Meta consegna ai clienti in
+ * questo momento: una modifica ancora in revisione qui non si vede.
+ */
+export interface D360Template {
+  name: string;
+  status: string;
+  category: string;
+  language: string;
+  id?: string;
+  /** Testo del corpo, coi segnaposto {{1}}, {{2}}… come approvati. */
+  body?: string;
+  header?: string;
+  footer?: string;
+  buttons?: D360TemplateButton[];
+  /** Solo gli indirizzi dei bottoni URL. Comodo per il confronto rapido. */
+  buttonUrls?: string[];
+}
+
 /** Elenca i template del canale con il loro stato di approvazione. */
 export async function listD360Templates(): Promise<
-  { ok: true; templates: Array<{ name: string; status: string; category: string; language: string; id?: string; buttonUrls?: string[] }> } | { ok: false; error: string }
+  { ok: true; templates: D360Template[] } | { ok: false; error: string }
 > {
   if (!d360Configured()) return { ok: false, error: 'Manca D360_API_KEY' };
   const base = (process.env.D360_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
@@ -239,25 +268,43 @@ export async function listD360Templates(): Promise<
     const body = await res.json().catch(() => null);
     if (!res.ok) return { ok: false, error: body?.error?.message || `HTTP ${res.status}` };
     type RawButton = { type?: string; url?: string; text?: string };
-    type RawComponent = { type?: string; buttons?: RawButton[] };
+    type RawComponent = { type?: string; text?: string; buttons?: RawButton[] };
     type Raw = { name?: string; status?: string; category?: string; language?: string; id?: string; components?: RawComponent[] };
-    const templates = (body?.waba_templates || body?.data || []).map((t: Raw) => ({
-      name: t.name || '',
-      status: t.status || 'UNKNOWN',
-      category: t.category || '',
-      language: t.language || '',
-      // Id interno di 360dialog (non quello numerico di Meta). Serve solo a
-      // riconoscere un template già presente: modificarlo da qui non si può,
-      // vedi la nota in creaTemplateRecensione.
-      id: t.id ? String(t.id) : undefined,
-      // Gli indirizzi dei bottoni della versione ATTIVA. Servono a distinguere
-      // "il bottone l'ho aggiunto sul Hub" da "il bottone è già in quello che
-      // Meta consegna": finché una modifica è in revisione, i due non
-      // coincidono e i clienti continuano a ricevere il template senza.
-      buttonUrls: (t.components || [])
+
+    const testo = (comps: RawComponent[], tipo: string) =>
+      comps.find(c => c.type?.toUpperCase() === tipo)?.text || undefined;
+
+    const templates: D360Template[] = (body?.waba_templates || body?.data || []).map((t: Raw) => {
+      const comps = t.components || [];
+      // Un template può avere più righe di bottoni: si appiattiscono, l'ordine
+      // resta quello approvato.
+      const buttons: D360TemplateButton[] = comps
         .filter(c => c.type?.toUpperCase() === 'BUTTONS')
-        .flatMap(c => (c.buttons || []).map(b => b.url || `[${b.type}] ${b.text || ''}`)),
-    }));
+        .flatMap(c => (c.buttons || []).map(b => ({ type: b.type || 'UNKNOWN', text: b.text, url: b.url })));
+
+      return {
+        name: t.name || '',
+        status: t.status || 'UNKNOWN',
+        category: t.category || '',
+        language: t.language || '',
+        // Id interno di 360dialog (non quello numerico di Meta). Serve solo a
+        // riconoscere un template già presente: modificarlo da qui non si può,
+        // vedi la nota in creaTemplateRecensione.
+        id: t.id ? String(t.id) : undefined,
+        // Il testo della versione ATTIVA. È il solo modo, dal gestionale, di
+        // vedere cosa Meta sta davvero consegnando invece di fidarsi del
+        // catalogo interno, che è quello che *volevamo* far approvare.
+        body: testo(comps, 'BODY'),
+        header: testo(comps, 'HEADER'),
+        footer: testo(comps, 'FOOTER'),
+        buttons,
+        // Gli indirizzi dei bottoni della versione ATTIVA. Servono a distinguere
+        // "il bottone l'ho aggiunto sul Hub" da "il bottone è già in quello che
+        // Meta consegna": finché una modifica è in revisione, i due non
+        // coincidono e i clienti continuano a ricevere il template senza.
+        buttonUrls: buttons.map(b => b.url || `[${b.type}] ${b.text || ''}`),
+      };
+    });
     return { ok: true, templates };
   } catch {
     return { ok: false, error: 'Connessione a 360dialog fallita' };

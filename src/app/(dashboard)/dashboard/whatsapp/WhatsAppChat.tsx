@@ -347,6 +347,22 @@ export default function WhatsAppChat() {
                           {m.media ? m.media.caption : m.text}
                         </p>
                       )}
+                      {/* I bottoni di un template non stanno nel testo: senza
+                          questo blocco la richiesta recensione si leggeva qui
+                          come un invito senza link, mentre sul telefono della
+                          cliente il bottone c'era. */}
+                      {m.template?.buttons?.length ? (
+                        <div className="mt-1.5 space-y-1">
+                          {m.template.buttons.map((b, k) => (
+                            <div key={k} className="text-[11px] text-accent border border-accent/25 rounded-lg px-2 py-1 text-center break-all">
+                              {b}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {m.template && (
+                        <p className="text-[9px] text-text-muted/50 mt-1 font-mono truncate">template: {m.template.name}</p>
+                      )}
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] text-text-muted/70">{timeLabel(m.at)}</span>
                         {m.ok === false ? (

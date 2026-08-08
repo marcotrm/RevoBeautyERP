@@ -16,7 +16,7 @@
  */
 
 import { d360Configured, d360MissingVars, sendD360Text, sendD360Template, type TemplateSendOptions } from './whatsapp360';
-import { WA_TEMPLATES, type TemplateKey } from './wa-templates';
+import { WA_TEMPLATES, templateButtonLabels, type TemplateKey } from './wa-templates';
 import { logOutbound, type WaSource } from './wa-conversations';
 
 export type WaProvider = '360dialog' | 'evolution' | null;
@@ -119,7 +119,10 @@ export async function sendWhatsAppTemplate(
   }
 
   // In archivio va il testo che il cliente legge davvero: il template con i
-  // parametri già sostituiti, non il nome tecnico.
+  // parametri già sostituiti, non il nome tecnico. Insieme al testo va anche di
+  // che template si tratta e con quali bottoni: il corpo da solo non basta a
+  // capire cosa è stato consegnato, perché i bottoni (e per la richiesta
+  // recensione l'intero link) non compaiono nel testo.
   await logOutbound({
     phone: number,
     text: opts.fallbackText || `[template ${tpl.name}]`,
@@ -127,6 +130,11 @@ export async function sendWhatsAppTemplate(
     messageId: res.messageId,
     ok: res.ok,
     error: res.error,
+    // Solo se è partito davvero come template: su Evolution è testo libero e i
+    // bottoni non esistono, segnarli sarebbe una bugia in archivio.
+    template: provider === '360dialog'
+      ? { name: tpl.name, buttons: templateButtonLabels(key) }
+      : undefined,
   });
   return res;
 }
