@@ -15,6 +15,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { normalizePhone } from '@/lib/whatsapp';
 
 const MSG_KIND = 'wa_msg';
 const LEGACY_INBOX_KIND = 'wa_inbox';
@@ -296,6 +297,26 @@ export async function markConversationUnread(phone: string): Promise<void> {
 }
 
 /** Elenco conversazioni, la più recente in cima. */
+/**
+ * Numeri che ci hanno scritto almeno una volta.
+ *
+ * Serve alle campagne di sollecito: chi ha risposto al primo messaggio non va
+ * ricontattato con lo stesso template — o gli si ripete addosso una cosa a cui
+ * ha già reagito.
+ */
+export async function phonesWithInbound(): Promise<Set<string>> {
+  const righe = await prisma.adminEntry.findMany({
+    where: { kind: MSG_KIND, rowId: { startsWith: 'wa:msg:in:' } },
+    select: { entityId: true, data: true },
+  });
+  const numeri = new Set<string>();
+  for (const r of righe) {
+    const tel = (r.data as { phone?: string } | null)?.phone || r.entityId || '';
+    if (tel) numeri.add(normalizePhone(tel));
+  }
+  return numeri;
+}
+
 export async function listConversations(limit = 50): Promise<WaConversation[]> {
   const [messages, windows, reads, clientNames] = await Promise.all([
     recentMessages(600), lastInboundMap(), readMarks(), clientNamesByPhone(),

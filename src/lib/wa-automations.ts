@@ -15,6 +15,7 @@ import { todayRome } from '@/lib/date';
 import { sendWhatsAppTemplate, normalizePhone, isSendablePhone, waProvider } from '@/lib/whatsapp';
 import { WA_TEMPLATES, sanitizeParam, isMarketing, type TemplateKey } from '@/lib/wa-templates';
 import { GIFT_OPTIONS } from '@/lib/giftOptions';
+import { phonesWithInbound } from '@/lib/wa-conversations';
 
 const CONFIG_ROW = 'integration:wa_automations';
 const LOG_KIND = 'wa_log';
@@ -431,11 +432,12 @@ export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
  * È marketing: chi ha revocato il consenso viene saltato, e il rowId per
  * contatto garantisce che nessuno la riceva due volte anche rilanciandola.
  */
-export async function runOmaggioInaugurazione(dryRun: boolean): Promise<RunResult> {
-  const [leads, clients, appts] = await Promise.all([
+export async function runOmaggioInaugurazione(dryRun: boolean, giro: 1 | 2 = 1): Promise<RunResult> {
+  const [leads, clients, appts, hannoRisposto] = await Promise.all([
     prisma.inaugurationLead.findMany({ orderBy: { createdAt: 'desc' } }),
     prisma.client.findMany({ select: { id: true, phone: true, email: true, marketingConsent: true } }),
     prisma.appointment.findMany({ where: { status: { not: 'cancelled' } }, select: { clientId: true } }),
+    giro === 2 ? phonesWithInbound() : Promise.resolve(new Set<string>()),
   ]);
 
   const conAppuntamento = new Set(appts.map(a => a.clientId).filter(Boolean) as string[]);
@@ -462,8 +464,19 @@ export async function runOmaggioInaugurazione(dryRun: boolean): Promise<RunResul
     // Consenso marketing: si rispetta quando il contatto è già in anagrafica
     if (cliente && cliente.marketingConsent === false) continue;
 
-    const rowId = `wa:omaggio:${l.id}`;
+    // Primo giro e sollecito hanno chiavi diverse, così il secondo messaggio
+    // può partire senza che il primo lo blocchi (e senza mai ripetersi a sua volta).
+    const primoGiro = `wa:omaggio:${l.id}`;
+    const rowId = giro === 2 ? `wa:omaggio:sollecito:${l.id}` : primoGiro;
     if (await alreadySent(rowId)) continue;
+
+    if (giro === 2) {
+      // Il sollecito va SOLO a chi ha già ricevuto il primo messaggio: chi non
+      // l'ha mai ricevuto va contattato con il primo giro, non con un secondo.
+      if (!(await alreadySent(primoGiro))) continue;
+      // E solo a chi non ha risposto: se ha scritto, se ne occupa una persona.
+      if (hannoRisposto.has(normalizePhone(l.phone))) continue;
+    }
 
     jobs.push({
       rowId,
@@ -484,6 +497,8 @@ export async function runOmaggioInaugurazione(dryRun: boolean): Promise<RunResul
 
 export interface RunOptions {
   which?: TemplateKey | 'all';
+  /** Campagna omaggio: 1 = primo invio, 2 = sollecito a chi non ha risposto. */
+  giro?: 1 | 2;
   /** Esegue anche se l'automazione è spenta in configurazione (tasto "Prova ora"). */
   force?: boolean;
   /** Forza la simulazione a prescindere dalla configurazione. */
@@ -511,7 +526,7 @@ export async function runWaAutomations(opts: RunOptions = {}): Promise<RunResult
   if (wants('review')) results.push(await runReviewRequests(dryRun));
   // 'omaggio' non ha un interruttore in configurazione: parte solo a mano
   // dalla pagina Inaugurazione (which='omaggio' + force), mai da sola.
-  if (which === 'omaggio' && opts.force) results.push(await runOmaggioInaugurazione(dryRun));
+  if (which === 'omaggio' && opts.force) results.push(await runOmaggioInaugurazione(dryRun, opts.giro ?? 1));
 
   for (const r of results) {
     if (isMarketing(r.automation) && r.sent > 0) {

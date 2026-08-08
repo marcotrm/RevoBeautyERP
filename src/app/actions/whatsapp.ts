@@ -37,14 +37,14 @@ export async function loadWaStatus(): Promise<WaStatus> {
  * Simulazione: elenca chi verrebbe contattato adesso e con quale testo,
  * senza mandare nulla.
  */
-export async function previewAutomation(which: TemplateKey): Promise<RunResult | null> {
-  const res = await runWaAutomations({ which, force: true, dryRun: true });
+export async function previewAutomation(which: TemplateKey, giro: 1 | 2 = 1): Promise<RunResult | null> {
+  const res = await runWaAutomations({ which, force: true, dryRun: true, giro });
   return res[0] || null;
 }
 
 /** Esecuzione reale su richiesta (tasto "Invia ora"). */
-export async function runAutomationNow(which: TemplateKey): Promise<RunResult | null> {
-  const res = await runWaAutomations({ which, force: true, dryRun: false });
+export async function runAutomationNow(which: TemplateKey, giro: 1 | 2 = 1): Promise<RunResult | null> {
+  const res = await runWaAutomations({ which, force: true, dryRun: false, giro });
   return res[0] || null;
 }
 
