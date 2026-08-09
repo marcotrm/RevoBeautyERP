@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
- * Intestazioni CORS per le API dell'app clienti.
+ * Intestazioni CORS per le API usate dall'app clienti.
  *
  * L'app installata sul telefono non ne ha bisogno — React Native non applica
  * le regole di origine del browser — ma la stessa app girata come pagina web
@@ -13,7 +13,9 @@ import { NextResponse, type NextRequest } from 'next/server';
  * Aprire a qualsiasi origine qui non espone niente: queste API si autenticano
  * col token nell'header `Authorization`, non con i cookie, quindi un sito
  * ostile non può farsi passare per la cliente collegata semplicemente
- * chiamandole dal browser di lei. Il resto del gestionale non è toccato.
+ * chiamandole dal browser di lei. Stesso discorso per /api/booking, che è già
+ * pubblico perché lo usa la pagina di prenotazione del sito. Il resto del
+ * gestionale non è toccato.
  */
 export function middleware(req: NextRequest) {
   const origin = req.headers.get('origin') || '*';
@@ -37,5 +39,7 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: '/api/mobile/:path*',
+  // L'app clienti non usa solo /api/mobile: l'elenco dei trattamenti e gli
+  // orari liberi arrivano da /api/booking, gli stessi che serve il sito.
+  matcher: ['/api/mobile/:path*', '/api/booking/:path*'],
 };
