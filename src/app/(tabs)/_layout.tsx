@@ -1,10 +1,12 @@
 /**
- * Tab bar principale (utente loggata): 5 sezioni dell'app.
- * Ogni schermo è per ora un placeholder; qui è già pronta la struttura
- * che accoglierà le feature di dominio.
+ * Le cinque schede dell'app.
+ *
+ * Cinque è il massimo che resta leggibile in fondo a uno schermo di telefono.
+ * L'ordine segue quello che si fa più spesso: si apre per vedere cosa c'è
+ * (Home), si prenota, si guardano le occasioni, i premi, e in fondo il resto.
  */
-import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { colors, typography } from '@/theme';
 
@@ -14,63 +16,35 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarLabelStyle: typography.caption,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
+          height: 88,
+          paddingTop: 6,
         },
+        tabBarLabelStyle: { ...typography.caption, fontWeight: '600' },
       }}
     >
       <Tabs.Screen
         name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
-        }}
+        options={{ title: 'Home', tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="prenota"
-        options={{
-          title: 'Prenota',
-          tabBarIcon: ({ color, size }) => <Ionicons name="add-circle-outline" size={size} color={color} />,
-        }}
+        options={{ title: 'Prenota', tabBarIcon: ({ color, size }) => <Ionicons name="add-circle" size={size} color={color} /> }}
       />
       <Tabs.Screen
-        name="pacchetti"
-        options={{
-          title: 'Pacchetti',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="pricetags-outline" size={size} color={color} />
-          ),
-        }}
+        name="per-te"
+        options={{ title: 'Per te', tabBarIcon: ({ color, size }) => <Ionicons name="sparkles" size={size} color={color} /> }}
       />
       <Tabs.Screen
-        name="appuntamenti"
-        options={{
-          title: 'Appuntamenti',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
-          ),
-        }}
+        name="premi"
+        options={{ title: 'Premi', tabBarIcon: ({ color, size }) => <Ionicons name="gift" size={size} color={color} /> }}
       />
       <Tabs.Screen
-        name="notifiche"
-        options={{
-          title: 'Notifiche',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="notifications-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="contatti"
-        options={{
-          title: 'Contatti',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubble-ellipses-outline" size={size} color={color} />
-          ),
-        }}
+        name="profilo"
+        options={{ title: 'Profilo', tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} /> }}
       />
     </Tabs>
   );

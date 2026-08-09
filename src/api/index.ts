@@ -27,4 +27,6 @@ export type { CatalogProvider } from './CatalogProvider';
 export type { AppointmentsProvider } from './AppointmentsProvider';
 export type { ChatProvider, ChatMessage } from './ChatProvider';
 export type { BookingProvider, BookingTreatment, BookingSlot, BookingResult } from './BookingProvider';
+export { homeService } from './HomeProvider';
+export type { DatiHome, DatiWallet, Proposta, Percorso, FlashSlotApp, DatiReferral, MovimentoWallet } from './HomeProvider';
 export * from './types';
