@@ -9,7 +9,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { createD360Template, listD360Templates } from '@/lib/whatsapp360';
+import { createD360Template, listD360Templates, deleteD360Template } from '@/lib/whatsapp360';
 import { sendD360Template } from '@/lib/whatsapp360';
 import { normalizePhone, isSendablePhone, waProvider } from '@/lib/whatsapp';
 import { logOutbound } from '@/lib/wa-conversations';
@@ -60,6 +60,15 @@ export async function creaTemplate(params: {
   });
   if (!res.ok) return { ok: false, error: res.error };
   return { ok: true, status: res.status, nome };
+}
+
+/**
+ * Toglie un template dal canale. Usato per i rifiutati, che altrimenti restano
+ * in elenco per sempre in mezzo a quelli buoni.
+ */
+export async function eliminaTemplate(nome: string): Promise<{ ok: boolean; error?: string }> {
+  if (!nome.trim()) return { ok: false, error: 'Serve il nome del template' };
+  return deleteD360Template(nome.trim());
 }
 
 export interface DestinatarioCampagna {

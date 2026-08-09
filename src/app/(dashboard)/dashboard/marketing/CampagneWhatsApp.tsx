@@ -15,10 +15,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   MessageSquare, Plus, Send, RefreshCw, Loader2, CheckCircle, AlertTriangle,
-  Search, Users, X, Clock,
+  Search, Users, X, Clock, Trash2,
 } from 'lucide-react';
 import {
-  listaTemplate, creaTemplate, clientiPerCampagna, inviaCampagna,
+  listaTemplate, creaTemplate, clientiPerCampagna, inviaCampagna, eliminaTemplate,
   type TemplateRemoto, type DestinatarioCampagna, type EsitoCampagna,
 } from '@/app/actions/campagne';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
@@ -34,6 +34,7 @@ export default function CampagneWhatsApp() {
   const [templates, setTemplates] = useState<TemplateRemoto[] | null>(null);
   const [erroreTpl, setErroreTpl] = useState<string | null>(null);
   const [caricando, setCaricando] = useState(false);
+  const [eliminando, setEliminando] = useState('');
 
   // --- creazione template ---
   const [apriNuovo, setApriNuovo] = useState(false);
@@ -69,6 +70,23 @@ export default function CampagneWhatsApp() {
 
   useEffect(() => { caricaTemplate(); }, [caricaTemplate]);
   useEffect(() => { clientiPerCampagna().then(setClienti).catch(() => setClienti([])); }, []);
+
+  // I rifiutati restano in elenco per sempre: si tolgono da qui, uno per volta.
+  const elimina = async (nome: string, stato: string) => {
+    const rifiutato = stato.toUpperCase() === 'REJECTED';
+    if (!window.confirm(
+      `Eliminare il messaggio "${nome}"?\n\n` +
+      (rifiutato ? '' : 'ATTENZIONE: questo messaggio non è rifiutato. Se è usato da un\'automazione, smetterà di partire.\n\n') +
+      'Meta non lascia riusare lo stesso nome per 30 giorni.'
+    )) return;
+    setEliminando(nome);
+    try {
+      const r = await eliminaTemplate(nome);
+      if (!r.ok) { window.alert(`Non è stato eliminato: ${r.error}`); return; }
+      if (scelto?.name === nome) { setScelto(null); setSelezionati(new Set()); }
+      await caricaTemplate();
+    } finally { setEliminando(''); }
+  };
 
   const salvaTemplate = async () => {
     setCreando(true);
@@ -242,17 +260,22 @@ export default function CampagneWhatsApp() {
             const usabile = t.status.toUpperCase() === 'APPROVED';
             const attivo = scelto?.name === t.name;
             return (
-              <button key={`${t.name}-${t.language}`} disabled={!usabile}
-                onClick={() => { setScelto(t); setEsitoInvio(null); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+              <div key={`${t.name}-${t.language}`}
+                className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors ${
                   attivo ? 'border-accent bg-accent/10' : 'border-border bg-bg-tertiary/30'
-                } ${usabile ? 'hover:bg-bg-hover cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}>
-                <div className="flex-1 min-w-0">
+                }`}>
+                <button disabled={!usabile} onClick={() => { setScelto(t); setEsitoInvio(null); }}
+                  className={`flex-1 min-w-0 text-left ${usabile ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}>
                   <p className="text-sm font-medium text-text-primary truncate">{t.name}</p>
                   <p className="text-[11px] text-text-muted">{t.category === 'MARKETING' ? 'Promozionale' : 'Di servizio'} · {t.language}</p>
-                </div>
+                </button>
                 <StatoTemplate status={t.status} />
-              </button>
+                <button onClick={() => elimina(t.name, t.status)} disabled={eliminando === t.name}
+                  title="Elimina questo messaggio"
+                  className="p-1.5 rounded-lg text-text-muted hover:text-error hover:bg-error/10 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 flex-shrink-0 disabled:opacity-100">
+                  {eliminando === t.name ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                </button>
+              </div>
             );
           })}
           {templates?.length === 0 && (

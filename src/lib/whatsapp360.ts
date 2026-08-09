@@ -392,6 +392,35 @@ export function templateComponents(params: {
   return components;
 }
 
+/**
+ * Cancella un template dal canale.
+ *
+ * Serve per i rifiutati: restano in elenco per sempre e confondono chi cerca
+ * quello giusto da mandare. Attenzione al nome — dopo la cancellazione Meta
+ * non lo lascia riusare per 30 giorni, quindi un template che va corretto e
+ * rimandato conviene ricrearlo con un nome diverso, non cancellare e riprovare.
+ */
+export async function deleteD360Template(name: string): Promise<{ ok: boolean; error?: string }> {
+  if (!d360Configured()) return { ok: false, error: 'Manca D360_API_KEY' };
+  const base = (process.env.D360_BASE_URL || DEFAULT_BASE).replace(/\/+$/, '');
+  try {
+    const res = await fetch(`${base}/v1/configs/templates/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+      headers: { 'D360-API-KEY': process.env.D360_API_KEY as string },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      const raw = body ? JSON.stringify(body).slice(0, 300) : '';
+      const msg = body?.error?.error_user_msg || body?.error?.message || body?.message
+        || (raw ? `HTTP ${res.status} — ${raw}` : `HTTP ${res.status}`);
+      return { ok: false, error: String(msg) };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'Connessione a 360dialog fallita' };
+  }
+}
+
 async function submitTemplate(
   name: string,
   category: string,
