@@ -221,6 +221,7 @@ const ESEMPI_PARAMETRI: Record<TemplateKey, string[]> = {
   birthday: ['Maria', 'il 20%', '31/12'],
   review: ['Maria', 'pulizia viso'],
   omaggio: ['Maria', 'pressoterapia'],
+  codiceApp: ['123456'],
 };
 
 /**

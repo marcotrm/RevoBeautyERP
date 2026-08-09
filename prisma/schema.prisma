@@ -85,12 +85,31 @@ model ClientConsent {
 // ============================================================
 // MOBILE ACCOUNTS (account di accesso dell'app clienti)
 // ============================================================
+/**
+ * Accesso della cliente all'app.
+ *
+ * Si entra col numero di telefono e un codice usa-e-getta su WhatsApp: nessuna
+ * password da ricordare e il numero è già in anagrafica, quindi l'account nasce
+ * automaticamente collegato alla scheda giusta. Email e password restano
+ * facoltative per non chiudere la porta a un accesso alternativo in futuro.
+ */
 model MobileAccount {
   id           String  @id @default(cuid())
-  email        String  @unique
-  passwordHash String
+  /** Numero normalizzato (solo cifre, con prefisso): è la chiave d'accesso. */
+  phone        String  @unique
+  email        String? @unique
+  passwordHash String?
   sessionToken String? @unique
+  /** Ultimo accesso riuscito, per capire chi usa davvero l'app. */
+  lastLoginAt  String?
   createdAt    String
+
+  /** Codice usa-e-getta: si salva l'hash, mai il codice in chiaro. */
+  otpHash      String?
+  otpExpiresAt String?
+  otpAttempts  Int     @default(0)
+  /** Quando è partito l'ultimo codice: serve a non farne mandare a raffica. */
+  otpSentAt    String?
 
   clientId     String  @unique
   client       Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)

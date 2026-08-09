@@ -141,6 +141,20 @@ export const WA_TEMPLATES = {
       'di sessione (sxsrf, ved, si) e le dimensioni della finestra di chi l\'ha copiato, quindi altrove può scadere.',
   },
 
+  codiceApp: {
+    name: 'codice_accesso_app',
+    category: 'UTILITY',
+    language: 'it',
+    params: ['codice a 6 cifre'],
+    body:
+      'Il tuo codice per entrare nell\'app RevoBeauty è {{1}}\n' +
+      'Vale 5 minuti e si usa una volta sola. Non condividerlo con nessuno: chi ce l\'ha entra nel tuo account.\n' +
+      'Se non hai chiesto tu di accedere, ignora questo messaggio.',
+    note:
+      'Codice usa-e-getta per l\'accesso all\'app clienti. È UTILITY e non AUTHENTICATION perché ' +
+      'Meta non lascia creare i template di autenticazione dalle API: parte comunque solo su ' +
+      'richiesta della cliente, quindi non serve consenso marketing.',
+  },
   omaggio: {
     name: 'omaggio_inaugurazione',
     category: 'MARKETING',

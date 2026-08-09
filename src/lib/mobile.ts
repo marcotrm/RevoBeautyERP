@@ -1,7 +1,17 @@
-import { prisma } from '@/lib/prisma';
+/**
+ * Riconoscere la cliente collegata all'app, dal token di sessione.
+ *
+ * Il token arriva in `Authorization: Bearer <token>` oppure in
+ * `x-session-token`. Nel database non finisce mai in chiaro: si salva il suo
+ * hash, così chi legge la tabella non può usarlo per entrare negli account. La
+ * conversione la fa `lib/mobileAuth`, che è anche il posto dove il token nasce:
+ * tenere insieme creazione e verifica evita di ritrovarsi, come è già successo,
+ * con una parte che scrive l'hash e un'altra che cerca il valore in chiaro.
+ */
 
-// Autenticazione dell'app clienti: il token di sessione arriva nell'header
-// Authorization ("Bearer <token>") o, in alternativa, in "x-session-token".
+import { prisma } from '@/lib/prisma';
+import { hashToken } from '@/lib/mobileAuth';
+
 export async function getAccountFromRequest(request: Request) {
   const authHeader = request.headers.get('authorization');
   const bearerToken = authHeader?.toLowerCase().startsWith('bearer ')
@@ -12,7 +22,7 @@ export async function getAccountFromRequest(request: Request) {
   if (!sessionToken) return null;
 
   const account = await prisma.mobileAccount.findUnique({
-    where: { sessionToken },
+    where: { sessionToken: hashToken(sessionToken) },
     include: { client: true },
   });
 
