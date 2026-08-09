@@ -15,6 +15,7 @@ import {
   Megaphone, Settings, ChevronLeft, ChevronRight,
   LayoutDashboard, UserCog, Sun, Moon, LogOut,
   Warehouse, Sparkles, X, Landmark, Gift, PartyPopper, CheckSquare, Zap, TrendingUp, Banknote, Receipt, MessageSquare, QrCode,
+  Smartphone,
 } from 'lucide-react';
 import { getInitials } from '@/lib/helpers';
 
@@ -35,6 +36,7 @@ const menuItems = [
   { id: 'admin', label: 'Amministrazione', icon: Landmark, href: '/dashboard/admin' },
   { id: 'staff', label: 'Staff', icon: UserCog, href: '/dashboard/staff' },
   { id: 'settings', label: 'Impostazioni', icon: Settings, href: '/dashboard/settings' },
+  { id: 'app-clienti', label: 'App Clienti', icon: Smartphone, href: '/dashboard/app-clienti' },
   { id: 'inaugurazione', label: 'Inaugurazione', icon: PartyPopper, href: '/dashboard/settings/inaugurazione' },
   { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare, href: '/dashboard/whatsapp' },
   { id: 'automazioni', label: 'Automazioni', icon: Zap, href: '/dashboard/automazioni' },
