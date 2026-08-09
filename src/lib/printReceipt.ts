@@ -34,7 +34,7 @@ export interface ReceiptData {
 // Modificabile qui se cambiano i dati fiscali/indirizzo.
 const BUSINESS = {
   name: 'REVOBEAUTY',
-  lines: ['Via Caudina - Maddaloni (CE)', 'P.IVA 10625841217'],
+  lines: ['Via Caudina 30 - Maddaloni (CE)', 'P.IVA 10625841217'],
 };
 
 function euro(n: number): string {

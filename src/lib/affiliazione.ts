@@ -18,7 +18,7 @@ import prisma from '@/lib/prisma';
 /** Dove si trova il centro: compare su landing, voucher e locandine. */
 export const CENTRO = {
   nome: 'RevoBeauty',
-  indirizzo: 'Via Caudina, Maddaloni (CE)',
+  indirizzo: 'Via Caudina 30, Maddaloni (CE)',
 };
 
 export const QR_STATUS_LABELS: Record<string, string> = {

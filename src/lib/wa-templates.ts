@@ -72,7 +72,7 @@ export const WA_TEMPLATES = {
     params: ['nome cliente', 'trattamento', 'data', 'ora'],
     body:
       'Ciao {{1}}, il tuo appuntamento da RevoBeauty per {{2}} è confermato: {{3}} alle {{4}}.\n' +
-      'Ti aspettiamo in Via Caudina, Maddaloni. Se ti serve spostarlo, rispondi a questo messaggio.',
+      'Ti aspettiamo in Via Caudina 30, Maddaloni. Se ti serve spostarlo, rispondi a questo messaggio.',
     note:
       'Parte subito dopo la creazione dell\'appuntamento, non a orario fisso. È il primo contatto ' +
       'della conversazione, quindi deve essere un template: a quel punto il cliente non ci ha ancora ' +
@@ -149,7 +149,7 @@ export const WA_TEMPLATES = {
     body:
       'Ciao {{1}}, ti scriviamo da RevoBeauty: la tua seduta omaggio di {{2}} ti sta ancora aspettando.\n' +
       'Quando ti fa comodo prenotarla? Rispondi a questo messaggio con il giorno che preferisci e la fissiamo noi.\n' +
-      'Ti aspettiamo in Via Caudina, Maddaloni.',
+      'Ti aspettiamo in Via Caudina 30, Maddaloni.',
     note:
       'Campagna una tantum verso chi ha scaricato il coupon dell\'inaugurazione e non ha ancora ' +
       'prenotato. Non è a orario: parte a mano dalla pagina Inaugurazione. È MARKETING, quindi va ' +

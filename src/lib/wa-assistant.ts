@@ -30,7 +30,7 @@ const HISTORY_TURNS = 10;
 
 const BUSINESS = {
   name: 'RevoBeauty',
-  address: 'Via Caudina, Maddaloni (CE)',
+  address: 'Via Caudina 30, Maddaloni (CE)',
   piva: '10625841217',
 };
 

@@ -52,6 +52,9 @@ export default function CampagneWhatsApp() {
   // a spuntare 120 caselle stando attenti a non prendere un uomo per sbaglio.
   const [sesso, setSesso] = useState<'tutti' | 'F' | 'M' | 'ND'>('tutti');
   const [soloConsenso, setSoloConsenso] = useState(false);
+  // Spento di proposito: chi non ha dato il consenso viene saltato, a meno che
+  // non si scelga qui di mandarglielo lo stesso.
+  const [forzaSenzaConsenso, setForzaSenzaConsenso] = useState(false);
   const [inviando, setInviando] = useState(false);
   const [esitoInvio, setEsitoInvio] = useState<EsitoCampagna | null>(null);
 
@@ -132,8 +135,12 @@ export default function CampagneWhatsApp() {
   const invia = async () => {
     if (!scelto) return;
     const quanti = selezionati.size;
+    const forzati = marketing && forzaSenzaConsenso ? senzaConsenso : 0;
     if (!window.confirm(
       `Mandare "${scelto.name}" a ${quanti} client${quanti === 1 ? 'e' : 'i'}?\n\n` +
+      (forzati > 0
+        ? `Di questi, ${forzati} non risultano aver dato il consenso al marketing e lo riceveranno lo stesso.\n\n`
+        : '') +
       'I messaggi partono davvero e non si possono richiamare.'
     )) return;
     setInviando(true);
@@ -143,6 +150,7 @@ export default function CampagneWhatsApp() {
         categoria: scelto.category,
         clientIds: [...selezionati],
         anteprima: testoAnteprima,
+        includiSenzaConsenso: forzaSenzaConsenso,
       }));
     } finally { setInviando(false); }
   };
@@ -336,10 +344,23 @@ export default function CampagneWhatsApp() {
           </div>
 
           {marketing && senzaConsenso > 0 && (
-            <p className="flex items-start gap-2 text-[11px] text-warning">
-              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
-              {senzaConsenso} dei selezionati non ha dato il consenso marketing e verrà saltato.
-            </p>
+            <div className={`p-3 rounded-xl border ${forzaSenzaConsenso ? 'bg-warning/10 border-warning/30' : 'border-border'}`}>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" checked={forzaSenzaConsenso} onChange={e => setForzaSenzaConsenso(e.target.checked)}
+                  className="accent-current w-4 h-4 mt-px flex-shrink-0" />
+                <span className="text-[11px] leading-relaxed">
+                  <b className="text-text-primary">
+                    Manda anche a {senzaConsenso} selezionat{senzaConsenso === 1 ? 'a' : 'e'} senza consenso marketing in scheda.
+                  </b>
+                  <span className="text-text-secondary">
+                    {' '}Senza la spunta vengono saltate. Mettila solo se il consenso ce l&apos;hai davvero
+                    (modulo privacy firmato in negozio) e in anagrafica non è mai stato registrato: chi riceve
+                    un promozionale che non si aspetta può bloccare il numero, e troppi blocchi fanno scendere
+                    la qualità del numero WhatsApp del centro.
+                  </span>
+                </span>
+              </label>
+            </div>
           )}
 
           {esitoInvio && (

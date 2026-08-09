@@ -124,6 +124,12 @@ export async function inviaCampagna(params: {
   clientIds: string[];
   parametriFissi?: string[];
   anteprima: string;
+  /**
+   * Manda il promozionale anche a chi in scheda non risulta aver dato il
+   * consenso. Sta a chi invia sapere se quel consenso esiste su carta e non è
+   * mai stato registrato qui: di suo il gestionale salta queste persone.
+   */
+  includiSenzaConsenso?: boolean;
 }): Promise<EsitoCampagna> {
   const esito: EsitoCampagna = { inviati: 0, falliti: 0, saltati: 0, errori: [] };
   if (!waProvider()) {
@@ -141,8 +147,9 @@ export async function inviaCampagna(params: {
 
   for (const c of clients) {
     if (!isSendablePhone(c.phone)) { esito.saltati++; continue; }
-    // Il consenso vale solo per i messaggi promozionali
-    if (marketing && !c.marketingConsent) { esito.saltati++; continue; }
+    // Il consenso vale solo per i messaggi promozionali, e si scavalca solo
+    // se chi invia lo ha chiesto esplicitamente da questa schermata.
+    if (marketing && !c.marketingConsent && !params.includiSenzaConsenso) { esito.saltati++; continue; }
 
     // Stesso template, stesso cliente, stesso giorno: non parte due volte
     const rowId = `wa:campagna:${params.templateName}:${c.id}:${oggi}`;

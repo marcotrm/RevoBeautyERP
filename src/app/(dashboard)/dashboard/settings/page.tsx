@@ -622,7 +622,7 @@ export default function SettingsPage() {
                     { label: 'Città', value: 'Napoli (NA)' },
                     { label: 'CAP', value: '80127' },
                     { label: 'PEC', value: 'revobeauty@pec.it' },
-                    { label: 'Sede Operativa', value: 'Via Caudina, Maddaloni (CE) 81024' },
+                    { label: 'Sede Operativa', value: 'Via Caudina 30, Maddaloni (CE) 81024' },
                     { label: 'Telefono', value: '' },
                   ].map((field) => (
                     <div key={field.label}>
