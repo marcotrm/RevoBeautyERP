@@ -85,7 +85,8 @@ export default function CampagneWhatsApp() {
   const filtrati = useMemo(() => {
     const q = cerca.trim().toLowerCase();
     let list = clienti ?? [];
-    if (sesso !== 'tutti') list = list.filter(c => (sesso === 'ND' ? c.sesso === null : c.sesso === sesso));
+    if (sesso === 'ND') list = list.filter(c => c.sesso === null || c.discordante);
+    else if (sesso !== 'tutti') list = list.filter(c => c.sesso === sesso && !c.discordante);
     if (soloConsenso) list = list.filter(c => c.marketingConsent);
     return q ? list.filter(c => c.nome.toLowerCase().includes(q) || c.phone.includes(q)) : list;
   }, [clienti, cerca, sesso, soloConsenso]);
@@ -96,9 +97,11 @@ export default function CampagneWhatsApp() {
     const c = (f: (x: DestinatarioCampagna) => boolean) => l.filter(f).length;
     return {
       tutti: l.length,
-      F: c(x => x.sesso === 'F'),
-      M: c(x => x.sesso === 'M'),
-      ND: c(x => x.sesso === null),
+      F: c(x => x.sesso === 'F' && !x.discordante),
+      M: c(x => x.sesso === 'M' && !x.discordante),
+      ND: c(x => x.sesso === null || x.discordante),
+      dedotti: c(x => x.dedotto),
+      discordanti: c(x => x.discordante),
     };
   }, [clienti]);
 
@@ -106,7 +109,7 @@ export default function CampagneWhatsApp() {
     { key: 'tutti' as const, label: 'Tutti', n: conteggi.tutti },
     { key: 'F' as const, label: 'Solo donne', n: conteggi.F },
     { key: 'M' as const, label: 'Solo uomini', n: conteggi.M },
-    { key: 'ND' as const, label: 'Sesso non indicato', n: conteggi.ND },
+    { key: 'ND' as const, label: 'Da controllare', n: conteggi.ND },
   ];
 
   const marketing = (scelto?.category || '').toUpperCase() === 'MARKETING';
@@ -284,6 +287,13 @@ export default function CampagneWhatsApp() {
             </button>
           </div>
 
+          {(conteggi.dedotti > 0 || conteggi.discordanti > 0) && (
+            <p className="text-[11px] text-text-muted leading-relaxed">
+              {conteggi.dedotti > 0 && <>In {conteggi.dedotti} schede il sesso non è indicato: è stato dedotto dal nome (segnate con <b>?</b>). </>}
+              {conteggi.discordanti > 0 && <><b className="text-warning">{conteggi.discordanti}</b> schede dicono il contrario del nome (es. un nome da uomo salvato come donna): stanno in &quot;Da controllare&quot;, non fra le donne.</>}
+            </p>
+          )}
+
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
@@ -308,7 +318,12 @@ export default function CampagneWhatsApp() {
                 <input type="checkbox" checked={selezionati.has(c.id)} onChange={() => toggle(c.id)} className="accent-current w-4 h-4" />
                 <span className="text-sm text-text-primary flex-1 truncate">
                   {c.nome}
-                  <span className="text-[10px] text-text-muted ml-1.5">{c.sesso === 'F' ? '♀' : c.sesso === 'M' ? '♂' : '—'}</span>
+                  <span className={`text-[10px] ml-1.5 ${c.discordante ? 'text-warning' : 'text-text-muted'}`}
+                    title={c.discordante ? 'La scheda e il nome non concordano: controlla prima di mandare'
+                      : c.dedotto ? 'Sesso dedotto dal nome: in scheda non è indicato' : undefined}>
+                    {c.sesso === 'F' ? '♀' : c.sesso === 'M' ? '♂' : '—'}
+                    {c.discordante ? ' ⚠' : c.dedotto ? '?' : ''}
+                  </span>
                 </span>
                 {marketing && !c.marketingConsent && (
                   <span className="text-[10px] text-warning flex-shrink-0">no consenso</span>
