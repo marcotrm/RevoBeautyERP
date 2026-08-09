@@ -32,8 +32,14 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#FDF9F7",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "image": "./assets/images/splash-revobeauty.png",
+          "imageWidth": 240,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#14110F",
+            "image": "./assets/images/splash-revobeauty-chiaro.png",
+            "imageWidth": 240
+          }
         }
       ],
       "expo-secure-store",

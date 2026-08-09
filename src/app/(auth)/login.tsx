@@ -10,6 +10,7 @@
  * centro. Chi non lo è viene invitata a farsi registrare in negozio.
  */
 import { useEffect, useRef, useState } from 'react';
+import { Redirect } from 'expo-router';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -39,7 +40,7 @@ function formattaTelefono(grezzo: string): string {
 }
 
 export default function LoginScreen() {
-  const { richiediCodice, verificaCodice } = useAuth();
+  const { richiediCodice, verificaCodice, introVista } = useAuth();
 
   const [passo, setPasso] = useState<Passo>('numero');
   const [telefono, setTelefono] = useState('');
@@ -61,6 +62,11 @@ export default function LoginScreen() {
   }, [attesa]);
 
   const soloCifre = telefono.replace(/\D/g, '');
+
+  // Prima apertura su questo telefono: si spiega cos'è l'app prima di chiedere
+  // il numero. La redirezione sta qui e non nel layout radice perché lassù non
+  // esiste ancora un navigatore e la schermata resterebbe appesa allo splash.
+  if (!introVista) return <Redirect href="/intro" />;
 
   const chiediCodice = async () => {
     setErrore(null);
