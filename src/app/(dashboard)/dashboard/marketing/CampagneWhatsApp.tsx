@@ -48,6 +48,10 @@ export default function CampagneWhatsApp() {
   const [clienti, setClienti] = useState<DestinatarioCampagna[] | null>(null);
   const [selezionati, setSelezionati] = useState<Set<string>>(new Set());
   const [cerca, setCerca] = useState('');
+  // Chi far vedere nell'elenco: una campagna per sole donne non deve costringere
+  // a spuntare 120 caselle stando attenti a non prendere un uomo per sbaglio.
+  const [sesso, setSesso] = useState<'tutti' | 'F' | 'M' | 'ND'>('tutti');
+  const [soloConsenso, setSoloConsenso] = useState(false);
   const [inviando, setInviando] = useState(false);
   const [esitoInvio, setEsitoInvio] = useState<EsitoCampagna | null>(null);
 
@@ -80,9 +84,30 @@ export default function CampagneWhatsApp() {
 
   const filtrati = useMemo(() => {
     const q = cerca.trim().toLowerCase();
-    const list = clienti ?? [];
+    let list = clienti ?? [];
+    if (sesso !== 'tutti') list = list.filter(c => (sesso === 'ND' ? c.sesso === null : c.sesso === sesso));
+    if (soloConsenso) list = list.filter(c => c.marketingConsent);
     return q ? list.filter(c => c.nome.toLowerCase().includes(q) || c.phone.includes(q)) : list;
-  }, [clienti, cerca]);
+  }, [clienti, cerca, sesso, soloConsenso]);
+
+  // Quanti sono in ogni gruppo: serve per scegliere il filtro con cognizione
+  const conteggi = useMemo(() => {
+    const l = clienti ?? [];
+    const c = (f: (x: DestinatarioCampagna) => boolean) => l.filter(f).length;
+    return {
+      tutti: l.length,
+      F: c(x => x.sesso === 'F'),
+      M: c(x => x.sesso === 'M'),
+      ND: c(x => x.sesso === null),
+    };
+  }, [clienti]);
+
+  const FILTRI = [
+    { key: 'tutti' as const, label: 'Tutti', n: conteggi.tutti },
+    { key: 'F' as const, label: 'Solo donne', n: conteggi.F },
+    { key: 'M' as const, label: 'Solo uomini', n: conteggi.M },
+    { key: 'ND' as const, label: 'Sesso non indicato', n: conteggi.ND },
+  ];
 
   const marketing = (scelto?.category || '').toUpperCase() === 'MARKETING';
   // Con un template promozionale chi ha revocato il consenso viene saltato:
@@ -241,6 +266,24 @@ export default function CampagneWhatsApp() {
               className="flex items-center gap-1 text-xs text-text-muted hover:text-text-primary"><X className="w-3.5 h-3.5" /> annulla</button>
           </div>
 
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {FILTRI.map(f => (
+              <button key={f.key} onClick={() => { setSesso(f.key); setSelezionati(new Set()); setEsitoInvio(null); }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                  sesso === f.key ? 'bg-accent text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+                }`}>
+                {f.label} <span className="opacity-70">{f.n}</span>
+              </button>
+            ))}
+            <button onClick={() => { setSoloConsenso(v => !v); setSelezionati(new Set()); setEsitoInvio(null); }}
+              title="Con un messaggio promozionale chi non ha dato il consenso viene saltato comunque"
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                soloConsenso ? 'bg-accent text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+              }`}>
+              Solo con consenso
+            </button>
+          </div>
+
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
@@ -263,7 +306,10 @@ export default function CampagneWhatsApp() {
             {filtrati.map(c => (
               <label key={c.id} className="flex items-center gap-3 px-3 py-2 hover:bg-bg-hover cursor-pointer">
                 <input type="checkbox" checked={selezionati.has(c.id)} onChange={() => toggle(c.id)} className="accent-current w-4 h-4" />
-                <span className="text-sm text-text-primary flex-1 truncate">{c.nome}</span>
+                <span className="text-sm text-text-primary flex-1 truncate">
+                  {c.nome}
+                  <span className="text-[10px] text-text-muted ml-1.5">{c.sesso === 'F' ? '♀' : c.sesso === 'M' ? '♂' : '—'}</span>
+                </span>
                 {marketing && !c.marketingConsent && (
                   <span className="text-[10px] text-warning flex-shrink-0">no consenso</span>
                 )}

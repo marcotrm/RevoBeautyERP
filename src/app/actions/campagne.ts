@@ -66,22 +66,30 @@ export interface DestinatarioCampagna {
   nome: string;
   phone: string;
   marketingConsent: boolean;
+  /** 'F', 'M' oppure null quando in scheda non è stato indicato. */
+  sesso: 'F' | 'M' | null;
 }
 
 /** Clienti con un numero valido, per la scelta dei destinatari. */
 export async function clientiPerCampagna(): Promise<DestinatarioCampagna[]> {
   const clients = await prisma.client.findMany({
-    select: { id: true, firstName: true, lastName: true, phone: true, marketingConsent: true },
+    select: { id: true, firstName: true, lastName: true, phone: true, marketingConsent: true, gender: true },
     orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
   });
   return clients
     .filter(c => isSendablePhone(c.phone))
-    .map(c => ({
-      id: c.id,
-      nome: `${c.firstName} ${c.lastName}`.trim(),
-      phone: normalizePhone(c.phone),
-      marketingConsent: c.marketingConsent,
-    }));
+    .map(c => {
+      // In scheda il sesso è 'F'/'M', ma tante schede non ce l'hanno: chi non
+      // l'ha indicato resta a parte invece di finire d'ufficio fra le donne.
+      const g = String(c.gender || '').trim().toUpperCase();
+      return {
+        id: c.id,
+        nome: `${c.firstName} ${c.lastName}`.trim(),
+        phone: normalizePhone(c.phone),
+        marketingConsent: c.marketingConsent,
+        sesso: g === 'F' ? 'F' as const : g === 'M' ? 'M' as const : null,
+      };
+    });
 }
 
 export interface EsitoCampagna {
