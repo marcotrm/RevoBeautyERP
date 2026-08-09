@@ -3,6 +3,10 @@ import { notifyNuovoAppuntamento } from '@/lib/telegram';
 import { getAccountFromRequest, unauthorized } from '@/lib/mobile';
 import { hasConflict, toMinutes, toHHMM, todayInItaly } from '@/lib/voice';
 import { sendAppointmentConfirmation } from '@/lib/wa-appointments';
+import { avanzaSfide } from '@/lib/challenge';
+import { muoviPunti } from '@/lib/wallet';
+import { leggiConfig } from '@/lib/appSettings';
+import { traccia } from '@/lib/appEvents';
 
 export const runtime = 'nodejs';
 
@@ -68,6 +72,27 @@ export async function POST(request: Request) {
 
   // Conferma WhatsApp al cliente (non blocca la prenotazione)
   sendAppointmentConfirmation(appointment.id).catch(() => {});
+
+  // Prenotare dall'app è ciò che si vuole incoraggiare: punti bonus, sfide che
+  // avanzano e l'evento per l'attribuzione del fatturato. Niente di tutto ciò
+  // deve poter far fallire una prenotazione già scritta in agenda.
+  (async () => {
+    const config = await leggiConfig();
+    if (config.punti.prenotazioneApp > 0) {
+      await muoviPunti({
+        clientId: client.id,
+        punti: config.punti.prenotazioneApp,
+        motivo: 'Prenotazione dall\'app',
+        sourceType: 'appointment',
+        sourceId: appointment.id,
+      });
+    }
+    await avanzaSfide(client.id, 'bookings_app');
+    await traccia({
+      clientId: client.id, type: 'booking', surface: 'prenota',
+      itemId: appointment.id, value: appointment.price,
+    });
+  })().catch(e => console.error('[app] premi prenotazione non assegnati:', e));
 
   // Notifica Telegram del nuovo appuntamento (non blocca la prenotazione)
   notifyNuovoAppuntamento({

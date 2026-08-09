@@ -5,6 +5,7 @@ import { notifyIncasso } from '@/lib/telegram';
 import { todayRome } from '@/lib/date';
 import { voidC95Receipt, resoParzialeC95Receipt, recoverC95Idtrx, getC95Config } from '@/lib/c95';
 import { emettiScontrinoElettronico } from '@/lib/scontrino';
+import { maturaDaIncasso } from '@/lib/fedelta';
 
 export interface ProductLine { productId: string; qty: number }
 
@@ -202,6 +203,17 @@ export async function createTransaction(data: Omit<TransactionRecord, 'id'>, ori
     if (l?.productId && l.qty > 0) {
       await prisma.product.update({ where: { id: l.productId }, data: { stock: { decrement: l.qty } } }).catch(() => {});
     }
+  }
+  // Punti, cashback e premi referral: maturano qui, sull'incasso vero, e mai
+  // altrove. Un errore non deve fermare la cassa, quindi non si attende.
+  if (created.total > 0 && !created.isRefund) {
+    maturaDaIncasso({
+      clientName: created.clientName,
+      importo: created.total,
+      metodo: created.paymentMethod,
+      sourceId: created.id,
+      descrizione: data.items,
+    }).catch(e => console.error('[fedelta] non maturata:', e));
   }
   // Notifica Telegram su ogni incasso (non blocca la vendita se fallisce)
   if (created.total > 0) {

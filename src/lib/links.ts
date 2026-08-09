@@ -29,6 +29,14 @@ function erpBaseUrl(): string {
  * l'approvazione; così basta cambiare una riga qui. Il secondo: passando da
  * noi possiamo contare quanti aprono davvero il modulo.
  */
+/**
+ * Indirizzo pubblico che apre l'app clienti (o la pagina che invita a
+ * scaricarla). Finisce nei link di invito, quindi cambia solo qui.
+ */
+export function appUrl(): string {
+  return (process.env.APP_URL || `${siteBaseUrl()}/app`).replace(/\/$/, '');
+}
+
 export function reviewRedirectUrl(): string {
   return `${erpBaseUrl()}/r/recensione`;
 }

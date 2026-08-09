@@ -39,14 +39,14 @@ model Client {
   referredBy       String?
   customTreatments Json     @default("[]")
   priceListId      String?
-  medicalRecord    Json?    // anamnesi / scheda tecnica estetica
+  medicalRecord    Json? // anamnesi / scheda tecnica estetica
 
-  appointments     Appointment[]
-  clientPackages   ClientPackage[]
-  giftCardsPurchased GiftCard[] @relation("GiftCardBuyer")
-  mobileAccount    MobileAccount?
-  photos           ClientPhoto[]
-  consents         ClientConsent[]
+  appointments       Appointment[]
+  clientPackages     ClientPackage[]
+  giftCardsPurchased GiftCard[]      @relation("GiftCardBuyer")
+  mobileAccount      MobileAccount?
+  photos             ClientPhoto[]
+  consents           ClientConsent[]
 
   @@map("clients")
 }
@@ -56,12 +56,12 @@ model ClientPhoto {
   id        String  @id @default(cuid())
   clientId  String
   kind      String  @default("before") // before | after | document
-  data      String  // data URL base64
+  data      String // data URL base64
   label     String?
   treatment String?
   createdAt String
 
-  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@map("client_photos")
@@ -76,7 +76,7 @@ model ClientConsent {
   signedAt      String
   notes         String?
 
-  client        Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@map("client_consents")
@@ -87,7 +87,6 @@ model ClientConsent {
 // ============================================================
 /**
  * Accesso della cliente all'app.
- *
  * Si entra col numero di telefono e un codice usa-e-getta su WhatsApp: nessuna
  * password da ricordare e il numero è già in anagrafica, quindi l'account nasce
  * automaticamente collegato alla scheda giusta. Email e password restano
@@ -95,24 +94,32 @@ model ClientConsent {
  */
 model MobileAccount {
   id           String  @id @default(cuid())
-  /** Numero normalizzato (solo cifre, con prefisso): è la chiave d'accesso. */
+  /**
+   * Numero normalizzato (solo cifre, con prefisso): è la chiave d'accesso.
+   */
   phone        String  @unique
   email        String? @unique
   passwordHash String?
   sessionToken String? @unique
-  /** Ultimo accesso riuscito, per capire chi usa davvero l'app. */
+  /**
+   * Ultimo accesso riuscito, per capire chi usa davvero l'app.
+   */
   lastLoginAt  String?
   createdAt    String
 
-  /** Codice usa-e-getta: si salva l'hash, mai il codice in chiaro. */
+  /**
+   * Codice usa-e-getta: si salva l'hash, mai il codice in chiaro.
+   */
   otpHash      String?
   otpExpiresAt String?
   otpAttempts  Int     @default(0)
-  /** Quando è partito l'ultimo codice: serve a non farne mandare a raffica. */
+  /**
+   * Quando è partito l'ultimo codice: serve a non farne mandare a raffica.
+   */
   otpSentAt    String?
 
-  clientId     String  @unique
-  client       Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String @unique
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@map("mobile_accounts")
 }
@@ -136,9 +143,9 @@ model Operator {
   commission      Float    @default(0)
   hireDate        String
   isResource      Boolean  @default(false) // true = cabina/macchinario prenotabile senza operatrice
-  monthlyCost     Float    @default(0)     // costo mensile lordo azienda (per calcolare il costo orario)
+  monthlyCost     Float    @default(0) // costo mensile lordo azienda (per calcolare il costo orario)
 
-  appointments    Appointment[]
+  appointments Appointment[]
 
   @@map("operators")
 }
@@ -197,14 +204,14 @@ model PartnerExpense {
 // TO-DO (cose da fare)
 // ============================================================
 model TodoItem {
-  id         String  @id @default(cuid())
-  title      String
-  list       String  @default("todo") // todo | shopping (cose da comprare)
-  done       Boolean @default(false)
-  priority   String  @default("normal") // low | normal | high
-  dueDate    String?
-  assignee   String?
-  createdAt  String
+  id          String  @id @default(cuid())
+  title       String
+  list        String  @default("todo") // todo | shopping (cose da comprare)
+  done        Boolean @default(false)
+  priority    String  @default("normal") // low | normal | high
+  dueDate     String?
+  assignee    String?
+  createdAt   String
   completedAt String?
 
   @@map("todo_items")
@@ -229,24 +236,24 @@ model AgendaBlock {
 // TREATMENTS
 // ============================================================
 model Treatment {
-  id               String  @id @default(cuid())
-  name             String
-  category         String
-  duration         Int
-  price            Float
-  priceMale        Float?
-  priceFemale      Float?
-  durationMale     Int?
-  durationFemale   Int?
-  description      String?
-  requiresRoom     Boolean @default(false)
+  id                String  @id @default(cuid())
+  name              String
+  category          String
+  duration          Int
+  price             Float
+  priceMale         Float?
+  priceFemale       Float?
+  durationMale      Int?
+  durationFemale    Int?
+  description       String?
+  requiresRoom      Boolean @default(false)
   requiresEquipment String?
-  bufferBefore     Int     @default(0)
-  bufferAfter      Int     @default(0)
-  color            String
-  isActive         Boolean @default(true)
+  bufferBefore      Int     @default(0)
+  bufferAfter       Int     @default(0)
+  color             String
+  isActive          Boolean @default(true)
 
-  appointments     Appointment[]
+  appointments Appointment[]
 
   @@map("treatments")
 }
@@ -255,7 +262,7 @@ model Treatment {
 // APPOINTMENTS
 // ============================================================
 model Appointment {
-  id                String   @id @default(cuid())
+  id                String  @id @default(cuid())
   clientId          String
   clientName        String
   operatorId        String
@@ -264,12 +271,12 @@ model Appointment {
   treatmentName     String
   treatmentCategory String
   roomId            String?
-  locationId        String   @default("loc-1")
+  locationId        String  @default("loc-1")
   date              String
   startTime         String
   endTime           String
   duration          Int
-  status            String   @default("confirmed")
+  status            String  @default("confirmed")
   price             Float
   services          Json?
   notes             String?
@@ -277,17 +284,19 @@ model Appointment {
   cancelledAt       String?
   checkInAt         String?
   checkOutAt        String?
-  /** Cabina scelta al check-in ("4"): è quella che l'annuncio vocale chiama a fine trattamento. */
+  /**
+   * Cabina scelta al check-in ("4"): è quella che l'annuncio vocale chiama a fine trattamento.
+   */
   cabinNumber       String?
-  isLocked          Boolean  @default(false)
+  isLocked          Boolean @default(false)
   color             String
   createdAt         String
   updatedAt         String
-  createdBy         String   @default("u1")
+  createdBy         String  @default("u1")
 
-  client            Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  operator          Operator  @relation(fields: [operatorId], references: [id], onDelete: Cascade)
-  treatment         Treatment @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  operator  Operator  @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  treatment Treatment @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
 
   @@map("appointments")
 }
@@ -296,15 +305,15 @@ model Appointment {
 // PACKAGES
 // ============================================================
 model Package {
-  id             String  @id @default(cuid())
-  name           String
-  type           String
-  price          Float
-  totalSessions  Int
-  sold           Int     @default(0)
-  color          String
-  description    String?
-  treatmentName  String?
+  id            String  @id @default(cuid())
+  name          String
+  type          String
+  price         Float
+  totalSessions Int
+  sold          Int     @default(0)
+  color         String
+  description   String?
+  treatmentName String?
 
   clientPackages ClientPackage[]
 
@@ -315,26 +324,26 @@ model Package {
 // CLIENT PACKAGES
 // ============================================================
 model ClientPackage {
-  id               String   @id @default(cuid())
+  id               String @id @default(cuid())
   clientName       String
   packageName      String
   packageColor     String
   totalSessions    Int
-  usedSessions     Int      @default(0)
+  usedSessions     Int    @default(0)
   pricePaid        Float
-  totalPaid        Float    @default(0)
-  remainingBalance Float    @default(0)
-  paymentPlan      String   @default("full")
+  totalPaid        Float  @default(0)
+  remainingBalance Float  @default(0)
+  paymentPlan      String @default("full")
   purchaseDate     String
   expiryDate       String
-  status           String   @default("active")
-  history          Json     @default("[]")
-  payments         Json     @default("[]")
+  status           String @default("active")
+  history          Json   @default("[]")
+  payments         Json   @default("[]")
 
-  packageId        String?
-  package          Package? @relation(fields: [packageId], references: [id], onDelete: SetNull)
-  clientId         String?
-  client           Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  packageId String?
+  package   Package? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   @@map("client_packages")
 }
@@ -343,8 +352,8 @@ model ClientPackage {
 // GIFT CARDS
 // ============================================================
 model GiftCard {
-  id               String   @id @default(cuid())
-  code             String   @unique
+  id               String  @id @default(cuid())
+  code             String  @unique
   purchasedBy      String
   recipientName    String
   recipientPhone   String?
@@ -354,12 +363,12 @@ model GiftCard {
   expiryDate       String
   paymentMethod    String
   purchaseOperator String
-  status           String   @default("active")
+  status           String  @default("active")
   message          String?
-  transactions     Json     @default("[]")
+  transactions     Json    @default("[]")
 
-  buyerId          String?
-  buyer            Client?  @relation("GiftCardBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+  buyerId String?
+  buyer   Client? @relation("GiftCardBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
 
   @@map("gift_cards")
 }
@@ -368,16 +377,16 @@ model GiftCard {
 // POS TRANSACTIONS
 // ============================================================
 model PosTransaction {
-  id            String   @id @default(cuid())
+  id            String  @id @default(cuid())
   date          String
   time          String
   clientName    String?
-  items         Json     @default("[]")
-  productLines  Json?    // [{ productId, qty }] per lo scarico/ricarico magazzino
+  items         Json    @default("[]")
+  productLines  Json? // [{ productId, qty }] per lo scarico/ricarico magazzino
   total         Float
   paymentMethod String
   operator      String
-  isRefund      Boolean  @default(false)
+  isRefund      Boolean @default(false)
   refundReason  String?
 
   // C95 — scontrino fiscale elettronico
@@ -401,12 +410,12 @@ model PosTransaction {
 // cassaforte sono registrati su CassaMovement.
 model CashMovement {
   id        String  @id @default(cuid())
-  kind      String  // 'in' | 'out'
+  kind      String // 'in' | 'out'
   amount    Float
   category  String  @default("altro") // fondo | spesa | entrata | prelievo | correzione | altro
   note      String?
   operator  String  @default("")
-  date      String  // giorno italiano YYYY-MM-DD
+  date      String // giorno italiano YYYY-MM-DD
   createdAt String
   deletedAt String? // annullato: resta visibile nella cronologia (antifrode)
   deletedBy String?
@@ -417,8 +426,8 @@ model CashMovement {
 
 model CassaMovement {
   id        String  @id @default(cuid())
-  type      String  // 'deposit' (chiusura cassa) | 'withdraw' (prelievo)
-  date      String  // giorno italiano YYYY-MM-DD
+  type      String // 'deposit' (chiusura cassa) | 'withdraw' (prelievo)
+  date      String // giorno italiano YYYY-MM-DD
   cash      Float   @default(0) // contanti (l'importo che entra/esce dalla cassaforte)
   card      Float   @default(0)
   satispay  Float   @default(0)
@@ -439,7 +448,7 @@ model ChatMessage {
   id             String  @id @default(cuid())
   clientId       String
   clientName     String
-  sender         String  // 'client' | 'operator'
+  sender         String // 'client' | 'operator'
   body           String
   operatorName   String?
   readByOperator Boolean @default(false)
@@ -459,7 +468,7 @@ model InaugurationLead {
   lastName     String
   phone        String  @unique // anti-doppione: una sola iscrizione per numero
   email        String
-  treatment    String  // 'lampada' | 'pressoterapia' | 'body_sculpting'
+  treatment    String // 'lampada' | 'pressoterapia' | 'body_sculpting'
   status       String  @default("pending") // 'pending' | 'confirmed'
   confirmToken String  @unique
   source       String? // es. 'qr-striscione'
@@ -527,16 +536,16 @@ model BusinessContact {
 // MOVIMENTI DI MAGAZZINO (scarichi e carichi con motivo)
 // ============================================================
 model StockMovement {
-  id          String  @id @default(cuid())
+  id          String @id @default(cuid())
   productId   String
   productName String
-  kind        String  @default("out") // out = scarico | in = carico
-  quantity    Int     // quantità movimentata (sempre positiva)
-  reason      String  @default("") // motivo: uso interno, scaduto, rotto, omaggio, correzione...
-  note        String  @default("")
-  operator    String  @default("")
-  stockAfter  Int     // giacenza risultante
-  date        String  // giorno italiano YYYY-MM-DD
+  kind        String @default("out") // out = scarico | in = carico
+  quantity    Int // quantità movimentata (sempre positiva)
+  reason      String @default("") // motivo: uso interno, scaduto, rotto, omaggio, correzione...
+  note        String @default("")
+  operator    String @default("")
+  stockAfter  Int // giacenza risultante
+  date        String // giorno italiano YYYY-MM-DD
   createdAt   String
 
   @@index([productId])
@@ -551,7 +560,7 @@ model OperatorWeekSchedule {
   id         String @id @default(cuid())
   operatorId String
   weekStart  String // lunedì della settimana, YYYY-MM-DD
-  schedule   Json   // { [dow 1..6]: { isWorking, startTime, endTime, breakStart?, breakEnd? } }
+  schedule   Json // { [dow 1..6]: { isWorking, startTime, endTime, breakStart?, breakEnd? } }
   updatedAt  String
 
   @@unique([operatorId, weekStart])
@@ -570,7 +579,7 @@ model OperatorWeekSchedule {
 model Affiliate {
   id                String  @id @default(cuid())
   code              String  @unique // codice affiliato leggibile (es. BAR-ROSSI)
-  businessName      String  // nome attività mostrato sulla landing
+  businessName      String // nome attività mostrato sulla landing
   contactName       String?
   phone             String?
   email             String?
@@ -587,19 +596,19 @@ model Affiliate {
 }
 
 model AffiliateQr {
-  id         String  @id @default(cuid())
-  slug       String  @unique // finisce nell'URL: corto e non indovinabile
+  id          String  @id @default(cuid())
+  slug        String  @unique // finisce nell'URL: corto e non indovinabile
   affiliateId String
-  name       String  // nome interno: "Espositore banco", "Volantino"...
-  channel    String? // canale/campagna di provenienza
-  treatment  String  // trattamento gratuito offerto
-  message    String? // messaggio personalizzato sulla landing
-  conditions String? // condizioni dell'offerta
-  status     String  @default("active") // draft|active|suspended|expired|disabled|blocked
-  expiresAt  String? // YYYY-MM-DD, dopo questa data non accetta registrazioni
-  maxUses    Int?    // massimo di registrazioni verificate
-  replacesId String? // QR che questo sostituisce (lo storico resta sul vecchio)
-  createdAt  String
+  name        String // nome interno: "Espositore banco", "Volantino"...
+  channel     String? // canale/campagna di provenienza
+  treatment   String // trattamento gratuito offerto
+  message     String? // messaggio personalizzato sulla landing
+  conditions  String? // condizioni dell'offerta
+  status      String  @default("active") // draft|active|suspended|expired|disabled|blocked
+  expiresAt   String? // YYYY-MM-DD, dopo questa data non accetta registrazioni
+  maxUses     Int? // massimo di registrazioni verificate
+  replacesId  String? // QR che questo sostituisce (lo storico resta sul vecchio)
+  createdAt   String
 
   affiliate Affiliate       @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
   scans     AffiliateScan[]
@@ -614,7 +623,7 @@ model AffiliateScan {
   qrId      String
   visitorId String? // id anonimo salvato sul telefono: serve per le scansioni uniche
   device    String? // "iPhone", "Android", "Computer"
-  at        String  // ISO
+  at        String // ISO
 
   qr AffiliateQr @relation(fields: [qrId], references: [id], onDelete: Cascade)
 
@@ -623,25 +632,25 @@ model AffiliateScan {
 }
 
 model AffiliateLead {
-  id           String  @id @default(cuid())
-  qrId         String
-  affiliateId  String
-  firstName    String
-  lastName     String
-  phone        String  // normalizzato con prefisso (39...)
-  email        String?
-  status       String  @default("otp") // otp = in attesa del codice | verified | blocked
-  blockReason  String? // gia_cliente | doppione | auto_registrazione | qr_non_valido
-  otpCode      String?
-  otpExpiresAt String? // ISO
-  otpAttempts  Int     @default(0)
-  voucherCode  String? @unique // buono del trattamento gratuito
+  id            String  @id @default(cuid())
+  qrId          String
+  affiliateId   String
+  firstName     String
+  lastName      String
+  phone         String // normalizzato con prefisso (39...)
+  email         String?
+  status        String  @default("otp") // otp = in attesa del codice | verified | blocked
+  blockReason   String? // gia_cliente | doppione | auto_registrazione | qr_non_valido
+  otpCode       String?
+  otpExpiresAt  String? // ISO
+  otpAttempts   Int     @default(0)
+  voucherCode   String? @unique // buono del trattamento gratuito
   voucherUsedAt String? // quando l'omaggio è stato consumato in negozio
-  clientId     String? // cliente in anagrafica creato/collegato alla verifica
-  visitorId    String?
-  device       String?
-  createdAt    String  // ISO
-  verifiedAt   String? // ISO
+  clientId      String? // cliente in anagrafica creato/collegato alla verifica
+  visitorId     String?
+  device        String?
+  createdAt     String // ISO
+  verifiedAt    String? // ISO
 
   qr        AffiliateQr @relation(fields: [qrId], references: [id], onDelete: Cascade)
   affiliate Affiliate   @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
@@ -660,13 +669,382 @@ model AffiliateLead {
 // ============================================================
 model AutoclaveCycle {
   id           String  @id @default(cuid())
-  date         String  // giorno italiano YYYY-MM-DD
+  date         String // giorno italiano YYYY-MM-DD
   operatorId   String
   operatorName String
-  pieces       Int     // pezzi inseriti nella macchina
+  pieces       Int // pezzi inseriti nella macchina
   notes        String?
-  createdAt    String  // ISO
+  createdAt    String // ISO
 
   @@index([date])
   @@map("autoclave_cycles")
+}
+
+// ============================================================
+// APP CLIENTI — fondamenta condivise
+// Punti, credito, configurazioni e tracciamento: su queste poggiano
+// Beauty Club, Beauty Box, Challenge, Referral e le statistiche dell'app.
+// ============================================================
+
+/**
+ * Ogni movimento di punti o di credito, mai un saldo scritto a mano.
+ * Un saldo da solo non si può spiegare né correggere: alla prima cliente che
+ * dice "io avevo 40 punti" non c'è modo di sapere chi ha ragione. Qui il saldo
+ * è la somma dei movimenti, e ogni movimento dice da dove viene.
+ * Il credito è diviso in "tasche" (acquistato, cashback, promozionale,
+ * referral...) perché hanno regole diverse: quello acquistato è denaro della
+ * cliente e non scade mai, quello promozionale è uno sconto travestito e scade.
+ * Si consuma sempre prima quello che scade prima.
+ */
+model LoyaltyMovement {
+  id         String  @id @default(cuid())
+  clientId   String
+  /**
+   * points = punti fedeltà · credit = euro nel wallet
+   */
+  kind       String
+  /**
+   * Positivo se entra, negativo se esce. In euro per il credito.
+   */
+  amount     Float
+  /**
+   * Tasca del credito: purchased | cashback | promo | referral | compensation | prize
+   */
+  bucket     String  @default("purchased")
+  /**
+   * Testo mostrato alla cliente nello storico ("Cashback trattamento").
+   */
+  reason     String
+  /**
+   * Da dove nasce: appointment | pos | referral | challenge | prize | manual | topup | expiry
+   */
+  sourceType String
+  sourceId   String?
+  /**
+   * Solo per le entrate che scadono. Null = non scade.
+   */
+  expiresAt  String?
+  /**
+   * Quanto di questa entrata è già stato consumato (in euro/punti).
+   */
+  consumed   Float   @default(0)
+  createdAt  String
+  /**
+   * Chi l'ha generato, quando è un movimento fatto a mano dallo staff.
+   */
+  operator   String?
+
+  @@index([clientId, kind])
+  @@index([expiresAt])
+  @@map("loyalty_movements")
+}
+
+/**
+ * Configurazioni dell'app clienti, modificabili dal gestionale.
+ * Sta qui tutto ciò che non deve richiedere una modifica al codice per
+ * cambiare: interruttori delle funzioni, percentuali di cashback, regole dei
+ * Flash Slot, testi. Una riga per argomento, il contenuto è JSON perché ogni
+ * argomento ha una forma sua.
+ */
+model AppSetting {
+  key       String @id
+  data      Json
+  updatedAt String
+
+  @@map("app_settings")
+}
+
+/**
+ * Cosa succede dentro l'app, passo per passo.
+ * Serve a rispondere alla domanda che conta: quanto fattura ogni funzione.
+ * Senza registrare anche le viste e i clic si sa solo quante prenotazioni
+ * sono arrivate, non quante occasioni sono state buttate.
+ */
+model AppEvent {
+  id        String  @id @default(cuid())
+  clientId  String?
+  /**
+   * view | click | booking | completed | revenue
+   */
+  type      String
+  /**
+   * Da dove: home | per_te | flash_slot | referral | challenge | push | wallet | box
+   */
+  surface   String
+  /**
+   * Oggetto specifico (id dello slot, della challenge, del premio...).
+   */
+  itemId    String?
+  /**
+   * Valore in euro, per gli eventi che ne producono.
+   */
+  value     Float?
+  meta      Json?
+  createdAt String
+
+  @@index([type, surface])
+  @@index([clientId])
+  @@index([createdAt])
+  @@map("app_events")
+}
+
+/**
+ * Livelli del Beauty Club, decisi dal gestionale e non dal codice.
+ * Soglie, nomi e vantaggi cambiano con le stagioni e con le promozioni: se
+ * fossero scritti nel codice, cambiare "Gold da 500 a 600 euro" richiederebbe
+ * un rilascio.
+ */
+model ClubLevel {
+  id           String   @id @default(cuid())
+  name         String
+  /**
+   * Spesa totale da cui scatta il livello.
+   */
+  minSpent     Float    @default(0)
+  /**
+   * Visite completate richieste, in alternativa alla spesa.
+   */
+  minVisits    Int      @default(0)
+  color        String   @default("#B76E79")
+  /**
+   * Percentuale di cashback riconosciuta a questo livello.
+   */
+  cashbackPct  Float    @default(0)
+  /**
+   * Moltiplicatore dei punti (1 = normale, 2 = doppi).
+   */
+  pointsFactor Float    @default(1)
+  /**
+   * Minuti di anticipo sui Flash Slot rispetto agli altri livelli.
+   */
+  flashHeadMin Int      @default(0)
+  /**
+   * Vantaggi descritti a parole, mostrati nell'app.
+   */
+  perks        String[] @default([])
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+
+  @@map("club_levels")
+}
+
+/**
+ * Obiettivi a tempo con un premio: "3 appuntamenti entro settembre".
+ */
+model Challenge {
+  id          String  @id @default(cuid())
+  title       String
+  description String
+  /**
+   * appointments | bookings_app | referrals | packages | reviews | spend
+   */
+  goalType    String
+  goalCount   Float
+  /**
+   * credit | points | prize | free_treatment
+   */
+  rewardType  String
+  rewardValue Float   @default(0)
+  /**
+   * Descrizione del premio mostrata alla cliente.
+   */
+  rewardLabel String
+  startsAt    String
+  endsAt      String
+  isActive    Boolean @default(true)
+  createdAt   String
+
+  progress ChallengeProgress[]
+
+  @@map("challenges")
+}
+
+model ChallengeProgress {
+  id            String  @id @default(cuid())
+  challengeId   String
+  clientId      String
+  count         Float   @default(0)
+  completedAt   String?
+  rewardGivenAt String?
+  updatedAt     String
+
+  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, clientId])
+  @@index([clientId])
+  @@map("challenge_progress")
+}
+
+/**
+ * Premi della Beauty Box.
+ * `weight` è il peso nell'estrazione, non una percentuale: così si aggiunge un
+ * premio senza dover ribilanciare a mano tutti gli altri perché la somma torni
+ * a cento.
+ */
+model Prize {
+  id          String  @id @default(cuid())
+  name        String
+  /**
+   * credit | points | free_treatment | discount
+   */
+  kind        String
+  value       Float   @default(0)
+  /**
+   * Trattamento regalato, quando kind = free_treatment.
+   */
+  treatmentId String?
+  weight      Int     @default(1)
+  /**
+   * Pezzi disponibili. Null = illimitato.
+   */
+  stock       Int?
+  /**
+   * Giorni di validità del premio una volta vinto.
+   */
+  validDays   Int     @default(30)
+  isActive    Boolean @default(true)
+  createdAt   String
+
+  wins PrizeWin[]
+
+  @@map("prizes")
+}
+
+model PrizeWin {
+  id        String  @id @default(cuid())
+  clientId  String
+  prizeId   String
+  /**
+   * Perché è stata assegnata: challenge | streak | referral | manual
+   */
+  reason    String
+  openedAt  String?
+  usedAt    String?
+  expiresAt String
+  createdAt String
+
+  prize Prize @relation(fields: [prizeId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("prize_wins")
+}
+
+/**
+ * Posti liberati in agenda e messi in vetrina nell'app.
+ * Nasce da una disdetta o da un buco che nessuno riempirebbe. Chi prenota per
+ * primo se lo prende: l'assegnazione avviene con un aggiornamento condizionato
+ * (`status = 'open'` nella clausola WHERE), che il database esegue in modo
+ * atomico. Due clienti che premono nello stesso istante non possono vincere
+ * entrambe: la seconda riceve zero righe modificate e un messaggio chiaro,
+ * invece di un doppio appuntamento in agenda.
+ */
+model FlashSlot {
+  id              String  @id @default(cuid())
+  date            String
+  startTime       String
+  endTime         String
+  treatmentId     String
+  treatmentName   String
+  operatorId      String
+  operatorName    String
+  /**
+   * Prezzo pieno e prezzo scontato dello slot.
+   */
+  fullPrice       Float
+  price           Float
+  /**
+   * Fino a quando resta in vetrina.
+   */
+  expiresAt       String
+  /**
+   * open | taken | expired | cancelled
+   */
+  status          String  @default("open")
+  takenByClientId String? @unique
+  takenAt         String?
+  appointmentId   String?
+  /**
+   * Livello minimo del Beauty Club che lo vede subito.
+   */
+  minLevelOrder   Int     @default(0)
+  createdAt       String
+  createdBy       String?
+
+  @@index([status, date])
+  @@map("flash_slots")
+}
+
+/**
+ * Codice personale di ogni cliente per invitare le amiche.
+ */
+model ReferralCode {
+  clientId  String @id
+  code      String @unique
+  createdAt String
+
+  @@map("referral_codes")
+}
+
+/**
+ * Un invito e come è andato a finire.
+ * Il premio matura solo quando l'amica diventa cliente pagante: promettere
+ * credito alla registrazione trasforma il referral in una macchina per creare
+ * account finti.
+ */
+model Referral {
+  id              String  @id @default(cuid())
+  inviterClientId String
+  invitedName     String?
+  invitedPhone    String
+  /**
+   * invited | registered | converted | blocked
+   */
+  status          String  @default("invited")
+  blockReason     String?
+  invitedClientId String?
+  /**
+   * Premi già riconosciuti, per non pagarli due volte.
+   */
+  inviterRewardAt String?
+  invitedRewardAt String?
+  createdAt       String
+  convertedAt     String?
+
+  @@index([inviterClientId])
+  @@index([invitedPhone])
+  @@map("referrals")
+}
+
+/**
+ * Centro, operatrice e trattamenti preferiti: alimentano le proposte.
+ */
+model ClientFavorite {
+  id        String @id @default(cuid())
+  clientId  String
+  /**
+   * operator | treatment | location
+   */
+  kind      String
+  refId     String
+  label     String
+  createdAt String
+
+  @@unique([clientId, kind, refId])
+  @@index([clientId])
+  @@map("client_favorites")
+}
+
+/**
+ * Telefono su cui mandare le notifiche push.
+ */
+model DeviceToken {
+  id         String @id @default(cuid())
+  clientId   String
+  token      String @unique
+  platform   String
+  createdAt  String
+  lastSeenAt String
+
+  @@index([clientId])
+  @@map("device_tokens")
 }

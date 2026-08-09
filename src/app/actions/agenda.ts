@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { avanzaSfide } from '@/lib/challenge';
 import { Appointment } from '@/types';
 import { mockOperators, mockTreatments, mockClients } from '@/lib/mock-data';
 import { notifyCancellazione, notifyNuovoAppuntamento } from '@/lib/telegram';
@@ -95,9 +96,11 @@ export async function createAppointment(data: Omit<Appointment, 'id' | 'createdA
 
 export async function updateAppointmentAction(id: string, updates: Partial<Appointment>) {
   const { services, ...rest } = updates;
-  // Solo se stiamo passando ad "annullato": leggo lo stato precedente per notificare una volta sola
-  const prev = updates.status === 'cancelled'
-    ? await prisma.appointment.findUnique({ where: { id }, select: { status: true } })
+  // Lo stato precedente serve in due casi: per notificare l'annullamento una
+  // volta sola, e per far avanzare le sfide solo alla prima volta che
+  // l'appuntamento viene completato (un check-out ripetuto non vale due passi).
+  const prev = updates.status === 'cancelled' || updates.status === 'completed'
+    ? await prisma.appointment.findUnique({ where: { id }, select: { status: true, clientId: true } })
     : null;
   const appointment = await prisma.appointment.update({
     where: { id },
@@ -107,6 +110,10 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
       updatedAt: new Date().toISOString()
     }
   });
+  // Appuntamento portato a termine: avanza le sfide legate alle visite.
+  if (updates.status === 'completed' && prev?.status !== 'completed' && appointment.clientId) {
+    avanzaSfide(appointment.clientId, 'appointments').catch(() => {});
+  }
   // Notifica Telegram all'annullamento (non alla modifica del solo motivo)
   if (updates.status === 'cancelled' && prev?.status !== 'cancelled') {
     notifyCancellazione({
