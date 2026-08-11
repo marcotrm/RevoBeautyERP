@@ -6,7 +6,8 @@
  *  - più trattamenti nella stessa seduta, uno di fila all'altro;
  *  - operatrice scelta dalla cliente, oppure "la prima disponibile";
  *  - rispetta il TURNO vero dell'operatrice (orari e pausa), la settimana
- *    personalizzata in Staff → Turni, e le fasce bloccate in agenda.
+ *    personalizzata in Staff → Turni, e le fasce bloccate in agenda;
+ *  - propone solo chi quel lavoro lo sa fare (vedi competenzePerOperatrice).
  *
  * Il vecchio calcolo guardava solo apertura/chiusura del centro: offriva le
  * 15:00 a chi è in pausa e le 16:00 a chi stacca alle 14. Qui non succede.
@@ -108,13 +109,47 @@ export function prezzoDi(
     : (t.priceFemale ?? t.price);
 }
 
-interface Operatrice { id: string; firstName: string; lastName: string; schedule: unknown }
+interface Operatrice {
+  id: string; firstName: string; lastName: string; schedule: unknown;
+  specializations: string[]; avatar: string | null; color: string;
+}
 interface Contesto {
   operatori: Operatrice[];
   /** turni personalizzati per lunedì della settimana */
   settimane: { operatorId: string; weekStart: string; schedule: unknown }[];
   /** occupato[data][operatorId] = fasce già prese */
   occupatoPerData: Map<string, Map<string, Fascia[]>>;
+  /** competenze[operatorId] = categorie che sa fare */
+  competenze: Map<string, Set<string>>;
+}
+
+/**
+ * Chi sa fare cosa.
+ *
+ * In Staff, su ogni operatrice si spuntano le categorie che sa fare. La regola
+ * è quella che serve al centro senza obbligare a compilare tutto:
+ *
+ *   una categoria spuntata da qualcuno diventa SUA — la fanno solo le
+ *   operatrici che l'hanno spuntata. Le categorie che nessuno ha spuntato
+ *   restano di tutte.
+ *
+ * Così basta spuntare "Unghie" a Michela Cioffi perché l'onicotecnica sparisca
+ * dalle altre, senza dover elencare a Luisa tutte le cose che sa fare.
+ */
+export function competenzePerOperatrice(
+  operatori: { id: string; specializations: string[] }[],
+  categorieEsistenti: string[],
+): Map<string, Set<string>> {
+  const rivendicate = new Set<string>();
+  for (const o of operatori) for (const c of o.specializations) rivendicate.add(c);
+
+  const mappa = new Map<string, Set<string>>();
+  for (const o of operatori) {
+    const sue = new Set(o.specializations);
+    for (const c of categorieEsistenti) if (!rivendicate.has(c)) sue.add(c);
+    mappa.set(o.id, sue);
+  }
+  return mappa;
 }
 
 /**
@@ -129,10 +164,13 @@ async function caricaContesto(dateFrom: string, dateTo: string): Promise<Contest
   }
   settimaneCoinvolte.add(mondayISO(new Date(dateTo + 'T12:00:00')));
 
-  const [operatori, settimane, appuntamenti, blocchi] = await Promise.all([
+  const [operatori, settimane, appuntamenti, blocchi, categorie] = await Promise.all([
     prisma.operator.findMany({
       where: { isActive: true, isResource: false },
-      select: { id: true, firstName: true, lastName: true, schedule: true },
+      select: {
+        id: true, firstName: true, lastName: true, schedule: true,
+        specializations: true, avatar: true, color: true,
+      },
       orderBy: { firstName: 'asc' },
     }),
     prisma.operatorWeekSchedule.findMany({ where: { weekStart: { in: [...settimaneCoinvolte] } } }),
@@ -143,6 +181,9 @@ async function caricaContesto(dateFrom: string, dateTo: string): Promise<Contest
     prisma.agendaBlock.findMany({
       where: { date: { gte: dateFrom, lte: dateTo } },
       select: { date: true, operatorId: true, startTime: true, endTime: true },
+    }),
+    prisma.treatment.findMany({
+      where: { isActive: true }, select: { category: true }, distinct: ['category'],
     }),
   ]);
 
@@ -171,7 +212,10 @@ async function caricaContesto(dateFrom: string, dateTo: string): Promise<Contest
   }
   for (const b of blocchi) aggiungi(b.date, b.operatorId, toMinutes(b.startTime), toMinutes(b.endTime));
 
-  return { operatori, settimane, occupatoPerData };
+  return {
+    operatori, settimane, occupatoPerData,
+    competenze: competenzePerOperatrice(operatori, categorie.map(c => c.category)),
+  };
 }
 
 /** Fasce di lavoro di ogni operatrice in una certa data (settimana personalizzata > turno base). */
@@ -214,7 +258,7 @@ export interface RichiestaDisponibilita {
  * sentirsi dire "non c'è posto" quando invece basta scambiare due nomi.
  */
 interface Passo {
-  treatmentId: string; treatmentName: string; operatorId: string | null;
+  treatmentId: string; treatmentName: string; category: string; operatorId: string | null;
   duration: number; price: number;
 }
 
@@ -235,6 +279,7 @@ async function preparaPassi(services: ServizioRichiesto[], gender: 'male' | 'fem
     return {
       treatmentId: t.id,
       treatmentName: t.name,
+      category: t.category,
       operatorId: s.operatorId || null,
       duration: Math.max(5, durataDi(t, gender)),
       price: prezzoDi(t, gender),
@@ -271,7 +316,9 @@ function slotDelGiorno(
       if (i >= passi.length) return true;
       const p = passi[i];
       const fine = cursore + p.duration;
-      const candidate = p.operatorId ? ctx.operatori.filter(o => o.id === p.operatorId) : ctx.operatori;
+      // Chi sa fare questa categoria, ristretto all'operatrice chiesta dalla cliente
+      const candidate = ctx.operatori.filter(o =>
+        (!p.operatorId || o.id === p.operatorId) && ctx.competenze.get(o.id)?.has(p.category));
 
       for (const op of candidate) {
         if (!libera(op.id, cursore, fine, lavoro, occupato)) continue;
@@ -388,16 +435,41 @@ export async function cercaSlot(req: RicercaSlot): Promise<{
   };
 }
 
+export interface OperatriceScelta {
+  id: string;
+  nome: string;
+  /** Solo il nome di battesimo: sotto la faccina "Michela" sta, "Michela Cioffi" no. */
+  nomeBreve: string;
+  /** Foto tonda, se caricata in Staff. */
+  avatar: string | null;
+  /** Colore dell'operatrice: sfondo del cerchio quando la foto non c'è. */
+  colore: string;
+  /** Le categorie che sa fare davvero (regola di competenzePerOperatrice). */
+  categorie: string[];
+}
+
 /**
- * Le operatrici che la cliente può scegliere per una certa lista di
- * trattamenti: quelle che nei prossimi giorni hanno almeno un buco utile.
- * Serve al menu "Scelta operatrice" — inutile proporre chi è in ferie.
+ * Le operatrici che la cliente può scegliere nella prenotazione online, con
+ * foto e categorie già risolte: la pagina filtra la fila delle faccine sulla
+ * categoria scelta e mostra esattamente chi il motore accetterebbe.
  */
-export async function operatriciSelezionabili(): Promise<{ id: string; nome: string }[]> {
-  const ops = await prisma.operator.findMany({
-    where: { isActive: true, isResource: false },
-    select: { id: true, firstName: true, lastName: true },
-    orderBy: { firstName: 'asc' },
-  });
-  return ops.map(o => ({ id: o.id, nome: `${o.firstName} ${o.lastName}`.trim() }));
+export async function operatriciSelezionabili(): Promise<OperatriceScelta[]> {
+  const [ops, categorie] = await Promise.all([
+    prisma.operator.findMany({
+      where: { isActive: true, isResource: false },
+      select: { id: true, firstName: true, lastName: true, specializations: true, avatar: true, color: true },
+      orderBy: { firstName: 'asc' },
+    }),
+    prisma.treatment.findMany({ where: { isActive: true }, select: { category: true }, distinct: ['category'] }),
+  ]);
+
+  const competenze = competenzePerOperatrice(ops, categorie.map(c => c.category));
+  return ops.map(o => ({
+    id: o.id,
+    nome: `${o.firstName} ${o.lastName}`.trim(),
+    nomeBreve: o.firstName.trim(),
+    avatar: o.avatar || null,
+    colore: o.color,
+    categorie: [...(competenze.get(o.id) || [])].sort(),
+  }));
 }

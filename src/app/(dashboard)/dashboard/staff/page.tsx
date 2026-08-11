@@ -9,6 +9,7 @@ import {
 import Link from 'next/link';
 import { useTimeClockStore } from '@/stores/useTimeClockStore';
 import { useOperatorStore } from '@/stores/useOperatorStore';
+import { CompetenzeEditor, FotoOperatrice, etichettaCategoria } from './CompetenzeEditor';
 import { getInitials } from '@/lib/helpers';
 import { Operator, TreatmentCategory } from '@/types';
 import { generateShifts, type AgentConfig, type ShiftEntry, type WeekShifts } from '@/lib/shiftAgent';
@@ -244,7 +245,12 @@ function ShiftEditModal({ operator, day, dayDate, shift, onClose, onSave }: {
 }
 
 /* ========== ADD STAFF MODAL ========== */
-function AddStaffModal({ onClose, onSave }: { onClose: () => void; onSave: (s: Operator) => void }) {
+function AddStaffModal({ onClose, onSave, altre }: {
+  onClose: () => void;
+  onSave: (s: Operator) => void;
+  /** Le operatrici già in squadra: servono a dire chi copre già una categoria. */
+  altre: Operator[];
+}) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -253,7 +259,6 @@ function AddStaffModal({ onClose, onSave }: { onClose: () => void; onSave: (s: O
   const [contractHours, setContractHours] = useState('');
   const [specs, setSpecs] = useState<TreatmentCategory[]>([]);
   const [color, setColor] = useState(COLORS[0]);
-  const toggleSpec = (s: TreatmentCategory) => setSpecs(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
   const canSave = firstName.trim() && lastName.trim();
   const handleSave = () => {
     if (!canSave) return;
@@ -297,11 +302,10 @@ function AddStaffModal({ onClose, onSave }: { onClose: () => void; onSave: (s: O
             </div>
             <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Colore</label>
               <div className="flex gap-2">{COLORS.map(c => <button key={c} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 ring-offset-bg-secondary ring-accent scale-110' : 'hover:scale-105'}`} style={{ backgroundColor: c }} />)}</div></div>
-            <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Specializzazioni</label>
-              <div className="flex flex-wrap gap-2">{SPECIALIZATIONS.map(s => <button key={s.value} onClick={() => toggleSpec(s.value)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${specs.includes(s.value) ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-bg-tertiary text-text-secondary border border-border hover:border-border-light'}`}>{s.label}</button>)}</div></div>
+            <CompetenzeEditor specs={specs} onChange={setSpecs} altreOperatrici={altre} nome={firstName.trim()} />
             {canSave && <div className="flex items-center gap-3 p-3 rounded-xl bg-bg-tertiary/50 border border-border/30">
               <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: color }}>{getInitials(firstName, lastName)}</div>
-              <div><p className="text-sm font-medium text-text-primary">{firstName} {lastName}</p><p className="text-xs text-text-muted">{commission}% commissione • {specs.length} specializzazioni</p></div>
+              <div><p className="text-sm font-medium text-text-primary">{firstName} {lastName}</p><p className="text-xs text-text-muted">{commission}% commissione • {specs.length ? specs.map(etichettaCategoria).join(', ') : 'fa tutto'}</p></div>
             </div>}
           </div>
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-bg-tertiary/30">
@@ -315,7 +319,9 @@ function AddStaffModal({ onClose, onSave }: { onClose: () => void; onSave: (s: O
 }
 
 /* ========== STAFF DETAIL MODAL ========== */
-function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
+function StaffDetailModal({ operator, altre, onClose, onSave, onDelete }: {
+  /** Le colleghe: servono a dire chi copre già una categoria. */
+  altre: Operator[];
   operator: Operator;
   onClose: () => void;
   onSave: (updates: Partial<Operator>) => void;
@@ -330,8 +336,7 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
   const [monthlyCost, setMonthlyCost] = useState(String(operator.monthlyCost || ''));
   const [color, setColor] = useState(operator.color);
   const [specs, setSpecs] = useState<TreatmentCategory[]>(operator.specializations || []);
-
-  const toggleSpec = (s: TreatmentCategory) => setSpecs(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
+  const [avatar, setAvatar] = useState(operator.avatar || '');
 
   // Ore effettivamente pianificate (dai turni salvati)
   const plannedHours = (() => {
@@ -352,7 +357,7 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
       email, phone, commission: Number(commission) || 0,
       contractHours: Number(contractHours) || 0,
       monthlyCost: Number(monthlyCost) || 0,
-      color, specializations: specs,
+      color, specializations: specs, avatar,
     });
     onClose();
   };
@@ -371,8 +376,11 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: color }}>
-                {getInitials(firstName || operator.firstName, lastName || operator.lastName)}
+              <div className="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: color }}>
+                {avatar
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={avatar} alt="" className="w-full h-full object-cover" />
+                  : getInitials(firstName || operator.firstName, lastName || operator.lastName)}
               </div>
               <div>
                 <h3 className="text-base font-display font-semibold text-text-primary">{firstName} {lastName}</h3>
@@ -455,8 +463,11 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
                   <input type="number" min="0" max="100" value={commission} onChange={e => setCommission(e.target.value)} className="w-32 px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all" /></div>
                 <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Colore</label>
                   <div className="flex gap-2 flex-wrap">{COLORS.map(c => <button key={c} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 ring-offset-bg-secondary ring-accent scale-110' : 'hover:scale-105'}`} style={{ backgroundColor: c }} />)}</div></div>
-                <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Specializzazioni</label>
-                  <div className="flex flex-wrap gap-2">{SPECIALIZATIONS.map(sp => <button key={sp.value} onClick={() => toggleSpec(sp.value)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${specs.includes(sp.value) ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-bg-tertiary text-text-secondary border border-border hover:border-border-light'}`}>{sp.label}</button>)}</div></div>
+                <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Foto</label>
+                  <FotoOperatrice avatar={avatar} onChange={setAvatar} color={color}
+                    iniziali={getInitials(firstName || operator.firstName, lastName || operator.lastName)} /></div>
+                <CompetenzeEditor specs={specs} onChange={setSpecs} altreOperatrici={altre}
+                  nome={(firstName || operator.firstName).trim()} />
             </>
           </div>
 
@@ -990,9 +1001,18 @@ export default function StaffPage() {
                     deleteOperator(op.id);
                   }
                 }} className="absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
-                <div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-lg font-bold mx-auto mb-3" style={{ backgroundColor: op.color }}>{getInitials(op.firstName, op.lastName)}</div>
+                <div className="w-14 h-14 rounded-full overflow-hidden flex items-center justify-center text-white text-lg font-bold mx-auto mb-3" style={{ backgroundColor: op.color }}>
+                  {op.avatar
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={op.avatar} alt="" className="w-full h-full object-cover" />
+                    : getInitials(op.firstName, op.lastName)}
+                </div>
                 <h4 className="text-sm font-semibold text-text-primary">{op.firstName} {op.lastName}</h4>
-                <div className="flex flex-wrap gap-1 justify-center mt-2">{op.specializations.slice(0, 2).map(s => <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-muted">{specLabel(s)}</span>)}</div>
+                <div className="flex flex-wrap gap-1 justify-center mt-2">
+                  {op.specializations.length === 0
+                    ? <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-muted">nessuna categoria riservata</span>
+                    : op.specializations.slice(0, 3).map(s => <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/10 text-accent">{specLabel(s)}</span>)}
+                </div>
                 <p className="text-xs text-text-muted mt-2">Commissione: {op.commission}%</p>
                 <p className={`text-xs font-semibold mt-1 ${op.contractHours ? 'text-accent' : 'text-text-muted'}`}>
                   {op.contractHours ? `Contratto: ${op.contractHours}h / sett.` : 'Ore contratto da impostare'}
@@ -1134,6 +1154,7 @@ export default function StaffPage() {
       <AnimatePresence>
         {showAddModal && (
           <AddStaffModal
+            altre={people}
             onClose={() => setShowAddModal(false)}
             onSave={(op) => { addOperator(op); setShowAddModal(false); }}
           />
@@ -1145,6 +1166,7 @@ export default function StaffPage() {
             <StaffDetailModal
               key={op.id}
               operator={op}
+              altre={people.filter(o => o.id !== op.id)}
               onClose={() => setDetailOpId(null)}
               onSave={(updates) => updateOperator(op.id, updates)}
               onDelete={() => deleteOperator(op.id)}

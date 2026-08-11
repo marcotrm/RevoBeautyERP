@@ -22,7 +22,12 @@ type Treatment = {
   priceMale: number | null; priceFemale: number | null;
   durationMale: number | null; durationFemale: number | null;
 };
-type Operatrice = { id: string; nome: string };
+type Operatrice = {
+  id: string; nome: string; nomeBreve: string;
+  avatar: string | null; colore: string;
+  /** Le categorie che sa fare: si impostano nel gestionale, in Staff. */
+  categorie: string[];
+};
 type Assegnazione = { treatmentId: string; treatmentName: string; operatorId: string; operatorName: string; startTime: string; endTime: string; duration: number; price: number };
 type Slot = { time: string; endTime: string; durataTotale: number; prezzoTotale: number; assegnazioni: Assegnazione[] };
 type GiornoDisponibile = { date: string; slots: Slot[] };
@@ -30,10 +35,21 @@ type GiornoDisponibile = { date: string; slots: Slot[] };
 /** Una riga del carrello: trattamento scelto + operatrice voluta. */
 type Scelta = { treatmentId: string; operatorId: string };
 
-const CATEGORIE: Record<string, string> = {
-  facial: 'Viso', body: 'Corpo', laser: 'Laser / Epilazione', massage: 'Massaggi',
-  nails: 'Unghie', waxing: 'Ceretta', consultation: 'Consulenza', hair: 'Capelli', makeup: 'Trucco',
-};
+/** Nome e faccina di ogni categoria, nell'ordine in cui il centro le usa. */
+const CATEGORIE: { key: string; label: string; emoji: string }[] = [
+  { key: 'nails', label: 'Unghie', emoji: '💅' },
+  { key: 'laser', label: 'Laser', emoji: '✨' },
+  { key: 'waxing', label: 'Ceretta', emoji: '🪒' },
+  { key: 'facial', label: 'Viso', emoji: '🧖' },
+  { key: 'body', label: 'Corpo', emoji: '🌿' },
+  { key: 'massage', label: 'Massaggi', emoji: '💆' },
+  { key: 'makeup', label: 'Trucco', emoji: '💄' },
+  { key: 'consultation', label: 'Consulenza', emoji: '📋' },
+  { key: 'hair', label: 'Capelli', emoji: '💇' },
+];
+const metaCategoria = (c: string) => CATEGORIE.find(x => x.key === c) || { key: c, label: c, emoji: '•' };
+const iniziali = (nome: string) =>
+  nome.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase();
 const GIORNI = [
   { n: 1, label: 'Lun' }, { n: 2, label: 'Mar' }, { n: 3, label: 'Mer' },
   { n: 4, label: 'Gio' }, { n: 5, label: 'Ven' }, { n: 6, label: 'Sab' },
@@ -83,9 +99,13 @@ export default function PrenotaPage() {
   const durataDi = useCallback((t: Treatment) =>
     gender === 'male' ? (t.durationMale ?? t.durationFemale ?? t.duration) : (t.durationFemale ?? t.duration), [gender]);
 
+  /** Le categorie che hanno almeno un trattamento, nell'ordine di CATEGORIE. */
   const categorieDisponibili = useMemo(() => {
-    const set = [...new Set(treatments.map(t => t.category))];
-    return set.sort((a, b) => (CATEGORIE[a] || a).localeCompare(CATEGORIE[b] || b));
+    const conteggio = new Map<string, number>();
+    for (const t of treatments) conteggio.set(t.category, (conteggio.get(t.category) || 0) + 1);
+    const note = CATEGORIE.filter(c => conteggio.has(c.key)).map(c => c.key);
+    const altre = [...conteggio.keys()].filter(k => !note.includes(k));
+    return [...note, ...altre].map(k => ({ ...metaCategoria(k), quante: conteggio.get(k) || 0 }));
   }, [treatments]);
 
   const sceltePiene = scelte.filter(s => s.treatmentId);
@@ -188,7 +208,10 @@ export default function PrenotaPage() {
         {/* ============================ PASSO 1 ============================ */}
         {passo === 1 && (
           <>
+            {/* Qui non c'è un account da cui leggere il listino: chi prenota dal
+                web lo indica una volta sola, e i prezzi si adeguano. */}
             <div style={s.genderRow}>
+              <span style={s.genderLabel}>Prezzi per</span>
               <button style={{ ...s.genderBtn, ...(gender === 'female' ? s.genderActive : {}) }}
                 onClick={() => { setGender('female'); invalidaOrari(); }}>♀ Donna</button>
               <button style={{ ...s.genderBtn, ...(gender === 'male' ? s.genderActive : {}) }}
@@ -198,6 +221,9 @@ export default function PrenotaPage() {
             {scelte.map((sc, i) => {
               const cat = categoria[i] || '';
               const diCategoria = cat ? treatments.filter(t => t.category === cat) : [];
+              const aggiorna = (patch: Partial<Scelta>) => {
+                const ns = [...scelte]; ns[i] = { ...ns[i], ...patch }; setScelte(ns); invalidaOrari();
+              };
               return (
                 <div key={i} style={s.bloccoServizio}>
                   {scelte.length > 1 && (
@@ -211,41 +237,57 @@ export default function PrenotaPage() {
                     </div>
                   )}
 
-                  <label style={s.label}>Categoria</label>
-                  <select style={s.select} value={cat} onChange={e => {
-                    const next = [...categoria]; next[i] = e.target.value; setCategoria(next);
-                    const ns = [...scelte]; ns[i] = { ...ns[i], treatmentId: '' }; setScelte(ns);
-                    invalidaOrari();
-                  }}>
-                    <option value="">Scegli una categoria…</option>
-                    {categorieDisponibili.map(c => <option key={c} value={c}>{CATEGORIE[c] || c}</option>)}
-                  </select>
+                  <label style={s.label}>Che cosa vuoi fare</label>
+                  <div style={s.catGriglia}>
+                    {categorieDisponibili.map(c => {
+                      const on = cat === c.key;
+                      return (
+                        <button key={c.key} style={{ ...s.catCard, ...(on ? s.catCardOn : {}) }}
+                          onClick={() => {
+                            const next = [...categoria]; next[i] = on ? '' : c.key; setCategoria(next);
+                            aggiorna({ treatmentId: '', operatorId: '' });
+                          }}>
+                          <span style={s.catEmoji}>{c.emoji}</span>
+                          <span style={{ ...s.catLabel, ...(on ? { color: P } : {}) }}>{c.label}</span>
+                          <span style={s.catQuante}>{c.quante} trattament{c.quante === 1 ? 'o' : 'i'}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
                   {cat && (
                     <>
-                      <label style={s.label}>Trattamento</label>
-                      <select style={s.select} value={sc.treatmentId} onChange={e => {
-                        const ns = [...scelte]; ns[i] = { ...ns[i], treatmentId: e.target.value }; setScelte(ns);
-                        invalidaOrari();
-                      }}>
-                        <option value="">Scegli un trattamento…</option>
-                        {diCategoria.map(t => (
-                          <option key={t.id} value={t.id}>{t.name} — {durataDi(t)} min · {eur(prezzoDi(t))}</option>
-                        ))}
-                      </select>
+                      <label style={s.label}>Scegli il trattamento</label>
+                      <div style={s.listaTratt}>
+                        {diCategoria.map(t => {
+                          const on = sc.treatmentId === t.id;
+                          return (
+                            <button key={t.id} style={{ ...s.trattBtn, ...(on ? s.trattBtnOn : {}) }}
+                              onClick={() => aggiorna({ treatmentId: t.id, operatorId: '' })}>
+                              <span style={{ textAlign: 'left' }}>
+                                <b style={{ display: 'block' }}>{t.name}</b>
+                                <span style={s.trattMin}>{durataDi(t)} min</span>
+                              </span>
+                              <b style={{ color: on ? P : '#6b6577' }}>{eur(prezzoDi(t))}</b>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </>
                   )}
 
                   {sc.treatmentId && (
                     <>
                       <label style={s.label}>Con chi</label>
-                      <select style={s.select} value={sc.operatorId} onChange={e => {
-                        const ns = [...scelte]; ns[i] = { ...ns[i], operatorId: e.target.value }; setScelte(ns);
-                        invalidaOrari();
-                      }}>
-                        <option value="">La prima disponibile</option>
-                        {operatrici.map(o => <option key={o.id} value={o.id}>{o.nome}</option>)}
-                      </select>
+                      <div style={s.facce}>
+                        <Faccia scelta={!sc.operatorId} nome="Chiunque" sotto="la prima libera"
+                          onClick={() => aggiorna({ operatorId: '' })} />
+                        {operatrici.filter(o => o.categorie.includes(cat)).map(o => (
+                          <Faccia key={o.id} scelta={sc.operatorId === o.id} nome={o.nomeBreve}
+                            avatar={o.avatar} colore={o.colore}
+                            onClick={() => aggiorna({ operatorId: o.id })} />
+                        ))}
+                      </div>
                     </>
                   )}
                 </div>
@@ -395,6 +437,31 @@ export default function PrenotaPage() {
   );
 }
 
+/** Il cerchio con la foto dell'operatrice (o le iniziali sul suo colore). */
+function Faccia({ scelta, nome, sotto, avatar, colore, onClick }: {
+  scelta: boolean; nome: string; sotto?: string;
+  avatar?: string | null; colore?: string; onClick: () => void;
+}) {
+  return (
+    <button style={s.facciaBox} onClick={onClick} type="button">
+      <span style={{
+        ...s.facciaCerchio,
+        background: colore || '#f3edfa',
+        boxShadow: scelta ? `0 0 0 3px ${P}` : 'none',
+      }}>
+        {avatar
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <span style={{ color: colore ? '#fff' : '#b4a8c4', fontWeight: 800, fontSize: 19 }}>
+              {colore ? iniziali(nome) : '✦'}
+            </span>}
+      </span>
+      <span style={{ ...s.facciaNome, ...(scelta ? { color: P } : {}) }}>{nome}</span>
+      {!!sotto && <span style={s.facciaSotto}>{sotto}</span>}
+    </button>
+  );
+}
+
 const P = '#A855F7';
 const s: Record<string, React.CSSProperties> = {
   page: { minHeight: '100vh', background: 'linear-gradient(160deg,#faf5ff 0%,#fdf2f8 100%)', padding: '24px 16px', display: 'flex', justifyContent: 'center', fontFamily: '-apple-system,Segoe UI,system-ui,sans-serif', color: '#1f1230' },
@@ -408,9 +475,30 @@ const s: Record<string, React.CSSProperties> = {
   passoBarra: { height: 4, borderRadius: 999, background: '#efe9f7' },
   passoBarraAttiva: { background: `linear-gradient(90deg,${P},#EC4899)` },
 
-  genderRow: { display: 'flex', gap: 8, margin: '16px 0 4px' },
-  genderBtn: { flex: 1, padding: '10px', borderRadius: 12, border: '1px solid #ece6f4', background: '#faf8fd', fontWeight: 600, fontSize: 14, cursor: 'pointer', color: '#6b6577' },
+  genderRow: { display: 'flex', gap: 8, margin: '16px 0 4px', alignItems: 'center' },
+  genderLabel: { fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#b4a8c4' },
+  genderBtn: { flex: 1, padding: '9px', borderRadius: 12, borderStyle: 'solid', borderWidth: 1, borderColor: '#ece6f4', background: '#faf8fd', fontWeight: 600, fontSize: 14, cursor: 'pointer', color: '#6b6577' },
   genderActive: { background: P, color: '#fff', borderColor: P },
+
+  catGriglia: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(120px,1fr))', gap: 8 },
+  // Bordo scritto per esteso: mescolare "border" e "borderColor" fra stato
+  // acceso e spento fa protestare React a ogni click.
+  catCard: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '14px 8px', borderRadius: 14, borderStyle: 'solid', borderWidth: 1, borderColor: '#ece6f4', background: '#fff', cursor: 'pointer' },
+  catCardOn: { borderColor: P, borderWidth: 2, padding: '13px 7px', background: '#faf5ff' },
+  catEmoji: { fontSize: 24, lineHeight: 1.1 },
+  catLabel: { fontSize: 14, fontWeight: 700, color: '#1f1230' },
+  catQuante: { fontSize: 11, color: '#b4a8c4' },
+
+  listaTratt: { display: 'flex', flexDirection: 'column', gap: 6 },
+  trattBtn: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '11px 13px', borderRadius: 12, borderStyle: 'solid', borderWidth: 1, borderColor: '#ece6f4', background: '#fff', cursor: 'pointer', fontSize: 14, color: '#1f1230' },
+  trattBtnOn: { borderColor: P, borderWidth: 2, padding: '10px 12px', background: '#faf5ff' },
+  trattMin: { fontSize: 12, color: '#94809f' },
+
+  facce: { display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 4 },
+  facciaBox: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, width: 76, flexShrink: 0, border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 },
+  facciaCerchio: { width: 60, height: 60, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  facciaNome: { fontSize: 12.5, fontWeight: 700, color: '#6b6577', marginTop: 5 },
+  facciaSotto: { fontSize: 10.5, color: '#b4a8c4' },
 
   bloccoServizio: { border: '1px solid #f0ebf7', borderRadius: 16, padding: 14, marginTop: 14, background: '#fcfaff' },
   bloccoTitolo: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 800, color: P, textTransform: 'uppercase', letterSpacing: '.05em' },
@@ -425,13 +513,13 @@ const s: Record<string, React.CSSProperties> = {
 
   riquadroFiltri: { border: '1px solid #f0ebf7', borderRadius: 16, padding: 14, marginTop: 16, background: '#fcfaff' },
   giorniRow: { display: 'flex', gap: 6 },
-  giornoBtn: { flex: 1, padding: '9px 0', borderRadius: 10, border: '1px solid #ece6f4', background: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', color: '#94809f' },
+  giornoBtn: { flex: 1, padding: '9px 0', borderRadius: 10, borderStyle: 'solid', borderWidth: 1, borderColor: '#ece6f4', background: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', color: '#94809f' },
   giornoOn: { background: P, color: '#fff', borderColor: P },
   cerca: { width: '100%', marginTop: 14, padding: '12px', borderRadius: 12, border: 'none', background: `linear-gradient(90deg,${P},#EC4899)`, color: '#fff', fontWeight: 700, fontSize: 14.5, cursor: 'pointer' },
 
   giornoTitolo: { fontSize: 14, fontWeight: 800, textTransform: 'capitalize', margin: '0 0 8px' },
   slotGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(72px,1fr))', gap: 8 },
-  slotBtn: { padding: '10px', borderRadius: 12, border: '1px solid #ece6f4', background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#4b4459' },
+  slotBtn: { padding: '10px', borderRadius: 12, borderStyle: 'solid', borderWidth: 1, borderColor: '#ece6f4', background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#4b4459' },
   slotOn: { background: P, color: '#fff', borderColor: P },
 
   riepilogoSlot: { marginTop: 16, padding: 14, borderRadius: 14, background: '#faf5ff', border: `1.5px solid ${P}`, fontSize: 13.5 },
