@@ -75,6 +75,23 @@ export interface ConfigApp {
     /** Quante proposte al massimo in "Per te oggi". */
     maxProposte: number;
   };
+  /**
+   * Come si comporta la prenotazione online (app clienti e pagina /prenota).
+   * I turni delle operatrici restano in Staff → Turni: qui c'è solo la
+   * cornice, cioè fin dove il motore può spingersi.
+   */
+  prenotazione: {
+    /** Prima ora proponibile, anche se un'operatrice attacca prima. */
+    apertura: string;
+    /** Ultima ora entro cui la seduta deve finire. */
+    chiusura: string;
+    /** Ogni quanti minuti si prova un orario di inizio. */
+    passoMinuti: number;
+    /** Preavviso minimo per prenotare oggi: senza, alle 16 propone le 16:05. */
+    preavvisoMinuti: number;
+    /** Quanti giorni in avanti guardare quando la cliente cerca un orario. */
+    giorniAvanti: number;
+  };
 }
 
 export const CONFIG_DI_PARTENZA: ConfigApp = {
@@ -89,6 +106,7 @@ export const CONFIG_DI_PARTENZA: ConfigApp = {
   referral: { premioInvitante: 10, premioInvitata: 10, validoGiorni: 90, maxInviti: 20 },
   notifiche: { attive: true, maxSettimana: 3, dalleOre: 9, alleOre: 20 },
   home: { messaggio: '', maxProposte: 5 },
+  prenotazione: { apertura: '09:00', chiusura: '19:00', passoMinuti: 15, preavvisoMinuti: 60, giorniAvanti: 21 },
 };
 
 const CHIAVE = 'app-clienti';

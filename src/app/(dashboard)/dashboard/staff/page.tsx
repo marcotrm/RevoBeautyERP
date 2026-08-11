@@ -9,7 +9,6 @@ import {
 import Link from 'next/link';
 import { useTimeClockStore } from '@/stores/useTimeClockStore';
 import { useOperatorStore } from '@/stores/useOperatorStore';
-import { CompetenzeEditor, FotoOperatrice, etichettaCategoria } from './CompetenzeEditor';
 import { getInitials } from '@/lib/helpers';
 import { Operator, TreatmentCategory } from '@/types';
 import { generateShifts, type AgentConfig, type ShiftEntry, type WeekShifts } from '@/lib/shiftAgent';
@@ -245,26 +244,20 @@ function ShiftEditModal({ operator, day, dayDate, shift, onClose, onSave }: {
 }
 
 /* ========== ADD STAFF MODAL ========== */
-function AddStaffModal({ onClose, onSave, altre }: {
-  onClose: () => void;
-  onSave: (s: Operator) => void;
-  /** Le operatrici già in squadra: servono a dire chi copre già una categoria. */
-  altre: Operator[];
-}) {
+function AddStaffModal({ onClose, onSave }: { onClose: () => void; onSave: (s: Operator) => void }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [commission, setCommission] = useState('10');
   const [contractHours, setContractHours] = useState('');
-  const [specs, setSpecs] = useState<TreatmentCategory[]>([]);
   const [color, setColor] = useState(COLORS[0]);
   const canSave = firstName.trim() && lastName.trim();
   const handleSave = () => {
     if (!canSave) return;
     onSave({
       id: `op-${Date.now()}`, firstName: firstName.trim(), lastName: lastName.trim(),
-      email, phone, specializations: specs, commission: Number(commission),
+      email, phone, specializations: [], commission: Number(commission),
       contractHours: Number(contractHours) || 0,
       color, avatar: '', isActive: true, locationIds: ['loc1'], hireDate: new Date().toISOString().slice(0, 10),
       schedule: { 1: { isWorking: true, startTime: '09:00', endTime: '18:00' }, 2: { isWorking: true, startTime: '09:00', endTime: '18:00' }, 3: { isWorking: true, startTime: '09:00', endTime: '18:00' }, 4: { isWorking: true, startTime: '09:00', endTime: '18:00' }, 5: { isWorking: true, startTime: '09:00', endTime: '18:00' }, 6: { isWorking: false, startTime: '', endTime: '' } },
@@ -302,10 +295,12 @@ function AddStaffModal({ onClose, onSave, altre }: {
             </div>
             <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Colore</label>
               <div className="flex gap-2">{COLORS.map(c => <button key={c} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 ring-offset-bg-secondary ring-accent scale-110' : 'hover:scale-105'}`} style={{ backgroundColor: c }} />)}</div></div>
-            <CompetenzeEditor specs={specs} onChange={setSpecs} altreOperatrici={altre} nome={firstName.trim()} />
             {canSave && <div className="flex items-center gap-3 p-3 rounded-xl bg-bg-tertiary/50 border border-border/30">
               <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: color }}>{getInitials(firstName, lastName)}</div>
-              <div><p className="text-sm font-medium text-text-primary">{firstName} {lastName}</p><p className="text-xs text-text-muted">{commission}% commissione • {specs.length ? specs.map(etichettaCategoria).join(', ') : 'fa tutto'}</p></div>
+              <div>
+                <p className="text-sm font-medium text-text-primary">{firstName} {lastName}</p>
+                <p className="text-xs text-text-muted">{commission}% commissione • foto e categorie in App Clienti → Prenotazione</p>
+              </div>
             </div>}
           </div>
           <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-bg-tertiary/30">
@@ -319,9 +314,7 @@ function AddStaffModal({ onClose, onSave, altre }: {
 }
 
 /* ========== STAFF DETAIL MODAL ========== */
-function StaffDetailModal({ operator, altre, onClose, onSave, onDelete }: {
-  /** Le colleghe: servono a dire chi copre già una categoria. */
-  altre: Operator[];
+function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
   operator: Operator;
   onClose: () => void;
   onSave: (updates: Partial<Operator>) => void;
@@ -335,8 +328,6 @@ function StaffDetailModal({ operator, altre, onClose, onSave, onDelete }: {
   const [contractHours, setContractHours] = useState(String(operator.contractHours || ''));
   const [monthlyCost, setMonthlyCost] = useState(String(operator.monthlyCost || ''));
   const [color, setColor] = useState(operator.color);
-  const [specs, setSpecs] = useState<TreatmentCategory[]>(operator.specializations || []);
-  const [avatar, setAvatar] = useState(operator.avatar || '');
 
   // Ore effettivamente pianificate (dai turni salvati)
   const plannedHours = (() => {
@@ -357,7 +348,7 @@ function StaffDetailModal({ operator, altre, onClose, onSave, onDelete }: {
       email, phone, commission: Number(commission) || 0,
       contractHours: Number(contractHours) || 0,
       monthlyCost: Number(monthlyCost) || 0,
-      color, specializations: specs, avatar,
+      color,
     });
     onClose();
   };
@@ -377,9 +368,9 @@ function StaffDetailModal({ operator, altre, onClose, onSave, onDelete }: {
           <div className="flex items-center justify-between px-6 py-4 border-b border-border">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: color }}>
-                {avatar
+                {operator.avatar
                   // eslint-disable-next-line @next/next/no-img-element
-                  ? <img src={avatar} alt="" className="w-full h-full object-cover" />
+                  ? <img src={operator.avatar} alt="" className="w-full h-full object-cover" />
                   : getInitials(firstName || operator.firstName, lastName || operator.lastName)}
               </div>
               <div>
@@ -463,11 +454,21 @@ function StaffDetailModal({ operator, altre, onClose, onSave, onDelete }: {
                   <input type="number" min="0" max="100" value={commission} onChange={e => setCommission(e.target.value)} className="w-32 px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all" /></div>
                 <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Colore</label>
                   <div className="flex gap-2 flex-wrap">{COLORS.map(c => <button key={c} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 ring-offset-bg-secondary ring-accent scale-110' : 'hover:scale-105'}`} style={{ backgroundColor: c }} />)}</div></div>
-                <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Foto</label>
-                  <FotoOperatrice avatar={avatar} onChange={setAvatar} color={color}
-                    iniziali={getInitials(firstName || operator.firstName, lastName || operator.lastName)} /></div>
-                <CompetenzeEditor specs={specs} onChange={setSpecs} altreOperatrici={altre}
-                  nome={(firstName || operator.firstName).trim()} />
+                {/* Foto e categorie riguardano quello che la cliente vede quando
+                    prenota: stanno tutte insieme in App Clienti → Prenotazione,
+                    così non si configurano in due posti diversi. */}
+                <Link href="/dashboard/app-clienti"
+                  className="flex items-center gap-3 p-3.5 rounded-xl border border-accent/25 bg-accent/5 hover:border-accent/50 transition-colors">
+                  <Smartphone className="w-5 h-5 text-accent flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text-primary">Foto e cosa sa fare</p>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      La foto tonda e le categorie che {(firstName || operator.firstName).trim()} sa fare si impostano
+                      in App Clienti → Prenotazione, insieme al resto della prenotazione online.
+                    </p>
+                  </div>
+                  <span className="text-xs text-accent font-medium flex-shrink-0">Vai →</span>
+                </Link>
             </>
           </div>
 
@@ -1154,7 +1155,6 @@ export default function StaffPage() {
       <AnimatePresence>
         {showAddModal && (
           <AddStaffModal
-            altre={people}
             onClose={() => setShowAddModal(false)}
             onSave={(op) => { addOperator(op); setShowAddModal(false); }}
           />
@@ -1166,7 +1166,6 @@ export default function StaffPage() {
             <StaffDetailModal
               key={op.id}
               operator={op}
-              altre={people.filter(o => o.id !== op.id)}
               onClose={() => setDetailOpId(null)}
               onSave={(updates) => updateOperator(op.id, updates)}
               onDelete={() => deleteOperator(op.id)}

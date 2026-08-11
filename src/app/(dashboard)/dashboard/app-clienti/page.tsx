@@ -14,7 +14,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Smartphone, Settings2, Trophy, Zap, Gift, Users, BarChart3,
-  Loader2, Plus, Trash2, Save, RefreshCw, CheckCircle,
+  Loader2, Plus, Trash2, Save, RefreshCw, CheckCircle, CalendarClock,
 } from 'lucide-react';
 import {
   getConfigApp, setConfigApp, getLivelli, salvaLivello, eliminaLivello, ripristinaLivelli,
@@ -26,11 +26,13 @@ import type { ConfigApp } from '@/lib/appSettings';
 import type { StatisticheApp } from '@/lib/appAnalytics';
 import { getTreatments } from '@/app/actions/treatments';
 import { formatCurrency } from '@/lib/helpers';
+import SchedaPrenotazione from './SchedaPrenotazione';
 
-type Scheda = 'funzioni' | 'club' | 'flash' | 'sfide' | 'premi' | 'referral' | 'statistiche';
+type Scheda = 'funzioni' | 'prenotazione' | 'club' | 'flash' | 'sfide' | 'premi' | 'referral' | 'statistiche';
 
 const SCHEDE: { id: Scheda; label: string; icon: React.ElementType }[] = [
   { id: 'funzioni', label: 'Regole e funzioni', icon: Settings2 },
+  { id: 'prenotazione', label: 'Prenotazione', icon: CalendarClock },
   { id: 'club', label: 'Beauty Club', icon: Trophy },
   { id: 'flash', label: 'Flash Slot', icon: Zap },
   { id: 'sfide', label: 'Sfide', icon: Trophy },
@@ -119,6 +121,7 @@ export default function AppClientiPage() {
       ) : (
         <>
           {scheda === 'funzioni' && <SchedaFunzioni config={config} salva={salva} salvando={salvando} />}
+          {scheda === 'prenotazione' && <SchedaPrenotazione config={config} salva={salva} salvando={salvando} />}
           {scheda === 'club' && <SchedaClub />}
           {scheda === 'flash' && <SchedaFlash />}
           {scheda === 'sfide' && <SchedaSfide />}

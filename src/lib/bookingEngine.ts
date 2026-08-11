@@ -16,17 +16,15 @@
 import { prisma } from '@/lib/prisma';
 import { toMinutes, toHHMM, todayInItaly } from '@/lib/voice';
 import { mondayISO } from '@/lib/weekSchedule';
+import { leggiConfig, type ConfigApp } from '@/lib/appSettings';
 
-/** Orari in cui il centro è aperto: nessuno slot fuori da qui. */
-const APERTURA = '09:00';
-const CHIUSURA = '19:00';
-/** Ogni quanto si prova un orario di inizio. */
-const PASSO_MINUTI = 15;
 /**
- * Preavviso minimo per prenotare oggi. Senza, alle 16 la pagina proporrebbe
- * ancora le 11:30, e il centro si troverebbe un appuntamento nel passato.
+ * La cornice della prenotazione — apertura, chiusura, passo degli orari,
+ * preavviso — si imposta in App Clienti → Prenotazione. Qui dentro non c'è
+ * nessun orario scritto a mano.
  */
-const PREAVVISO_MINUTI = 60;
+type Regole = ConfigApp['prenotazione'];
+
 /** Stati che occupano davvero il tempo di un'operatrice. */
 const STATI_OCCUPANTI = ['confirmed', 'pending', 'in_progress', 'in_cabin', 'completed'];
 
@@ -70,9 +68,9 @@ interface Fascia { from: number; to: number }
  * la pausa. Turno assente = si assume disponibile per tutta l'apertura, così
  * una settimana non ancora pianificata non blocca le prenotazioni.
  */
-function fasceDiLavoro(turno: Turno | undefined): Fascia[] {
-  const apertura = toMinutes(APERTURA);
-  const chiusura = toMinutes(CHIUSURA);
+function fasceDiLavoro(turno: Turno | undefined, regole: Regole): Fascia[] {
+  const apertura = toMinutes(regole.apertura);
+  const chiusura = toMinutes(regole.chiusura);
   if (!turno) return [{ from: apertura, to: chiusura }];
   if (turno.isWorking === false) return [];
 
@@ -121,6 +119,8 @@ interface Contesto {
   occupatoPerData: Map<string, Map<string, Fascia[]>>;
   /** competenze[operatorId] = categorie che sa fare */
   competenze: Map<string, Set<string>>;
+  /** Orari e passo impostati in App Clienti → Prenotazione. */
+  regole: Regole;
 }
 
 /**
@@ -157,7 +157,7 @@ export function competenzePerOperatrice(
  * Riempire un calendario di due settimane girando giorno per giorno voleva
  * dire ottanta interrogazioni al database: così sono quattro.
  */
-async function caricaContesto(dateFrom: string, dateTo: string): Promise<Contesto> {
+async function caricaContesto(dateFrom: string, dateTo: string, regole: Regole): Promise<Contesto> {
   const settimaneCoinvolte = new Set<string>();
   for (let d = new Date(dateFrom + 'T12:00:00'); d <= new Date(dateTo + 'T12:00:00'); d.setDate(d.getDate() + 7)) {
     settimaneCoinvolte.add(mondayISO(d));
@@ -213,7 +213,7 @@ async function caricaContesto(dateFrom: string, dateTo: string): Promise<Contest
   for (const b of blocchi) aggiungi(b.date, b.operatorId, toMinutes(b.startTime), toMinutes(b.endTime));
 
   return {
-    operatori, settimane, occupatoPerData,
+    operatori, settimane, occupatoPerData, regole,
     competenze: competenzePerOperatrice(operatori, categorie.map(c => c.category)),
   };
 }
@@ -228,7 +228,7 @@ function lavoroDelGiorno(ctx: Contesto, date: string): Map<string, Fascia[]> {
     if (dow === 0) { lavoro.set(op.id, []); continue; } // domenica chiuso
     const perSettimana = ctx.settimane.find(w => w.operatorId === op.id && w.weekStart === weekStart);
     const mappa = (perSettimana?.schedule ?? op.schedule) as Record<string, Turno> | null;
-    lavoro.set(op.id, fasceDiLavoro(mappa?.[String(dow)]));
+    lavoro.set(op.id, fasceDiLavoro(mappa?.[String(dow)], ctx.regole));
   }
   return lavoro;
 }
@@ -302,14 +302,16 @@ function slotDelGiorno(
   let minimoOggi = 0;
   if (date === todayInItaly()) {
     const adesso = new Date().toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit', hour12: false });
-    minimoOggi = toMinutes(adesso) + PREAVVISO_MINUTI;
+    minimoOggi = toMinutes(adesso) + ctx.regole.preavvisoMinuti;
   }
-  const dalle = Math.max(toMinutes(APERTURA), oraDa ? toMinutes(oraDa) : 0, minimoOggi);
-  const alle = Math.min(toMinutes(CHIUSURA), oraA ? toMinutes(oraA) : toMinutes(CHIUSURA));
+  const chiusura = toMinutes(ctx.regole.chiusura);
+  const dalle = Math.max(toMinutes(ctx.regole.apertura), oraDa ? toMinutes(oraDa) : 0, minimoOggi);
+  const alle = Math.min(chiusura, oraA ? toMinutes(oraA) : chiusura);
 
   const slots: SlotProposto[] = [];
+  const passo = Math.max(5, ctx.regole.passoMinuti);
 
-  for (let inizio = dalle; inizio + durataTotale <= alle; inizio += PASSO_MINUTI) {
+  for (let inizio = dalle; inizio + durataTotale <= alle; inizio += passo) {
     const assegnate: AssegnazioneServizio[] = [];
 
     const prova = (i: number, cursore: number): boolean => {
@@ -365,7 +367,8 @@ export async function slotDisponibili(req: RichiestaDisponibilita): Promise<{
   const passi = await preparaPassi(req.services, req.gender);
   if (!passi) return { slots: [], durataTotale: 0, prezzoTotale: 0 };
 
-  const ctx = await caricaContesto(req.date, req.date);
+  const { prenotazione } = await leggiConfig();
+  const ctx = await caricaContesto(req.date, req.date, prenotazione);
   return {
     slots: slotDelGiorno(ctx, req.date, passi, req.oraDa, req.oraA),
     durataTotale: passi.reduce((s, p) => s + p.duration, 0),
@@ -406,7 +409,10 @@ export async function cercaSlot(req: RicercaSlot): Promise<{
   const passi = await preparaPassi(req.services, req.gender);
   if (!passi) return { giorni: [], durataTotale: 0, prezzoTotale: 0 };
 
-  const quanti = Math.min(Math.max(1, req.giorni || 14), 60);
+  const { prenotazione } = await leggiConfig();
+  // Quanto avanti guardare: il centro decide il tetto, chi chiama può solo
+  // restare sotto — altrimenti l'app aprirebbe l'agenda di sei mesi.
+  const quanti = Math.min(Math.max(1, req.giorni || prenotazione.giorniAvanti), Math.max(1, prenotazione.giorniAvanti));
   const date: string[] = [];
   const cursore = new Date(req.dateFrom + 'T12:00:00');
   for (let i = 0; i < quanti; i++) {
@@ -419,7 +425,7 @@ export async function cercaSlot(req: RicercaSlot): Promise<{
   }
   if (date.length === 0) return { giorni: [], durataTotale: 0, prezzoTotale: 0 };
 
-  const ctx = await caricaContesto(date[0], date[date.length - 1]);
+  const ctx = await caricaContesto(date[0], date[date.length - 1], prenotazione);
   const max = Math.min(Math.max(1, req.maxPerGiorno || 40), 100);
 
   const giorni: GiornoDisponibile[] = [];

@@ -23,6 +23,61 @@ import {
 } from '@/app/actions/campagne';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 
+/** I segnaposto {{n}} presenti nel testo, in ordine e senza doppioni. */
+function segnapostoDi(testo: string): number[] {
+  const trovati = [...testo.matchAll(/\{\{(\d+)\}\}/g)].map(m => Number(m[1]));
+  return [...new Set(trovati)].sort((a, b) => a - b);
+}
+
+/**
+ * Il messaggio come lo legge il cliente.
+ *
+ * Serve perché dall'elenco si vedeva solo il nome tecnico
+ * ("omaggio_inaugurazione") e per sapere cosa sarebbe partito bisognava
+ * aprire il pannello di 360dialog. Il testo è quello della versione ATTIVA su
+ * Meta, non quello che avevamo chiesto di approvare: se qualcuno l'ha
+ * modificato, qui si vede la differenza.
+ */
+function AnteprimaMessaggio({ tpl, valori, esempioNome }: {
+  tpl: TemplateRemoto;
+  /** valori[n] = cosa mettere al posto di {{n}}. Il {{1}} è sempre il nome. */
+  valori: Record<number, string>;
+  esempioNome: string;
+}) {
+  const riempi = (t: string) => t.replace(/\{\{(\d+)\}\}/g, (_, n) => {
+    const i = Number(n);
+    if (i === 1) return esempioNome;
+    return valori[i]?.trim() || `⟨${i === 1 ? 'nome' : 'da riempire'}⟩`;
+  });
+
+  return (
+    <div className="rounded-xl border border-border bg-bg-tertiary/40 p-3">
+      <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-2">
+        Quello che riceve il cliente
+      </p>
+      <div className="rounded-xl rounded-tl-sm bg-success/10 border border-success/25 px-3.5 py-3 max-w-md">
+        {tpl.header && <p className="text-sm font-bold text-text-primary mb-1">{riempi(tpl.header)}</p>}
+        <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
+          {tpl.body ? riempi(tpl.body) : 'Meta non ha restituito il testo di questo messaggio.'}
+        </p>
+        {tpl.footer && <p className="text-[11px] text-text-muted mt-1.5">{riempi(tpl.footer)}</p>}
+        {!!tpl.buttons?.length && (
+          <div className="mt-2 pt-2 border-t border-success/25 space-y-1">
+            {tpl.buttons.map((b, i) => (
+              <p key={i} className="text-xs font-semibold text-success text-center py-1 rounded-lg bg-success/10">
+                {b.text || b.type}
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+      <p className="text-[11px] text-text-muted mt-2">
+        Il nome cambia a ogni cliente: qui è mostrato <b>{esempioNome}</b> come esempio.
+      </p>
+    </div>
+  );
+}
+
 function StatoTemplate({ status }: { status: string }) {
   const s = status.toUpperCase();
   if (s === 'APPROVED') return <span className="px-2 py-0.5 rounded-md bg-success/15 text-success text-[10px] font-bold uppercase">Approvato</span>;
@@ -58,6 +113,9 @@ export default function CampagneWhatsApp() {
   const [forzaSenzaConsenso, setForzaSenzaConsenso] = useState(false);
   const [inviando, setInviando] = useState(false);
   const [esitoInvio, setEsitoInvio] = useState<EsitoCampagna | null>(null);
+  // Un messaggio può avere segnaposto oltre al nome ({{2}}, {{3}}…): vanno
+  // riempiti prima di partire, altrimenti Meta rifiuta l'invio.
+  const [valoriSegnaposto, setValoriSegnaposto] = useState<Record<number, string>>({});
 
   const caricaTemplate = useCallback(async () => {
     setCaricando(true);
@@ -168,14 +226,28 @@ export default function CampagneWhatsApp() {
         categoria: scelto.category,
         clientIds: [...selezionati],
         anteprima: testoAnteprima,
+        parametriFissi: daRiempire.map(n => valoriSegnaposto[n].trim()),
         includiSenzaConsenso: forzaSenzaConsenso,
       }));
     } finally { setInviando(false); }
   };
 
-  // Del template remoto Meta non ci ridà il corpo: si mostra quello scritto
-  // adesso solo se combacia il nome, altrimenti un testo generico.
-  const testoAnteprima = scelto && nome && scelto.name === nome ? testo : `[${scelto?.name ?? ''}]`;
+  // I segnaposto oltre al nome: {{1}} lo mette il sistema, gli altri li scrive
+  // chi manda la campagna.
+  const daRiempire = scelto?.body ? segnapostoDi(scelto.body).filter(n => n > 1) : [];
+  const mancanti = daRiempire.filter(n => !valoriSegnaposto[n]?.trim());
+
+  /** Nome di esempio nell'anteprima: il primo selezionato, se c'è. */
+  const nomeEsempio = (() => {
+    const primo = (clienti || []).find(c => selezionati.has(c.id));
+    return (primo?.nome || 'Maria').trim().split(/\s+/)[0];
+  })();
+
+  // Il testo salvato in archivio è quello vero di Meta, con i segnaposto fissi
+  // già risolti; il nome lo sostituisce l'invio, cliente per cliente.
+  const testoAnteprima = scelto?.body
+    ? scelto.body.replace(/\{\{(\d+)\}\}/g, (m, n) => Number(n) === 1 ? m : (valoriSegnaposto[Number(n)]?.trim() || m))
+    : `[${scelto?.name ?? ''}]`;
 
   const approvati = (templates ?? []).filter(t => t.status.toUpperCase() === 'APPROVED');
 
@@ -264,7 +336,7 @@ export default function CampagneWhatsApp() {
                 className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors ${
                   attivo ? 'border-accent bg-accent/10' : 'border-border bg-bg-tertiary/30'
                 }`}>
-                <button disabled={!usabile} onClick={() => { setScelto(t); setEsitoInvio(null); }}
+                <button disabled={!usabile} onClick={() => { setScelto(t); setEsitoInvio(null); setValoriSegnaposto({}); }}
                   className={`flex-1 min-w-0 text-left ${usabile ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}>
                   <p className="text-sm font-medium text-text-primary truncate">{t.name}</p>
                   <p className="text-[11px] text-text-muted">{t.category === 'MARKETING' ? 'Promozionale' : 'Di servizio'} · {t.language}</p>
@@ -299,6 +371,28 @@ export default function CampagneWhatsApp() {
             <button onClick={() => { setScelto(null); setSelezionati(new Set()); }}
               className="flex items-center gap-1 text-xs text-text-muted hover:text-text-primary"><X className="w-3.5 h-3.5" /> annulla</button>
           </div>
+
+          {daRiempire.length > 0 && (
+            <div className="rounded-xl border border-border p-3 space-y-2">
+              <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
+                Da riempire prima di mandare
+              </p>
+              {daRiempire.map(n => (
+                <div key={n} className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-text-muted w-10 flex-shrink-0">{`{{${n}}}`}</span>
+                  <input value={valoriSegnaposto[n] || ''} {...NO_AUTOFILL}
+                    onChange={e => setValoriSegnaposto(v => ({ ...v, [n]: e.target.value }))}
+                    placeholder="es. Pulizia viso"
+                    className="flex-1 px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary" />
+                </div>
+              ))}
+              <p className="text-[11px] text-text-muted">
+                Questo pezzo di testo è uguale per tutti. Il nome invece cambia da solo, cliente per cliente.
+              </p>
+            </div>
+          )}
+
+          <AnteprimaMessaggio tpl={scelto} valori={valoriSegnaposto} esempioNome={nomeEsempio} />
 
           <div className="flex items-center gap-1.5 flex-wrap">
             {FILTRI.map(f => (
@@ -397,7 +491,14 @@ export default function CampagneWhatsApp() {
             </div>
           )}
 
-          <button onClick={invia} disabled={inviando || selezionati.size === 0}
+          {mancanti.length > 0 && (
+            <p className="flex items-center gap-1.5 text-[11px] text-warning">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+              Riempi {mancanti.map(n => `{{${n}}}`).join(', ')}: Meta rifiuta un messaggio con un segnaposto vuoto.
+            </p>
+          )}
+
+          <button onClick={invia} disabled={inviando || selezionati.size === 0 || mancanti.length > 0}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl gradient-accent text-white text-sm font-bold disabled:opacity-50">
             {inviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             Invia a {selezionati.size}

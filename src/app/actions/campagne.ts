@@ -23,6 +23,15 @@ export interface TemplateRemoto {
   status: string;
   category: string;
   language: string;
+  /**
+   * Il testo della versione ATTIVA su Meta — quello che il cliente legge
+   * davvero. Senza, dal gestionale si vedeva solo il nome tecnico e per sapere
+   * cosa sarebbe partito bisognava aprire il pannello di 360dialog.
+   */
+  body?: string;
+  header?: string;
+  footer?: string;
+  buttons?: { type: string; text?: string; url?: string }[];
 }
 
 /** Tutti i template del canale, non solo quelli del catalogo interno. */
