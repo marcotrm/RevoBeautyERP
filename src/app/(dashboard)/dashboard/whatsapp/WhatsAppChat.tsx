@@ -12,8 +12,10 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown } from 'lucide-react';
-import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction } from '@/app/actions/whatsapp';
+import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X } from 'lucide-react';
+import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione } from '@/app/actions/whatsapp';
+import { listaTemplate, clientiPerCampagna, type TemplateRemoto, type DestinatarioCampagna } from '@/app/actions/campagne';
+import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { useWaInboxStore } from '@/stores/useWaInboxStore';
 // I tipi arrivano dalla libreria, non dal file di azioni: un 'use server' non
 // può ri-esportarli senza rompersi a runtime.
@@ -189,6 +191,212 @@ function Faccia({ nome, phone, avatar, size = 40 }: {
   );
 }
 
+/** Chi contattare: si cerca in anagrafica, o si scrive il numero a mano. */
+function ScegliDestinatario({ onScelto, onChiudi }: {
+  onScelto: (phone: string) => void;
+  onChiudi: () => void;
+}) {
+  const [clienti, setClienti] = useState<DestinatarioCampagna[] | null>(null);
+  const [cerca, setCerca] = useState('');
+
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      const c = await clientiPerCampagna();
+      if (vivo) setClienti(c);
+    })();
+    return () => { vivo = false; };
+  }, []);
+
+  const q = cerca.trim().toLowerCase();
+  const soloCifre = q.replace(/\D/g, '');
+  const trovati = (clienti || [])
+    .filter(c => !q || c.nome.toLowerCase().includes(q) || (soloCifre && c.phone.includes(soloCifre)))
+    .slice(0, 30);
+
+  // Numero scritto a mano: utile per chi non è ancora in anagrafica.
+  const numeroLibero = soloCifre.length >= 9 && !trovati.some(c => c.phone.endsWith(soloCifre.slice(-9)))
+    ? soloCifre : null;
+
+  return (
+    <div className="px-3 py-3 border-b border-border/40 bg-bg-tertiary/30 flex-shrink-0 space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Scrivi a un cliente</p>
+        <button onClick={onChiudi} className="text-text-muted hover:text-text-primary"><X className="w-3.5 h-3.5" /></button>
+      </div>
+      <input autoFocus value={cerca} onChange={e => setCerca(e.target.value)} {...NO_AUTOFILL}
+        placeholder="Nome o numero…"
+        className="w-full px-3 py-2 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary" />
+
+      <div className="max-h-56 overflow-y-auto rounded-xl border border-border/60 divide-y divide-border/30">
+        {clienti === null && <p className="px-3 py-3 text-[11px] text-text-muted">carico l&apos;anagrafica…</p>}
+        {numeroLibero && (
+          <button onClick={() => onScelto(numeroLibero)}
+            className="w-full text-left px-3 py-2 hover:bg-bg-hover">
+            <p className="text-sm text-text-primary">Scrivi a +{numeroLibero}</p>
+            <p className="text-[10px] text-text-muted">numero non in anagrafica</p>
+          </button>
+        )}
+        {trovati.map(c => (
+          <button key={c.id} onClick={() => onScelto(c.phone)}
+            className="w-full text-left px-3 py-2 hover:bg-bg-hover flex items-center gap-2.5">
+            <Faccia nome={c.nome} phone={c.phone} size={28} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm text-text-primary truncate">{c.nome}</span>
+              <span className="block text-[10px] text-text-muted font-mono">+{c.phone}</span>
+            </span>
+          </button>
+        ))}
+        {clienti !== null && trovati.length === 0 && !numeroLibero && (
+          <p className="px-3 py-3 text-[11px] text-text-muted">Nessun cliente trovato.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Cosa si può fare quando la finestra è chiusa.
+ *
+ * Meta lascia scrivere liberamente solo nelle 24 ore dopo un messaggio del
+ * cliente. Fuori da lì — e prima del suo primo messaggio in assoluto — l'unica
+ * strada è un messaggio già approvato. Prima qui c'era solo l'avviso, e per
+ * contattare una cliente che aveva detto "scrivetemi su WhatsApp" bisognava
+ * uscire dal gestionale.
+ */
+function FinestraChiusa({ phone, nome, mai, onInviato }: {
+  phone: string;
+  nome?: string;
+  /** Vero se con questo numero non c'è mai stato uno scambio. */
+  mai: boolean;
+  onInviato: () => void;
+}) {
+  const [templates, setTemplates] = useState<TemplateRemoto[] | null>(null);
+  const [scelto, setScelto] = useState<TemplateRemoto | null>(null);
+  const [valori, setValori] = useState<Record<number, string>>({});
+  const [inviando, setInviando] = useState(false);
+  const [esito, setEsito] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [aperto, setAperto] = useState(false);
+
+  useEffect(() => {
+    if (!aperto || templates) return;
+    let vivo = true;
+    void (async () => {
+      const r = await listaTemplate();
+      if (vivo) setTemplates(r.templates.filter(t => t.status.toUpperCase() === 'APPROVED'));
+    })();
+    return () => { vivo = false; };
+  }, [aperto, templates]);
+
+  /** Il primo segnaposto è il nome: lo riempie il gestionale, non l'operatrice. */
+  const nomeBreve = (nome || '').trim().split(/\s+/)[0] || 'ciao';
+  const segnaposto = scelto?.body
+    ? [...new Set([...scelto.body.matchAll(/\{\{(\d+)\}\}/g)].map(m => Number(m[1])))].sort((a, b) => a - b)
+    : [];
+  const daRiempire = segnaposto.filter(n => n > 1);
+  const mancanti = daRiempire.filter(n => !valori[n]?.trim());
+
+  const testoFinale = (scelto?.body || '').replace(/\{\{(\d+)\}\}/g, (_, n) =>
+    Number(n) === 1 ? nomeBreve : (valori[Number(n)]?.trim() || `{{${n}}}`));
+
+  const manda = async () => {
+    if (!scelto || mancanti.length > 0) return;
+    setInviando(true); setEsito(null);
+    const res = await apriConversazione({
+      phone,
+      templateName: scelto.name,
+      language: scelto.language,
+      // In ordine: prima il nome, poi gli altri segnaposto.
+      bodyParams: segnaposto.map(n => (n === 1 ? nomeBreve : valori[n].trim())),
+      anteprima: testoFinale,
+    });
+    setInviando(false);
+    setEsito(res.ok
+      ? { ok: true, msg: 'Messaggio partito. Ora tocca al cliente: appena risponde puoi scrivergli liberamente.' }
+      : { ok: false, msg: res.error || 'Invio fallito' });
+    if (res.ok) { setScelto(null); setValori({}); onInviato(); }
+  };
+
+  return (
+    <div className="rounded-xl bg-warning/10 border border-warning/30 p-2.5 space-y-2">
+      <div className="flex items-start gap-2">
+        <Clock className="w-3.5 h-3.5 text-warning flex-shrink-0 mt-0.5" />
+        <p className="text-[11px] text-text-secondary leading-relaxed flex-1">
+          {mai
+            ? 'Con questo numero non c\'è ancora nessuna conversazione. Meta lascia scrivere per primi solo con un messaggio già approvato: dopo che il cliente risponde, si può parlare liberamente per 24 ore.'
+            : 'Sono passate più di 24 ore dall\'ultimo messaggio del cliente: Meta non permette più il testo libero. Puoi mandargli un messaggio approvato, oppure aspettare che riscriva.'}
+        </p>
+      </div>
+
+      {!aperto ? (
+        <button onClick={() => setAperto(true)}
+          className="w-full py-2 rounded-xl bg-accent text-white text-xs font-semibold hover:opacity-90">
+          Manda un messaggio approvato
+        </button>
+      ) : (
+        <>
+          {templates === null ? (
+            <p className="flex items-center gap-2 text-[11px] text-text-muted"><Loader2 className="w-3 h-3 animate-spin" /> carico i messaggi approvati…</p>
+          ) : templates.length === 0 ? (
+            <p className="text-[11px] text-text-muted leading-relaxed">
+              Non c&apos;è ancora nessun messaggio approvato. Se ne creano in Marketing → Campagne WhatsApp;
+              Meta di solito risponde in pochi minuti.
+            </p>
+          ) : (
+            <>
+              <select value={scelto?.name || ''}
+                onChange={e => {
+                  setScelto(templates.find(t => t.name === e.target.value) || null);
+                  setValori({}); setEsito(null);
+                }}
+                className="w-full px-2.5 py-2 rounded-xl bg-bg-tertiary border border-border text-xs text-text-primary">
+                <option value="">Scegli il messaggio…</option>
+                {templates.map(t => (
+                  <option key={`${t.name}-${t.language}`} value={t.name}>
+                    {t.name} {t.category === 'MARKETING' ? '(promozionale)' : '(di servizio)'}
+                  </option>
+                ))}
+              </select>
+
+              {daRiempire.map(n => (
+                <input key={n} value={valori[n] || ''} {...NO_AUTOFILL}
+                  onChange={e => setValori(v => ({ ...v, [n]: e.target.value }))}
+                  placeholder={`Cosa scrivere al posto di {{${n}}}`}
+                  className="w-full px-2.5 py-2 rounded-xl bg-bg-tertiary border border-border text-xs text-text-primary" />
+              ))}
+
+              {scelto && (
+                <div className="rounded-xl bg-bg-secondary border border-border/60 px-3 py-2">
+                  <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider mb-1">Riceverà questo</p>
+                  <p className="text-[11px] text-text-primary whitespace-pre-wrap leading-relaxed">
+                    {scelto.body ? testoFinale : 'Meta non ha restituito il testo di questo messaggio.'}
+                  </p>
+                </div>
+              )}
+
+              {esito && (
+                <p className={`text-[11px] leading-relaxed ${esito.ok ? 'text-success' : 'text-error'}`}>{esito.msg}</p>
+              )}
+
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setAperto(false); setScelto(null); setEsito(null); }}
+                  className="px-3 py-2 rounded-xl border border-border text-[11px] text-text-secondary hover:bg-bg-hover">
+                  Annulla
+                </button>
+                <button onClick={manda} disabled={!scelto || inviando || mancanti.length > 0}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-accent text-white text-xs font-semibold disabled:opacity-40">
+                  {inviando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  Manda a {nome || `+${phone}`}
+                </button>
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function WhatsAppChat() {
   const [conversations, setConversations] = useState<WaConversation[] | null>(null);
   const [active, setActive] = useState<string | null>(null);
@@ -205,6 +413,13 @@ export default function WhatsAppChat() {
   /** Se si sta guardando la coda: solo allora il polling può scorrere in fondo. */
   const inFondoRef = useRef(true);
   const [lontanoDalFondo, setLontanoDalFondo] = useState(false);
+  const [scegliCliente, setScegliCliente] = useState(false);
+  /**
+   * Vero finché i messaggi della chat appena aperta non sono arrivati. Senza,
+   * per un istante si legge "nessuna conversazione, finestra chiusa" anche su
+   * una chat viva: è lo stato iniziale, non la verità.
+   */
+  const [caricandoThread, setCaricandoThread] = useState(false);
 
   /**
    * Niente `setState` sincrono qui dentro: viene chiamata anche dagli effect, e
@@ -234,10 +449,12 @@ export default function WhatsAppChat() {
       setWindowExpiresAt(res.windowExpiresAt);
       setClientName(res.clientName);
       setClientAvatar(res.clientAvatar);
+      setCaricandoThread(false);
       // Aprire la chat la segna letta: spegne subito il pallino sul menu,
       // senza aspettare il giro di polling dell'avviso globale.
       void useWaInboxStore.getState().fetchUnread();
     } catch {
+      setCaricandoThread(false);
       setError('Impossibile aprire la conversazione.');
     }
   }, []);
@@ -257,6 +474,7 @@ export default function WhatsAppChat() {
   const openThread = useCallback((phone: string) => {
     setActive(phone);
     setThread([]); // il caricamento lo fa l'effect qui sotto, che riparte al cambio di `active`
+    setCaricandoThread(true);
     // Una conversazione appena aperta si guarda dalla fine, come su WhatsApp.
     inFondoRef.current = true;
     setLontanoDalFondo(false);
@@ -336,11 +554,27 @@ export default function WhatsAppChat() {
       <div className={`rounded-2xl bg-bg-secondary border border-border/50 flex flex-col overflow-hidden ${active ? 'hidden md:flex' : 'flex'}`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/40 flex-shrink-0">
           <p className="text-sm font-semibold text-text-primary">Conversazioni</p>
-          <button onClick={manualRefresh} disabled={loadingList}
-            className="p-1.5 rounded-lg text-text-muted hover:bg-bg-hover disabled:opacity-50" title="Aggiorna">
-            <RefreshCw className={`w-3.5 h-3.5 ${loadingList ? 'animate-spin' : ''}`} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setScegliCliente(v => !v)}
+              className={`p-1.5 rounded-lg transition-colors ${scegliCliente ? 'bg-accent text-white' : 'text-text-muted hover:bg-bg-hover'}`}
+              title="Scrivi a un cliente">
+              <PenSquare className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={manualRefresh} disabled={loadingList}
+              className="p-1.5 rounded-lg text-text-muted hover:bg-bg-hover disabled:opacity-50" title="Aggiorna">
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingList ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
+
+        {/* Scrivere per primi: la conversazione non esiste ancora, quindi il
+            numero non può che arrivare dall'anagrafica (o scritto a mano). */}
+        {scegliCliente && (
+          <ScegliDestinatario
+            onScelto={phone => { setScegliCliente(false); openThread(phone); }}
+            onChiudi={() => setScegliCliente(false)}
+          />
+        )}
 
         <div className="flex-1 overflow-y-auto">
           {conversations === null ? (
@@ -473,14 +707,17 @@ export default function WhatsAppChat() {
             {/* Casella di risposta. Fuori dalla finestra 24h Meta rifiuta il testo
                 libero: meglio bloccare qui che far scrivere invano. */}
             <div className="border-t border-border/40 p-3 flex-shrink-0 space-y-2">
-              {!windowOpen ? (
-                <div className="flex items-start gap-2 p-2.5 rounded-xl bg-warning/10 border border-warning/30">
-                  <Clock className="w-3.5 h-3.5 text-warning flex-shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-text-secondary leading-relaxed">
-                    Sono passate più di 24 ore dall&apos;ultimo messaggio del cliente. Meta non permette
-                    più di scrivergli liberamente: deve essere lui a riscrivere, oppure serve un template approvato.
-                  </p>
-                </div>
+              {caricandoThread ? (
+                <p className="flex items-center gap-2 text-[11px] text-text-muted py-2">
+                  <Loader2 className="w-3 h-3 animate-spin" /> apro la conversazione…
+                </p>
+              ) : !windowOpen ? (
+                <FinestraChiusa
+                  phone={active}
+                  nome={clientName || conversations?.find(c => c.phone === active)?.name}
+                  mai={thread.length === 0}
+                  onInviato={() => { void loadThread(active); void refreshList(); }}
+                />
               ) : (
                 <>
                   <div className="flex items-end gap-2">

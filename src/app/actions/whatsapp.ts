@@ -4,10 +4,10 @@ import { prisma } from '@/lib/prisma';
 import { waProvider, whatsappMissingVars, sendWhatsApp, sendWhatsAppTemplate, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
 import {
   listConversations, listMessages, markConversationRead, markConversationUnread, conversationWindow, listUnreadChats,
-  clientNameForPhone,
+  clientNameForPhone, logOutbound,
   type WaConversation, type WaMessageRow, type WaUnreadChat,
 } from '@/lib/wa-conversations';
-import { listD360Templates, createD360Template } from '@/lib/whatsapp360';
+import { listD360Templates, createD360Template, sendD360Template } from '@/lib/whatsapp360';
 import { reviewRedirectUrl } from '@/lib/links';
 import { WA_TEMPLATES, templateButtonLabels, type TemplateKey } from '@/lib/wa-templates';
 import {
@@ -143,6 +143,52 @@ export async function loadConversation(phone: string): Promise<{
  * il testo libero verrebbe rifiutato (131047). Meglio dirlo qui che far
  * scrivere un messaggio destinato a non partire.
  */
+/**
+ * Scrive per primi a un cliente che non ci ha mai scritto.
+ *
+ * Meta lascia iniziare una conversazione solo con un template approvato: il
+ * testo libero vale nelle 24 ore dopo un messaggio del cliente, e prima di
+ * quel messaggio quelle 24 ore non esistono. Quindi qui si manda un template,
+ * scelto fra quelli approvati sul canale.
+ *
+ * Attenzione a cosa NON fa: mandare il template non apre la finestra. Finché
+ * il cliente non risponde, il testo libero resta bloccato — è così per tutti,
+ * non è un limite del gestionale.
+ */
+export async function apriConversazione(params: {
+  phone: string;
+  /** Nome del template approvato, come compare in Marketing. */
+  templateName: string;
+  language?: string;
+  /** Valori dei segnaposto, in ordine: il primo è di solito il nome. */
+  bodyParams?: string[];
+  /** Il testo coi segnaposto già risolti: è quello che finisce in archivio. */
+  anteprima: string;
+}): Promise<{ ok: boolean; error?: string; phone?: string }> {
+  if (!isSendablePhone(params.phone)) return { ok: false, error: 'Numero non valido' };
+  if (!params.templateName) return { ok: false, error: 'Scegli un messaggio approvato' };
+
+  const numero = normalizePhone(params.phone);
+  const res = await sendD360Template(numero, params.templateName, {
+    language: params.language || 'it',
+    bodyParams: params.bodyParams?.length ? params.bodyParams : undefined,
+  });
+
+  // In archivio va il testo che il cliente legge, non il nome tecnico: è quello
+  // che l'operatrice deve ritrovare riaprendo la chat.
+  await logOutbound({
+    phone: numero,
+    text: params.anteprima || `[template ${params.templateName}]`,
+    source: 'manual',
+    messageId: res.messageId,
+    ok: res.ok,
+    error: res.error,
+    template: { name: params.templateName },
+  });
+
+  return res.ok ? { ok: true, phone: numero } : { ok: false, error: res.error || 'Invio fallito' };
+}
+
 export async function sendManualReply(phone: string, text: string): Promise<{ ok: boolean; error?: string }> {
   const body = text.trim();
   if (!body) return { ok: false, error: 'Messaggio vuoto' };
