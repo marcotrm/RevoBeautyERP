@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { notifyNuovoAppuntamento } from '@/lib/telegram';
 import { getAccountFromRequest, unauthorized } from '@/lib/mobile';
-import { hasConflict, toMinutes, toHHMM, todayInItaly } from '@/lib/voice';
+import { todayInItaly } from '@/lib/voice';
+import { slotDisponibili, type ServizioRichiesto } from '@/lib/bookingEngine';
 import { sendAppointmentConfirmation } from '@/lib/wa-appointments';
 import { avanzaSfide } from '@/lib/challenge';
 import { muoviPunti } from '@/lib/wallet';
@@ -17,52 +18,65 @@ export async function POST(request: Request) {
   const client = account.client;
 
   const b = await request.json().catch(() => null);
-  if (!b?.treatmentId) return Response.json({ error: 'Seleziona un trattamento', code: 'VALIDATION' }, { status: 400 });
   if (!b?.date || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) return Response.json({ error: 'Seleziona una data', code: 'VALIDATION' }, { status: 400 });
   if (!b?.startTime || !/^\d{2}:\d{2}$/.test(b.startTime)) return Response.json({ error: 'Seleziona un orario', code: 'VALIDATION' }, { status: 400 });
   if (b.date < todayInItaly()) return Response.json({ error: 'La data è nel passato', code: 'VALIDATION' }, { status: 400 });
 
-  const treatment = await prisma.treatment.findUnique({ where: { id: String(b.treatmentId) } });
-  if (!treatment) return Response.json({ error: 'Trattamento non trovato', code: 'NOT_FOUND' }, { status: 404 });
+  // Più trattamenti nella stessa seduta, o la vecchia forma a trattamento singolo
+  const richiesti: ServizioRichiesto[] = Array.isArray(b.services) && b.services.length > 0
+    ? b.services
+        .filter((s: unknown) => s && typeof s === 'object')
+        .map((s: { treatmentId?: unknown; operatorId?: unknown }) => ({
+          treatmentId: String(s.treatmentId || ''),
+          operatorId: s.operatorId ? String(s.operatorId) : null,
+        }))
+        .filter((s: ServizioRichiesto) => s.treatmentId)
+    : (b.treatmentId ? [{ treatmentId: String(b.treatmentId), operatorId: b.operatorId ? String(b.operatorId) : null }] : []);
+  if (richiesti.length === 0) return Response.json({ error: 'Seleziona un trattamento', code: 'VALIDATION' }, { status: 400 });
 
   const gender = (b.gender === 'male' || b.gender === 'female')
     ? b.gender
     : (client.gender === 'M' ? 'male' : 'female');
-  const duration = gender === 'male'
-    ? (treatment.durationMale ?? treatment.durationFemale ?? treatment.duration)
-    : (treatment.durationFemale ?? treatment.duration);
-  const price = gender === 'male'
-    ? (treatment.priceMale ?? treatment.priceFemale ?? treatment.price)
-    : (treatment.priceFemale ?? treatment.price);
 
-  // Assegna un'operatrice libera (quella richiesta se possibile).
-  // Le cabine/risorse (isResource) non vengono mai assegnate automaticamente.
-  const operators = await prisma.operator.findMany({ where: { isActive: true, isResource: false } });
-  const preferredId = b.operatorId ? String(b.operatorId) : null;
-  const ordered = preferredId ? [...operators].sort((a) => (a.id === preferredId ? -1 : 1)) : operators;
-  let chosen: typeof operators[number] | null = null;
-  for (const op of ordered) {
-    if (!(await hasConflict(b.date, op.id, b.startTime, duration))) { chosen = op; break; }
-  }
-  if (!chosen) return Response.json({ error: 'Questo orario non è più disponibile.', code: 'NOT_CANCELLABLE' }, { status: 409 });
+  // Ricontrollo della disponibilità al momento della conferma: rispetta turni,
+  // pause e appuntamenti già presi (stesso motore della pagina web).
+  const { slots } = await slotDisponibili({ date: b.date, services: richiesti, gender });
+  const slot = slots.find(s => s.time === b.startTime);
+  if (!slot) return Response.json({ error: 'Questo orario non è più disponibile.', code: 'NOT_CANCELLABLE' }, { status: 409 });
 
-  const endTime = toHHMM(toMinutes(b.startTime) + duration);
+  const trattamenti = await prisma.treatment.findMany({
+    where: { id: { in: slot.assegnazioni.map(a => a.treatmentId) } },
+    select: { id: true, category: true, color: true },
+  });
+  const metaDi = new Map(trattamenti.map(t => [t.id, t]));
+  const principale = slot.assegnazioni[0];
+
   const appointment = await prisma.appointment.create({
     data: {
       clientId: client.id,
       clientName: `${client.firstName} ${client.lastName}`.trim(),
-      operatorId: chosen.id,
-      operatorName: `${chosen.firstName} ${chosen.lastName}`.trim(),
-      treatmentId: treatment.id,
-      treatmentName: treatment.name,
-      treatmentCategory: treatment.category,
+      operatorId: principale.operatorId,
+      operatorName: principale.operatorName,
+      treatmentId: principale.treatmentId,
+      treatmentName: slot.assegnazioni.map(a => a.treatmentName).join(' + '),
+      treatmentCategory: metaDi.get(principale.treatmentId)?.category || 'body',
       date: b.date,
-      startTime: b.startTime,
-      endTime,
-      duration,
+      startTime: slot.time,
+      endTime: slot.endTime,
+      duration: slot.durataTotale,
       status: 'confirmed',
-      price,
-      color: treatment.color,
+      price: slot.prezzoTotale,
+      services: slot.assegnazioni.map(a => ({
+        treatmentId: a.treatmentId,
+        treatmentName: a.treatmentName,
+        treatmentCategory: metaDi.get(a.treatmentId)?.category || 'body',
+        duration: a.duration,
+        price: a.price,
+        gender,
+        operatorId: a.operatorId,
+        operatorName: a.operatorName,
+      })),
+      color: metaDi.get(principale.treatmentId)?.color || '#A855F7',
       notes: 'Prenotazione da app',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
