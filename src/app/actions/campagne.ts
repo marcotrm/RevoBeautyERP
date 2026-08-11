@@ -13,7 +13,7 @@ import { createD360Template, listD360Templates, deleteD360Template } from '@/lib
 import { sendD360Template } from '@/lib/whatsapp360';
 import { normalizePhone, isSendablePhone, waProvider } from '@/lib/whatsapp';
 import { logOutbound } from '@/lib/wa-conversations';
-import { sanitizeParam } from '@/lib/wa-templates';
+import { sanitizeParam, NOME_APERTURA, TESTO_APERTURA } from '@/lib/wa-templates';
 import { sessoDaNome } from '@/lib/sessoDaNome';
 
 const LOG_KIND = 'wa_log';
@@ -69,6 +69,11 @@ export async function creaTemplate(params: {
   });
   if (!res.ok) return { ok: false, error: res.error };
   return { ok: true, status: res.status, nome };
+}
+
+/** Crea il messaggio di apertura e lo manda in approvazione. Si fa una volta sola. */
+export async function creaTemplateApertura(): Promise<{ ok: boolean; status?: string; error?: string }> {
+  return creaTemplate({ nome: NOME_APERTURA, categoria: 'UTILITY', testo: TESTO_APERTURA });
 }
 
 /**

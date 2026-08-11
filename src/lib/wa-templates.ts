@@ -173,6 +173,26 @@ export const WA_TEMPLATES = {
 
 export type TemplateKey = keyof typeof WA_TEMPLATES;
 
+/**
+ * Il messaggio con cui il centro scrive per primo.
+ *
+ * Sta fuori da WA_TEMPLATES perché non lo manda nessuna automazione: lo manda
+ * un'operatrice, a mano, dalla chat. Serve da quando il numero è passato su
+ * WABA e WhatsApp sul telefono non si apre più: l'unico modo di contattare una
+ * cliente è il gestionale, e Meta lo consente solo con un template approvato.
+ * Gli altri template non vanno bene, parlano tutti di un appuntamento o di una
+ * promozione.
+ *
+ * È UTILITY e non MARKETING perché non propone niente: risponde a chi ha
+ * chiesto lei di essere contattata. Costa meno e Meta lo approva senza storie,
+ * a patto che non prometta sconti — e infatti non ne promette.
+ */
+export const NOME_APERTURA = 'apertura_conversazione';
+export const TESTO_APERTURA =
+  'Ciao {{1}}, ti scriviamo da RevoBeauty.\n' +
+  'Rispondi pure a questo messaggio: dicci di cosa hai bisogno e quando ti fa comodo, e ti troviamo posto.\n' +
+  'Ti aspettiamo in Via Caudina 30, Maddaloni.';
+
 /** Le automazioni che mandano messaggi di marketing (servono consenso + opt-out). */
 export function isMarketing(key: TemplateKey): boolean {
   return WA_TEMPLATES[key].category === 'MARKETING';

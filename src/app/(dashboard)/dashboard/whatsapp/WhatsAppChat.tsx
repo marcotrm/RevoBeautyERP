@@ -14,7 +14,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X } from 'lucide-react';
 import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione } from '@/app/actions/whatsapp';
-import { listaTemplate, clientiPerCampagna, type TemplateRemoto, type DestinatarioCampagna } from '@/app/actions/campagne';
+import {
+  listaTemplate, clientiPerCampagna, creaTemplateApertura,
+  type TemplateRemoto, type DestinatarioCampagna,
+} from '@/app/actions/campagne';
+// Le costanti NON possono venire da un file 'use server': lì Next ammette
+// solo funzioni asincrone fra gli export.
+import { NOME_APERTURA, TESTO_APERTURA } from '@/lib/wa-templates';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { useWaInboxStore } from '@/stores/useWaInboxStore';
 // I tipi arrivano dalla libreria, non dal file di azioni: un 'use server' non
@@ -191,6 +197,47 @@ function Faccia({ nome, phone, avatar, size = 40 }: {
   );
 }
 
+/**
+ * Il messaggio di apertura, creato da qui.
+ *
+ * I template esistenti parlano tutti di un appuntamento o di una promozione:
+ * per rispondere a chi ha chiesto "scrivetemi su WhatsApp" non ne serve
+ * nessuno di quelli, serve un buongiorno. Si crea una volta e resta.
+ */
+function CreaApertura({ onFatto }: { onFatto: () => void }) {
+  const [creando, setCreando] = useState(false);
+  const [esito, setEsito] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const crea = async () => {
+    setCreando(true); setEsito(null);
+    const r = await creaTemplateApertura();
+    setCreando(false);
+    setEsito(r.ok
+      ? { ok: true, msg: `Mandato a Meta per l'approvazione (stato: ${r.status}). Di solito risponde in pochi minuti: torna qui e ricarica.` }
+      : { ok: false, msg: r.error || 'Creazione fallita' });
+    if (r.ok) onFatto();
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] text-text-secondary leading-relaxed">
+        Non hai ancora un messaggio adatto a scrivere per primo: quelli che ci sono parlano
+        di appuntamenti o promozioni. Questo invece è un buongiorno e basta — si crea una
+        volta sola e poi resta lì.
+      </p>
+      <div className="rounded-xl bg-bg-secondary border border-border/60 px-3 py-2">
+        <p className="text-[11px] text-text-primary whitespace-pre-wrap leading-relaxed">{TESTO_APERTURA}</p>
+      </div>
+      {esito && <p className={`text-[11px] leading-relaxed ${esito.ok ? 'text-success' : 'text-error'}`}>{esito.msg}</p>}
+      <button onClick={crea} disabled={creando}
+        className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-accent text-white text-xs font-semibold disabled:opacity-50">
+        {creando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+        Crea il messaggio di apertura
+      </button>
+    </div>
+  );
+}
+
 /** Chi contattare: si cerca in anagrafica, o si scrive il numero a mano. */
 function ScegliDestinatario({ onScelto, onChiudi }: {
   onScelto: (phone: string) => void;
@@ -338,10 +385,7 @@ function FinestraChiusa({ phone, nome, mai, onInviato }: {
           {templates === null ? (
             <p className="flex items-center gap-2 text-[11px] text-text-muted"><Loader2 className="w-3 h-3 animate-spin" /> carico i messaggi approvati…</p>
           ) : templates.length === 0 ? (
-            <p className="text-[11px] text-text-muted leading-relaxed">
-              Non c&apos;è ancora nessun messaggio approvato. Se ne creano in Marketing → Campagne WhatsApp;
-              Meta di solito risponde in pochi minuti.
-            </p>
+            <CreaApertura onFatto={() => setTemplates(null)} />
           ) : (
             <>
               <select value={scelto?.name || ''}
@@ -357,6 +401,10 @@ function FinestraChiusa({ phone, nome, mai, onInviato }: {
                   </option>
                 ))}
               </select>
+
+              {/* Se il buongiorno neutro non c'è ancora, si può crearlo da qui
+                  invece di andarlo a cercare in Marketing. */}
+              {!templates.some(t => t.name === NOME_APERTURA) && <CreaApertura onFatto={() => setTemplates(null)} />}
 
               {daRiempire.map(n => (
                 <input key={n} value={valori[n] || ''} {...NO_AUTOFILL}
