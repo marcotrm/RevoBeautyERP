@@ -35,7 +35,7 @@ export default function ClientDetailPage() {
   const { clients, updateClient, fetchClients } = useClientStore();
   const { priceLists } = usePriceListStore();
   const { treatments, fetchTreatments } = useTreatmentStore();
-  const { appointments, fetchAppointments } = useAgendaStore();
+  const { appointments, fetchAppointments, setSelectedDate } = useAgendaStore();
   const [activeTab, setActiveTab] = useState('profile');
 
   useEffect(() => {
@@ -73,6 +73,19 @@ export default function ClientDetailPage() {
       (a.clientName || '').trim().toLowerCase() === fullName
     );
   }, [appointments, params.id, client]);
+
+  /**
+   * Appuntamenti ancora da fare: quelli da oggi in avanti che non sono già
+   * chiusi. Serve al banco per rispondere subito a "ha già un altro
+   * appuntamento?" senza andare a cercarla in agenda giorno per giorno.
+   */
+  const [prossimiOpen, setProssimiOpen] = useState(false);
+  const prossimiAppuntamenti = useMemo(() => {
+    const oggi = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Rome' });
+    return clientAppointments
+      .filter(a => a.date >= oggi && !['cancelled', 'no_show', 'completed'].includes(a.status))
+      .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+  }, [clientAppointments]);
 
   // Statistiche disdette / no-show per classificare il cliente
   const cancelStats = useMemo(() => {
@@ -225,6 +238,24 @@ export default function ClientDetailPage() {
             </div>
 
             <div className="flex items-center gap-2 mt-4 sm:mt-0 w-full sm:w-auto justify-center sm:justify-end">
+              {/* Ha già un altro appuntamento? Risposta immediata, senza cercarla in agenda */}
+              <button
+                onClick={() => setProssimiOpen(true)}
+                title="Appuntamenti già fissati in agenda"
+                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+                  prossimiAppuntamenti.length > 0
+                    ? 'border-accent/40 bg-accent/10 text-accent hover:bg-accent/20'
+                    : 'border-border text-text-secondary hover:bg-bg-hover hover:border-border-light'
+                }`}
+              >
+                <Calendar className="w-4 h-4" />
+                <span className="hidden sm:inline">Appuntamenti</span>
+                {prossimiAppuntamenti.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-accent text-white text-[10px] font-bold leading-none">
+                    {prossimiAppuntamenti.length}
+                  </span>
+                )}
+              </button>
               <button className="flex-1 sm:flex-none flex items-center justify-center p-2.5 rounded-xl border border-border hover:bg-bg-hover hover:border-border-light text-text-secondary transition-all">
                 <Phone className="w-4 h-4" />
               </button>
@@ -729,6 +760,69 @@ export default function ClientDetailPage() {
               setIsEditModalOpen(false);
             }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Appuntamenti già fissati: cliccando una riga si apre l'agenda su quel giorno */}
+      <AnimatePresence>
+        {prossimiOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setProssimiOpen(false)} />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="relative z-10 w-full max-w-md rounded-2xl border border-border bg-bg-secondary shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+              <div className="flex items-center gap-3 px-5 py-4 bg-accent/10 flex-shrink-0">
+                <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-accent flex-shrink-0">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-display font-bold text-text-primary">
+                    Appuntamenti di {client.firstName}
+                  </h3>
+                  <p className="text-xs text-text-secondary">
+                    {prossimiAppuntamenti.length === 0
+                      ? 'Nessun appuntamento fissato'
+                      : `${prossimiAppuntamenti.length} da fare, dal più vicino`}
+                  </p>
+                </div>
+                <button onClick={() => setProssimiOpen(false)} className="p-1.5 rounded-lg hover:bg-bg-hover text-text-secondary flex-shrink-0">
+                  <Plus className="w-5 h-5 rotate-45" />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-2 overflow-y-auto">
+                {prossimiAppuntamenti.length === 0 ? (
+                  <p className="text-sm text-text-secondary py-4 text-center">
+                    {client.firstName} non ha appuntamenti in agenda da oggi in avanti.
+                  </p>
+                ) : prossimiAppuntamenti.map(a => (
+                  <button key={a.id}
+                    onClick={() => {
+                      const [y, m, d] = a.date.split('-').map(Number);
+                      setSelectedDate(new Date(y, m - 1, d));
+                      router.push('/dashboard/agenda');
+                    }}
+                    className="w-full text-left rounded-xl border border-border bg-bg-tertiary/40 p-3 hover:bg-bg-hover transition-colors">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-bold text-text-primary capitalize">{formatDate(a.date)}</span>
+                      <span className="text-sm text-accent font-semibold">{a.startTime} – {a.endTime}</span>
+                      <span className="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ backgroundColor: `${getStatusColor(a.status)}15`, color: getStatusColor(a.status) }}>
+                        {getStatusLabel(a.status)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-text-secondary mt-1">
+                      {a.treatmentName} · con {a.operatorName}
+                      {a.price > 0 && ` · ${formatCurrency(a.price)}`}
+                    </p>
+                  </button>
+                ))}
+              </div>
+
+              <div className="p-4 pt-0 flex-shrink-0">
+                <p className="text-[11px] text-text-muted text-center">Tocca un appuntamento per aprirlo in agenda.</p>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>
