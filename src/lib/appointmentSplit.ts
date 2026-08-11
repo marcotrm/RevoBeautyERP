@@ -19,6 +19,12 @@ import { timeToMinutes, minutesToTime } from '@/lib/helpers';
 export interface SplitAppointment extends Appointment {
   /** Vero quando altri trattamenti dello stesso appuntamento sono di un'altra operatrice. */
   parziale?: boolean;
+  /**
+   * Il conto INTERO dell'appuntamento, non solo di questa fetta. Senza, in
+   * agenda si legge "45 €" e si pensa sia tutto da incassare, mentre la
+   * cliente ne deve 80 (il resto lo fa un'altra operatrice).
+   */
+  totaleAppuntamento?: number;
 }
 
 /** I trattamenti dell'appuntamento, anche per i vecchi che ne hanno uno solo. */
@@ -72,6 +78,7 @@ export function sliceForOperator(a: Appointment, operatorId: string): SplitAppoi
   return {
     ...a,
     parziale: true,
+    totaleAppuntamento: services.reduce((sum, s) => sum + (s.price || 0), 0),
     startTime: minutesToTime(from),
     endTime: minutesToTime(to),
     duration: to - from,

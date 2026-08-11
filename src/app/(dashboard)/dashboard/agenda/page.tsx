@@ -137,7 +137,10 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
   // senza importo e bisognava aprirli uno per uno per saperlo.
   const copertura = coperturaPacchetto(appointment, pacchettiCliente);
   const prezzoBreve = appointment.price > 0
-    ? formatCurrency(appointment.price)
+    // Anche nei riquadri stretti: "45 €/80 €" dice subito che non è tutto il conto
+    ? (appointment.parziale && appointment.totaleAppuntamento
+        ? `${formatCurrency(appointment.price)}/${formatCurrency(appointment.totaleAppuntamento)}`
+        : formatCurrency(appointment.price))
     : copertura ? copertura.titolo : formatCurrency(0);
 
   const handleDragStart = (e: React.DragEvent) => {
@@ -201,7 +204,15 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
             <Clock className="w-2.5 h-2.5 flex-shrink-0" />
             {appointment.startTime} - {appointment.endTime}
             {appointment.price > 0
-              ? <span className="ml-auto font-medium text-text-primary">{formatCurrency(appointment.price)}</span>
+              ? (
+                  // Fetta di un appuntamento diviso: si dice anche il conto intero,
+                  // altrimenti si legge 45 € e si incassa meno del dovuto
+                  appointment.parziale && appointment.totaleAppuntamento
+                    ? <span className="ml-auto font-medium text-text-primary" title={`Questa parte vale ${formatCurrency(appointment.price)}. Il conto completo della cliente è ${formatCurrency(appointment.totaleAppuntamento)}.`}>
+                        {formatCurrency(appointment.price)} <span className="text-text-muted font-normal">di {formatCurrency(appointment.totaleAppuntamento)}</span>
+                      </span>
+                    : <span className="ml-auto font-medium text-text-primary">{formatCurrency(appointment.price)}</span>
+                )
               : copertura
                 ? <span className="ml-auto font-medium text-accent" title={copertura.etichetta}>
                     {copertura.titolo} · {copertura.rimaste} {copertura.rimaste === 1 ? 'seduta' : 'sedute'}
