@@ -115,9 +115,11 @@ export async function loadConversation(phone: string): Promise<{
   windowOpen: boolean;
   windowExpiresAt?: string;
   clientName?: string;
+  /** Foto della scheda cliente: Meta non dà quella del profilo WhatsApp. */
+  clientAvatar?: string;
 }> {
   const normalized = normalizePhone(phone);
-  const [messages, win, clientName] = await Promise.all([
+  const [messages, win, scheda] = await Promise.all([
     listMessages(normalized),
     conversationWindow(normalized),
     // Il confronto è sulle ultime 9 cifre, ignorando prefissi e spazi: in
@@ -129,7 +131,8 @@ export async function loadConversation(phone: string): Promise<{
     messages,
     windowOpen: win.open,
     windowExpiresAt: win.expiresAt,
-    clientName,
+    clientName: scheda?.nome,
+    clientAvatar: scheda?.avatar,
   };
 }
 

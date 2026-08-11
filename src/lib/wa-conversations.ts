@@ -89,6 +89,8 @@ export const WINDOW_HOURS = 24;
 export interface WaConversation {
   phone: string;
   name?: string;
+  /** Foto della scheda cliente, se caricata: la faccia si riconosce prima del nome. */
+  avatar?: string;
   lastText: string;
   /** Allegato dell'ultimo messaggio, se ce n'era uno: serve all'anteprima in elenco. */
   lastMedia?: WaMedia;
@@ -259,22 +261,35 @@ function phoneKey(phone: string | null | undefined): string {
   return digits.length >= 9 ? digits.slice(-9) : '';
 }
 
-/** Nome e cognome dei clienti in anagrafica, indicizzati sul numero. */
-export async function clientNamesByPhone(): Promise<Map<string, string>> {
-  const clients = await prisma.client.findMany({ select: { firstName: true, lastName: true, phone: true } });
-  const map = new Map<string, string>();
+/** Quel poco che serve in chat per riconoscere chi scrive. */
+export interface SchedaInChat {
+  nome: string;
+  /**
+   * La foto della SCHEDA CLIENTE, non quella del profilo WhatsApp: l'API di
+   * Meta (Cloud API, quella che usa 360dialog) non dà la foto profilo di chi
+   * ci scrive. Si carica dalla scheda cliente in anagrafica.
+   */
+  avatar?: string;
+}
+
+/** Nome, cognome e foto dei clienti in anagrafica, indicizzati sul numero. */
+export async function clientNamesByPhone(): Promise<Map<string, SchedaInChat>> {
+  const clients = await prisma.client.findMany({
+    select: { firstName: true, lastName: true, phone: true, avatar: true },
+  });
+  const map = new Map<string, SchedaInChat>();
   for (const c of clients) {
     const key = phoneKey(c.phone);
     const full = `${c.firstName} ${c.lastName}`.trim();
     // Primo arrivato, primo servito: se due schede hanno lo stesso numero
     // (doppioni in anagrafica) meglio un nome stabile che uno a caso.
-    if (key && full && !map.has(key)) map.set(key, full);
+    if (key && full && !map.has(key)) map.set(key, { nome: full, avatar: c.avatar || undefined });
   }
   return map;
 }
 
-/** Nome del cliente in anagrafica per un singolo numero, se c'è. */
-export async function clientNameForPhone(phone: string): Promise<string | undefined> {
+/** La scheda del cliente in anagrafica per un singolo numero, se c'è. */
+export async function clientNameForPhone(phone: string): Promise<SchedaInChat | undefined> {
   return (await clientNamesByPhone()).get(phoneKey(phone));
 }
 
@@ -357,7 +372,8 @@ export async function listConversations(limit = 50): Promise<WaConversation[]> {
       // Prima il nome in anagrafica: dice davvero a chi appartiene il numero.
       // In mancanza si ripiega sul nome profilo WhatsApp, che arriva solo con i
       // messaggi in entrata e spesso è un soprannome con emoji.
-      name: clientNames.get(phoneKey(phone)) || msgs.find(m => m.name)?.name,
+      name: clientNames.get(phoneKey(phone))?.nome || msgs.find(m => m.name)?.name,
+      avatar: clientNames.get(phoneKey(phone))?.avatar,
       lastText: last.text,
       lastMedia: last.media,
       lastAt: last.at,

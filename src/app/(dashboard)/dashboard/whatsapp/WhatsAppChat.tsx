@@ -12,7 +12,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion } from 'lucide-react';
+import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown } from 'lucide-react';
 import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction } from '@/app/actions/whatsapp';
 import { useWaInboxStore } from '@/stores/useWaInboxStore';
 // I tipi arrivano dalla libreria, non dal file di azioni: un 'use server' non
@@ -159,6 +159,36 @@ function MediaBubble({ media }: { media: WaMedia }) {
   }
 }
 
+/**
+ * Il cerchio accanto al nome.
+ *
+ * NON è la foto del profilo WhatsApp: la Cloud API di Meta, quella che usa
+ * 360dialog, non dà la foto di chi ci scrive — l'unica foto che l'API espone è
+ * la nostra, quella del centro. Qui si mostra la foto della SCHEDA CLIENTE, e
+ * quando manca le iniziali su un colore ricavato dal numero, così ogni
+ * conversazione ha comunque il suo colore riconoscibile.
+ */
+const COLORI_FACCIA = ['#A855F7', '#EC4899', '#F59E0B', '#22C55E', '#3B82F6', '#14B8A6', '#6366F1', '#F97316'];
+
+function Faccia({ nome, phone, avatar, size = 40 }: {
+  nome?: string; phone: string; avatar?: string; size?: number;
+}) {
+  const iniziali = (nome || '')
+    .split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase();
+  const cifre = phone.replace(/\D/g, '');
+  const colore = COLORI_FACCIA[Number(cifre.slice(-2) || 0) % COLORI_FACCIA.length];
+
+  return (
+    <span className="rounded-full overflow-hidden flex items-center justify-center text-white font-bold flex-shrink-0"
+      style={{ backgroundColor: colore, width: size, height: size, fontSize: size / 2.8 }}>
+      {avatar
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img src={avatar} alt="" className="w-full h-full object-cover" />
+        : iniziali || <User className="w-1/2 h-1/2" />}
+    </span>
+  );
+}
+
 export default function WhatsAppChat() {
   const [conversations, setConversations] = useState<WaConversation[] | null>(null);
   const [active, setActive] = useState<string | null>(null);
@@ -166,11 +196,15 @@ export default function WhatsAppChat() {
   const [windowOpen, setWindowOpen] = useState(false);
   const [windowExpiresAt, setWindowExpiresAt] = useState<string | undefined>();
   const [clientName, setClientName] = useState<string | undefined>();
+  const [clientAvatar, setClientAvatar] = useState<string | undefined>();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  /** Se si sta guardando la coda: solo allora il polling può scorrere in fondo. */
+  const inFondoRef = useRef(true);
+  const [lontanoDalFondo, setLontanoDalFondo] = useState(false);
 
   /**
    * Niente `setState` sincrono qui dentro: viene chiamata anche dagli effect, e
@@ -199,6 +233,7 @@ export default function WhatsAppChat() {
       setWindowOpen(res.windowOpen);
       setWindowExpiresAt(res.windowExpiresAt);
       setClientName(res.clientName);
+      setClientAvatar(res.clientAvatar);
       // Aprire la chat la segna letta: spegne subito il pallino sul menu,
       // senza aspettare il giro di polling dell'avviso globale.
       void useWaInboxStore.getState().fetchUnread();
@@ -222,6 +257,9 @@ export default function WhatsAppChat() {
   const openThread = useCallback((phone: string) => {
     setActive(phone);
     setThread([]); // il caricamento lo fa l'effect qui sotto, che riparte al cambio di `active`
+    // Una conversazione appena aperta si guarda dalla fine, come su WhatsApp.
+    inFondoRef.current = true;
+    setLontanoDalFondo(false);
   }, []);
 
   /**
@@ -239,7 +277,43 @@ export default function WhatsAppChat() {
     return () => { clearTimeout(first); clearInterval(timer); };
   }, [active, loadThread, refreshList]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread]);
+  /**
+   * Si sposta il contenitore, non si usa scrollIntoView su un segnaposto: quello
+   * cerca l'antenato scorrevole e con le colonne annidate della pagina a volte
+   * sceglie quello sbagliato, lasciando la chat ferma.
+   */
+  const inFondo = () => {
+    const el = boxRef.current;
+    // Salto secco, non animato: lo scorrimento morbido qui viene annullato dal
+    // render successivo e la chat resta dov'era.
+    if (el) el.scrollTop = el.scrollHeight;
+  };
+
+  /**
+   * Lo scorrimento in fondo si fa SOLO se ci si era già.
+   *
+   * Prima si faceva a ogni cambio di `thread`, e siccome il polling riscrive
+   * l'elenco ogni venti secondi, chi stava rileggendo i messaggi di due giorni
+   * fa veniva sbalzato in fondo senza aver toccato niente.
+   */
+  useEffect(() => {
+    if (inFondoRef.current) inFondo();
+  }, [thread]);
+
+  /** Vero finché si sta guardando la coda della conversazione. */
+  const segnaPosizione = () => {
+    const el = boxRef.current;
+    if (!el) return;
+    const distanza = el.scrollHeight - el.scrollTop - el.clientHeight;
+    inFondoRef.current = distanza < 120;
+    setLontanoDalFondo(!inFondoRef.current);
+  };
+
+  const tornaInFondo = () => {
+    inFondoRef.current = true;
+    setLontanoDalFondo(false);
+    inFondo();
+  };
 
   const send = async () => {
     if (!active || !draft.trim() || sending) return;
@@ -249,6 +323,9 @@ export default function WhatsAppChat() {
     setSending(false);
     if (!res.ok) return setError(res.error || 'Invio fallito');
     setDraft('');
+    // Dopo aver risposto si vuole vedere la propria risposta, ovunque si fosse.
+    inFondoRef.current = true;
+    setLontanoDalFondo(false);
     await loadThread(active);
     await refreshList();
   };
@@ -274,26 +351,29 @@ export default function WhatsAppChat() {
             </p>
           ) : conversations.map(c => (
             <button key={c.phone} onClick={() => openThread(c.phone)}
-              className={`w-full text-left px-4 py-3 border-b border-border/30 hover:bg-bg-hover transition-colors ${active === c.phone ? 'bg-bg-hover' : ''}`}>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-text-primary truncate flex-1">{c.name || c.phone}</span>
-                {c.unread > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-success text-white flex-shrink-0">{c.unread}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                {c.lastMedia && <MediaThumb media={c.lastMedia} />}
-                <p className="text-[11px] text-text-muted truncate">
-                  {c.lastDirection === 'out' && <span className="text-text-muted/70">Tu: </span>}{c.lastText}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-[10px] text-text-muted/70">{timeLabel(c.lastAt)}</span>
-                {/* Col nome dall'anagrafica il numero sparirebbe dalla riga: lo teniamo qui */}
-                {c.name && <span className="text-[10px] text-text-muted/60 font-mono truncate">+{c.phone}</span>}
-                {!c.windowOpen && (
-                  <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-muted">CHIUSA</span>
-                )}
+              className={`w-full text-left px-4 py-3 border-b border-border/30 hover:bg-bg-hover transition-colors flex gap-3 ${active === c.phone ? 'bg-bg-hover' : ''}`}>
+              <Faccia nome={c.name} phone={c.phone} avatar={c.avatar} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-text-primary truncate flex-1">{c.name || c.phone}</span>
+                  {c.unread > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-success text-white flex-shrink-0">{c.unread}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {c.lastMedia && <MediaThumb media={c.lastMedia} />}
+                  <p className="text-[11px] text-text-muted truncate">
+                    {c.lastDirection === 'out' && <span className="text-text-muted/70">Tu: </span>}{c.lastText}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] text-text-muted/70">{timeLabel(c.lastAt)}</span>
+                  {/* Col nome dall'anagrafica il numero sparirebbe dalla riga: lo teniamo qui */}
+                  {c.name && <span className="text-[10px] text-text-muted/60 font-mono truncate">+{c.phone}</span>}
+                  {!c.windowOpen && (
+                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-muted">CHIUSA</span>
+                  )}
+                </div>
               </div>
             </button>
           ))}
@@ -301,7 +381,7 @@ export default function WhatsAppChat() {
       </div>
 
       {/* Thread */}
-      <div className={`rounded-2xl bg-bg-secondary border border-border/50 flex flex-col overflow-hidden ${active ? 'flex' : 'hidden md:flex'}`}>
+      <div className={`relative rounded-2xl bg-bg-secondary border border-border/50 flex flex-col overflow-hidden ${active ? 'flex' : 'hidden md:flex'}`}>
         {!active ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
             <MessageSquare className="w-8 h-8 text-text-muted/40 mb-2" />
@@ -311,6 +391,8 @@ export default function WhatsAppChat() {
           <>
             <div className="px-4 py-3 border-b border-border/40 flex items-center gap-3 flex-shrink-0">
               <button onClick={() => setActive(null)} className="md:hidden text-xs text-text-muted">←</button>
+              <Faccia nome={clientName || conversations?.find(c => c.phone === active)?.name}
+                phone={active} avatar={clientAvatar} size={36} />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-text-primary truncate">{clientName || conversations?.find(c => c.phone === active)?.name || active}</p>
                 <p className="text-[11px] text-text-muted font-mono">+{active}</p>
@@ -323,7 +405,7 @@ export default function WhatsAppChat() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div ref={boxRef} onScroll={segnaPosizione} className="flex-1 overflow-y-auto p-4 space-y-3 relative">
               {thread.map((m, i) => {
                 const meta = m.direction === 'out' ? SOURCE_META[m.source || 'system'] : null;
                 const Icon = meta?.icon;
@@ -375,8 +457,18 @@ export default function WhatsAppChat() {
                   </div>
                 );
               })}
-              <div ref={bottomRef} />
             </div>
+
+            {/* Chi è risalito nella conversazione non viene più trascinato in
+                fondo dal polling: se nel frattempo arriva qualcosa, ci torna da qui. */}
+            {lontanoDalFondo && (
+              <button onClick={tornaInFondo}
+                className="absolute bottom-24 right-6 z-10 flex items-center gap-1.5 px-3 py-2 rounded-full
+                  bg-bg-secondary border border-border shadow-lg text-xs font-medium text-text-secondary
+                  hover:text-accent hover:border-accent/40 transition-colors">
+                <ArrowDown className="w-3.5 h-3.5" /> Vai in fondo
+              </button>
+            )}
 
             {/* Casella di risposta. Fuori dalla finestra 24h Meta rifiuta il testo
                 libero: meglio bloccare qui che far scrivere invano. */}
