@@ -15,7 +15,18 @@ export interface BookingTreatment {
   priceMale: number | null; priceFemale: number | null;
   durationMale: number | null; durationFemale: number | null;
 }
-export interface BookingOperator { id: string; nome: string }
+export interface BookingOperator {
+  id: string;
+  nome: string;
+  /** Solo il nome di battesimo: sotto la faccina ci sta. */
+  nomeBreve: string;
+  /** Foto tonda caricata dal centro; senza, si mostrano le iniziali. */
+  avatar: string | null;
+  /** Colore dell'operatrice, per il cerchio quando la foto manca. */
+  colore: string;
+  /** Le categorie che sa fare: la fila delle faccine si filtra su questa. */
+  categorie: string[];
+}
 
 /** Un trattamento richiesto: operatorId vuoto = la prima disponibile. */
 export interface ServizioRichiesto { treatmentId: string; operatorId?: string | null }
