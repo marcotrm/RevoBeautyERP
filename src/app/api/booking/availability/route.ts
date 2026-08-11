@@ -1,57 +1,72 @@
-import { prisma } from '@/lib/prisma';
-import { getFreeSlots, todayInItaly } from '@/lib/voice';
+import { todayInItaly } from '@/lib/voice';
+import { slotDisponibili, type ServizioRichiesto } from '@/lib/bookingEngine';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-// Verifica se un'operatrice lavora in una data (turno settimanale; 1=Lun..6=Sab, Dom chiuso)
-function worksOn(schedule: unknown, date: string): boolean {
-  const dow = new Date(date + 'T12:00:00').getDay(); // 0=Dom..6=Sab
-  if (dow === 0) return false;
-  if (!schedule || typeof schedule !== 'object') return true;
-  const day = (schedule as Record<string, { isWorking?: boolean }>)[String(dow)];
-  if (!day) return true;
-  return day.isWorking !== false;
-}
-
-// Orari liberi aggregati su tutte le operatrici, per la prenotazione online.
-// Ogni slot riporta un'operatrice libera a cui assegnarlo.
+/**
+ * Orari liberi di UN giorno per la prenotazione online.
+ *
+ * Accetta la forma nuova (più trattamenti, operatrice a scelta, fascia oraria)
+ * e quella vecchia a trattamento singolo, che la app clienti usa ancora:
+ *   ?date=&treatmentId=&operatorId=&gender=
+ *   ?date=&services=[{"treatmentId":"..","operatorId":".."}]&from=14:00&to=19:00
+ */
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const date = url.searchParams.get('date');
-  const treatmentId = url.searchParams.get('treatmentId');
   const gender = url.searchParams.get('gender') === 'male' ? 'male' : 'female';
 
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return Response.json({ error: 'Data non valida' }, { status: 400 });
   }
-  if (date < todayInItaly()) {
-    return Response.json({ slots: [] });
-  }
+  if (date < todayInItaly()) return Response.json({ date, slots: [] });
 
-  const treatment = treatmentId ? await prisma.treatment.findUnique({ where: { id: treatmentId } }) : null;
-  const duration = treatment
-    ? (gender === 'male'
-        ? (treatment.durationMale ?? treatment.durationFemale ?? treatment.duration)
-        : (treatment.durationFemale ?? treatment.duration))
-    : 60;
-
-  const operators = await prisma.operator.findMany({ where: { isActive: true, isResource: false } });
-
-  // slot -> prima operatrice libera
-  const slotToOperator = new Map<string, { operatorId: string; operatorName: string }>();
-  for (const op of operators) {
-    if (!worksOn(op.schedule, date)) continue;
-    const free = await getFreeSlots(date, op.id, duration);
-    for (const s of free) {
-      if (!slotToOperator.has(s)) {
-        slotToOperator.set(s, { operatorId: op.id, operatorName: `${op.firstName} ${op.lastName}`.trim() });
+  let services: ServizioRichiesto[] = [];
+  const grezzo = url.searchParams.get('services');
+  if (grezzo) {
+    try {
+      const parsed = JSON.parse(grezzo);
+      if (Array.isArray(parsed)) {
+        services = parsed
+          .filter((s: unknown) => s && typeof s === 'object')
+          .map((s: { treatmentId?: unknown; operatorId?: unknown }) => ({
+            treatmentId: String(s.treatmentId || ''),
+            operatorId: s.operatorId ? String(s.operatorId) : null,
+          }))
+          .filter(s => s.treatmentId);
       }
+    } catch {
+      return Response.json({ error: 'Elenco trattamenti non valido' }, { status: 400 });
     }
+  } else {
+    const treatmentId = url.searchParams.get('treatmentId');
+    const operatorId = url.searchParams.get('operatorId');
+    if (treatmentId) services = [{ treatmentId, operatorId: operatorId || null }];
   }
 
-  const slots = [...slotToOperator.entries()]
-    .map(([time, op]) => ({ time, ...op }))
-    .sort((a, b) => (a.time < b.time ? -1 : 1));
+  if (services.length === 0) return Response.json({ date, slots: [] });
 
-  return Response.json({ date, durationMinutes: duration, slots });
+  const { slots, durataTotale, prezzoTotale } = await slotDisponibili({
+    date,
+    services,
+    gender,
+    oraDa: url.searchParams.get('from'),
+    oraA: url.searchParams.get('to'),
+  });
+
+  return Response.json({
+    date,
+    durationMinutes: durataTotale,
+    prezzoTotale,
+    // `operatorId`/`operatorName` restano quelli del primo trattamento: è ciò
+    // che la app clienti legge oggi, e per un trattamento solo è tutto.
+    slots: slots.map(s => ({
+      time: s.time,
+      endTime: s.endTime,
+      operatorId: s.assegnazioni[0]?.operatorId || '',
+      operatorName: s.assegnazioni[0]?.operatorName || '',
+      assegnazioni: s.assegnazioni,
+    })),
+  });
 }
