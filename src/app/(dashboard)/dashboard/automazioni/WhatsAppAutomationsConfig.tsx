@@ -17,7 +17,7 @@ const AUTOMATIONS: { key: Key; icon: typeof Clock; title: string; desc: string; 
   { key: 'reminder', icon: Clock, title: 'Promemoria appuntamento', desc: 'Alle 18:00 avvisa chi ha un appuntamento domani', marketing: false, when: '18:00' },
   { key: 'recall', icon: Heart, title: 'Recall clienti dormienti', desc: 'Alle 11:00 ricontatta chi non torna da un po\'', marketing: true, when: '11:00' },
   { key: 'birthday', icon: Gift, title: 'Auguri compleanno', desc: 'Alle 09:30 manda gli auguri e lo sconto regalo', marketing: true, when: '09:30' },
-  { key: 'review', icon: Star, title: 'Richiesta recensione', desc: 'Alle 19:30 la chiede a chi è venuto ieri', marketing: false, when: '19:30' },
+  { key: 'review', icon: Star, title: 'Richiesta recensione', desc: 'Alle 19:30 a chi è venuto ieri, e a ogni cliente una volta sola', marketing: false, when: '19:30' },
 ];
 
 const TPL_STATUS: Record<string, { label: string; cls: string }> = {

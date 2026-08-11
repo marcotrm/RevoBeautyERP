@@ -404,10 +404,12 @@ export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
     include: { client: true },
   });
 
-  // Una cliente che in giornata ha due appuntamenti (mattina e pomeriggio, o
-  // due prenotazioni fatte separatamente) ha fatto UNA visita: di "com'è
-  // andata" le si chiede una volta sola. Prima il blocco anti-doppione era per
-  // appuntamento, e infatti arrivavano due richieste di recensione.
+  // La recensione si chiede UNA VOLTA SOLA nella vita del cliente.
+  //
+  // Prima il blocco valeva per giornata: chi torna ogni settimana si ritrovava
+  // la stessa richiesta ogni settimana (record: sei volte). Una recensione la
+  // si lascia una volta, e insistere non ne fa arrivare di più — fa solo
+  // bloccare il numero del centro.
   const perCliente = new Map<string, typeof appts>();
   for (const a of appts) {
     const lista = perCliente.get(a.clientId);
@@ -422,11 +424,11 @@ export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
     if (!isSendablePhone(phone)) continue;
 
     const rowId = `wa:review:${clientId}:${target}`;
-    // Anche i lock del vecchio formato (uno per appuntamento) valgono: senza
-    // questo controllo, il primo giro dopo il cambio rimanderebbe a chi ha già
-    // ricevuto.
-    if (await alreadySent(rowId)) continue;
-    if (await qualcunoGiaInviato(visite.map(v => `wa:review:${clientId}:${v.id}`))) continue;
+    // Un solo controllo, e vale per sempre: `lastSentAt` guarda TUTTI i lock
+    // di questo cliente, in qualunque formato siano stati scritti (per data o
+    // per appuntamento). Se una richiesta è già partita una volta, non ne
+    // parte mai più.
+    if (await lastSentAt('review', clientId)) continue;
 
     jobs.push({
       rowId,
