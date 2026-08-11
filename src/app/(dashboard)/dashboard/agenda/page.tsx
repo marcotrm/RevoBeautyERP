@@ -39,6 +39,14 @@ import WaitlistPanel from '@/components/WaitlistPanel';
 import AddClientModal from '@/components/AddClientModal';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 
+/** Mostra in chiaro il rifiuto del server (es. cliente doppione). */
+function avvisaErroreCliente(e: unknown) {
+  const msg = e instanceof Error ? e.message : '';
+  alert(msg.includes('CLIENTE_DOPPIONE')
+    ? msg.replace('CLIENTE_DOPPIONE: ', '')
+    : 'Salvataggio del cliente non riuscito. Riprova.');
+}
+
 const HOUR_HEIGHT = 88;
 const START_HOUR = 8;
 const END_HOUR = 24; // agenda aperta fino a mezzanotte
@@ -1813,7 +1821,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
           <AddClientModal 
             onClose={() => setShowAddClientModal(false)}
             onSave={(data) => {
-              addClient(data);
+              addClient(data).catch(avvisaErroreCliente);
               setShowAddClientModal(false);
               // We could automatically select the new client here, but since the mock ID isn't returned, 
               // the user can just search for them. In a real app we'd get the ID back and set it.
@@ -3242,7 +3250,7 @@ export default function AgendaPage() {
           <AddClientModal 
             onClose={() => setShowAddClientModal(false)}
             onSave={(data) => {
-              addClient(data);
+              addClient(data).catch(avvisaErroreCliente);
             }}
           />
         )}

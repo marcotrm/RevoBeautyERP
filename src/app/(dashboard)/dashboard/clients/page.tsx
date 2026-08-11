@@ -105,6 +105,14 @@ function ClientRow({ client, checked, onToggle, onEdit, onDelete }: { client: Cl
 
 // AddClientModal extracted to components
 
+/** Mostra in chiaro il rifiuto del server (es. cliente doppione). */
+function avvisaErroreCliente(e: unknown) {
+  const msg = e instanceof Error ? e.message : '';
+  alert(msg.includes('CLIENTE_DOPPIONE')
+    ? msg.replace('CLIENTE_DOPPIONE: ', '')
+    : 'Salvataggio del cliente non riuscito. Riprova.');
+}
+
 export default function ClientsPage() {
   const { searchQuery, setSearchQuery, activeFilter, setActiveFilter, getFilteredClients, clients, addClient, updateClient, deleteClient, fetchClients } = useClientStore();
   const filteredClients = useMemo(() => getFilteredClients(), [searchQuery, activeFilter, clients]);
@@ -240,7 +248,7 @@ export default function ClientsPage() {
       </div>
       <p className="text-xs text-text-muted text-center">{filteredClients.length} risultati su {totalClients} clienti</p>
 
-      <AnimatePresence>{showModal && <AddClientModal onClose={() => setShowModal(false)} onSave={data => { addClient(data); setShowModal(false); }} />}</AnimatePresence>
+      <AnimatePresence>{showModal && <AddClientModal onClose={() => setShowModal(false)} onSave={data => { addClient(data).catch(avvisaErroreCliente); setShowModal(false); }} />}</AnimatePresence>
       <AnimatePresence>{editingClient && <AddClientModal initialData={editingClient} onClose={() => setEditingClient(null)} onSave={data => { updateClient(editingClient.id, data); setEditingClient(null); clearSelection(); }} />}</AnimatePresence>
 
       {/* Conferma eliminazione cliente */}

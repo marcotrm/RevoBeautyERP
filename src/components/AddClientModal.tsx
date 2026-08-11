@@ -1,10 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, CheckCircle } from 'lucide-react';
+import { X, CheckCircle, AlertTriangle } from 'lucide-react';
+import Link from 'next/link';
 import { Client } from '@/types';
 import { getInitials } from '@/lib/helpers';
+import { useClientStore } from '@/stores/useClientStore';
+
+/** Ultime 9 cifre: confronta i numeri ignorando prefisso, spazi e trattini. */
+function codaTelefono(raw: string): string {
+  return (raw || '').replace(/\D/g, '').slice(-9);
+}
 
 export default function AddClientModal({ 
   onClose, 
@@ -28,7 +35,34 @@ export default function AddClientModal({
   const [marketingConsent, setMarketingConsent] = useState(initialData?.marketingConsent || false);
   const [tags, setTags] = useState(initialData?.tags?.join(', ') || '');
 
-  const canSave = firstName.trim() && lastName.trim() && phone.trim();
+  /**
+   * Cliente già in anagrafica con questo numero: si scopre mentre si digita,
+   * prima di perdere tempo a compilare il resto. Il salvataggio è comunque
+   * bloccato anche dal server, per ogni altra strada.
+   */
+  const clienti = useClientStore(s => s.clients);
+  const doppione = useMemo(() => {
+    const coda = codaTelefono(phone);
+    if (coda.length < 6) return null;
+    return clienti.find(c => c.id !== initialData?.id && codaTelefono(c.phone) === coda) || null;
+  }, [phone, clienti, initialData?.id]);
+
+  /**
+   * Stesso nome ma numero diverso: non blocca (due persone possono chiamarsi
+   * uguale), però si fa notare — nove volte su dieci è la stessa cliente
+   * registrata con un numero nuovo.
+   */
+  const omonimo = useMemo(() => {
+    if (doppione) return null; // il blocco per numero ha già la precedenza
+    const nome = `${firstName} ${lastName}`.toLowerCase().trim().replace(/\s+/g, ' ');
+    if (nome.length < 5 || !firstName.trim() || !lastName.trim()) return null;
+    return clienti.find(c =>
+      c.id !== initialData?.id &&
+      `${c.firstName} ${c.lastName}`.toLowerCase().trim().replace(/\s+/g, ' ') === nome
+    ) || null;
+  }, [firstName, lastName, clienti, initialData?.id, doppione]);
+
+  const canSave = firstName.trim() && lastName.trim() && phone.trim() && !doppione;
 
   const handleSave = () => {
     if (!canSave) return;
@@ -85,10 +119,46 @@ export default function AddClientModal({
             {/* Telefono + Email */}
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Telefono *</label>
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+39 333..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+39 333..." className={`w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border text-sm text-text-primary placeholder-text-muted focus:outline-none transition-all ${doppione ? 'border-error bg-error/[0.06] focus:border-error' : 'border-border focus:border-accent/50'}`} /></div>
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Email {!email.trim() && <span className="text-warning text-xs font-normal">• da completare</span>}</label>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@esempio.it" className={`w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all ${!email.trim() ? 'border-warning/50 bg-warning/[0.04]' : 'border-border'}`} /></div>
             </div>
+            {/* Doppione: si dice subito chi è e si va sulla sua scheda */}
+            {doppione && (
+              <div className="flex items-start gap-3 rounded-xl border border-error/40 bg-error/[0.07] p-3">
+                <AlertTriangle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-text-primary">Questo numero è già in anagrafica</p>
+                  <p className="text-xs text-text-secondary mt-0.5">
+                    È di <b className="text-text-primary">{doppione.firstName} {doppione.lastName}</b> ({doppione.phone}).
+                    Non creare una seconda scheda: apri la sua e completala.
+                  </p>
+                  <Link href={`/dashboard/clients/${doppione.id}`} onClick={onClose}
+                    className="inline-block mt-2 px-3 py-1.5 rounded-lg bg-error text-white text-xs font-bold hover:opacity-90 transition-opacity">
+                    Apri la scheda di {doppione.firstName}
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* Stesso nome ma numero diverso: si avvisa, non si blocca */}
+            {omonimo && (
+              <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/[0.07] p-3">
+                <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-text-primary">C&apos;è già una cliente con questo nome</p>
+                  <p className="text-xs text-text-secondary mt-0.5">
+                    <b className="text-text-primary">{omonimo.firstName} {omonimo.lastName}</b> con il numero {omonimo.phone}.
+                    Se è la stessa persona con un numero nuovo, apri la sua scheda e cambia il numero lì.
+                  </p>
+                  <Link href={`/dashboard/clients/${omonimo.id}`} onClick={onClose}
+                    className="inline-block mt-2 px-3 py-1.5 rounded-lg bg-warning text-white text-xs font-bold hover:opacity-90 transition-opacity">
+                    Apri la sua scheda
+                  </Link>
+                </div>
+              </div>
+            )}
+
             {/* Data nascita + Genere */}
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Data di Nascita {!birthDate && <span className="text-warning text-xs font-normal">• da completare</span>}</label>
