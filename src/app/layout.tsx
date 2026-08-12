@@ -6,9 +6,9 @@ export const metadata: Metadata = {
   description: "Il gestionale cloud di nuova generazione per centri estetici, beauty clinic, laser clinic e spa. Gestisci agenda, clienti, cassa e marketing in un'unica piattaforma.",
   keywords: "gestionale centro estetico, software beauty, agenda estetista, CRM beauty, gestionale spa",
   authors: [{ name: "Revobeauty" }],
-  icons: {
-    icon: "/favicon.ico",
-  },
+  // Niente `icons` a mano: ci pensano i file in questa cartella
+  // (favicon.ico, icon.svg, apple-icon.png). Dichiararlo qui teneva solo
+  // l'.ico e buttava via la versione vettoriale, quella nitida nella linguetta.
 };
 
 export const viewport: Viewport = {

@@ -3388,16 +3388,20 @@ export default function AgendaPage() {
       {/*
         Barra dei comandi: UNA riga sola.
 
-        Tutti i controlli hanno la stessa altezza (BTN) e nessuno va a capo —
-        `flex-nowrap` lo impedisce, e se lo schermo è davvero stretto la barra
-        scorre in orizzontale invece di spezzarsi in due.
+        Tutti i controlli hanno la stessa altezza (BTN) e nessuno va a capo:
+        `flex-nowrap` lo impedisce.
 
         Ci sta perché le azioni secondarie sono solo icone con il nome nel
         suggerimento: il testo per esteso resta a quello che si preme cento
         volte al giorno, cioè Nuovo appuntamento.
+
+        Niente `overflow-x-auto` qui: ritagliava le tendine che si aprono da
+        questa barra (ricerca cliente, calendarietto, incasso). Un contenitore
+        che scorre in orizzontale taglia anche in verticale, e i menu
+        sparivano senza dare segno di vita.
       */}
       <div className="mb-4 flex-shrink-0">
-        <div className="flex items-center gap-2 flex-nowrap overflow-x-auto hide-scrollbar pb-0.5">
+        <div className="flex items-center gap-2 flex-nowrap">
           <div className="flex items-center rounded-xl border border-border overflow-hidden h-10 flex-shrink-0">
             <button onClick={goToPrev} title="Indietro"
               className="h-full px-2.5 hover:bg-bg-hover text-text-secondary transition-colors"><ChevronLeft className="w-4 h-4" /></button>
