@@ -46,7 +46,9 @@ export const useAgendaStore = create<AgendaStore>((set, get) => ({
   appointments: [],
   blocks: [],
   selectedDate: new Date(),
-  view: 'day',
+  // Si apre sul mese: da lì si vede il colpo d'occhio del periodo e si entra
+  // nella giornata cliccando il giorno.
+  view: 'month',
   selectedOperatorIds: mockOperators.map(op => op.id),
   selectedAppointment: null,
   isAppointmentModalOpen: false,

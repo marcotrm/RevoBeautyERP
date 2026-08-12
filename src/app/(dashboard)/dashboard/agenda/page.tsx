@@ -11,7 +11,7 @@ import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { usePackageStore } from '@/stores/usePackageStore';
 import { coperturaPacchetto } from '@/lib/coperturaPacchetto';
 import { useWaitlistStore, WaitlistEntry } from '@/stores/useWaitlistStore';
-import { Appointment, AppointmentService, AgendaBlock, Operator, Treatment, Product } from '@/types';
+import { Appointment, AppointmentService, AgendaBlock, Operator, Treatment, Product, Client } from '@/types';
 import {
   ChevronLeft, ChevronRight, ChevronDown, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
@@ -799,8 +799,13 @@ function MonthView({ selectedDate, allAppointments, operatorColorById, onAppoint
                       </div>
                       );
                     })}
-                    {dayApts.length > 3 && (
-                      <p className="text-[10px] text-text-muted px-1">+{dayApts.length - 3} altri</p>
+                    {/* Il totale della giornata, non quanti ne restano fuori:
+                        "+3 altri" costringeva a sommarli a mente per sapere se
+                        il 12 agosto è pieno o vuoto. */}
+                    {dayApts.length > 0 && (
+                      <p className="text-[10px] font-semibold text-text-secondary px-1 pt-0.5">
+                        {dayApts.length} appuntament{dayApts.length === 1 ? 'o' : 'i'}
+                      </p>
                     )}
                   </div>
                 </button>
@@ -809,6 +814,171 @@ function MonthView({ selectedDate, allAppointments, operatorColorById, onAppoint
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ========== CERCA CLIENTE (dalla barra dell'agenda) ========== */
+
+/**
+ * "Questa signora quando doveva venire?"
+ *
+ * Prima si rispondeva sfogliando l'agenda giorno per giorno. Qui si scrivono
+ * tre lettere, si sceglie il nome e si legge subito il prossimo appuntamento —
+ * senza cercare niente.
+ *
+ * La ricerca ignora l'ordine delle parole ("caruso anna" trova "Anna Caruso"),
+ * gli accenti e le maiuscole: chi sta al banco scrive di fretta.
+ */
+function normalizza(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+}
+
+function CercaCliente({ clients, appointments, onApriAppuntamento, onVaiAlGiorno }: {
+  clients: Client[];
+  appointments: Appointment[];
+  onApriAppuntamento: (a: Appointment) => void;
+  onVaiAlGiorno: (date: string) => void;
+}) {
+  const [testo, setTesto] = useState('');
+  const [aperto, setAperto] = useState(false);
+  const [scelto, setScelto] = useState<Client | null>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  // Clic fuori: si chiude, come ogni menu a tendina.
+  useEffect(() => {
+    if (!aperto) return;
+    const fuori = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setAperto(false);
+    };
+    document.addEventListener('mousedown', fuori);
+    return () => document.removeEventListener('mousedown', fuori);
+  }, [aperto]);
+
+  const suggerimenti = useMemo(() => {
+    const q = normalizza(testo);
+    if (q.length < 2) return [];
+    const parole = q.split(/\s+/);
+    return clients
+      .filter(c => {
+        const campo = normalizza(`${c.firstName} ${c.lastName} ${c.phone || ''}`);
+        return parole.every(p => campo.includes(p));
+      })
+      // Chi INIZIA con quello che si sta scrivendo viene prima: cercando "ann"
+      // si vuole Annarita, non Gianluca Annunziata solo perché è alfabetico.
+      .sort((a, b) => {
+        const inizia = (c: Client) =>
+          normalizza(c.firstName).startsWith(parole[0]) || normalizza(c.lastName).startsWith(parole[0]) ? 0 : 1;
+        return inizia(a) - inizia(b)
+          || `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+      })
+      .slice(0, 8);
+  }, [testo, clients]);
+
+  /** Gli appuntamenti del cliente scelto: prima i prossimi, poi gli ultimi fatti. */
+  const suoi = useMemo(() => {
+    if (!scelto) return { prossimi: [] as Appointment[], passati: [] as Appointment[] };
+    const oggi = fmtDate(new Date());
+    const miei = appointments
+      .filter(a => a.clientId === scelto.id && a.status !== 'cancelled')
+      .sort((x, y) => (x.date + x.startTime).localeCompare(y.date + y.startTime));
+    return {
+      prossimi: miei.filter(a => a.date >= oggi),
+      passati: miei.filter(a => a.date < oggi).slice(-3).reverse(),
+    };
+  }, [scelto, appointments]);
+
+  const chiudi = () => { setAperto(false); setScelto(null); setTesto(''); };
+
+  return (
+    <div ref={boxRef} className="relative">
+      <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-bg-secondary
+        focus-within:border-accent/50 transition-colors">
+        <Search className="w-4 h-4 text-text-muted flex-shrink-0" />
+        <input
+          value={testo}
+          onChange={e => { setTesto(e.target.value); setScelto(null); setAperto(true); }}
+          onFocus={() => setAperto(true)}
+          onKeyDown={e => {
+            if (e.key === 'Escape') chiudi();
+            // Invio con un solo risultato: si apre quello, senza toccare il mouse.
+            if (e.key === 'Enter' && suggerimenti.length === 1) { setScelto(suggerimenti[0]); setAperto(true); }
+          }}
+          placeholder="Cerca cliente…"
+          className="w-32 lg:w-44 bg-transparent text-sm text-text-primary placeholder-text-muted focus:outline-none"
+          {...NO_AUTOFILL}
+        />
+        {!!testo && (
+          <button onClick={chiudi} className="text-text-muted hover:text-text-primary flex-shrink-0">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {aperto && (testo.trim().length >= 2 || scelto) && (
+        <div className="absolute right-0 top-full mt-1.5 w-[22rem] max-w-[90vw] z-50 rounded-2xl border border-border
+          bg-bg-secondary shadow-2xl overflow-hidden">
+          {!scelto ? (
+            suggerimenti.length === 0 ? (
+              <p className="px-4 py-4 text-sm text-text-muted">Nessun cliente con questo nome.</p>
+            ) : (
+              <div className="max-h-72 overflow-y-auto divide-y divide-border/30">
+                {suggerimenti.map(c => (
+                  <button key={c.id} onClick={() => setScelto(c)}
+                    className="w-full text-left px-4 py-2.5 hover:bg-bg-hover transition-colors">
+                    <p className="text-sm font-medium text-text-primary">{c.firstName} {c.lastName}</p>
+                    {c.phone && <p className="text-[11px] text-text-muted font-mono">{c.phone}</p>}
+                  </button>
+                ))}
+              </div>
+            )
+          ) : (
+            <div>
+              <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-text-primary truncate">{scelto.firstName} {scelto.lastName}</p>
+                  {scelto.phone && <p className="text-[11px] text-text-muted font-mono">{scelto.phone}</p>}
+                </div>
+                <button onClick={() => setScelto(null)} className="text-[11px] text-accent font-medium">Cambia</button>
+                <button onClick={chiudi} className="text-text-muted hover:text-text-primary"><X className="w-4 h-4" /></button>
+              </div>
+
+              <div className="px-4 py-3 space-y-2 max-h-80 overflow-y-auto">
+                <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
+                  Prossimi appuntamenti
+                </p>
+                {suoi.prossimi.length === 0 ? (
+                  <p className="text-sm text-text-secondary">
+                    Nessun appuntamento in programma.
+                  </p>
+                ) : suoi.prossimi.map(a => (
+                  <button key={a.id} onClick={() => { onApriAppuntamento(a); chiudi(); }}
+                    className="w-full text-left p-2.5 rounded-xl border border-accent/30 bg-accent/5 hover:border-accent/60 transition-colors">
+                    <p className="text-sm font-semibold text-text-primary capitalize">
+                      {formatDateLong(a.date)} · {a.startTime}
+                    </p>
+                    <p className="text-[11px] text-text-secondary truncate">{a.treatmentName} · {a.operatorName}</p>
+                  </button>
+                ))}
+
+                {suoi.passati.length > 0 && (
+                  <>
+                    <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider pt-1">Ultime volte</p>
+                    {suoi.passati.map(a => (
+                      <button key={a.id} onClick={() => { onVaiAlGiorno(a.date); chiudi(); }}
+                        className="w-full text-left p-2 rounded-xl border border-border hover:bg-bg-hover transition-colors">
+                        <p className="text-xs text-text-secondary capitalize">
+                          {formatDateLong(a.date)} · {a.startTime} — {a.treatmentName}
+                        </p>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -3153,6 +3323,8 @@ export default function AgendaPage() {
   // Incasso stimato: di default segue il periodo mostrato in agenda (giorno/settimana/mese),
   // ma dal pannello si può scegliere qualsiasi data o intervallo dal calendario.
   const [showRevenuePanel, setShowRevenuePanel] = useState(false);
+  /** L'anagrafica, per la ricerca cliente nella barra. */
+  const clientiInAnagrafica = useClientStore(s => s.clients);
   const [customRevenuePeriod, setCustomRevenuePeriod] = useState<RevenuePeriod | null>(null);
   const revenuePeriod = useMemo(
     () => customRevenuePeriod ?? periodFor(view, selectedDate),
@@ -3242,15 +3414,22 @@ export default function AgendaPage() {
               />
             )}
           </div>
-          <div className="flex rounded-xl border border-border overflow-hidden">
-            {(['day','week','month'] as const).map(v => (
-              <button key={v} onClick={() => setView(v)}
-                className={`px-3 py-2 text-xs font-medium transition-colors ${view === v ? 'bg-accent text-white' : 'bg-bg-secondary text-text-secondary hover:bg-bg-hover'}`}>
-                {v === 'day' ? 'Giorno' : v === 'week' ? 'Settimana' : 'Mese'}
-              </button>
-            ))}
-          </div>
-          
+          {/* Dalla giornata si torna al mese; nel mese si entra cliccando un
+              giorno. Il selettore a tre voci non serviva più. */}
+          {view !== 'month' && (
+            <button onClick={() => setView('month')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-bg-secondary text-text-secondary text-xs font-medium hover:bg-bg-hover transition-colors">
+              <CalendarDays className="w-3.5 h-3.5" /> Torna al mese
+            </button>
+          )}
+
+          <CercaCliente
+            clients={clientiInAnagrafica}
+            appointments={appointments}
+            onApriAppuntamento={handleAppointmentClick}
+            onVaiAlGiorno={(d) => { setSelectedDate(parseDateStr(d)); setView('day'); }}
+          />
+
           <button 
             onClick={() => setShowWaitlistPanel(true)}
             className={`flex items-center gap-2 px-3 py-2 rounded-xl border font-medium text-sm transition-all
@@ -3272,8 +3451,10 @@ export default function AgendaPage() {
             <UserPlus className="w-4 h-4" /><span className="hidden sm:inline">Nuovo Cliente</span>
           </button>
 
+          {/* Staccato dal resto e sempre all'estremità destra: è il tasto che
+              si cerca più spesso, deve stare sempre nello stesso punto. */}
           <button onClick={() => openAppointmentModal()}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105">
+            className="ml-auto md:ml-3 flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105">
             <Plus className="w-4 h-4" /><span className="hidden sm:inline">Nuovo Appuntamento</span>
           </button>
         </div>
