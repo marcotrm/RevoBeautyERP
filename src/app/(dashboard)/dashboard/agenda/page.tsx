@@ -484,11 +484,14 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
               onDragOver={e => !off && handleDragOver(e, operator.id, e.currentTarget)}
               onDragLeave={() => setDragOver(null)}
               onDrop={e => !off && handleDrop(e, operator.id, e.currentTarget)}>
+              {/* Le fasce orarie sono cliccabili anche nel giorno di riposo:
+                  se la cliente viene lo stesso, l'appuntamento si deve poter
+                  scrivere. Ci pensa la finestra ad avvisare. */}
               {hours.map(hour => (
                 <div key={hour}
-                  onClick={off ? undefined : () => handleSlotClickDelayed(operator.id, hour)}
-                  onDoubleClick={off ? undefined : () => handleSlotDoubleClick(operator.id, hour)}
-                  className={`border-b-2 border-border relative transition-colors group/slot ${off ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-accent/[0.03]'}`}
+                  onClick={() => handleSlotClickDelayed(operator.id, hour)}
+                  onDoubleClick={() => handleSlotDoubleClick(operator.id, hour)}
+                  className="border-b-2 border-border relative transition-colors group/slot cursor-pointer hover:bg-accent/[0.03]"
                   style={{ height: `${HOUR_HEIGHT}px` }}>
                   <div className="absolute left-0 right-0 border-b border-dashed border-border/60" style={{ top: `${HOUR_HEIGHT / 2}px` }} />
                   {!off && (
@@ -521,15 +524,16 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
                 const top = (band.startMin / 60) * HOUR_HEIGHT;
                 const h = Math.max(((band.endMin - band.startMin) / 60) * HOUR_HEIGHT, 20);
                 const isPausa = band.kind === 'pausa';
+                // La fascia grigia si vede ma non ferma il clic: qui sotto c'è
+                // lo slot, e un appuntamento fuori turno si può prendere — è
+                // la finestra ad avvisare prima di salvare.
                 return (
                   <div key={`unavail-${bi}`}
-                    className="absolute left-0 right-0 z-[5] cursor-not-allowed flex flex-col items-center justify-center text-center overflow-hidden"
+                    className="absolute left-0 right-0 z-[5] pointer-events-none flex flex-col items-center justify-center text-center overflow-hidden"
                     style={{
                       top: `${top}px`, height: `${h}px`,
                       backgroundImage: 'repeating-linear-gradient(45deg, rgba(148,163,184,0.16) 0, rgba(148,163,184,0.16) 10px, rgba(148,163,184,0.04) 10px, rgba(148,163,184,0.04) 20px)',
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    title={isPausa ? `${operator.firstName} è in pausa` : `${operator.firstName} non è ancora in servizio`}>
+                    }}>
                     {h >= 34 && (
                       <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
                         {isPausa ? <Clock className="w-3 h-3" /> : <Moon className="w-3 h-3" />}
@@ -1704,11 +1708,10 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
    * trattamenti si possono affidare ad altre, ognuna va verificata sul proprio
    * pezzo, altrimenti si prenota Rosaria in un orario in cui è già impegnata.
    */
-  const conflictsAt = useCallback((startMin: number, durataSeVuoto = 15) => {
-    if (!selectedOperatorId) return [] as { operatorId: string; nome: string; motivo: string; minuti: number }[];
-
-    // Fette dell'appuntamento che si sta scrivendo: una per operatrice coinvolta
+  /** Le fette dell'appuntamento che si sta scrivendo: una per operatrice coinvolta. */
+  const fetteAt = useCallback((startMin: number, durataSeVuoto = 15) => {
     const fette = new Map<string, { from: number; to: number }>();
+    if (!selectedOperatorId) return fette;
     if (selectedServices.length === 0) {
       fette.set(selectedOperatorId, { from: startMin, to: startMin + durataSeVuoto });
     } else {
@@ -1722,6 +1725,13 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
         cursore = to;
       }
     }
+    return fette;
+  }, [selectedOperatorId, selectedServices]);
+
+  const conflictsAt = useCallback((startMin: number, durataSeVuoto = 15) => {
+    if (!selectedOperatorId) return [] as { operatorId: string; nome: string; motivo: string; minuti: number }[];
+
+    const fette = fetteAt(startMin, durataSeVuoto);
 
     const altri = appointments.filter(a =>
       a.date === dateStr && a.id !== editingAppointment?.id &&
@@ -1770,47 +1780,77 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       }
     }
     return conflitti;
-  }, [selectedOperatorId, selectedServices, dateStr, appointments, blocks, editingAppointment, operators]);
+  }, [selectedOperatorId, fetteAt, dateStr, appointments, blocks, editingAppointment, operators]);
 
   const slotIsFree = useCallback(
     (startMin: number, duration: number) => conflictsAt(startMin, duration).length === 0,
     [conflictsAt],
   );
 
-  // Tutti gli orari in cui l'operatrice è in servizio, con accanto il segno di
-  // chi è già impegnata. Gli orari occupati NON spariscono: si mettono in
-  // chiaro e si lascia scegliere. Un trattamento da cento minuti spesso ne
-  // dura ottanta, e dieci minuti di accavallamento non fermano nessuno.
+  /**
+   * Chi, a quell'ora, non è in servizio: fuori turno, in pausa o di riposo.
+   *
+   * È una cosa diversa dall'essere occupata, e va detta a parte. Non blocca:
+   * capita di ricevere una cliente mezz'ora dopo la chiusura, e l'agenda deve
+   * poterlo scrivere invece di far finta che non succeda.
+   */
+  const fuoriServizioAt = useCallback((startMin: number, durataSeVuoto = 15) => {
+    const fuori: { operatorId: string; nome: string }[] = [];
+    for (const [opId, range] of fetteAt(startMin, durataSeVuoto)) {
+      const op = operators.find(o => o.id === opId);
+      // Le cabine non hanno turni: sono stanze, non persone.
+      if (!op || op.isResource) continue;
+      // Il giorno di riposo non compare fra le fasce: lì è fuori servizio tutto il giorno.
+      let scoperto = !operatorWorksOn(op, apptDateObj, apptWeekMap);
+      for (let t = range.from; !scoperto && t < range.to; t += 5) {
+        if (isMinuteUnavailable(op, apptDateObj, t - START_HOUR * 60, apptWeekMap)) scoperto = true;
+      }
+      if (scoperto) fuori.push({ operatorId: opId, nome: `${op.firstName} ${op.lastName}`.trim() });
+    }
+    return fuori;
+  }, [fetteAt, operators, apptDateObj, apptWeekMap]);
+
+  // Tutti gli orari della giornata, con accanto il segno di chi è già
+  // impegnata e di quando l'operatrice non è in servizio. Niente sparisce
+  // dall'elenco: si mette in chiaro e si lascia scegliere. Un trattamento da
+  // cento minuti spesso ne dura ottanta, e una cliente che arriva mezz'ora
+  // dopo la chiusura va scritta in agenda, non nascosta.
   const orariPossibili = useMemo(() => {
     const dur = totalDuration || 15;
-    const list: { ora: string; occupato: boolean }[] = [];
+    const list: { ora: string; occupato: boolean; fuoriTurno: boolean }[] = [];
     for (let t = START_HOUR * 60; t < END_HOUR * 60; t += 15) {
-      // In modifica, l'orario attuale dell'appuntamento c'è sempre e non è "occupato"
+      // In modifica, l'orario attuale dell'appuntamento non si segnala: è già suo.
       const isCurrent = editingAppointment && t === timeToMinutes(startTime);
-      const fuoriTurno = selectedOperator && !selectedOperator.isResource
-        && isMinuteUnavailable(selectedOperator, apptDateObj, t - START_HOUR * 60, apptWeekMap);
-      if (fuoriTurno && !isCurrent) continue;
       list.push({
         ora: `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`,
         occupato: !isCurrent && !slotIsFree(t, dur),
+        fuoriTurno: !isCurrent && fuoriServizioAt(t, dur).length > 0,
       });
     }
     return list;
-  }, [totalDuration, slotIsFree, editingAppointment, startTime, selectedOperator, apptDateObj, apptWeekMap]);
+  }, [totalDuration, slotIsFree, fuoriServizioAt, editingAppointment, startTime]);
 
   // NIENTE cambio d'orario automatico: l'orario che l'operatrice ha cliccato
-  // in agenda resta quello. Se poi risulta occupato, lo dice l'avviso rosso e
-  // il salvataggio si blocca — ma la scelta non si tocca (richiesta di Dino:
-  // "voglio che mi porti le 11 e non muove l'orario").
+  // in agenda resta quello. Se poi risulta occupato lo dice l'avviso, ma la
+  // scelta non si tocca (richiesta di Dino: "voglio che mi porti le 11 e non
+  // muove l'orario").
 
-  // Chi risulta occupato con gli orari attuali: serve sia a bloccare il salvataggio
-  // sia a dire per nome chi è impegnata, altrimenti si cambia a tentativi.
+  // Chi risulta occupato con gli orari attuali: serve a dire per nome chi è
+  // impegnata, altrimenti si cambia orario a tentativi.
   const conflitti = useMemo(() => {
     if (selectedServices.length === 0 || !selectedOperatorId) return [];
     return conflictsAt(timeToMinutes(startTime), totalDuration);
   }, [startTime, selectedServices, selectedOperatorId, conflictsAt, totalDuration]);
 
+  // Chi, a quell'ora, non è in servizio. Avviso a parte: è un'altra cosa
+  // rispetto all'essere occupata, e si prenota comunque.
+  const fuoriServizio = useMemo(() => {
+    if (selectedServices.length === 0 || !selectedOperatorId) return [];
+    return fuoriServizioAt(timeToMinutes(startTime), totalDuration);
+  }, [startTime, selectedServices, selectedOperatorId, fuoriServizioAt, totalDuration]);
+
   const isOccupied = conflitti.length > 0;
+  const isFuoriTurno = fuoriServizio.length > 0;
 
   const handleWaitlist = () => {
     closeAppointmentModal();
@@ -2057,11 +2097,19 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
               <label className="block text-sm font-medium text-text-secondary mb-1.5">Operatrice / Cabina *</label>
               <div className="grid grid-cols-5 gap-2">
                 {[...operators].sort((a, b) => (a.isResource ? 1 : 0) - (b.isResource ? 1 : 0)).map(op => {
-                  const off = !operatorWorksOn(op, apptDateObj);
+                  // Con i turni della settimana, non solo con l'orario base:
+                  // è la stessa regola che usa l'agenda per le fasce grigie.
+                  const off = !operatorWorksOn(op, apptDateObj, apptWeekMap);
                   return (
-                  <button key={op.id} type="button" disabled={off} onClick={() => !off && setSelectedOperatorId(op.id)}
-                    title={op.isResource ? 'Cabina — nessuna operatrice richiesta' : (off ? 'A riposo in questa data' : '')}
-                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all ${off ? 'opacity-40 cursor-not-allowed border-border' : selectedOperatorId === op.id ? 'border-accent bg-accent/10' : 'border-border hover:border-border-light'}`}>
+                  // Anche chi è a riposo si può scegliere: capita che venga
+                  // apposta per una cliente. Sbiadita per ricordarlo, ma
+                  // selezionabile — l'avviso arriva sotto.
+                  <button key={op.id} type="button" onClick={() => setSelectedOperatorId(op.id)}
+                    title={op.isResource ? 'Cabina — nessuna operatrice richiesta' : (off ? 'A riposo in questa data — si può prenotare lo stesso' : '')}
+                    className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all ${
+                      selectedOperatorId === op.id ? 'border-accent bg-accent/10'
+                        : off ? 'opacity-50 border-dashed border-warning/50 hover:opacity-80'
+                        : 'border-border hover:border-border-light'}`}>
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: op.color }}>
                       {op.isResource ? <Sun className="w-4 h-4" /> : getInitials(op.firstName, op.lastName)}
                     </div>
@@ -2092,7 +2140,12 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                       <option value={startTime}>{startTime} — occupato</option>
                     )}
                     {orariPossibili.map(o => (
-                      <option key={o.ora} value={o.ora}>{o.occupato ? `${o.ora} — occupato` : o.ora}</option>
+                      <option key={o.ora} value={o.ora}>
+                        {o.ora}
+                        {o.occupato && o.fuoriTurno ? ' — occupato, fuori orario'
+                          : o.occupato ? ' — occupato'
+                          : o.fuoriTurno ? ' — fuori orario' : ''}
+                      </option>
                     ))}
                   </select>
                 )}
@@ -2140,6 +2193,33 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                 </div>
               </div>
             )}
+
+            {/* Fuori turno: è un'altra cosa dall'essere occupata, e va detta a
+                parte. Capita di prendere una cliente mezz'ora dopo la
+                chiusura — l'agenda deve poterlo scrivere. */}
+            {isFuoriTurno && !editingAppointment && (
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-warning/10 border border-warning/30">
+                <Clock className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-warning">
+                    {fuoriServizio.length === 1
+                      ? `${fuoriServizio[0].nome} non è in servizio a quest'ora`
+                      : 'Operatrici non in servizio a quest\'ora'}
+                  </p>
+                  {fuoriServizio.length > 1 && (
+                    <ul className="text-xs text-text-secondary mt-1 space-y-0.5">
+                      {fuoriServizio.map(f => (
+                        <li key={f.operatorId}><strong className="text-text-primary">{f.nome}</strong> è fuori turno</li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="text-xs text-text-muted mt-1.5">
+                    È fuori dal suo turno (o è pausa, o giorno di riposo). Puoi prenotare lo stesso:
+                    l&apos;appuntamento comparirà in agenda sulla fascia grigia.
+                  </p>
+                </div>
+              </div>
+            )}
             
             {/* Notes */}
             <div>
@@ -2159,15 +2239,16 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
               <button onClick={closeAppointmentModal} className="px-4 py-2 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
                 Annulla
               </button>
-              {/* Sull'accavallamento il tasto diventa arancione e cambia nome:
-                  si può fare, ma si vede che è una forzatura voluta. */}
+              {/* Se è occupata o fuori turno il tasto diventa arancione e
+                  cambia nome: si può fare, ma si vede che è una forzatura
+                  voluta. */}
               <button onClick={handleSave} disabled={!canSave}
                 className={`px-5 py-2 rounded-xl text-white text-sm font-medium transition-all ${
                   !canSave ? 'bg-bg-tertiary text-text-muted cursor-not-allowed'
-                    : isOccupied && !editingAppointment ? 'bg-warning shadow-lg shadow-warning/20 hover:brightness-110'
+                    : (isOccupied || isFuoriTurno) && !editingAppointment ? 'bg-warning shadow-lg shadow-warning/20 hover:brightness-110'
                     : 'gradient-accent shadow-lg shadow-accent/20'}`}>
                 {editingAppointment ? 'Salva Modifiche'
-                  : isOccupied ? 'Prenota comunque' : 'Crea Appuntamento'}
+                  : isOccupied || isFuoriTurno ? 'Prenota comunque' : 'Crea Appuntamento'}
               </button>
             </div>
           </div>
