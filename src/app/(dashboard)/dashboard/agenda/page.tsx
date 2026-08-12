@@ -600,15 +600,38 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
                   if (!placed) overlappingGroups.push([apt]);
                 });
 
+                /*
+                  Appuntamenti accavallati: a scaletta, non a colonnine.
+                  Dividere la colonna in due faceva due strisce strette e
+                  illeggibili anche per dieci minuti di sovrapposizione. Qui
+                  restano larghi quasi quanto la colonna: chi comincia dopo si
+                  sposta un po' a destra e passa davanti, con un'ombra che dice
+                  che sta sopra. Il primo resta leggibile perché il secondo
+                  comincia più in basso, e passandoci sopra col mouse quello
+                  che tocchi torna davanti a tutti.
+                */
                 return overlappingGroups.flatMap(group => {
-                  const cols = group.length;
-                  return group.map((apt, index) => {
-                    const widthPercent = 100 / cols;
-                    const leftPercent = index * widthPercent;
+                  // Chi comincia prima sta sotto; a parità di orario sta sotto
+                  // il più lungo, così il breve non finisce sepolto.
+                  const ordinati = [...group].sort((a, b) =>
+                    timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+                    || (timeToMinutes(b.endTime) - timeToMinutes(b.startTime))
+                       - (timeToMinutes(a.endTime) - timeToMinutes(a.startTime))
+                  );
+                  const cols = ordinati.length;
+                  // Lo scalino si stringe se ce ne sono tanti: l'ultimo non
+                  // deve mai ridursi a una fettina.
+                  const passo = cols > 1 ? Math.min(14, 42 / (cols - 1)) : 0;
+                  return ordinati.map((apt, index) => {
                     const overlapStyle: React.CSSProperties = cols > 1 ? {
-                      left: `calc(${leftPercent}% + 4px)`,
-                      width: `calc(${widthPercent}% - 8px)`,
-                      right: 'auto'
+                      left: `calc(${index * passo}% + 4px)`,
+                      right: '4px',
+                      width: 'auto',
+                      zIndex: 10 + index,
+                      // Sovrapposti servono pieni: con lo sfondo trasparente si
+                      // vedeva in trasparenza quello sotto e diventava una macchia.
+                      backgroundColor: `color-mix(in srgb, ${operator.color || apt.color} 15%, var(--color-bg-secondary))`,
+                      boxShadow: index > 0 ? '-8px 0 14px -6px rgba(0,0,0,0.45)' : undefined,
                     } : {};
 
                     return (

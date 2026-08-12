@@ -292,7 +292,10 @@ html.light {
 }
 
 .appointment-block:hover {
-  z-index: 15;
+  /* Sopra a tutti, anche agli accavallati: l'ordine della scaletta è scritto
+     nello stile in linea, e senza !important il blocco che tocchi resterebbe
+     sotto quello dopo di lui. */
+  z-index: 60 !important;
   transform: scale(1.02);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
