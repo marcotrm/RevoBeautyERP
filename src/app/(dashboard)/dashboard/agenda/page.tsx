@@ -225,16 +225,89 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
   );
 }
 
-function OperatorColumnHeader({ operator, off }: { operator: Operator; off?: boolean }) {
+/** Quanto ha prodotto un'operatrice nella giornata mostrata. */
+export interface IncassoOperatrice {
+  /** Già fatto: appuntamenti chiusi. */
+  incassato: number;
+  /** Ancora da fare: prenotati e non ancora completati. */
+  daIncassare: number;
+  clienti: number;
+  completati: number;
+}
+
+/**
+ * Conta solo le fette di appuntamento di QUESTA operatrice.
+ *
+ * Su un appuntamento diviso in due (l'acrygel a Michela, la pedicure a
+ * Veronica) sommare il prezzo intero a tutte e due gonfierebbe la giornata del
+ * doppio. Annullati e no show restano fuori: non li incassa nessuno.
+ */
+function incassoDelGiorno(fette: SplitAppointment[]): IncassoOperatrice {
+  let incassato = 0, daIncassare = 0, completati = 0;
+  const clienti = new Set<string>();
+  for (const a of fette) {
+    if (a.status === 'cancelled' || a.status === 'no_show') continue;
+    clienti.add(a.clientId || a.clientName);
+    if (a.status === 'completed') { incassato += a.price; completati += 1; }
+    else daIncassare += a.price;
+  }
+  return { incassato, daIncassare, clienti: clienti.size, completati };
+}
+
+function OperatorColumnHeader({ operator, off, incasso }: {
+  operator: Operator;
+  off?: boolean;
+  incasso: IncassoOperatrice;
+}) {
   const isResource = !!operator.isResource;
+  const [mostra, setMostra] = useState(false);
+  const totale = incasso.incassato + incasso.daIncassare;
+
   return (
     <div
-      className="sticky top-0 z-20 border-b-2 px-3 py-3 flex items-center gap-2.5"
+      className="sticky top-0 z-20 border-b-2 px-3 py-3 flex items-center gap-2.5 cursor-help"
+      onMouseEnter={() => setMostra(true)}
+      onMouseLeave={() => setMostra(false)}
       style={{
         backgroundColor: off ? undefined : `${operator.color}14`,
         borderBottomColor: off ? 'var(--border)' : operator.color,
       }}
     >
+      {/* Il conto della giornata: si apre passandoci sopra, così la testata
+          resta pulita ma il numero è a un movimento di mouse. */}
+      {mostra && (
+        <div className="absolute left-2 right-2 top-full mt-1 z-40 rounded-xl border border-border bg-bg-secondary shadow-xl p-3 space-y-1.5 cursor-default">
+          <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
+            {operator.firstName} · oggi
+          </p>
+          {totale === 0 ? (
+            <p className="text-xs text-text-muted">Nessun appuntamento in programma.</p>
+          ) : (
+            <>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-xs text-text-secondary">Incassato</span>
+                <span className="text-base font-bold text-success">{formatCurrency(incasso.incassato)}</span>
+              </div>
+              {incasso.daIncassare > 0 && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-xs text-text-secondary">Ancora da fare</span>
+                  <span className="text-sm font-semibold text-text-primary">{formatCurrency(incasso.daIncassare)}</span>
+                </div>
+              )}
+              <div className="flex items-baseline justify-between gap-3 pt-1.5 border-t border-border">
+                <span className="text-xs text-text-secondary">Totale giornata</span>
+                <span className="text-sm font-bold text-text-primary">{formatCurrency(totale)}</span>
+              </div>
+              <p className="text-[11px] text-text-muted pt-0.5">
+                {incasso.clienti} client{incasso.clienti === 1 ? 'e' : 'i'} · {incasso.completati} completat{incasso.completati === 1 ? 'o' : 'i'}
+              </p>
+              <p className="text-[10px] text-text-muted/80 leading-snug">
+                Su un appuntamento diviso conta solo la parte che fa {operator.firstName}.
+              </p>
+            </>
+          )}
+        </div>
+      )}
       <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold ${off ? 'opacity-40 grayscale' : 'shadow-sm'}`} style={{ backgroundColor: operator.color }}>
         {isResource ? <Sun className="w-4 h-4" /> : getInitials(operator.firstName, operator.lastName)}
       </div>
@@ -392,7 +465,8 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
           const off = !operatorWorksOn(operator, selectedDate, weekMap);
           return (
           <div key={operator.id} className="flex-1 min-w-[160px] border-r border-border/50 last:border-r-0 relative">
-            <OperatorColumnHeader operator={operator} off={off} />
+            <OperatorColumnHeader operator={operator} off={off}
+              incasso={incassoDelGiorno(byOperator[operator.id] || [])} />
             <div className="relative"
               style={off ? {
                 backgroundImage: 'repeating-linear-gradient(45deg, rgba(148,163,184,0.10) 0, rgba(148,163,184,0.10) 10px, rgba(148,163,184,0.02) 10px, rgba(148,163,184,0.02) 20px)',
