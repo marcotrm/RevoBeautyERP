@@ -3405,7 +3405,9 @@ export default function AgendaPage() {
           <div className="flex items-center rounded-xl border border-border overflow-hidden h-10 flex-shrink-0">
             <button onClick={goToPrev} title="Indietro"
               className="h-full px-2.5 hover:bg-bg-hover text-text-secondary transition-colors"><ChevronLeft className="w-4 h-4" /></button>
-            <button onClick={goToToday}
+            {/* "Oggi" vuol dire la giornata di oggi, non il mese in cui
+                cade: chi lo preme vuole vedere gli appuntamenti di adesso. */}
+            <button onClick={() => { goToToday(); setView('day'); }} title="Vai all'agenda di oggi"
               className="h-full px-3 border-x border-border hover:bg-bg-hover text-sm font-medium text-text-primary transition-colors">Oggi</button>
             <button onClick={goToNext} title="Avanti"
               className="h-full px-2.5 hover:bg-bg-hover text-text-secondary transition-colors"><ChevronRight className="w-4 h-4" /></button>
