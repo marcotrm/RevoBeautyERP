@@ -54,6 +54,9 @@ function avvisaErroreCliente(e: unknown) {
  */
 const BTN = 'inline-flex items-center gap-2 h-10 px-3.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all';
 
+/** Il tasto con la sola icona: stessa altezza, quadrato, nome nel title. */
+const ICONA = 'inline-flex items-center justify-center h-10 w-10 rounded-xl flex-shrink-0 transition-colors';
+
 const HOUR_HEIGHT = 88;
 const START_HOUR = 8;
 const END_HOUR = 24; // agenda aperta fino a mezzanotte
@@ -898,7 +901,10 @@ function CercaCliente({ clients, appointments, onApriAppuntamento, onVaiAlGiorno
   const chiudi = () => { setAperto(false); setScelto(null); setTesto(''); };
 
   return (
-    <div ref={boxRef} className="relative">
+    // È l'elemento elastico della barra: si allarga se c'è spazio e si
+    // stringe quando serve, così tutto il resto resta su una riga sola senza
+    // che nessun tasto debba sparire.
+    <div ref={boxRef} className="relative flex-1 min-w-[7rem] max-w-[18rem]">
       {/* Stessa altezza dei tasti accanto: è un comando come gli altri. */}
       <div className="flex items-center gap-2 h-10 px-3.5 rounded-xl border border-border bg-bg-secondary
         focus-within:border-accent/50 transition-colors">
@@ -913,7 +919,7 @@ function CercaCliente({ clients, appointments, onApriAppuntamento, onVaiAlGiorno
             if (e.key === 'Enter' && suggerimenti.length === 1) { setScelto(suggerimenti[0]); setAperto(true); }
           }}
           placeholder="Cerca cliente…"
-          className="w-32 lg:w-44 bg-transparent text-sm text-text-primary placeholder-text-muted focus:outline-none"
+          className="w-full min-w-0 bg-transparent text-sm text-text-primary placeholder-text-muted focus:outline-none"
           {...NO_AUTOFILL}
         />
         {!!testo && (
@@ -3361,7 +3367,13 @@ export default function AgendaPage() {
 
   // Header label
   const headerLabel = useMemo(() => {
-    if (view === 'day') return formatDateLong(dateStr);
+    // Nella giornata la data va abbreviata: "Martedì 11 Agosto 2026" per
+    // esteso mangia duecento pixel e spinge fuori riga il resto della barra.
+    if (view === 'day') {
+      return parseDateStr(dateStr).toLocaleDateString('it-IT', {
+        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+      }).replace('.', '');
+    }
     if (view === 'month') return `${MONTH_NAMES_IT[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
     // week
     const d = new Date(selectedDate);
@@ -3374,20 +3386,19 @@ export default function AgendaPage() {
   return (
     <div className="h-[calc(100vh-7rem)] flex flex-col">
       {/*
-        Barra dei comandi.
+        Barra dei comandi: UNA riga sola.
 
-        Tutti i controlli hanno la STESSA altezza (BTN) e non vanno mai a capo:
-        prima le etichette lunghe si spezzavano su due righe e i tasti
-        risultavano uno alto e uno basso, in fila disordinata.
+        Tutti i controlli hanno la stessa altezza (BTN) e nessuno va a capo —
+        `flex-nowrap` lo impedisce, e se lo schermo è davvero stretto la barra
+        scorre in orizzontale invece di spezzarsi in due.
 
-        Due file con un compito ciascuna: sopra dove sei (data e navigazione),
-        sotto cosa puoi fare. In fondo a destra, staccato da tutto, l'unico
-        tasto pieno: quello che si preme cento volte al giorno.
+        Ci sta perché le azioni secondarie sono solo icone con il nome nel
+        suggerimento: il testo per esteso resta a quello che si preme cento
+        volte al giorno, cioè Nuovo appuntamento.
       */}
-      <div className="mb-4 flex-shrink-0 space-y-2.5">
-        {/* Riga 1 — dove sei */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center rounded-xl border border-border overflow-hidden h-10">
+      <div className="mb-4 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-nowrap overflow-x-auto hide-scrollbar pb-0.5">
+          <div className="flex items-center rounded-xl border border-border overflow-hidden h-10 flex-shrink-0">
             <button onClick={goToPrev} title="Indietro"
               className="h-full px-2.5 hover:bg-bg-hover text-text-secondary transition-colors"><ChevronLeft className="w-4 h-4" /></button>
             <button onClick={goToToday}
@@ -3396,7 +3407,7 @@ export default function AgendaPage() {
               className="h-full px-2.5 hover:bg-bg-hover text-text-secondary transition-colors"><ChevronRight className="w-4 h-4" /></button>
           </div>
 
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <button onClick={() => setShowDatePicker(v => !v)}
               className="flex items-center gap-1.5 h-10 px-2.5 rounded-xl hover:bg-bg-hover transition-colors group"
               title="Clicca per scegliere la data">
@@ -3413,31 +3424,30 @@ export default function AgendaPage() {
           </div>
 
           {view !== 'month' && (
-            <button onClick={() => setView('month')} className={`${BTN} border border-border bg-bg-secondary text-text-secondary hover:bg-bg-hover`}>
-              <CalendarDays className="w-4 h-4" /> Torna al mese
+            <button onClick={() => setView('month')} title="Torna alla vista mensile"
+              className={`${ICONA} border border-border bg-bg-secondary text-text-secondary hover:bg-bg-hover hover:text-accent`}>
+              <CalendarDays className="w-4 h-4" />
             </button>
           )}
 
           {/* I due numeri della giornata in un solo riquadro: erano due
               pillole diverse per dire una cosa sola. */}
           {view === 'day' && (
-            <span className="hidden md:inline-flex items-center gap-2 h-10 px-3 rounded-xl bg-bg-tertiary text-sm text-text-secondary whitespace-nowrap">
-              <CalendarDays className="w-4 h-4" /> {totalApts} app.
-              <span className="text-border">·</span>
-              <CheckCircle className="w-4 h-4 text-success" /> <span className="text-success font-medium">{completedApts} fatti</span>
+            <span title={`${totalApts} appuntamenti oggi, ${completedApts} già completati`}
+              className="hidden 2xl:inline-flex items-center gap-1.5 h-10 px-3 rounded-xl bg-bg-tertiary text-sm text-text-secondary whitespace-nowrap flex-shrink-0">
+              {totalApts}
+              <CheckCircle className="w-4 h-4 text-success" /><span className="text-success font-medium">{completedApts}</span>
             </span>
           )}
 
-          <div className="relative hidden md:block">
+          <div className="relative hidden xl:block flex-shrink-0">
             <button onClick={() => setShowRevenuePanel(v => !v)}
               className={`${BTN} bg-accent/10 text-accent hover:bg-accent/20`}
               title="Incasso stimato — clicca per scegliere giorno, settimana, mese o intervallo">
               {/* Niente icona dell'euro: il simbolo lo mette già `eur()` e si
                   leggeva "€ € 3.648,40". */}
-              <Euro className="w-4 h-4 flex-shrink-0 hidden lg:inline" />
-              <span className="hidden lg:inline">Incasso</span>
               <span className="font-semibold">{eur(revenueStats.total)}</span>
-              <span className="opacity-70 hidden xl:inline">· {periodShortLabel(revenuePeriod)}</span>
+              <span className="opacity-70 hidden 2xl:inline">· {periodShortLabel(revenuePeriod)}</span>
               <ChevronDown className={`w-4 h-4 transition-transform ${showRevenuePanel ? 'rotate-180' : ''}`} />
             </button>
             {showRevenuePanel && (
@@ -3451,10 +3461,10 @@ export default function AgendaPage() {
               />
             )}
           </div>
-        </div>
+          {/* Da qui in poi le azioni. Il divisorio separa "dove sei" da
+              "cosa fai" senza bisogno di una seconda riga. */}
+          <span className="w-px h-6 bg-border flex-shrink-0 mx-0.5 hidden lg:block" />
 
-        {/* Riga 2 — cosa puoi fare */}
-        <div className="flex items-center gap-2 flex-wrap">
           <CercaCliente
             clients={clientiInAnagrafica}
             appointments={appointments}
@@ -3462,37 +3472,40 @@ export default function AgendaPage() {
             onVaiAlGiorno={(d) => { setSelectedDate(parseDateStr(d)); setView('day'); }}
           />
 
-          <button onClick={() => setShowWaitlistPanel(true)}
-            className={`${BTN} border ${matchingWaitlists.length > 0
+          {/* Solo icone, col nome nel suggerimento: è quello che libera lo
+              spazio per stare tutti su una riga. */}
+          <button onClick={() => setShowWaitlistPanel(true)} title="Clienti in attesa"
+            className={`relative ${ICONA} border ${matchingWaitlists.length > 0
               ? 'bg-warning text-white border-warning shadow-glow animate-pulse'
-              : 'bg-bg-secondary border-border text-text-secondary hover:bg-bg-hover'}`}>
+              : 'bg-bg-secondary border-border text-text-secondary hover:bg-bg-hover hover:text-accent'}`}>
             <ListTodo className="w-4 h-4" />
-            {/* Sotto una certa larghezza si accorcia invece di andare a capo. */}
-            <span className="hidden xl:inline">Clienti in attesa</span>
-            <span className="xl:hidden">In attesa</span>
             {matchingWaitlists.length > 0 && (
-              <span className="bg-white text-warning w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold">{matchingWaitlists.length}</span>
+              <span className="absolute -top-1.5 -right-1.5 bg-white text-warning border border-warning w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold">
+                {matchingWaitlists.length}
+              </span>
             )}
           </button>
 
-          <button onClick={() => setShowAddClientModal(true)}
-            className={`${BTN} border border-border bg-bg-secondary text-text-primary hover:bg-bg-hover`}>
-            <UserPlus className="w-4 h-4" /> Nuovo cliente
+          <button onClick={() => setShowAddClientModal(true)} title="Nuovo cliente in anagrafica"
+            className={`${ICONA} border border-border bg-bg-secondary text-text-secondary hover:bg-bg-hover hover:text-accent`}>
+            <UserPlus className="w-4 h-4" />
           </button>
 
-          {/* Solo icona: si usa una volta ogni tanto, il nome per esteso
-              rubava spazio ai comandi veri. */}
           <a href="/agenda-mobile" target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center justify-center h-10 w-10 rounded-xl bg-bg-secondary border border-border text-text-secondary hover:bg-bg-hover hover:text-accent transition-colors"
+            className={`${ICONA} border border-border bg-bg-secondary text-text-secondary hover:bg-bg-hover hover:text-accent`}
             title="Apri la versione da cellulare">
             <Smartphone className="w-4 h-4" />
           </a>
 
           {/* Staccato da tutto e ancorato a destra: è il tasto che si cerca
-              più spesso, deve stare sempre nello stesso punto. */}
-          <button onClick={() => openAppointmentModal()}
-            className={`${BTN} ml-auto gradient-accent text-white shadow-lg shadow-accent/20 hover:shadow-accent/30 hover:scale-105`}>
-            <Plus className="w-4 h-4" /> Nuovo appuntamento
+              più spesso, deve stare sempre nello stesso punto — ed è l'unico
+              che tiene il nome per esteso. */}
+          <button onClick={() => openAppointmentModal()} title="Nuovo appuntamento"
+            className={`${BTN} ml-auto flex-shrink-0 gradient-accent text-white shadow-lg shadow-accent/20 hover:shadow-accent/30 hover:scale-105`}>
+            <Plus className="w-4 h-4" />
+            {/* Su schermi stretti resta il solo più: sparire non può, è il
+                comando principale, ma il nome per esteso non ci starebbe. */}
+            <span className="hidden xl:inline">Nuovo appuntamento</span>
           </button>
         </div>
       </div>
