@@ -219,6 +219,16 @@ function rowToMessage(rowId: string, data: Record<string, unknown>, createdAt: s
   };
 }
 
+/**
+ * Quanti messaggi si guardano per costruire l'elenco delle chat.
+ *
+ * Erano 600, e con qualche migliaio di messaggi in archivio le conversazioni
+ * più vecchie sparivano dall'elenco: non erano cancellate, semplicemente
+ * restavano fuori dalla finestra. Adesso la finestra tiene dentro tutto lo
+ * storico (oggi sono circa millecinquecento messaggi) con parecchio margine.
+ */
+const FINESTRA_ELENCO = 6000;
+
 /** Tutti i messaggi recenti, nuovo formato + storico `wa_inbox`, dal più recente. */
 async function recentMessages(limit: number): Promise<WaMessageRow[]> {
   const [fresh, legacy] = await Promise.all([
@@ -349,9 +359,9 @@ export async function phonesWithInbound(): Promise<Set<string>> {
   return numeri;
 }
 
-export async function listConversations(limit = 50): Promise<WaConversation[]> {
+export async function listConversations(limit = 300): Promise<WaConversation[]> {
   const [messages, windows, reads, clientNames] = await Promise.all([
-    recentMessages(600), lastInboundMap(), readMarks(), clientNamesByPhone(),
+    recentMessages(FINESTRA_ELENCO), lastInboundMap(), readMarks(), clientNamesByPhone(),
   ]);
 
   const byPhone = new Map<string, WaMessageRow[]>();
@@ -413,13 +423,33 @@ export async function listUnreadChats(): Promise<WaUnreadChat[]> {
     .sort((a, b) => a.oldestUnreadAt.localeCompare(b.oldestUnreadAt));
 }
 
-/** Thread completo di un numero, dal più vecchio al più recente (ordine di lettura). */
-export async function listMessages(phone: string, limit = 200): Promise<WaMessageRow[]> {
-  const messages = await recentMessages(600);
-  const thread = messages
+/**
+ * Thread completo di un numero, dal più vecchio al più recente.
+ *
+ * Si chiede al database solo questo numero (le righe hanno il telefono in
+ * `entityId`): prima si rileggevano gli ultimi 600 messaggi di tutti e si
+ * filtrava, così una chat vecchia si apriva vuota anche se i messaggi
+ * c'erano ancora.
+ */
+export async function listMessages(phone: string, limit = 500): Promise<WaMessageRow[]> {
+  const [fresh, legacy] = await Promise.all([
+    prisma.adminEntry.findMany({
+      where: { kind: MSG_KIND, entityId: phone },
+      orderBy: { createdAt: 'desc' }, take: limit,
+    }),
+    prisma.adminEntry.findMany({
+      where: { kind: LEGACY_INBOX_KIND, entityId: phone },
+      orderBy: { createdAt: 'desc' }, take: limit,
+    }),
+  ]);
+
+  const thread = [
+    ...fresh.map(r => rowToMessage(r.rowId, (r.data || {}) as Record<string, unknown>, r.createdAt, false)),
+    ...legacy.map(r => rowToMessage(r.rowId, (r.data || {}) as Record<string, unknown>, r.createdAt, true)),
+  ]
     .filter(m => m.phone === phone)
-    .slice(0, limit)
     .sort((a, b) => a.at.localeCompare(b.at));
+
   return withDeliveryStatus(thread);
 }
 

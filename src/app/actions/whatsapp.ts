@@ -87,7 +87,7 @@ export async function loadWaInbox(limit = 15): Promise<WaInboxMessage[]> {
 // fallire tutte le azioni del file. I tipi si importano da '@/lib/wa-conversations'.
 
 /** Elenco chat, la più recente in cima, con non letti e stato finestra 24h. */
-export async function loadConversations(limit = 50): Promise<WaConversation[]> {
+export async function loadConversations(limit = 300): Promise<WaConversation[]> {
   return listConversations(limit);
 }
 

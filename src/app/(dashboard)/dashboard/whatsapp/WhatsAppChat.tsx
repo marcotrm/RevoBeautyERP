@@ -12,7 +12,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X } from 'lucide-react';
+import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X, Search } from 'lucide-react';
 import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione } from '@/app/actions/whatsapp';
 import {
   listaTemplate, clientiPerCampagna, creaTemplateApertura,
@@ -470,6 +470,25 @@ export default function WhatsAppChat() {
   const [caricandoThread, setCaricandoThread] = useState(false);
 
   /**
+   * Ricerca nell'elenco: prima fra le chat che ci sono già, poi — se il nome
+   * non compare — fra le clienti in anagrafica, per aprire una chat che non
+   * è mai iniziata. Con qualche centinaio di conversazioni scorrere a mano
+   * per trovare una persona non è un modo di lavorare.
+   */
+  const [cerca, setCerca] = useState('');
+  const [rubrica, setRubrica] = useState<DestinatarioCampagna[] | null>(null);
+  useEffect(() => {
+    // L'anagrafica si legge solo quando serve davvero, cioè quando si cerca.
+    if (cerca.trim().length < 2 || rubrica !== null) return;
+    let vivo = true;
+    void (async () => {
+      const c = await clientiPerCampagna();
+      if (vivo) setRubrica(c);
+    })();
+    return () => { vivo = false; };
+  }, [cerca, rubrica]);
+
+  /**
    * Niente `setState` sincrono qui dentro: viene chiamata anche dagli effect, e
    * impostare lo stato prima del primo `await` innescherebbe render a cascata.
    * L'indicatore di caricamento sta in `manualRefresh`, che parte da un click.
@@ -596,6 +615,20 @@ export default function WhatsAppChat() {
     await refreshList();
   };
 
+  // Cosa mostrare nell'elenco: le chat che corrispondono, e sotto le clienti
+  // in anagrafica con cui una chat non c'è ancora.
+  const q = cerca.trim().toLowerCase();
+  const soloCifre = q.replace(/\D/g, '');
+  const combacia = (testo: string) => testo.toLowerCase().includes(q);
+  const chatMostrate = !q ? (conversations || []) : (conversations || []).filter(c =>
+    combacia(c.name || '') || (soloCifre.length >= 3 && c.phone.includes(soloCifre))
+  );
+  const numeriInChat = new Set((conversations || []).map(c => c.phone.slice(-9)));
+  const clientiSenzaChat = q.length < 2 ? [] : (rubrica || [])
+    .filter(c => (combacia(c.nome) || (soloCifre.length >= 3 && c.phone.includes(soloCifre)))
+      && !numeriInChat.has(c.phone.slice(-9)))
+    .slice(0, 15);
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 h-[calc(100vh-13rem)] min-h-[28rem]">
       {/* Elenco conversazioni */}
@@ -615,6 +648,23 @@ export default function WhatsAppChat() {
           </div>
         </div>
 
+        {/* Ricerca: il modo normale di trovare una persona quando le chat
+            sono centinaia. Cerca per nome o per numero. */}
+        <div className="px-3 py-2 border-b border-border/40 flex-shrink-0">
+          <div className="flex items-center gap-2 px-2.5 h-9 rounded-xl bg-bg-tertiary border border-border
+            focus-within:border-accent/50 transition-colors">
+            <Search className="w-3.5 h-3.5 text-text-muted flex-shrink-0" />
+            <input value={cerca} onChange={e => setCerca(e.target.value)} {...NO_AUTOFILL}
+              placeholder="Cerca chat o cliente…"
+              className="w-full min-w-0 bg-transparent text-sm text-text-primary placeholder-text-muted focus:outline-none" />
+            {!!cerca && (
+              <button onClick={() => setCerca('')} className="text-text-muted hover:text-text-primary flex-shrink-0">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Scrivere per primi: la conversazione non esiste ancora, quindi il
             numero non può che arrivare dall'anagrafica (o scritto a mano). */}
         {scegliCliente && (
@@ -631,7 +681,7 @@ export default function WhatsAppChat() {
             <p className="p-4 text-xs text-text-muted leading-relaxed">
               Nessuna conversazione. Appena un cliente scrive al numero del centro comparirà qui.
             </p>
-          ) : conversations.map(c => (
+          ) : chatMostrate.map(c => (
             <button key={c.phone} onClick={() => openThread(c.phone)}
               className={`w-full text-left px-4 py-3 border-b border-border/30 hover:bg-bg-hover transition-colors flex gap-3 ${active === c.phone ? 'bg-bg-hover' : ''}`}>
               <Faccia nome={c.name} phone={c.phone} avatar={c.avatar} />
@@ -659,6 +709,36 @@ export default function WhatsAppChat() {
               </div>
             </button>
           ))}
+
+          {/* Cercata e non trovata fra le chat: forse non le ha mai scritto
+              nessuno. Si apre da qui, senza passare da un'altra schermata. */}
+          {q.length >= 2 && (
+            <>
+              {chatMostrate.length === 0 && clientiSenzaChat.length === 0 && rubrica !== null && (
+                <p className="p-4 text-xs text-text-muted leading-relaxed">
+                  Nessuna chat e nessuna cliente con questo nome.
+                </p>
+              )}
+              {clientiSenzaChat.length > 0 && (
+                <>
+                  <p className="px-4 pt-3 pb-1.5 text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                    In anagrafica, chat mai iniziata
+                  </p>
+                  {clientiSenzaChat.map(c => (
+                    <button key={c.id} onClick={() => { setCerca(''); openThread(c.phone); }}
+                      className="w-full text-left px-4 py-2.5 border-b border-border/30 hover:bg-bg-hover transition-colors flex items-center gap-3">
+                      <Faccia nome={c.nome} phone={c.phone} size={32} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm text-text-primary truncate">{c.nome}</span>
+                        <span className="block text-[10px] text-text-muted font-mono">+{c.phone}</span>
+                      </span>
+                      <PenSquare className="w-3.5 h-3.5 text-text-muted flex-shrink-0" />
+                    </button>
+                  ))}
+                </>
+              )}
+            </>
+          )}
         </div>
       </div>
 
