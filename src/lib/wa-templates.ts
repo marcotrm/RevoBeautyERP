@@ -110,17 +110,25 @@ export const WA_TEMPLATES = {
   },
 
   birthday: {
-    name: 'auguri_compleanno',
+    // Nome nuovo perché il testo è cambiato: Meta non lascia modificare il
+    // corpo di un template già approvato, se ne fa approvare un altro. Il
+    // vecchio `auguri_compleanno` resta lì finché non lo si cancella a mano.
+    name: 'auguri_compleanno_v2',
     category: 'MARKETING',
     language: 'it',
-    params: ['nome cliente', 'sconto (es. "il 20%")', 'data di scadenza'],
+    params: ['nome cliente', 'regalo (es. "il 20%" o "una Lampada")', 'data di scadenza'],
     body:
-      'Tanti auguri {{1}}! Per il tuo compleanno RevoBeauty ti riserva {{2}} sul prossimo trattamento, valido fino al {{3}}.\n' +
-      'Scrivici per fissare l\'appuntamento: ti aspettiamo.',
+      'Buon compleanno {{1}}! 🎉\n' +
+      'Da parte di tutte noi di RevoBeauty un regalo per te: {{2}} sul prossimo trattamento, da usare entro il {{3}}.\n' +
+      'Passa a trovarci, ti aspettiamo!',
     buttons: [
       { type: 'QUICK_REPLY', text: 'Prenota ora' },
       { type: 'QUICK_REPLY', text: 'Non inviarmi piu\' messaggi' },
     ],
+    note:
+      'Il testo precedente ("RevoBeauty ti riserva… valido fino al…") suonava da circolare. ' +
+      'Il regalo {{2}} deve reggere sia uno sconto ("il 20%") sia un trattamento ("una Lampada"): ' +
+      'per questo la frase dice "un regalo per te: X sul prossimo trattamento" e non "un regalo: X".',
   },
 
   review: {

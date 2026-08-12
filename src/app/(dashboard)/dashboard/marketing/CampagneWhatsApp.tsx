@@ -18,10 +18,11 @@ import {
   Search, Users, X, Clock, Trash2,
 } from 'lucide-react';
 import {
-  listaTemplate, creaTemplate, clientiPerCampagna, inviaCampagna, eliminaTemplate,
+  listaTemplate, creaTemplate, creaTemplateCompleanno, clientiPerCampagna, inviaCampagna, eliminaTemplate,
   type TemplateRemoto, type DestinatarioCampagna, type EsitoCampagna,
 } from '@/app/actions/campagne';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
+import { WA_TEMPLATES } from '@/lib/wa-templates';
 
 /** I segnaposto {{n}} presenti nel testo, in ordine e senza doppioni. */
 function segnapostoDi(testo: string): number[] {
@@ -96,6 +97,8 @@ export default function CampagneWhatsApp() {
   const [nome, setNome] = useState('');
   const [categoria, setCategoria] = useState<'MARKETING' | 'UTILITY'>('MARKETING');
   const [testo, setTesto] = useState('Ciao {{1}}, ');
+  const [creandoCompleanno, setCreandoCompleanno] = useState(false);
+  const [esitoCompleanno, setEsitoCompleanno] = useState<{ ok: boolean; msg: string } | null>(null);
   const [creando, setCreando] = useState(false);
   const [esitoCrea, setEsitoCrea] = useState<{ ok: boolean; msg: string } | null>(null);
 
@@ -144,6 +147,20 @@ export default function CampagneWhatsApp() {
       if (scelto?.name === nome) { setScelto(null); setSelezionati(new Set()); }
       await caricaTemplate();
     } finally { setEliminando(''); }
+  };
+
+  const mandaCompleanno = async () => {
+    setCreandoCompleanno(true);
+    setEsitoCompleanno(null);
+    try {
+      const r = await creaTemplateCompleanno();
+      if (r.ok) {
+        setEsitoCompleanno({ ok: true, msg: `Inviato a Meta (stato: ${r.status}).` });
+        await caricaTemplate();
+      } else {
+        setEsitoCompleanno({ ok: false, msg: r.error || 'Errore' });
+      }
+    } finally { setCreandoCompleanno(false); }
   };
 
   const salvaTemplate = async () => {
@@ -272,6 +289,42 @@ export default function CampagneWhatsApp() {
           </button>
         </div>
       </div>
+
+      {/* Il compleanno nuovo: finché non è su Meta, l'automazione non ha un
+          messaggio da mandare. Si vede solo quando manca davvero. */}
+      {templates !== null && !templates.some(t => t.name === WA_TEMPLATES.birthday.name) && (
+        <div className="px-5 py-4 border-b border-border bg-warning/5 space-y-2.5">
+          <p className="text-sm font-semibold text-text-primary">Nuovo messaggio di compleanno</p>
+          <div className="rounded-xl border border-border bg-bg-secondary p-3">
+            <p className="text-sm text-text-primary whitespace-pre-line leading-relaxed">
+              {WA_TEMPLATES.birthday.body
+                .replace('{{1}}', 'Maria')
+                .replace('{{2}}', 'una Lampada o Pressoterapia')
+                .replace('{{3}}', '11/09')}
+            </p>
+            <div className="flex gap-1.5 mt-2">
+              {WA_TEMPLATES.birthday.buttons.map(b => (
+                <span key={b.text} className="px-2 py-1 rounded-lg bg-bg-tertiary text-[10px] text-text-muted">{b.text}</span>
+              ))}
+            </div>
+          </div>
+          <p className="text-xs text-text-muted">
+            Sostituisce <strong>auguri_compleanno</strong>, che aveva il vecchio testo. Meta non lascia
+            riscrivere un messaggio già approvato: questo va approvato da capo (di solito pochi minuti).
+            Il vecchio puoi cancellarlo quando il nuovo risulta approvato.
+          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={mandaCompleanno} disabled={creandoCompleanno}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-warning text-white text-xs font-semibold hover:brightness-110 disabled:opacity-50">
+              {creandoCompleanno ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+              Manda in approvazione
+            </button>
+            {esitoCompleanno && (
+              <span className={`text-xs ${esitoCompleanno.ok ? 'text-success' : 'text-error'}`}>{esitoCompleanno.msg}</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 1. Creazione template */}
       {apriNuovo && (

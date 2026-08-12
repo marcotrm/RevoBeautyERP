@@ -13,7 +13,7 @@ import { createD360Template, listD360Templates, deleteD360Template } from '@/lib
 import { sendD360Template } from '@/lib/whatsapp360';
 import { normalizePhone, isSendablePhone, waProvider } from '@/lib/whatsapp';
 import { logOutbound } from '@/lib/wa-conversations';
-import { sanitizeParam, NOME_APERTURA, TESTO_APERTURA } from '@/lib/wa-templates';
+import { sanitizeParam, NOME_APERTURA, TESTO_APERTURA, WA_TEMPLATES } from '@/lib/wa-templates';
 import { sessoDaNome } from '@/lib/sessoDaNome';
 
 const LOG_KIND = 'wa_log';
@@ -50,6 +50,8 @@ export async function creaTemplate(params: {
   nome: string;
   categoria: 'MARKETING' | 'UTILITY';
   testo: string;
+  /** Bottoni di risposta rapida (l'opt-out serve sui messaggi promozionali). */
+  bottoni?: { type: 'QUICK_REPLY'; text: string }[];
 }): Promise<{ ok: boolean; status?: string; error?: string; nome?: string }> {
   const nome = params.nome.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
   if (!nome) return { ok: false, error: 'Serve un nome per il template' };
@@ -66,6 +68,7 @@ export async function creaTemplate(params: {
     language: 'it',
     body: testo,
     example: esempi.length ? esempi : undefined,
+    buttons: params.bottoni,
   });
   if (!res.ok) return { ok: false, error: res.error };
   return { ok: true, status: res.status, nome };
@@ -74,6 +77,24 @@ export async function creaTemplate(params: {
 /** Crea il messaggio di apertura e lo manda in approvazione. Si fa una volta sola. */
 export async function creaTemplateApertura(): Promise<{ ok: boolean; status?: string; error?: string }> {
   return creaTemplate({ nome: NOME_APERTURA, categoria: 'UTILITY', testo: TESTO_APERTURA });
+}
+
+/**
+ * Manda in approvazione il messaggio di compleanno nuovo.
+ *
+ * Il testo vive nel catalogo (lib/wa-templates.ts) insieme ai bottoni: così
+ * quello che parte davvero e quello che è scritto nel codice non possono
+ * divergere. Meta non lascia riscrivere un template già approvato, quindi
+ * questo ha un nome nuovo e va approvato da capo.
+ */
+export async function creaTemplateCompleanno(): Promise<{ ok: boolean; status?: string; error?: string; nome?: string }> {
+  const tpl = WA_TEMPLATES.birthday;
+  return creaTemplate({
+    nome: tpl.name,
+    categoria: tpl.category,
+    testo: tpl.body,
+    bottoni: tpl.buttons.map(b => ({ type: 'QUICK_REPLY' as const, text: b.text })),
+  });
 }
 
 /**
