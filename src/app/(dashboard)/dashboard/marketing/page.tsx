@@ -8,6 +8,7 @@ import {
   Gift, Heart, Trash2, Send, Eye,
 } from 'lucide-react';
 import CampagneWhatsApp from './CampagneWhatsApp';
+import RecensioniGoogle from './RecensioniGoogle';
 
 interface Campaign {
   id: number; name: string; type: string; status: string; sent: number; opened: number; converted: number; color: string; target?: string; message?: string;
@@ -328,6 +329,8 @@ export default function MarketingPage() {
       </div>
 
       {/* Campagne WhatsApp vere: template + invio ai clienti scelti */}
+      <RecensioniGoogle />
+
       <CampagneWhatsApp />
 
       {/* Test notifiche */}
