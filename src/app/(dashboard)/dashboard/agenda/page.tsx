@@ -47,6 +47,13 @@ function avvisaErroreCliente(e: unknown) {
     : 'Salvataggio del cliente non riuscito. Riprova.');
 }
 
+/**
+ * La misura di ogni comando della barra: stessa altezza, stesso raggio, e mai
+ * a capo. È una costante e non tre classi copiate perché basta che uno dei
+ * tasti abbia un padding diverso e la fila si vede storta.
+ */
+const BTN = 'inline-flex items-center gap-2 h-10 px-3.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all';
+
 const HOUR_HEIGHT = 88;
 const START_HOUR = 8;
 const END_HOUR = 24; // agenda aperta fino a mezzanotte
@@ -892,7 +899,8 @@ function CercaCliente({ clients, appointments, onApriAppuntamento, onVaiAlGiorno
 
   return (
     <div ref={boxRef} className="relative">
-      <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-bg-secondary
+      {/* Stessa altezza dei tasti accanto: è un comando come gli altri. */}
+      <div className="flex items-center gap-2 h-10 px-3.5 rounded-xl border border-border bg-bg-secondary
         focus-within:border-accent/50 transition-colors">
         <Search className="w-4 h-4 text-text-muted flex-shrink-0" />
         <input
@@ -3365,17 +3373,34 @@ export default function AgendaPage() {
 
   return (
     <div className="h-[calc(100vh-7rem)] flex flex-col">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between mb-4 flex-shrink-0 flex-wrap gap-3">
-        <div className="flex items-center gap-2">
-          <button onClick={goToPrev} className="p-2 rounded-xl hover:bg-bg-hover border border-border text-text-secondary transition-colors"><ChevronLeft className="w-4 h-4" /></button>
-          <button onClick={goToToday} className="px-3 py-2 rounded-xl hover:bg-bg-hover border border-border text-sm font-medium text-text-primary transition-colors">Oggi</button>
-          <button onClick={goToNext} className="p-2 rounded-xl hover:bg-bg-hover border border-border text-text-secondary transition-colors"><ChevronRight className="w-4 h-4" /></button>
-          <div className="relative ml-2">
+      {/*
+        Barra dei comandi.
+
+        Tutti i controlli hanno la STESSA altezza (BTN) e non vanno mai a capo:
+        prima le etichette lunghe si spezzavano su due righe e i tasti
+        risultavano uno alto e uno basso, in fila disordinata.
+
+        Due file con un compito ciascuna: sopra dove sei (data e navigazione),
+        sotto cosa puoi fare. In fondo a destra, staccato da tutto, l'unico
+        tasto pieno: quello che si preme cento volte al giorno.
+      */}
+      <div className="mb-4 flex-shrink-0 space-y-2.5">
+        {/* Riga 1 — dove sei */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center rounded-xl border border-border overflow-hidden h-10">
+            <button onClick={goToPrev} title="Indietro"
+              className="h-full px-2.5 hover:bg-bg-hover text-text-secondary transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+            <button onClick={goToToday}
+              className="h-full px-3 border-x border-border hover:bg-bg-hover text-sm font-medium text-text-primary transition-colors">Oggi</button>
+            <button onClick={goToNext} title="Avanti"
+              className="h-full px-2.5 hover:bg-bg-hover text-text-secondary transition-colors"><ChevronRight className="w-4 h-4" /></button>
+          </div>
+
+          <div className="relative">
             <button onClick={() => setShowDatePicker(v => !v)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-bg-hover transition-colors group"
+              className="flex items-center gap-1.5 h-10 px-2.5 rounded-xl hover:bg-bg-hover transition-colors group"
               title="Clicca per scegliere la data">
-              <h2 className="text-base font-display font-semibold text-text-primary capitalize">{headerLabel}</h2>
+              <h2 className="text-base font-display font-semibold text-text-primary capitalize whitespace-nowrap">{headerLabel}</h2>
               <CalendarDays className="w-4 h-4 text-text-muted group-hover:text-accent transition-colors" />
             </button>
             {showDatePicker && (
@@ -3386,22 +3411,34 @@ export default function AgendaPage() {
               />
             )}
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {view === 'day' && (
-            <div className="hidden md:flex items-center gap-2">
-              <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-bg-tertiary text-xs text-text-secondary"><CalendarDays className="w-3.5 h-3.5" /> {totalApts} app.</span>
-              <span className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-success-bg text-xs text-success"><CheckCircle className="w-3.5 h-3.5" /> {completedApts} compl.</span>
-            </div>
+
+          {view !== 'month' && (
+            <button onClick={() => setView('month')} className={`${BTN} border border-border bg-bg-secondary text-text-secondary hover:bg-bg-hover`}>
+              <CalendarDays className="w-4 h-4" /> Torna al mese
+            </button>
           )}
-          <div className="relative hidden md:block mr-2">
+
+          {/* I due numeri della giornata in un solo riquadro: erano due
+              pillole diverse per dire una cosa sola. */}
+          {view === 'day' && (
+            <span className="hidden md:inline-flex items-center gap-2 h-10 px-3 rounded-xl bg-bg-tertiary text-sm text-text-secondary whitespace-nowrap">
+              <CalendarDays className="w-4 h-4" /> {totalApts} app.
+              <span className="text-border">·</span>
+              <CheckCircle className="w-4 h-4 text-success" /> <span className="text-success font-medium">{completedApts} fatti</span>
+            </span>
+          )}
+
+          <div className="relative hidden md:block">
             <button onClick={() => setShowRevenuePanel(v => !v)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-accent/10 text-xs text-accent hover:bg-accent/20 transition-colors whitespace-nowrap"
+              className={`${BTN} bg-accent/10 text-accent hover:bg-accent/20`}
               title="Incasso stimato — clicca per scegliere giorno, settimana, mese o intervallo">
-              <Euro className="w-3.5 h-3.5 flex-shrink-0" />
-              Incasso stimato: {eur(revenueStats.total)}
+              {/* Niente icona dell'euro: il simbolo lo mette già `eur()` e si
+                  leggeva "€ € 3.648,40". */}
+              <Euro className="w-4 h-4 flex-shrink-0 hidden lg:inline" />
+              <span className="hidden lg:inline">Incasso</span>
+              <span className="font-semibold">{eur(revenueStats.total)}</span>
               <span className="opacity-70 hidden xl:inline">· {periodShortLabel(revenuePeriod)}</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showRevenuePanel ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-4 h-4 transition-transform ${showRevenuePanel ? 'rotate-180' : ''}`} />
             </button>
             {showRevenuePanel && (
               <RevenuePanel
@@ -3414,15 +3451,10 @@ export default function AgendaPage() {
               />
             )}
           </div>
-          {/* Dalla giornata si torna al mese; nel mese si entra cliccando un
-              giorno. Il selettore a tre voci non serviva più. */}
-          {view !== 'month' && (
-            <button onClick={() => setView('month')}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-bg-secondary text-text-secondary text-xs font-medium hover:bg-bg-hover transition-colors">
-              <CalendarDays className="w-3.5 h-3.5" /> Torna al mese
-            </button>
-          )}
+        </div>
 
+        {/* Riga 2 — cosa puoi fare */}
+        <div className="flex items-center gap-2 flex-wrap">
           <CercaCliente
             clients={clientiInAnagrafica}
             appointments={appointments}
@@ -3430,32 +3462,37 @@ export default function AgendaPage() {
             onVaiAlGiorno={(d) => { setSelectedDate(parseDateStr(d)); setView('day'); }}
           />
 
-          <button 
-            onClick={() => setShowWaitlistPanel(true)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl border font-medium text-sm transition-all
-              ${matchingWaitlists.length > 0 ? 'bg-warning text-white border-warning shadow-glow animate-pulse' : 'bg-bg-secondary border-border text-text-secondary hover:bg-bg-hover'}
-            `}
-          >
+          <button onClick={() => setShowWaitlistPanel(true)}
+            className={`${BTN} border ${matchingWaitlists.length > 0
+              ? 'bg-warning text-white border-warning shadow-glow animate-pulse'
+              : 'bg-bg-secondary border-border text-text-secondary hover:bg-bg-hover'}`}>
             <ListTodo className="w-4 h-4" />
-            <span className="hidden sm:inline">Clienti in attesa</span>
-            {matchingWaitlists.length > 0 && <span className="bg-white text-warning w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold">{matchingWaitlists.length}</span>}
+            {/* Sotto una certa larghezza si accorcia invece di andare a capo. */}
+            <span className="hidden xl:inline">Clienti in attesa</span>
+            <span className="xl:hidden">In attesa</span>
+            {matchingWaitlists.length > 0 && (
+              <span className="bg-white text-warning w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold">{matchingWaitlists.length}</span>
+            )}
           </button>
-
-          <a href="/agenda-mobile" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all" title="Apri la versione da cellulare">
-            <Smartphone className="w-4 h-4" /><span className="hidden sm:inline">Versione mobile</span>
-          </a>
 
           <button onClick={() => setShowAddClientModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all">
-            <UserPlus className="w-4 h-4" /><span className="hidden sm:inline">Nuovo Cliente</span>
+            className={`${BTN} border border-border bg-bg-secondary text-text-primary hover:bg-bg-hover`}>
+            <UserPlus className="w-4 h-4" /> Nuovo cliente
           </button>
 
-          {/* Staccato dal resto e sempre all'estremità destra: è il tasto che
-              si cerca più spesso, deve stare sempre nello stesso punto. */}
+          {/* Solo icona: si usa una volta ogni tanto, il nome per esteso
+              rubava spazio ai comandi veri. */}
+          <a href="/agenda-mobile" target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center justify-center h-10 w-10 rounded-xl bg-bg-secondary border border-border text-text-secondary hover:bg-bg-hover hover:text-accent transition-colors"
+            title="Apri la versione da cellulare">
+            <Smartphone className="w-4 h-4" />
+          </a>
+
+          {/* Staccato da tutto e ancorato a destra: è il tasto che si cerca
+              più spesso, deve stare sempre nello stesso punto. */}
           <button onClick={() => openAppointmentModal()}
-            className="ml-auto md:ml-3 flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105">
-            <Plus className="w-4 h-4" /><span className="hidden sm:inline">Nuovo Appuntamento</span>
+            className={`${BTN} ml-auto gradient-accent text-white shadow-lg shadow-accent/20 hover:shadow-accent/30 hover:scale-105`}>
+            <Plus className="w-4 h-4" /> Nuovo appuntamento
           </button>
         </div>
       </div>
