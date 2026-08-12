@@ -1486,6 +1486,27 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   // avviso quando dal nome del pacchetto non si capisce il trattamento
   const [pkgHint, setPkgHint] = useState('');
 
+  // L'elenco delle clienti si apre appena si tocca il campo, e prima non si
+  // poteva più chiudere: restava lì a coprire mezza finestra finché non
+  // sceglievi qualcuno. Ora si chiude cliccando fuori o con Esc.
+  const clientBoxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showClientDropdown) return;
+    const fuori = (e: MouseEvent) => {
+      if (clientBoxRef.current && !clientBoxRef.current.contains(e.target as Node)) setShowClientDropdown(false);
+    };
+    // In cattura: Esc deve chiudere l'elenco, non la finestra intera.
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); setShowClientDropdown(false); }
+    };
+    document.addEventListener('mousedown', fuori);
+    document.addEventListener('keydown', esc, true);
+    return () => {
+      document.removeEventListener('mousedown', fuori);
+      document.removeEventListener('keydown', esc, true);
+    };
+  }, [showClientDropdown]);
+
   // Riempie il modale SOLO all'apertura (o al cambio di appuntamento/slot).
   // Attenzione: qui dentro non vanno messe in dipendenza liste che arrivano dal
   // server (operatrici, clienti, trattamenti): l'auto-aggiornamento dell'agenda
@@ -1825,7 +1846,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
           </div>
           <div className="px-6 py-5 space-y-4 flex-1 overflow-y-auto">
             {/* Client */}
-            <div className="relative">
+            <div ref={clientBoxRef} className="relative">
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-sm font-medium text-text-secondary">Cliente *</label>
                 <button 
@@ -1848,7 +1869,16 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                     <input type="text" value={clientSearch} onChange={e => { setClientSearch(e.target.value); setShowClientDropdown(true); }} onFocus={() => setShowClientDropdown(true)}
                       {...NO_AUTOFILL} placeholder="Cerca cliente o numero..."
-                      className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-all" />
+                      className="w-full pl-9 pr-9 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/20 transition-all" />
+                    {/* La via d'uscita in chiaro: cliccare fuori funziona, ma
+                        una crocetta si vede e non bisogna indovinarla. */}
+                    {(showClientDropdown || clientSearch) && (
+                      <button type="button" title="Chiudi l'elenco"
+                        onClick={() => { setShowClientDropdown(false); setClientSearch(''); }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary">
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                   {showClientDropdown && (
                     <div className="absolute left-0 right-0 mt-1 bg-bg-tertiary border border-border rounded-xl shadow-xl z-10 max-h-48 overflow-y-auto">
