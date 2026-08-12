@@ -184,6 +184,18 @@ html.light {
   background: var(--color-border-light);
 }
 
+/* Scorre ma senza la strisciolina grigia a lato. Era già usata in tre punti
+   dell'app (menu, schede di Report, App Clienti) ma non era mai stata
+   scritta, quindi non faceva niente. */
+.hide-scrollbar {
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* Edge datato */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 /* === UTILITIES === */
 .glass {
   background: rgba(26, 29, 39, 0.8);

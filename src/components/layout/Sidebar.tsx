@@ -13,7 +13,7 @@ import { MENU_PERMISSIONS, roleHasPermission } from '@/lib/permissions';
 import {
   Calendar, Users, ShoppingBag, Package, BarChart3,
   Megaphone, Settings, ChevronLeft, ChevronRight,
-  LayoutDashboard, UserCog, Sun, Moon, LogOut,
+  LayoutDashboard, UserCog, LogOut,
   Warehouse, Sparkles, X, Landmark, Gift, PartyPopper, CheckSquare, Zap, TrendingUp, Banknote, Receipt, MessageSquare, QrCode,
   Smartphone,
 } from 'lucide-react';
@@ -45,7 +45,10 @@ const menuItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const { sidebarCollapsed, toggleSidebar, sidebarMobileOpen, setSidebarMobileOpen } = useUIStore();
-  const { isDark, toggleTheme, logoUrl } = useThemeStore();
+  // Il tema si cambia in Impostazioni → Aspetto, dove ci sono le due
+  // anteprime: qui rubava una riga al menu e faceva comparire la barra
+  // di scorrimento. Qui serve solo il logo del centro.
+  const { logoUrl } = useThemeStore();
   const { user, logout } = useAuthStore();
   const roles = useRolesStore(s => s.roles);
   const role = roles.find(r => r.id === user?.role);
@@ -59,6 +62,24 @@ export default function Sidebar() {
   const visibleMenuItems = menuItems.filter(item =>
     roleHasPermission(role, MENU_PERMISSIONS[item.id] ?? null)
   );
+
+  // Su schermi bassi le ultime voci restano sotto. Senza la barra di
+  // scorrimento non si vedrebbe che c'è dell'altro, così sfuma il bordo:
+  // niente striscia grigia, ma neanche voci nascoste di nascosto.
+  const navRef = React.useRef<HTMLElement>(null);
+  const [altroSotto, setAltroSotto] = React.useState(false);
+  React.useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const calcola = () => setAltroSotto(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+    calcola();
+    el.addEventListener('scroll', calcola);
+    window.addEventListener('resize', calcola);
+    return () => {
+      el.removeEventListener('scroll', calcola);
+      window.removeEventListener('resize', calcola);
+    };
+  }, [visibleMenuItems.length, sidebarCollapsed]);
 
   const LogoIcon = () => logoUrl ? (
     <img src={logoUrl} alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
@@ -128,8 +149,24 @@ export default function Sidebar() {
           </button>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 py-3 px-2 overflow-y-auto space-y-0.5">
+        {/* Restringi/allarga: un bottoncino sul bordo, all'altezza del logo.
+            Prima era una riga in fondo al menu e occupava spazio come una
+            voce vera, pur non essendolo. */}
+        <button
+          onClick={toggleSidebar}
+          title={sidebarCollapsed ? 'Allarga il menu' : 'Restringi il menu'}
+          className="hidden lg:flex absolute top-[52px] -right-3 w-6 h-6 items-center justify-center
+            rounded-full bg-bg-secondary border border-border text-text-secondary
+            hover:text-accent hover:border-accent/50 shadow-sm transition-colors z-[60]"
+        >
+          {sidebarCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+        </button>
+
+        {/* Nav — tutte le voci in un elenco solo. Righe più compatte e barra
+            di scorrimento nascosta: quella striscia grigia che si muoveva a
+            lato dava fastidio e ora l'elenco ci sta tutto senza. */}
+        <div className="relative flex-1 min-h-0">
+        <nav ref={navRef} className="h-full py-2 px-2 overflow-y-auto hide-scrollbar">
           {visibleMenuItems.map((item) => {
             const activeItem = [...visibleMenuItems]
               .sort((a, b) => b.href.length - a.href.length)
@@ -146,7 +183,7 @@ export default function Sidebar() {
                 href={item.href}
                 onClick={() => setSidebarMobileOpen(false)}
                 className={`
-                  group relative flex items-center gap-3 px-3 py-2.5 rounded-xl
+                  group relative flex items-center gap-3 px-3 py-2 rounded-xl
                   transition-all duration-200
                   ${isActive
                     ? 'bg-accent/10 text-accent'
@@ -196,39 +233,13 @@ export default function Sidebar() {
             );
           })}
         </nav>
+        {altroSotto && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-bg-secondary to-transparent" />
+        )}
+        </div>
 
-        {/* Footer */}
-        <div className="p-2 border-t border-border space-y-1">
-          {/* Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            className={`
-              w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
-              text-text-secondary hover:text-text-primary hover:bg-bg-hover
-              transition-all duration-200
-              ${sidebarCollapsed ? 'justify-center' : ''}
-            `}
-          >
-            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            {!sidebarCollapsed && (
-              <span className="text-sm font-medium">{isDark ? 'Tema Chiaro' : 'Tema Scuro'}</span>
-            )}
-          </button>
-
-          {/* Collapse Toggle (Desktop) */}
-          <button
-            onClick={toggleSidebar}
-            className={`
-              hidden lg:flex w-full items-center gap-3 px-3 py-2.5 rounded-xl
-              text-text-secondary hover:text-text-primary hover:bg-bg-hover
-              transition-all duration-200
-              ${sidebarCollapsed ? 'justify-center' : ''}
-            `}
-          >
-            {sidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-            {!sidebarCollapsed && <span className="text-sm font-medium">Comprimi</span>}
-          </button>
-
+        {/* Footer: solo chi è collegato. Tema e Comprimi non stanno più qui. */}
+        <div className="p-2 border-t border-border">
           {/* User Profile */}
           {user && (
             <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl ${sidebarCollapsed ? 'justify-center' : ''}`}>
