@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Lock, Loader2 } from 'lucide-react';
 import Sidebar from '@/components/layout/Sidebar';
 import Topbar from '@/components/layout/Topbar';
+import CommandPalette from '@/components/layout/CommandPalette';
 import CabinTimers from '@/components/CabinTimers';
 import WhatsAppAlert from '@/components/WhatsAppAlert';
 import { useUIStore } from '@/stores/useUIStore';
@@ -99,6 +100,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
         </main>
       </div>
+      {/* La ricerca di tutto (tasto "Cerca…" in alto, o ⌘K). Va montata qui:
+          il tasto in barra si limitava ad accendere un interruttore che
+          nessuno ascoltava, e infatti non succedeva niente. */}
+      <CommandPalette />
       {/* Conto alla rovescia dei trattamenti in cabina: avvisa a tempo scaduto */}
       <CabinTimers />
       {/* Messaggi WhatsApp non letti: pallino sul menu e avviso se nessuno risponde */}

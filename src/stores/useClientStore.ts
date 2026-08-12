@@ -4,6 +4,11 @@ import { create } from 'zustand';
 import { Client } from '@/types';
 import { getClients, createClient, updateClient as updateClientAction, deleteClient as deleteClientAction } from '@/app/actions/clients';
 
+/** Minuscole e senza accenti: al banco si scrive di fretta. */
+function normalizzaTesto(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+}
+
 interface ClientStore {
   clients: Client[];
   isLoading: boolean;
@@ -83,15 +88,16 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     const { clients, searchQuery, activeFilter } = get();
     let filtered = [...clients];
 
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (c) =>
-          c.firstName.toLowerCase().includes(q) ||
-          c.lastName.toLowerCase().includes(q) ||
-          c.phone.includes(q) ||
-          c.email?.toLowerCase().includes(q)
-      );
+    if (searchQuery.trim()) {
+      // Parola per parola su nome, cognome, telefono ed email insieme: così
+      // "clementina lozzi" e "lozzi clementina" trovano la stessa persona.
+      // Prima si confrontava nome e cognome separatamente e chi scriveva il
+      // nome completo non trovava nessuno.
+      const parole = normalizzaTesto(searchQuery).split(/\s+/);
+      filtered = filtered.filter((c) => {
+        const campo = normalizzaTesto(`${c.firstName} ${c.lastName} ${c.phone || ''} ${c.email || ''}`);
+        return parole.every((p) => campo.includes(p));
+      });
     }
 
     switch (activeFilter) {
