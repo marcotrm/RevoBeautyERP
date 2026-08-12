@@ -1661,7 +1661,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
    * pezzo, altrimenti si prenota Rosaria in un orario in cui è già impegnata.
    */
   const conflictsAt = useCallback((startMin: number, durataSeVuoto = 15) => {
-    if (!selectedOperatorId) return [] as { operatorId: string; nome: string; motivo: string }[];
+    if (!selectedOperatorId) return [] as { operatorId: string; nome: string; motivo: string; minuti: number }[];
 
     // Fette dell'appuntamento che si sta scrivendo: una per operatrice coinvolta
     const fette = new Map<string, { from: number; to: number }>();
@@ -1684,13 +1684,21 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       a.status !== 'cancelled' && a.status !== 'no_show'
     );
 
-    const conflitti: { operatorId: string; nome: string; motivo: string }[] = [];
+    // `minuti` è di quanto ci si accavalla: dieci minuti su un trattamento da
+    // cento non sono un problema, un'ora sì. Il numero serve a chi decide.
+    const conflitti: { operatorId: string; nome: string; motivo: string; minuti: number }[] = [];
+    const quantoSiSovrappone = (aFrom: number, aTo: number, bFrom: number, bTo: number) =>
+      Math.max(0, Math.min(aTo, bTo) - Math.max(aFrom, bFrom));
+
     for (const [opId, range] of fette) {
       const op = operators.find(o => o.id === opId);
       const nome = op ? `${op.firstName} ${op.lastName}`.trim() : 'Operatrice';
 
       if (range.to > END_HOUR * 60) {
-        conflitti.push({ operatorId: opId, nome, motivo: 'l\'orario sfora la chiusura' });
+        conflitti.push({
+          operatorId: opId, nome, minuti: range.to - END_HOUR * 60,
+          motivo: 'l\'orario sfora la chiusura',
+        });
         continue;
       }
       // Anche i trattamenti che altri appuntamenti hanno affidato a lei occupano il suo tempo
@@ -1698,7 +1706,11 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
         !(timeToMinutes(a.endTime) <= range.from || timeToMinutes(a.startTime) >= range.to)
       );
       if (scontro) {
-        conflitti.push({ operatorId: opId, nome, motivo: `ha già ${scontro.clientName} dalle ${scontro.startTime} alle ${scontro.endTime}` });
+        conflitti.push({
+          operatorId: opId, nome,
+          minuti: quantoSiSovrappone(range.from, range.to, timeToMinutes(scontro.startTime), timeToMinutes(scontro.endTime)),
+          motivo: `ha già ${scontro.clientName} dalle ${scontro.startTime} alle ${scontro.endTime}`,
+        });
         continue;
       }
       const blocco = blocks.find(b =>
@@ -1706,7 +1718,11 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
         !(timeToMinutes(b.endTime) <= range.from || timeToMinutes(b.startTime) >= range.to)
       );
       if (blocco) {
-        conflitti.push({ operatorId: opId, nome, motivo: `ha una fascia bloccata ${blocco.startTime}-${blocco.endTime}` });
+        conflitti.push({
+          operatorId: opId, nome,
+          minuti: quantoSiSovrappone(range.from, range.to, timeToMinutes(blocco.startTime), timeToMinutes(blocco.endTime)),
+          motivo: `ha una fascia bloccata ${blocco.startTime}-${blocco.endTime}`,
+        });
       }
     }
     return conflitti;
@@ -1717,20 +1733,23 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     [conflictsAt],
   );
 
-  // Orari di inizio effettivamente selezionabili: niente slot occupati e
-  // niente orari in cui l'operatrice non lavora (fuori turno, pausa, riposo).
-  // Il centro apre alle 9: le 8 non devono proprio comparire.
-  const availableStartTimes = useMemo(() => {
+  // Tutti gli orari in cui l'operatrice è in servizio, con accanto il segno di
+  // chi è già impegnata. Gli orari occupati NON spariscono: si mettono in
+  // chiaro e si lascia scegliere. Un trattamento da cento minuti spesso ne
+  // dura ottanta, e dieci minuti di accavallamento non fermano nessuno.
+  const orariPossibili = useMemo(() => {
     const dur = totalDuration || 15;
-    const list: string[] = [];
+    const list: { ora: string; occupato: boolean }[] = [];
     for (let t = START_HOUR * 60; t < END_HOUR * 60; t += 15) {
-      // In modifica, mantieni sempre disponibile l'orario attuale dell'appuntamento
+      // In modifica, l'orario attuale dell'appuntamento c'è sempre e non è "occupato"
       const isCurrent = editingAppointment && t === timeToMinutes(startTime);
       const fuoriTurno = selectedOperator && !selectedOperator.isResource
         && isMinuteUnavailable(selectedOperator, apptDateObj, t - START_HOUR * 60, apptWeekMap);
-      if (isCurrent || (!fuoriTurno && slotIsFree(t, dur))) {
-        list.push(`${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`);
-      }
+      if (fuoriTurno && !isCurrent) continue;
+      list.push({
+        ora: `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`,
+        occupato: !isCurrent && !slotIsFree(t, dur),
+      });
     }
     return list;
   }, [totalDuration, slotIsFree, editingAppointment, startTime, selectedOperator, apptDateObj, apptWeekMap]);
@@ -2008,18 +2027,20 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
               </div>
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1.5">Ora Inizio *</label>
-                {availableStartTimes.length === 0 && !startTime ? (
+                {orariPossibili.length === 0 && !startTime ? (
                   <div className="w-full px-3 py-2.5 rounded-xl bg-error/5 border border-error/20 text-sm text-error">
-                    Nessun orario libero
+                    Oggi non è in servizio
                   </div>
                 ) : (
                   <select value={startTime} onChange={e => setStartTime(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">
                     {/* L'orario scelto resta visibile anche se occupato: si segnala, non si cambia */}
-                    {startTime && !availableStartTimes.includes(startTime) && (
+                    {startTime && !orariPossibili.some(o => o.ora === startTime) && (
                       <option value={startTime}>{startTime} — occupato</option>
                     )}
-                    {availableStartTimes.map(t => <option key={t} value={t}>{t}</option>)}
+                    {orariPossibili.map(o => (
+                      <option key={o.ora} value={o.ora}>{o.occupato ? `${o.ora} — occupato` : o.ora}</option>
+                    ))}
                   </select>
                 )}
               </div>
@@ -2039,21 +2060,29 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                 </span>
               </div>
             )}
+            {/* Si avvisa, non si sbarra la strada: la durata a listino è larga
+                (cento minuti che spesso ne diventano ottanta) e dieci minuti
+                di accavallamento al banco si gestiscono. Chi sta lì decide. */}
             {isOccupied && !editingAppointment && (
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-error/10 border border-error/20">
-                <AlertCircle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-warning/10 border border-warning/30">
+                <AlertCircle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-error">
+                  <p className="text-sm font-semibold text-warning">
                     {conflitti.length === 1 ? `${conflitti[0].nome} è occupata` : 'Operatrici occupate'}
                   </p>
-                  {/* Il nome di chi è impegnata e con chi: senza, si cambia orario a tentativi */}
+                  {/* Il nome di chi è impegnata, con chi, e di quanto ci si accavalla:
+                      è il numero su cui si decide se va bene lo stesso. */}
                   <ul className="text-xs text-text-secondary mt-1 space-y-0.5">
                     {conflitti.map(c => (
-                      <li key={c.operatorId}><strong className="text-text-primary">{c.nome}</strong> {c.motivo}</li>
+                      <li key={c.operatorId}>
+                        <strong className="text-text-primary">{c.nome}</strong> {c.motivo}
+                        {c.minuti > 0 && <> — <strong className="text-warning">si sovrappone di {c.minuti} min</strong></>}
+                      </li>
                     ))}
                   </ul>
                   <p className="text-xs text-text-muted mt-1.5">
-                    Cambia orario, affida il trattamento a un&apos;altra operatrice, oppure metti la cliente in lista d&apos;attesa.
+                    Puoi prenotare lo stesso. Oppure cambia orario, affida il trattamento a un&apos;altra
+                    operatrice, o metti la cliente in lista d&apos;attesa.
                   </p>
                 </div>
               </div>
@@ -2077,8 +2106,15 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
               <button onClick={closeAppointmentModal} className="px-4 py-2 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
                 Annulla
               </button>
-              <button onClick={handleSave} disabled={!canSave || (isOccupied && !editingAppointment)} className={`px-5 py-2 rounded-xl text-white text-sm font-medium transition-all ${canSave && !(isOccupied && !editingAppointment) ? 'gradient-accent shadow-lg shadow-accent/20' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
-                {editingAppointment ? 'Salva Modifiche' : 'Crea Appuntamento'}
+              {/* Sull'accavallamento il tasto diventa arancione e cambia nome:
+                  si può fare, ma si vede che è una forzatura voluta. */}
+              <button onClick={handleSave} disabled={!canSave}
+                className={`px-5 py-2 rounded-xl text-white text-sm font-medium transition-all ${
+                  !canSave ? 'bg-bg-tertiary text-text-muted cursor-not-allowed'
+                    : isOccupied && !editingAppointment ? 'bg-warning shadow-lg shadow-warning/20 hover:brightness-110'
+                    : 'gradient-accent shadow-lg shadow-accent/20'}`}>
+                {editingAppointment ? 'Salva Modifiche'
+                  : isOccupied ? 'Prenota comunque' : 'Crea Appuntamento'}
               </button>
             </div>
           </div>
