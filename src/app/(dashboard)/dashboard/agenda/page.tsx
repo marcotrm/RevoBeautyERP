@@ -3425,7 +3425,7 @@ export default function AgendaPage() {
 
           {view !== 'month' && (
             <button onClick={() => setView('month')} title="Torna alla vista mensile"
-              className={`${ICONA} border border-border bg-bg-secondary text-text-secondary hover:bg-bg-hover hover:text-accent`}>
+              className={`${ICONA} border bg-accent/10 border-accent/30 text-accent hover:bg-accent/20`}>
               <CalendarDays className="w-4 h-4" />
             </button>
           )}
@@ -3472,12 +3472,12 @@ export default function AgendaPage() {
             onVaiAlGiorno={(d) => { setSelectedDate(parseDateStr(d)); setView('day'); }}
           />
 
-          {/* Solo icone, col nome nel suggerimento: è quello che libera lo
-              spazio per stare tutti su una riga. */}
+          {/* Un colore per ciascuno: senza etichetta è il colore a far
+              riconoscere il tasto prima ancora di leggerne il nome. */}
           <button onClick={() => setShowWaitlistPanel(true)} title="Clienti in attesa"
             className={`relative ${ICONA} border ${matchingWaitlists.length > 0
               ? 'bg-warning text-white border-warning shadow-glow animate-pulse'
-              : 'bg-bg-secondary border-border text-text-secondary hover:bg-bg-hover hover:text-accent'}`}>
+              : 'bg-warning/10 border-warning/30 text-warning hover:bg-warning/20'}`}>
             <ListTodo className="w-4 h-4" />
             {matchingWaitlists.length > 0 && (
               <span className="absolute -top-1.5 -right-1.5 bg-white text-warning border border-warning w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold">
@@ -3487,12 +3487,12 @@ export default function AgendaPage() {
           </button>
 
           <button onClick={() => setShowAddClientModal(true)} title="Nuovo cliente in anagrafica"
-            className={`${ICONA} border border-border bg-bg-secondary text-text-secondary hover:bg-bg-hover hover:text-accent`}>
+            className={`${ICONA} border bg-success/10 border-success/30 text-success hover:bg-success/20`}>
             <UserPlus className="w-4 h-4" />
           </button>
 
           <a href="/agenda-mobile" target="_blank" rel="noopener noreferrer"
-            className={`${ICONA} border border-border bg-bg-secondary text-text-secondary hover:bg-bg-hover hover:text-accent`}
+            className={`${ICONA} border bg-sky-500/10 border-sky-500/30 text-sky-500 hover:bg-sky-500/20`}
             title="Apri la versione da cellulare">
             <Smartphone className="w-4 h-4" />
           </a>
