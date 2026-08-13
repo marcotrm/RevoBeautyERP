@@ -371,15 +371,74 @@ function NowLine() {
 }
 
 /* ========== DAY VIEW ========== */
-function DayView({ appointments, blocks, operators, selectedDate, onAppointmentClick, onWaitlistAdd, onSlotClick, onSlotBlock, onRemoveBlock, onDropAppointment }: {
+/** Il buco più corto che vale la pena segnalare, e il più lungo. */
+const BUCO_MIN = 15;
+const BUCO_MAX = 120;
+
+/**
+ * I vuoti fra un appuntamento e l'altro nella colonna di un'operatrice.
+ *
+ * Occupato è tutto: appuntamenti, fasce bloccate, pausa e fuori turno. Il
+ * vuoto è quello che resta in mezzo, e conta solo se è chiuso fra due cose:
+ * il tempo prima del primo appuntamento e dopo l'ultimo si vede già a occhio,
+ * quello incastrato in mezzo no — ed è quello che si perde.
+ */
+function buchiDellaGiornata(
+  appuntamenti: SplitAppointment[],
+  fasceBloccate: AgendaBlock[],
+  fasceNonInServizio: { startMin: number; endMin: number }[],
+): { from: number; to: number }[] {
+  const occupati: { from: number; to: number; appuntamento: boolean }[] = [];
+  for (const a of appuntamenti) {
+    if (a.status === 'cancelled' || a.status === 'no_show') continue;
+    occupati.push({ from: timeToMinutes(a.startTime), to: timeToMinutes(a.endTime), appuntamento: true });
+  }
+  for (const b of fasceBloccate) {
+    occupati.push({ from: timeToMinutes(b.startTime), to: timeToMinutes(b.endTime), appuntamento: false });
+  }
+  for (const f of fasceNonInServizio) {
+    // Le fasce arrivano in minuti dall'inizio agenda, gli orari in minuti dalla mezzanotte.
+    occupati.push({ from: f.startMin + START_HOUR * 60, to: f.endMin + START_HOUR * 60, appuntamento: false });
+  }
+  if (occupati.length < 2) return [];
+
+  occupati.sort((x, y) => x.from - y.from || x.to - y.to);
+
+  const buchi: { from: number; to: number }[] = [];
+  let fine = occupati[0].to;
+  let finePerAppuntamento = occupati[0].appuntamento;
+  for (let i = 1; i < occupati.length; i++) {
+    const o = occupati[i];
+    if (o.from > fine) {
+      const durata = o.from - fine;
+      // Il vuoto conta se prima c'è un appuntamento: è il tempo morto in
+      // mezzo alla giornata. La mattina ancora tutta libera non è un buco,
+      // è una mattina libera, e riempirla di scritte non aiuta nessuno.
+      if (durata >= BUCO_MIN && durata <= BUCO_MAX && finePerAppuntamento) {
+        buchi.push({ from: fine, to: o.from });
+      }
+      fine = o.to;
+      finePerAppuntamento = o.appuntamento;
+    } else if (o.to > fine) {
+      fine = o.to;
+      finePerAppuntamento = o.appuntamento;
+    }
+  }
+  return buchi;
+}
+
+function DayView({ appointments, blocks, operators, selectedDate, onAppointmentClick, onWaitlistAdd, onSlotClick, onGapClick, onSlotBlock, onRemoveBlock, onDropAppointment }: {
   appointments: Appointment[]; blocks: AgendaBlock[]; operators: Operator[]; selectedDate: Date;
   onAppointmentClick: (a: Appointment) => void;
   onWaitlistAdd?: (a: Appointment) => void;
   onSlotClick: (operatorId: string, hour: number) => void;
+  /** Clic su un vuoto: apre l'appuntamento esattamente a quell'ora. */
+  onGapClick: (operatorId: string, time: string) => void;
   onSlotBlock: (operatorId: string, hour: number) => void;
   onRemoveBlock: (block: AgendaBlock) => void;
   onDropAppointment: (aptId: string, operatorId: string, newStart: string, duration: number) => void;
 }) {
+  const trattamenti = useTreatmentStore(s => s.treatments);
   const scrollRef = useRef<HTMLDivElement>(null);
   const hours = Array.from({ length: TOTAL_HOURS }, (_, i) => START_HOUR + i);
   const [dragOver, setDragOver] = useState<{ operatorId: string; time: string } | null>(null);
@@ -539,6 +598,41 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
                         {isPausa ? <Clock className="w-3 h-3" /> : <Moon className="w-3 h-3" />}
                         <span className="text-[11px] font-bold">{isPausa ? 'Pausa' : 'Fuori orario'}</span>
                       </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* I vuoti fra un appuntamento e l'altro: mezz'ora qui e mezz'ora
+                  là, a fine giornata è un'ora di lavoro persa. Segnati con
+                  quanto durano e con cosa ci sta dentro; un clic apre già
+                  l'appuntamento a quell'ora esatta. */}
+              {!off && buchiDellaGiornata(
+                byOperator[operator.id] || [],
+                (blocksByOperator[operator.id] || []),
+                operatorUnavailableBands(operator, selectedDate, weekMap),
+              ).map(buco => {
+                const durata = buco.to - buco.from;
+                const top = ((buco.from - START_HOUR * 60) / 60) * HOUR_HEIGHT;
+                const h = (durata / 60) * HOUR_HEIGHT;
+                const ora = `${String(Math.floor(buco.from / 60)).padStart(2, '0')}:${String(buco.from % 60).padStart(2, '0')}`;
+                // Cosa ci sta: prima i più lunghi, che sfruttano meglio il buco.
+                const ciStanno = trattamenti
+                  .filter(t => (t.duration || 0) > 0 && (t.duration || 0) <= durata)
+                  .sort((a, b) => (b.duration || 0) - (a.duration || 0));
+                const titolo = ciStanno.length
+                  ? `${durata} minuti liberi dalle ${ora}. Ci stanno: ${ciStanno.slice(0, 4).map(t => `${t.name} (${t.duration}′)`).join(', ')}${ciStanno.length > 4 ? '…' : ''}. Clicca per prenotare.`
+                  : `${durata} minuti liberi dalle ${ora}. Nessun trattamento a listino così breve.`;
+                return (
+                  <div key={`buco-${buco.from}`} onClick={e => { e.stopPropagation(); onGapClick(operator.id, ora); }}
+                    title={titolo}
+                    className="absolute left-1 right-1 z-[2] rounded-lg border border-dashed border-accent/40 bg-accent/[0.06]
+                      hover:bg-accent/15 hover:border-accent/70 transition-colors cursor-pointer
+                      flex flex-col items-center justify-center gap-0.5 overflow-hidden"
+                    style={{ top: `${top}px`, height: `${Math.max(h - 2, 14)}px` }}>
+                    <span className="text-[10px] font-semibold text-accent/80 whitespace-nowrap">{durata} min liberi</span>
+                    {h >= 46 && ciStanno.length > 0 && (
+                      <span className="text-[9px] text-text-muted truncate max-w-full px-2">ci sta {ciStanno[0].name}</span>
                     )}
                   </div>
                 );
@@ -3706,6 +3800,8 @@ export default function AgendaPage() {
             const m = String(startMin % 60).padStart(2, '0');
             openAppointmentModal(null, { operatorId, time: `${h}:${m}` });
           }}
+          // Sul vuoto l'ora è già quella giusta: non va cercato niente.
+          onGapClick={(operatorId, time) => openAppointmentModal(null, { operatorId, time })}
           onDropAppointment={(aptId, opId, newStart, duration) => {
             const [h, m] = newStart.split(':').map(Number);
             const endTotal = h * 60 + m + duration;
