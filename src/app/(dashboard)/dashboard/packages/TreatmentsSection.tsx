@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, X, CheckCircle, Upload, Loader2, Trash2 } from 'lucide-react';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
-import { Treatment } from '@/types';
+import { Treatment, OperatorSkill } from '@/types';
+import { useOperatorStore } from '@/stores/useOperatorStore';
 import { formatCurrency } from '@/lib/helpers';
 import { getCategoryLabel } from '@/lib/helpers';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
@@ -36,16 +37,41 @@ export function TreatmentsSection() {
   const [mDur, setMDur] = useState('');     // durata uomo
   const [color, setColor] = useState('#A855F7');
   const [saving, setSaving] = useState(false);
+  /**
+   * Chi lo fa e con che tempi.
+   *
+   * Elenco vuoto = lo fanno tutte, con la durata standard. Appena si spunta
+   * anche una sola operatrice, il trattamento diventa "di quelle lì" e in
+   * prenotazione le altre non compaiono più.
+   */
+  const [skills, setSkills] = useState<OperatorSkill[]>([]);
+  const operatori = useOperatorStore(s => s.operators);
+  const fetchOperators = useOperatorStore(s => s.fetchOperators);
+  useEffect(() => { fetchOperators(); }, [fetchOperators]);
+  const staff = useMemo(() => operatori.filter(o => !o.isResource), [operatori]);
 
-  const openAdd = () => { setEditing(null); setName(''); setCategory('facial'); setWPrice(''); setMPrice(''); setWDur('30'); setMDur(''); setColor('#A855F7'); setShowModal(true); };
+  const openAdd = () => { setEditing(null); setName(''); setCategory('facial'); setWPrice(''); setMPrice(''); setWDur('30'); setMDur(''); setColor('#A855F7'); setSkills([]); setShowModal(true); };
   const openEdit = (t: Treatment) => {
     setEditing(t); setName(t.name); setCategory(t.category);
     setWPrice(String(t.priceFemale ?? t.price ?? ''));
     setMPrice(t.priceMale != null ? String(t.priceMale) : '');
     setWDur(String(t.durationFemale ?? t.duration ?? 30));
     setMDur(t.durationMale != null ? String(t.durationMale) : '');
-    setColor(t.color); setShowModal(true);
+    setColor(t.color); setSkills(t.operatorSkills || []); setShowModal(true);
   };
+
+  /** Spunta o toglie un'operatrice da "chi lo fa". */
+  const alternaSkill = (operatorId: string) => setSkills(prec =>
+    prec.some(x => x.operatorId === operatorId)
+      ? prec.filter(x => x.operatorId !== operatorId)
+      : [...prec, { operatorId }]
+  );
+  /** La sua durata su questo trattamento: vuoto = quella standard. */
+  const durataSkill = (operatorId: string, minuti: string) => setSkills(prec =>
+    prec.map(x => x.operatorId === operatorId
+      ? { ...x, ...(minuti === '' ? { duration: undefined } : { duration: Math.round(Number(minuti)) }) }
+      : x)
+  );
   const closeModal = () => { setShowModal(false); setEditing(null); };
 
   const handleSave = async () => {
@@ -57,6 +83,7 @@ export function TreatmentsSection() {
         body: JSON.stringify({
           id: editing?.id, name: name.trim(), category,
           priceFemale: wPrice, priceMale: mPrice, durationFemale: wDur, durationMale: mDur, color,
+          operatorSkills: skills,
         }),
       });
       const data = await res.json();
@@ -264,6 +291,50 @@ export function TreatmentsSection() {
                       <input type="number" value={mDur} onChange={e => setMDur(e.target.value)} placeholder="—"
                         className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
                   </div>
+                  {/* Chi lo fa e quanto ci mette. La riga della durata compare
+                      solo per chi è spuntata: si scrive solo dove il tempo è
+                      diverso dallo standard. */}
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">Chi lo fa</label>
+                    <div className="rounded-xl border border-border divide-y divide-border/40 overflow-hidden">
+                      {staff.length === 0 && (
+                        <p className="px-3 py-3 text-xs text-text-muted">Nessuna operatrice in anagrafica.</p>
+                      )}
+                      {staff.map(op => {
+                        const skill = skills.find(x => x.operatorId === op.id);
+                        const scelta = Boolean(skill);
+                        return (
+                          <div key={op.id} className={`flex items-center gap-2.5 px-3 py-2 ${scelta ? 'bg-accent/5' : ''}`}>
+                            <button type="button" onClick={() => alternaSkill(op.id)}
+                              className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                scelta ? 'bg-accent border-accent text-white' : 'border-border'}`}>
+                              {scelta && <CheckCircle className="w-3 h-3" />}
+                            </button>
+                            <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
+                              style={{ backgroundColor: op.color }}>
+                              {op.firstName.slice(0, 1)}{op.lastName.slice(0, 1)}
+                            </span>
+                            <span className="flex-1 min-w-0 text-sm text-text-primary truncate">{op.firstName} {op.lastName}</span>
+                            {scelta && (
+                              <span className="flex items-center gap-1.5 flex-shrink-0">
+                                <input type="number" value={skill?.duration ?? ''} {...NO_AUTOFILL}
+                                  onChange={e => durataSkill(op.id, e.target.value)}
+                                  placeholder={wDur || '30'}
+                                  className="w-16 px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary text-right" />
+                                <span className="text-[11px] text-text-muted">min</span>
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-text-muted mt-1.5">
+                      {skills.length === 0
+                        ? 'Nessuna spunta = lo fanno tutte, con la durata standard.'
+                        : `Lo fanno in ${skills.length}. Le altre non compariranno in prenotazione. Il tempo si scrive solo dove è diverso da ${wDur || 30} min.`}
+                    </p>
+                  </div>
+
                   <div><label className="block text-sm font-medium text-text-secondary mb-2">Colore</label>
                     <div className="flex gap-2 flex-wrap">
                       {TREATMENT_COLORS.map(c => (

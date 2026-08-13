@@ -14,7 +14,26 @@ export async function POST(request: Request) {
   const durationFemale = body.durationFemale != null && body.durationFemale !== '' ? Math.round(Number(body.durationFemale)) : null;
   const durationMale = body.durationMale != null && body.durationMale !== '' ? Math.round(Number(body.durationMale)) : null;
 
+  /**
+   * Chi lo fa e con che tempi.
+   *
+   * Elenco vuoto = lo fanno tutte, con la durata standard. Le righe senza
+   * durata usano anche loro quella standard: si compila solo chi ci mette
+   * un tempo diverso, che è il caso vero (il laser lo fanno in due, con
+   * tempi diversi).
+   */
+  const skills = Array.isArray(body.operatorSkills)
+    ? body.operatorSkills
+        .filter((s: { operatorId?: string }) => s && typeof s.operatorId === 'string' && s.operatorId)
+        .map((s: { operatorId: string; duration?: unknown; price?: unknown }) => ({
+          operatorId: s.operatorId,
+          ...(s.duration != null && s.duration !== '' ? { duration: Math.round(Number(s.duration)) } : {}),
+          ...(s.price != null && s.price !== '' ? { price: Number(s.price) } : {}),
+        }))
+    : [];
+
   const data = {
+    operatorSkills: skills,
     name: String(body.name).trim(),
     category: body.category || 'body',
     priceFemale,

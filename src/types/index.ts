@@ -110,6 +110,23 @@ export interface Treatment {
   bufferAfter: number; // minutes
   color: string;
   isActive: boolean;
+  /**
+   * Chi sa fare questo trattamento e quanto ci mette.
+   *
+   * Vuoto o assente = lo fanno tutte, con la durata standard. Appena si
+   * mette anche una sola riga, il trattamento diventa "di quelle lì": in
+   * prenotazione le altre non compaiono.
+   */
+  operatorSkills?: OperatorSkill[];
+}
+
+/** Una riga di "chi lo fa": l'operatrice, e i suoi tempi su quel trattamento. */
+export interface OperatorSkill {
+  operatorId: string;
+  /** Minuti che impiega lei. Vuoto = la durata standard del trattamento. */
+  duration?: number;
+  /** Prezzo suo, se diverso. Quasi sempre vuoto. */
+  price?: number;
 }
 
 // --- Operators (Staff) ---

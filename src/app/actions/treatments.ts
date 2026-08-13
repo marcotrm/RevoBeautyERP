@@ -19,13 +19,27 @@ export async function getTreatments() {
   return treatments as unknown as Treatment[];
 }
 
+/**
+ * "Chi lo fa" è una colonna JSON: Prisma vuole il valore già serializzato,
+ * e `undefined` va tradotto in "non toccare".
+ */
+function perIlDatabase<T extends { operatorSkills?: unknown }>(dati: T) {
+  const { operatorSkills, ...resto } = dati;
+  return {
+    ...resto,
+    ...(operatorSkills === undefined
+      ? {}
+      : { operatorSkills: JSON.parse(JSON.stringify(operatorSkills)) }),
+  };
+}
+
 export async function createTreatment(data: Treatment) {
-  const treatment = await prisma.treatment.create({ data });
+  const treatment = await prisma.treatment.create({ data: perIlDatabase(data) as never });
   return treatment as unknown as Treatment;
 }
 
 export async function updateTreatment(id: string, updates: Partial<Treatment>) {
-  const treatment = await prisma.treatment.update({ where: { id }, data: updates });
+  const treatment = await prisma.treatment.update({ where: { id }, data: perIlDatabase(updates) as never });
   return treatment as unknown as Treatment;
 }
 

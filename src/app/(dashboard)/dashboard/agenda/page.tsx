@@ -2076,6 +2076,25 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   const removeService = (index: number) => setSelectedServices(prev => prev.filter((_, i) => i !== index));
 
   /**
+   * Chi sa fare un trattamento, secondo il listino.
+   *
+   * Se sul trattamento non è spuntato nessuno, lo fanno tutte: è il caso
+   * normale e non deve costringere a compilare centoundici righe.
+   */
+  const chiSaFare = useCallback((treatmentId: string): string[] => {
+    const t = treatments.find(x => x.id === treatmentId);
+    const skills = t?.operatorSkills || [];
+    return skills.map(x => x.operatorId);
+  }, [treatments]);
+
+  /** Quanto ci mette LEI su quel trattamento: se non è scritto, la durata standard. */
+  const durataPerOperatrice = useCallback((treatmentId: string, operatorId: string, standard: number): number => {
+    const t = treatments.find(x => x.id === treatmentId);
+    const skill = (t?.operatorSkills || []).find(x => x.operatorId === operatorId);
+    return skill?.duration && skill.duration > 0 ? skill.duration : standard;
+  }, [treatments]);
+
+  /**
    * Le cabine, numerate.
    *
    * In anagrafica si chiamano tutte e due "Cabina Automatica": in un menu a
@@ -2089,14 +2108,27 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     return omonime > 1 ? `${nome} ${indice + 1}` : nome;
   };
 
-  /** Chi esegue quel trattamento: un'operatrice o una cabina automatica. */
+  /**
+   * Chi esegue quel trattamento: un'operatrice o una cabina automatica.
+   *
+   * Cambiando persona cambia anche la durata, se a listino ne ha una sua:
+   * il laser lo fanno in due e ci mettono tempi diversi, e l'agenda deve
+   * riservare il tempo giusto.
+   */
   const setServiceOperator = (index: number, operatorId: string) => {
     const op = operators.find(o => o.id === operatorId);
-    setSelectedServices(prev => prev.map((s, i) => (
-      i === index
-        ? { ...s, operatorId: operatorId || undefined, operatorName: op ? `${op.firstName} ${op.lastName}`.trim() : undefined }
-        : s
-    )));
+    setSelectedServices(prev => prev.map((s, i) => {
+      if (i !== index) return s;
+      // La durata segue chi lo fa: quella a listino per lei, o la standard.
+      const t = treatments.find(x => x.id === s.treatmentId);
+      const standard = t ? (s.gender === 'male' ? (t.durationMale ?? t.durationFemale ?? t.duration) : (t.durationFemale ?? t.duration)) : s.duration;
+      return {
+        ...s,
+        operatorId: operatorId || undefined,
+        operatorName: op ? `${op.firstName} ${op.lastName}`.trim() : undefined,
+        duration: operatorId ? durataPerOperatrice(s.treatmentId, operatorId, standard) : standard,
+      };
+    }));
   };
 
   const totalDuration = useMemo(() => selectedServices.reduce((s, x) => s + x.duration, 0), [selectedServices]);
@@ -2503,9 +2535,20 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                           s.operatorId ? 'border-border text-text-secondary focus:border-accent/50'
                             : 'border-warning text-warning focus:border-warning'}`}>
                         <option value="">Chi lo fa? *</option>
-                        {operators.filter(o => !o.isResource).map(o => (
-                          <option key={o.id} value={o.id}>{o.firstName} {o.lastName}</option>
-                        ))}
+                        {/* Solo chi quel trattamento lo sa fare. Se a listino
+                            non è spuntato nessuno, ci sono tutte. */}
+                        {operators.filter(o => !o.isResource).filter(o => {
+                          const abili = chiSaFare(s.treatmentId);
+                          return abili.length === 0 || abili.includes(o.id);
+                        }).map(o => {
+                          const t = treatments.find(x => x.id === s.treatmentId);
+                          const sua = (t?.operatorSkills || []).find(k => k.operatorId === o.id)?.duration;
+                          return (
+                            <option key={o.id} value={o.id}>
+                              {o.firstName} {o.lastName}{sua ? ` · ${sua} min` : ''}
+                            </option>
+                          );
+                        })}
                         {/* Le cabine automatiche lavorano senza operatrice: la
                             lampada e la pressoterapia vanno assegnate a loro. */}
                         {risorse.map((o, k) => (
