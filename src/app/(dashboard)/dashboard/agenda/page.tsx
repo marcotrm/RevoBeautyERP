@@ -1764,6 +1764,11 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   const [selectedClientName, setSelectedClientName] = useState('');
   const [selectedServices, setSelectedServices] = useState<AppointmentService[]>([]);
   const [selectedOperatorId, setSelectedOperatorId] = useState('');
+  /**
+   * Chi ha preso l'appuntamento: la ragazza al banco o al telefono, non chi
+   * lo esegue. Sono due cose diverse e finivano confuse in un campo solo.
+   */
+  const [presaDa, setPresaDa] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [apptDate, setApptDate] = useState(() => fmtDate(selectedDate));
   const [notes, setNotes] = useState('');
@@ -1821,10 +1826,13 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
         }
         setTreatmentQuery('');
         setSelectedOperatorId(editingAppointment.operatorId);
+        // Chi l'aveva preso, se era stato segnato (i vecchi hanno 'u1')
+        setPresaDa(operators.some(o => o.id === editingAppointment.createdBy) ? editingAppointment.createdBy : '');
         setStartTime(editingAppointment.startTime);
         setApptDate(editingAppointment.date);
         setNotes(editingAppointment.notes || '');
       } else if (slotInfo) {
+        setPresaDa('');
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
         setSelectedServices([]); setTreatmentQuery('');
         setSelectedOperatorId(slotInfo.operatorId);
@@ -1832,6 +1840,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
         setApptDate(fmtDate(selectedDate));
         setNotes('');
       } else {
+        setPresaDa('');
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
         setSelectedServices([]); setTreatmentQuery('');
         const firstWorking = operators.find(o => !o.isResource && operatorWorksOn(o, selectedDate, apptWeekMap)) || operators.find(o => !o.isResource) || operators[0];
@@ -1925,6 +1934,12 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       duration: custom ? custom.duration : genderDuration(t),
       price: priceOverride != null ? priceOverride : (custom ? custom.price : genderPrice(t)),
       gender,
+      // Se si è cliccato su una colonna, il trattamento nasce già assegnato a
+      // lei: nove volte su dieci è giusto e non si tocca niente.
+      operatorId: selectedOperatorId || undefined,
+      operatorName: selectedOperatorId
+        ? (() => { const o = operators.find(x => x.id === selectedOperatorId); return o ? `${o.firstName} ${o.lastName}`.trim() : undefined; })()
+        : undefined,
     };
     setSelectedServices(prev => [...prev, service]);
     setTreatmentQuery('');
@@ -1935,7 +1950,21 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   };
   const removeService = (index: number) => setSelectedServices(prev => prev.filter((_, i) => i !== index));
 
-  /** Assegna un trattamento a un'altra operatrice (vuoto = quella principale). */
+  /**
+   * Le cabine, numerate.
+   *
+   * In anagrafica si chiamano tutte e due "Cabina Automatica": in un menu a
+   * tendina diventano due righe identiche e non si capisce quale si sta
+   * scegliendo. Qui prendono un numero.
+   */
+  const risorse = useMemo(() => operators.filter(o => o.isResource), [operators]);
+  const etichettaRisorsa = (o: Operator, indice: number) => {
+    const nome = `${o.firstName} ${o.lastName}`.trim();
+    const omonime = risorse.filter(r => `${r.firstName} ${r.lastName}`.trim() === nome).length;
+    return omonime > 1 ? `${nome} ${indice + 1}` : nome;
+  };
+
+  /** Chi esegue quel trattamento: un'operatrice o una cabina automatica. */
   const setServiceOperator = (index: number, operatorId: string) => {
     const op = operators.find(o => o.id === operatorId);
     setSelectedServices(prev => prev.map((s, i) => (
@@ -1963,7 +1992,36 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   const apptWeekMap = useWeekShiftsStore(s => s.byWeek[apptWeekStart]);
   const fetchApptWeek = useWeekShiftsStore(s => s.fetchWeek);
   useEffect(() => { if (isAppointmentModalOpen) fetchApptWeek(apptWeekStart); }, [isAppointmentModalOpen, apptWeekStart, fetchApptWeek]);
-  const canSave = selectedClientId && selectedServices.length > 0 && selectedOperatorId && startTime;
+  /**
+   * L'appuntamento sta nella colonna di chi fa il primo trattamento.
+   *
+   * Prima c'era una griglia a parte per sceglierla, ma da quando ogni
+   * trattamento dice chi lo fa quella griglia chiedeva due volte la stessa
+   * cosa — e le due risposte potevano perfino contraddirsi.
+   */
+  useEffect(() => {
+    const primo = selectedServices[0]?.operatorId;
+    if (primo && primo !== selectedOperatorId) setSelectedOperatorId(primo);
+  }, [selectedServices, selectedOperatorId]);
+
+  /**
+   * Cosa manca per poter salvare, scritto in italiano.
+   *
+   * Prima il tasto restava semplicemente spento e non diceva perché: una
+   * ragazza c'è rimasta cinque minuti senza capire che non aveva scelto la
+   * cliente. Un tasto spento senza spiegazione è un difetto, non una tutela.
+   */
+  const mancanze: string[] = [];
+  if (!selectedClientId) mancanze.push('la cliente');
+  if (selectedServices.length === 0) mancanze.push('almeno un trattamento');
+  else if (selectedServices.some(s => !s.operatorId)) {
+    mancanze.push(selectedServices.filter(s => !s.operatorId).length === 1
+      ? 'chi esegue un trattamento'
+      : 'chi esegue alcuni trattamenti');
+  }
+  if (!startTime) mancanze.push("l'ora di inizio");
+
+  const canSave = mancanze.length === 0;
 
   const handleSave = () => {
     if (!canSave || selectedServices.length === 0 || !selectedOperator) return;
@@ -1979,6 +2037,9 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       price: totalPrice, status: 'confirmed' as const,
       services: selectedServices,
       color: selectedOperator.color || firstTreatment?.color || '#A855F7', locationId: 'loc1', notes, isLocked: false,
+      // Chi l'ha preso resta scritto: serve a sapere con chi parlare quando
+      // qualcosa non torna, ed è un'informazione che prima si perdeva.
+      ...(presaDa ? { createdBy: presaDa } : {}),
     };
     if (editingAppointment) updateAppointment(editingAppointment.id, data);
     else addAppointment(data);
@@ -2313,10 +2374,17 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                           Serve quando due operatrici si dividono la stessa cliente. */}
                       <select value={s.operatorId || ''} onChange={e => setServiceOperator(i, e.target.value)}
                         title="Chi esegue questo trattamento"
-                        className="px-2 py-1 rounded-lg bg-bg-secondary border border-border text-[11px] text-text-secondary focus:outline-none focus:border-accent/50 flex-shrink-0 max-w-[130px]">
-                        <option value="">Operatrice principale</option>
+                        className={`px-2 py-1 rounded-lg bg-bg-secondary border text-[11px] focus:outline-none flex-shrink-0 max-w-[150px] ${
+                          s.operatorId ? 'border-border text-text-secondary focus:border-accent/50'
+                            : 'border-warning text-warning focus:border-warning'}`}>
+                        <option value="">Chi lo fa? *</option>
                         {operators.filter(o => !o.isResource).map(o => (
                           <option key={o.id} value={o.id}>{o.firstName} {o.lastName}</option>
+                        ))}
+                        {/* Le cabine automatiche lavorano senza operatrice: la
+                            lampada e la pressoterapia vanno assegnate a loro. */}
+                        {risorse.map((o, k) => (
+                          <option key={o.id} value={o.id}>{etichettaRisorsa(o, k)}</option>
                         ))}
                       </select>
                       <button type="button" onClick={() => removeService(i)} className="p-1 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-colors flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
@@ -2376,33 +2444,26 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                 </div>
               )}
             </div>
-            {/* Operator / Cabina */}
+            {/* Chi ha preso l'appuntamento: la ragazza al banco, non chi lo
+                esegue — quello si sceglie accanto a ogni trattamento. Niente
+                cabine qui: un appuntamento lo prende una persona. */}
             <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1.5">Operatrice / Cabina *</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Chi ha preso l&apos;appuntamento</label>
               <div className="grid grid-cols-5 gap-2">
-                {[...operators].sort((a, b) => (a.isResource ? 1 : 0) - (b.isResource ? 1 : 0)).map(op => {
-                  // Con i turni della settimana, non solo con l'orario base:
-                  // è la stessa regola che usa l'agenda per le fasce grigie.
-                  const off = !operatorWorksOn(op, apptDateObj, apptWeekMap);
-                  return (
-                  // Anche chi è a riposo si può scegliere: capita che venga
-                  // apposta per una cliente. Sbiadita per ricordarlo, ma
-                  // selezionabile — l'avviso arriva sotto.
-                  <button key={op.id} type="button" onClick={() => setSelectedOperatorId(op.id)}
-                    title={op.isResource ? 'Cabina — nessuna operatrice richiesta' : (off ? 'A riposo in questa data — si può prenotare lo stesso' : '')}
+                {operators.filter(o => !o.isResource).map(op => (
+                  <button key={op.id} type="button"
+                    onClick={() => setPresaDa(presaDa === op.id ? '' : op.id)}
                     className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all ${
-                      selectedOperatorId === op.id ? 'border-accent bg-accent/10'
-                        : off ? 'opacity-50 border-dashed border-warning/50 hover:opacity-80'
-                        : 'border-border hover:border-border-light'}`}>
+                      presaDa === op.id ? 'border-accent bg-accent/10' : 'border-border hover:border-border-light'}`}>
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: op.color }}>
-                      {op.isResource ? <Sun className="w-4 h-4" /> : getInitials(op.firstName, op.lastName)}
+                      {getInitials(op.firstName, op.lastName)}
                     </div>
-                    <span className="text-[11px] text-text-primary truncate w-full text-center">{op.firstName}{off && !op.isResource ? ' (riposo)' : ''}</span>
+                    <span className="text-[11px] text-text-primary truncate w-full text-center">{op.firstName}</span>
                   </button>
-                  );
-                })}
+                ))}
               </div>
             </div>
+
             {/* Date + Time */}
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -2512,6 +2573,18 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                 className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all resize-none" />
             </div>
           </div>
+          {/* Cosa manca, scritto. Un tasto spento e muto fa perdere minuti
+              a chi sta lavorando: qui c'è sempre il perché. */}
+          {mancanze.length > 0 && (
+            <div className="px-6 pb-3 flex-shrink-0">
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-warning/10 border border-warning/30">
+                <AlertCircle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-text-secondary">
+                  Per salvare manca ancora <strong className="text-warning">{mancanze.join(', ')}</strong>.
+                </p>
+              </div>
+            </div>
+          )}
           <div className="px-6 py-4 border-t border-border bg-bg-tertiary/30 flex justify-between gap-2 flex-shrink-0">
             {isOccupied && !editingAppointment ? (
               <button onClick={handleWaitlist} disabled={!selectedClientName || selectedServices.length === 0} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-warning/10 text-warning text-sm font-medium hover:bg-warning/20 transition-colors">
