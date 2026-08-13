@@ -382,11 +382,162 @@
 
   .nota { font-size: 13.5px; color: var(--testo-2); border-left: 2px solid var(--linea); padding-left: 15px; }
 
+
+  /* ---------- Atmosfera: aurora dipinta su canvas + grana ---------- */
+  #aurora {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    z-index: -2; pointer-events: none; opacity: .85;
+  }
+  .grana {
+    position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- Carte che fluttuano attorno all'agenda ---------- */
+  .scena { position: relative; }
+  .fluttua {
+    position: absolute; z-index: 3;
+    background: var(--fondo-2); border: 1px solid var(--linea);
+    border-radius: 14px; padding: 12px 14px;
+    box-shadow: 0 26px 50px -26px rgba(0,0,0,.75);
+    transition: transform .5s cubic-bezier(.2,.8,.2,1), opacity .5s ease;
+    opacity: 0; transform: translateY(14px);
+  }
+  .fluttua.vista { opacity: 1; transform: none; }
+  .fluttua.chat { left: -34px; bottom: 54px; max-width: 250px; }
+  .fluttua.esitino { right: -22px; top: -22px; display: flex; align-items: center; gap: 10px; }
+  @media (max-width: 1039px) {
+    .fluttua { position: static; margin-top: 12px; max-width: none; }
+  }
+  .fluttua .mini-testa {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--testo-2); margin-bottom: 7px;
+  }
+  .fluttua .riga-chat { font-size: 12.5px; line-height: 1.45; }
+  .fluttua .tastini { display: flex; gap: 5px; margin-top: 8px; }
+  .fluttua .tastini i {
+    font-style: normal; font-size: 10.5px; font-weight: 650; padding: 5px 9px; border-radius: 7px;
+    background: color-mix(in srgb, var(--verde) 20%, transparent); color: var(--libero);
+  }
+  .fluttua .tastini i.grigio { background: var(--fondo-3); color: var(--testo-2); }
+  .pastiglia-ok {
+    width: 30px; height: 30px; border-radius: 50%; flex: none;
+    background: color-mix(in srgb, var(--verde) 24%, transparent);
+    color: var(--libero); display: grid; place-items: center; font-size: 15px; font-weight: 700;
+  }
+  .fluttua .ok-testo b { display: block; font-size: 12.5px; }
+  .fluttua .ok-testo span { font-size: 10.5px; color: var(--testo-2); }
+
+  /* ---------- Vetrina a schede ---------- */
+  .linguette { display: flex; flex-wrap: wrap; gap: 8px; }
+  .linguetta {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    padding: 10px 16px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--linea); background: transparent; color: var(--testo-2);
+    transition: all .22s ease;
+  }
+  .linguetta:hover { color: var(--testo); border-color: color-mix(in srgb, var(--accento) 45%, var(--linea)); }
+  .linguetta[aria-selected="true"] {
+    background: linear-gradient(100deg, var(--magenta), var(--viola));
+    border-color: transparent; color: #fff;
+  }
+  .linguetta:focus-visible { outline: 2px solid var(--accento); outline-offset: 3px; }
+
+  .telaio {
+    border: 1px solid var(--linea); border-radius: 20px; overflow: hidden;
+    background: var(--fondo-2); box-shadow: var(--ombra);
+  }
+  .telaio-barra {
+    display: flex; align-items: center; gap: 8px; padding: 11px 15px;
+    border-bottom: 1px solid var(--linea); background: var(--fondo-3);
+  }
+  .telaio-barra .semaforo { display: flex; gap: 6px; }
+  .telaio-barra .semaforo i { width: 9px; height: 9px; border-radius: 50%; display: block; }
+  .telaio-barra .indirizzo {
+    flex: 1; text-align: center; font-family: var(--mono); font-size: 10.5px;
+    color: var(--testo-2); letter-spacing: .06em;
+  }
+  .quadro { display: none; padding: 18px; }
+  .quadro.attivo { display: block; animation: entra .4s ease; }
+  @keyframes entra { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .quadro-nota { font-size: 13.5px; color: var(--testo-2); margin-top: 14px; }
+
+  /* mockup: agenda del giorno */
+  .m-agenda { display: grid; grid-template-columns: 40px repeat(3, 1fr); gap: 8px; }
+  .m-ore { display: flex; flex-direction: column; gap: 8px; font-family: var(--mono); font-size: 9.5px; color: var(--testo-2); }
+  .m-ore span { height: 46px; }
+  .m-col { display: flex; flex-direction: column; gap: 8px; }
+  .m-capo {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--testo-2); text-align: center; padding-bottom: 7px; border-bottom: 1px solid var(--linea);
+  }
+  .m-app {
+    height: 46px; border-radius: 8px; padding: 7px 9px; border-left: 3px solid;
+    display: flex; flex-direction: column; justify-content: center; gap: 1px; overflow: hidden;
+  }
+  .m-app b { font-size: 11.5px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-app span { font-size: 10px; color: var(--testo-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-buco {
+    height: 46px; border-radius: 8px; display: grid; place-items: center; text-align: center;
+    border: 1px dashed color-mix(in srgb, var(--verde) 75%, transparent);
+    background: color-mix(in srgb, var(--verde) 13%, transparent);
+    color: var(--libero); font-size: 11px; font-weight: 700;
+  }
+  .m-buco small { display: block; font-size: 9px; font-weight: 400; color: var(--testo-2); }
+
+  /* mockup: mese */
+  .m-mese { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  .m-giorno {
+    border: 1px solid var(--linea); border-radius: 8px; padding: 7px; min-height: 68px;
+    display: flex; flex-direction: column; gap: 4px; background: var(--fondo);
+  }
+  .m-giorno .num { font-size: 11px; color: var(--testo-2); font-variant-numeric: tabular-nums; }
+  .m-giorno .barrette { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+  .m-giorno .barrette i { height: 4px; border-radius: 2px; display: block; }
+  .m-giorno .euro {
+    font-family: var(--mono); font-size: 10px; font-weight: 700; text-align: right;
+    color: var(--accento); font-variant-numeric: tabular-nums;
+  }
+  .m-giorno.oggi { border-color: color-mix(in srgb, var(--accento) 60%, var(--linea)); }
+
+  /* mockup: whatsapp */
+  .m-wa { display: grid; gap: 14px; }
+  @media (min-width: 700px) { .m-wa { grid-template-columns: 200px 1fr; } }
+  .m-lista { display: flex; flex-direction: column; gap: 3px; border-right: 1px solid var(--linea); padding-right: 12px; }
+  .m-chat-riga { display: flex; gap: 9px; padding: 8px; border-radius: 9px; align-items: center; }
+  .m-chat-riga.sel { background: var(--fondo-3); }
+  .m-faccia {
+    width: 28px; height: 28px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    font-size: 10px; font-weight: 700; color: #fff;
+  }
+  .m-chat-riga b { font-size: 12px; display: block; }
+  .m-chat-riga span { font-size: 10.5px; color: var(--testo-2); }
+  .m-conv { display: flex; flex-direction: column; gap: 8px; justify-content: flex-end; }
+  .m-bolla { max-width: 78%; padding: 9px 12px; border-radius: 13px; font-size: 12.5px; line-height: 1.45; }
+  .m-bolla.in { align-self: flex-start; background: var(--fondo-3); border-bottom-left-radius: 4px; }
+  .m-bolla.out { align-self: flex-end; background: color-mix(in srgb, var(--verde) 22%, var(--fondo-3)); border-bottom-right-radius: 4px; }
+
+  /* mockup: statistiche */
+  .m-tab { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .m-tab th, .m-tab td { padding: 9px 10px; border-bottom: 1px solid var(--linea); text-align: left; }
+  .m-tab th { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--testo-2); font-weight: 500; }
+  .m-tab td.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .m-tab tr:last-child td { border-bottom: 0; }
+  .pill {
+    font-size: 10px; padding: 2px 7px; border-radius: 999px; font-weight: 650;
+    background: color-mix(in srgb, var(--verde) 20%, transparent); color: var(--libero);
+  }
+  .pill.rossa { background: color-mix(in srgb, var(--magenta) 20%, transparent); color: var(--accento); }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
-    .su, .cella, .bolla, .esito { opacity: 1 !important; transform: none !important; }
+    .su, .cella, .bolla, .esito, .fluttua { opacity: 1 !important; transform: none !important; }
+    #aurora { display: none; }
   }
 </style>
+
+<canvas id="aurora" aria-hidden="true"></canvas>
+<div class="grana" aria-hidden="true"></div>
 
 <!-- =================== BARRA =================== -->
 <div class="barra" id="barra">
@@ -426,7 +577,16 @@
       </div>
     </div>
 
-    <div>
+    <div class="scena">
+      <div class="fluttua chat" id="fl-chat">
+        <div class="mini-testa">WhatsApp · 14:12</div>
+        <div class="riga-chat">Ciao Anna, si è liberato un posto per <b>Ricostruzione</b>: oggi alle 15:00.</div>
+        <div class="tastini"><i>Lo prendo io</i><i class="grigio">Non stavolta</i></div>
+      </div>
+      <div class="fluttua esitino" id="fl-ok">
+        <span class="pastiglia-ok">✓</span>
+        <span class="ok-testo"><b>Posto ripreso</b><span>Anna Di Vico · 45 €</span></span>
+      </div>
       <div class="griglia-viva" id="griglia">
         <div class="gv-testa">
           <span class="gv-titolo">Giovedì · 5 postazioni</span>
@@ -454,6 +614,136 @@
     <span>Turni scritti a parole</span><span>App clienti</span><span>Punto di pareggio</span>
   </div>
 </div>
+
+
+<!-- =================== COM'È FATTO =================== -->
+<section id="comefatto">
+  <div class="wrap col g40">
+    <div class="col g20 su">
+      <span class="occhiello">Com'è fatto dentro</span>
+      <h2 class="stretto">Guardalo, invece di leggerlo.</h2>
+      <p class="guida">Quattro schermate del gestionale vero. Clicca per cambiarle.</p>
+    </div>
+
+    <div class="col g20 su">
+      <div class="linguette" role="tablist" aria-label="Schermate del gestionale">
+        <button class="linguetta" role="tab" aria-selected="true" data-q="q-agenda">Agenda del giorno</button>
+        <button class="linguetta" role="tab" aria-selected="false" data-q="q-mese">Il mese e gli incassi</button>
+        <button class="linguetta" role="tab" aria-selected="false" data-q="q-wa">WhatsApp</button>
+        <button class="linguetta" role="tab" aria-selected="false" data-q="q-clienti">Le clienti</button>
+      </div>
+
+      <div class="telaio">
+        <div class="telaio-barra">
+          <span class="semaforo"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></span>
+          <span class="indirizzo" id="indirizzo">agendapiena.it/agenda</span>
+        </div>
+
+        <!-- AGENDA -->
+        <div class="quadro attivo" id="q-agenda">
+          <div class="m-agenda">
+            <div class="m-ore">
+              <span style="height:26px"></span>
+              <span>09:00</span><span>10:00</span><span>11:00</span><span>12:00</span><span>13:00</span>
+            </div>
+            <div class="m-col">
+              <div class="m-capo">Luisa</div>
+              <div class="m-app" style="border-left-color:var(--viola); background:color-mix(in srgb, var(--viola) 20%, transparent)"><b>Marica Iorio</b><span>Semipermanente · 49,80 €</span></div>
+              <div class="m-buco">45 min disponibili<small>ci sta Pressoterapia</small></div>
+              <div class="m-app" style="border-left-color:var(--viola); background:color-mix(in srgb, var(--viola) 20%, transparent)"><b>Giovanna R.</b><span>Epilazione laser · 44,80 €</span></div>
+              <div class="m-app" style="border-left-color:var(--magenta); background:color-mix(in srgb, var(--magenta) 20%, transparent)"><b>Olga A.</b><span>Pedicure · 35,00 €</span></div>
+              <div class="m-buco">30 min disponibili<small>ci sta Manicure</small></div>
+            </div>
+            <div class="m-col">
+              <div class="m-capo">Michela</div>
+              <div class="m-buco">60 min disponibili<small>ci sta Ceretta completa</small></div>
+              <div class="m-app" style="border-left-color:var(--magenta); background:color-mix(in srgb, var(--magenta) 20%, transparent)"><b>Simona Fusco</b><span>Semipermanente · 45,00 €</span></div>
+              <div class="m-app" style="border-left-color:var(--magenta); background:color-mix(in srgb, var(--magenta) 20%, transparent)"><b>Anna Di Vico</b><span>Acrygel · 30,00 €</span></div>
+              <div class="m-app" style="border-left-color:var(--ambra); background:color-mix(in srgb, var(--ambra) 18%, transparent)"><b>Pausa</b><span>13:00 – 14:00</span></div>
+              <div class="m-app" style="border-left-color:var(--viola); background:color-mix(in srgb, var(--viola) 20%, transparent)"><b>Chiara A.</b><span>Ricostruzione · 45,00 €</span></div>
+            </div>
+            <div class="m-col">
+              <div class="m-capo">Cabina 1</div>
+              <div class="m-app" style="border-left-color:var(--ciano); background:color-mix(in srgb, var(--ciano) 18%, transparent)"><b>Rosa Esposito</b><span>Lampada · 5,00 €</span></div>
+              <div class="m-buco">90 min disponibili<small>ci sta Pressoterapia</small></div>
+              <div class="m-app" style="border-left-color:var(--ciano); background:color-mix(in srgb, var(--ciano) 18%, transparent)"><b>Maria Pia P.</b><span>Lampada · 10,00 €</span></div>
+              <div class="m-app" style="border-left-color:var(--verde); background:color-mix(in srgb, var(--verde) 20%, transparent)"><b>Clementina L.</b><span>Pressoterapia · omaggio</span></div>
+              <div class="m-buco">45 min disponibili<small>ci sta Lampada</small></div>
+            </div>
+          </div>
+          <p class="quadro-nota">
+            In verde tutto quello che è ancora vendibile, con la durata e cosa ci sta dentro.
+            Un clic e l'appuntamento è già aperto su quell'ora.
+          </p>
+        </div>
+
+        <!-- MESE -->
+        <div class="quadro" id="q-mese">
+          <div class="m-mese">
+            <div class="m-giorno"><span class="num">3</span><span class="barrette"><i style="background:var(--viola)"></i><i style="background:var(--magenta)"></i><i style="background:var(--ambra)"></i></span><span class="euro">63 €</span></div>
+            <div class="m-giorno"><span class="num">4</span><span class="barrette"><i style="background:var(--viola)"></i><i style="background:var(--viola)"></i><i style="background:var(--magenta)"></i><i style="background:var(--ambra)"></i></span><span class="euro">238 €</span></div>
+            <div class="m-giorno"><span class="num">5</span><span class="barrette"><i style="background:var(--magenta)"></i><i style="background:var(--viola)"></i></span><span class="euro">46 €</span></div>
+            <div class="m-giorno"><span class="num">6</span><span class="barrette"><i style="background:var(--viola)"></i><i style="background:var(--magenta)"></i><i style="background:var(--viola)"></i><i style="background:var(--ambra)"></i></span><span class="euro">481 €</span></div>
+            <div class="m-giorno"><span class="num">7</span><span class="barrette"><i style="background:var(--ambra)"></i><i style="background:var(--viola)"></i><i style="background:var(--magenta)"></i></span><span class="euro">364 €</span></div>
+            <div class="m-giorno"><span class="num">8</span><span class="barrette"><i style="background:var(--viola)"></i><i style="background:var(--magenta)"></i><i style="background:var(--viola)"></i></span><span class="euro">359 €</span></div>
+            <div class="m-giorno"><span class="num">9</span><span class="barrette"></span><span class="euro">—</span></div>
+            <div class="m-giorno"><span class="num">10</span><span class="barrette"><i style="background:var(--viola)"></i><i style="background:var(--ambra)"></i><i style="background:var(--magenta)"></i></span><span class="euro">186 €</span></div>
+            <div class="m-giorno"><span class="num">11</span><span class="barrette"><i style="background:var(--magenta)"></i><i style="background:var(--viola)"></i><i style="background:var(--viola)"></i><i style="background:var(--ambra)"></i></span><span class="euro">347 €</span></div>
+            <div class="m-giorno"><span class="num">12</span><span class="barrette"><i style="background:var(--viola)"></i><i style="background:var(--magenta)"></i></span><span class="euro">172 €</span></div>
+            <div class="m-giorno oggi"><span class="num">13</span><span class="barrette"><i style="background:var(--magenta)"></i><i style="background:var(--viola)"></i><i style="background:var(--ambra)"></i></span><span class="euro">315 €</span></div>
+            <div class="m-giorno"><span class="num">14</span><span class="barrette"><i style="background:var(--viola)"></i></span><span class="euro">120 €</span></div>
+            <div class="m-giorno"><span class="num">15</span><span class="barrette"><i style="background:var(--ambra)"></i><i style="background:var(--magenta)"></i></span><span class="euro">130 €</span></div>
+            <div class="m-giorno"><span class="num">16</span><span class="barrette"></span><span class="euro">—</span></div>
+          </div>
+          <p class="quadro-nota">
+            Sotto ogni giorno l'incasso previsto, non solo il numero di appuntamenti.
+            Scorrendo il mese si vede subito dov'è il vuoto.
+          </p>
+        </div>
+
+        <!-- WHATSAPP -->
+        <div class="quadro" id="q-wa">
+          <div class="m-wa">
+            <div class="m-lista">
+              <div class="m-chat-riga sel"><span class="m-faccia" style="background:var(--viola)">AD</span><span><b>Anna Di Vico</b><span>Lo prendo io 🙌</span></span></div>
+              <div class="m-chat-riga"><span class="m-faccia" style="background:var(--magenta)">GS</span><span><b>Giada Serra</b><span>Confermo</span></span></div>
+              <div class="m-chat-riga"><span class="m-faccia" style="background:var(--ambra)">RC</span><span><b>Rosa Coppola</b><span>Tu: ti ricordiamo…</span></span></div>
+              <div class="m-chat-riga"><span class="m-faccia" style="background:var(--ciano)">SF</span><span><b>Simona Fusco</b><span>A che ora aprite?</span></span></div>
+            </div>
+            <div class="m-conv">
+              <div class="m-bolla out">Ciao Anna, si è appena liberato un posto per <b>Ricostruzione</b>: oggi alle 15:00. Lo tieni tu?</div>
+              <div class="m-bolla in">Lo prendo io 🙌</div>
+              <div class="m-bolla out">Perfetto! <b>Oggi 15:00 – 16:25</b> con Luisa. Ti aspettiamo.</div>
+              <div class="m-bolla in">Grazie mille, a dopo!</div>
+            </div>
+          </div>
+          <p class="quadro-nota">
+            Tutte le conversazioni del numero del centro in un posto solo, con la scheda
+            della cliente a fianco. Conferme, promemoria e recensioni partono da sole.
+          </p>
+        </div>
+
+        <!-- CLIENTI -->
+        <div class="quadro" id="q-clienti">
+          <table class="m-tab">
+            <thead><tr><th>Cliente</th><th>Preferito</th><th class="n">Spesa</th><th class="n">Ogni</th><th>Stato</th></tr></thead>
+            <tbody>
+              <tr><td>Giovanna De Rosa</td><td>Massaggio drenante</td><td class="n">417 €</td><td class="n">2 gg</td><td><span class="pill">attiva</span></td></tr>
+              <tr><td>Annalisa Petrarca</td><td>Lampada total body</td><td class="n">180 €</td><td class="n">4 gg</td><td><span class="pill">attiva</span></td></tr>
+              <tr><td>Alessandra Eliseo</td><td>Lampada total body</td><td class="n">160 €</td><td class="n">2 gg</td><td><span class="pill">attiva</span></td></tr>
+              <tr><td>Patrizia Fedele</td><td>Acrygel + piedi</td><td class="n">78 €</td><td class="n">21 gg</td><td><span class="pill rossa">in ritardo</span></td></tr>
+              <tr><td>Elisabetta Montecarlo</td><td>Acrygel</td><td class="n">70 €</td><td class="n">—</td><td><span class="pill rossa">da riattivare</span></td></tr>
+            </tbody>
+          </table>
+          <p class="quadro-nota">
+            Per ogni cliente la cadenza vera con cui torna. «In ritardo» vuol dire che
+            secondo le sue abitudini sarebbe già dovuta tornare: è la lista da chiamare.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
 <!-- =================== IL CONTO =================== -->
 <section>
@@ -756,6 +1046,75 @@
 <script>
 (function () {
   var ridotto = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+
+  /* ---------- Aurora: due macchie di colore che si muovono piano, dipinte
+     su canvas invece che con dieci gradienti CSS sovrapposti. È l'atmosfera
+     della pagina, non deve mai rubare l'occhio al testo. ---------- */
+  (function aurora() {
+    var cv = document.getElementById('aurora');
+    if (!cv || ridotto) { if (cv) cv.style.display = 'none'; return; }
+    var cx = cv.getContext('2d');
+    var w, h, dpr;
+    function misura() {
+      dpr = Math.min(devicePixelRatio || 1, 1.5);
+      w = cv.width = innerWidth * dpr;
+      h = cv.height = innerHeight * dpr;
+    }
+    misura();
+    addEventListener('resize', misura);
+
+    var chiaro = matchMedia('(prefers-color-scheme: light)').matches
+      && document.documentElement.getAttribute('data-theme') !== 'dark';
+    var macchie = [
+      { x: .22, y: .18, r: .52, c: chiaro ? '155,92,246' : '155,92,246', a: chiaro ? .10 : .20, vx: .00006, vy: .00004 },
+      { x: .78, y: .30, r: .46, c: '230,59,140', a: chiaro ? .09 : .17, vx: -.00005, vy: .00006 },
+      { x: .55, y: .82, r: .40, c: '46,212,122', a: chiaro ? .06 : .10, vx: .00004, vy: -.00005 }
+    ];
+
+    function disegna(t) {
+      cx.clearRect(0, 0, w, h);
+      macchie.forEach(function (m, i) {
+        var px = (m.x + Math.sin(t * m.vx + i) * .06) * w;
+        var py = (m.y + Math.cos(t * m.vy + i) * .05) * h;
+        var raggio = m.r * Math.min(w, h);
+        var g = cx.createRadialGradient(px, py, 0, px, py, raggio);
+        g.addColorStop(0, 'rgba(' + m.c + ',' + m.a + ')');
+        g.addColorStop(1, 'rgba(' + m.c + ',0)');
+        cx.fillStyle = g;
+        cx.fillRect(0, 0, w, h);
+      });
+      requestAnimationFrame(disegna);
+    }
+    requestAnimationFrame(disegna);
+  })();
+
+  /* ---------- Le carte che compaiono attorno all'agenda ---------- */
+  setTimeout(function () {
+    var c = document.getElementById('fl-chat');
+    if (c) c.classList.add('vista');
+  }, ridotto ? 0 : 1400);
+  setTimeout(function () {
+    var o = document.getElementById('fl-ok');
+    if (o) o.classList.add('vista');
+  }, ridotto ? 0 : 2600);
+
+  /* ---------- Vetrina a schede ---------- */
+  (function vetrina() {
+    var ling = document.querySelectorAll('.linguetta');
+    var indirizzi = { 'q-agenda': 'agenda', 'q-mese': 'agenda/mese', 'q-wa': 'whatsapp', 'q-clienti': 'clienti' };
+    var barra = document.getElementById('indirizzo');
+    ling.forEach(function (b) {
+      b.addEventListener('click', function () {
+        ling.forEach(function (x) { x.setAttribute('aria-selected', 'false'); });
+        b.setAttribute('aria-selected', 'true');
+        document.querySelectorAll('.quadro').forEach(function (q) { q.classList.remove('attivo'); });
+        var q = document.getElementById(b.dataset.q);
+        if (q) q.classList.add('attivo');
+        if (barra) barra.textContent = 'agendapiena.it/' + (indirizzi[b.dataset.q] || '');
+      });
+    });
+  })();
 
   /* ---------- barra che si stacca ---------- */
   var barra = document.getElementById('barra');
