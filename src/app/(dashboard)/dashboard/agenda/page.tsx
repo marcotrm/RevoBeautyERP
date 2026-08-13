@@ -266,6 +266,25 @@ function incassoDelGiorno(fette: SplitAppointment[]): IncassoOperatrice {
   return { incassato, daIncassare, clienti: clienti.size, completati };
 }
 
+/**
+ * Incasso previsto di una giornata: tutto quello che non è stato disdetto.
+ *
+ * "Previsto" e non "incassato": comprende gli appuntamenti ancora da fare, che
+ * è quello che serve guardando un mese avanti. Le disdette e i mancati arrivi
+ * restano fuori, altrimenti il mese sembrerebbe più ricco di com'è.
+ */
+function incassoPrevisto(apts: { status: string; price: number }[]): number {
+  return apts.reduce(
+    (s, a) => (a.status === 'cancelled' || a.status === 'no_show' ? s : s + (a.price || 0)),
+    0,
+  );
+}
+
+/** Euro corti, per gli spazi stretti del calendario: "315 €". */
+function eurCorto(n: number): string {
+  return `${Math.round(n).toLocaleString('it-IT')} €`;
+}
+
 function OperatorColumnHeader({ operator, off, incasso }: {
   operator: Operator;
   off?: boolean;
@@ -954,10 +973,16 @@ function MonthView({ selectedDate, allAppointments, operatorColorById, onAppoint
                     })}
                     {/* Il totale della giornata, non quanti ne restano fuori:
                         "+3 altri" costringeva a sommarli a mente per sapere se
-                        il 12 agosto è pieno o vuoto. */}
+                        il 12 agosto è pieno o vuoto. Accanto l'incasso
+                        previsto: è il numero per cui si guarda il mese. */}
                     {dayApts.length > 0 && (
-                      <p className="text-[10px] font-semibold text-text-secondary px-1 pt-0.5">
-                        {dayApts.length} appuntament{dayApts.length === 1 ? 'o' : 'i'}
+                      <p className="text-[10px] px-1 pt-0.5 flex items-baseline justify-between gap-1">
+                        <span className="font-semibold text-text-secondary">
+                          {dayApts.length} appuntament{dayApts.length === 1 ? 'o' : 'i'}
+                        </span>
+                        <span className="font-bold text-accent whitespace-nowrap">
+                          {eurCorto(incassoPrevisto(dayApts))}
+                        </span>
                       </p>
                     )}
                   </div>

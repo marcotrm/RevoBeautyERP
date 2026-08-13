@@ -114,14 +114,17 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
   if (updates.status === 'completed' && prev?.status !== 'completed' && appointment.clientId) {
     avanzaSfide(appointment.clientId, 'appointments').catch(() => {});
   }
-  // Disdetta: il posto resta vuoto, e un posto vuoto è incasso perso. Si
-  // prova a riempirlo offrendolo alle clienti attive. Parte solo se allo
-  // slot manca abbastanza tempo — ci pensa il motore a controllarlo — e non
-  // blocca la disdetta se qualcosa va storto.
+  // Disdetta: il posto resta vuoto, e un posto vuoto è incasso perso.
+  //
+  // Per ora la chiamata alle clienti NON parte da sola: si lancia a mano
+  // dall'agenda, cliccando sul posto libero. È una scelta, non una cosa da
+  // finire: l'interruttore è AVVIO_AUTOMATICO_SU_DISDETTA in lib/copriBuchi.ts
+  // e quando si mette a `true` questo pezzo fa partire tutto da sé.
   if (updates.status === 'cancelled' && prev?.status !== 'cancelled') {
     void (async () => {
       try {
-        const { creaCampagna, mandaGiro, chiudiCampagna } = await import('@/lib/copriBuchi');
+        const { creaCampagna, mandaGiro, chiudiCampagna, AVVIO_AUTOMATICO_SU_DISDETTA } = await import('@/lib/copriBuchi');
+        if (!AVVIO_AUTOMATICO_SU_DISDETTA) return;
         const c = await creaCampagna({
           date: appointment.date, from: appointment.startTime, to: appointment.endTime,
           operatorId: appointment.operatorId, operatorName: appointment.operatorName,

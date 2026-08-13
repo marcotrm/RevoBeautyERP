@@ -26,6 +26,16 @@ import { isInterno } from '@/lib/clientiInterni';
 
 const KIND = 'copri_buchi';
 
+/**
+ * Se una disdetta debba far partire la chiamata da sola.
+ *
+ * Per ora NO, per scelta: le chiamate si lanciano a mano dall'agenda, così
+ * nessun messaggio parte senza che qualcuno l'abbia deciso. Quando il centro
+ * si fida del meccanismo basta mettere `true` qui e la disdetta lo avvia da
+ * sé — il resto del codice è già pronto e non cambia.
+ */
+export const AVVIO_AUTOMATICO_SU_DISDETTA = false;
+
 /** Quante clienti per blocco. */
 export const BLOCCO = 10;
 /** Quanto si aspetta prima del blocco successivo, in minuti. */

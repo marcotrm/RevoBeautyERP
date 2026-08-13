@@ -3,17 +3,18 @@
 /**
  * Copri buchi: la pagina da cui si guarda cosa sta succedendo.
  *
- * Non si lancia da qui — si lancia dall'agenda, cliccando sul posto libero,
- * o parte da sola quando una cliente disdice. Qui si vede a che punto è, chi
- * è stata contattata, chi ha risposto e quanto è costato.
+ * Non si lancia da qui: si lancia dall'agenda, cliccando sul posto libero.
+ * Niente parte da solo, nemmeno quando una cliente disdice — è una scelta,
+ * e si cambia da un interruttore in lib/copriBuchi.ts. Qui si vede a che
+ * punto è una chiamata, chi è stata contattata, chi ha risposto e il conto.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Megaphone, Loader2, CheckCircle2, XCircle, Clock, Users, Euro, StopCircle, AlertTriangle,
+  Megaphone, Loader2, CheckCircle2, XCircle, Clock, Users, Euro, StopCircle, AlertTriangle, Send,
 } from 'lucide-react';
-import { campagneCopriBuchi, fermaCopriBuchi, quantoCarburante, type CampagnaInPagina } from '@/app/actions/copriBuchi';
+import { campagneCopriBuchi, fermaCopriBuchi, mandaProssimoBlocco, quantoCarburante, type CampagnaInPagina } from '@/app/actions/copriBuchi';
 
 const STATI: Record<CampagnaInPagina['stato'], { testo: string; classe: string }> = {
   attiva: { testo: 'in corso', classe: 'bg-warning/15 text-warning border-warning/30' },
@@ -31,6 +32,7 @@ export default function CopriBuchiPage() {
   const [campagne, setCampagne] = useState<CampagnaInPagina[] | null>(null);
   const [carburante, setCarburante] = useState<{ attiveConConsenso: number; attive: number; totali: number } | null>(null);
   const [fermando, setFermando] = useState('');
+  const [avanzando, setAvanzando] = useState('');
 
   const carica = useCallback(async () => {
     setCampagne(await campagneCopriBuchi());
@@ -43,6 +45,15 @@ export default function CopriBuchiPage() {
     const t = setInterval(() => { void carica(); }, 30_000);
     return () => clearInterval(t);
   }, [carica]);
+
+  const avanza = async (id: string) => {
+    setAvanzando(id);
+    try {
+      const r = await mandaProssimoBlocco(id);
+      if (!r.ok) window.alert(r.errore || 'Non è partito niente.');
+      await carica();
+    } finally { setAvanzando(''); }
+  };
 
   const ferma = async (id: string) => {
     setFermando(id);
@@ -62,8 +73,10 @@ export default function CopriBuchiPage() {
         <div>
           <h2 className="text-xl font-display font-bold text-text-primary">Copri buchi</h2>
           <p className="text-sm text-text-secondary">
-            Quando una cliente disdice, il posto vuoto viene offerto su WhatsApp alle clienti attive,
-            a blocchi di dieci, con mezz&apos;ora fra un blocco e l&apos;altro. Lo prende la prima che risponde.
+            Il posto rimasto vuoto lo offri su WhatsApp alle clienti attive, a blocchi di dieci,
+            con mezz&apos;ora fra un blocco e l&apos;altro. Lo prende la prima che risponde.
+            <strong className="text-text-primary"> Si lancia a mano dall&apos;agenda</strong>: nessun
+            messaggio parte da solo, nemmeno quando una cliente disdice.
           </p>
         </div>
       </div>
@@ -112,8 +125,8 @@ export default function CopriBuchiPage() {
       ) : campagne.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center">
           <p className="text-sm text-text-secondary">
-            Ancora nessuna chiamata. Parte da sola quando una cliente disdice un appuntamento della giornata,
-            oppure la lanci tu dall&apos;agenda cliccando su un posto libero.
+            Ancora nessuna chiamata. Si lancia dall&apos;agenda: passa il mouse su uno spazio verde
+            e premi <strong className="text-text-primary">Copri</strong>.
           </p>
         </div>
       ) : (
@@ -146,10 +159,17 @@ export default function CopriBuchiPage() {
                     </div>
                   </div>
                   {c.stato === 'attiva' && (
-                    <button onClick={() => ferma(c.id)} disabled={fermando === c.id}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover disabled:opacity-50">
-                      <StopCircle className="w-3.5 h-3.5" /> Ferma
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {/* Senza aspettare la mezz'ora, quando si ha fretta */}
+                      <button onClick={() => avanza(c.id)} disabled={avanzando === c.id}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-success/10 text-success border border-success/30 text-xs font-semibold hover:bg-success/20 disabled:opacity-50">
+                        <Send className="w-3.5 h-3.5" /> Blocco successivo
+                      </button>
+                      <button onClick={() => ferma(c.id)} disabled={fermando === c.id}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover disabled:opacity-50">
+                        <StopCircle className="w-3.5 h-3.5" /> Ferma
+                      </button>
+                    </div>
                   )}
                 </div>
 

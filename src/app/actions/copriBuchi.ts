@@ -63,6 +63,15 @@ export async function lanciaCopriBuchi(params: {
   return { ok: true, id: c.id, inviati: r.inviati };
 }
 
+/** Manda subito il blocco successivo senza aspettare la mezz'ora. */
+export async function mandaProssimoBlocco(id: string): Promise<{ ok: boolean; inviati?: number; errore?: string }> {
+  const c = await leggiCampagna(id);
+  if (!c || c.stato !== 'attiva') return { ok: false, errore: 'La chiamata non è più aperta.' };
+  const r = await mandaGiro(c);
+  if (r.inviati === 0) return { ok: false, errore: r.motivo || 'Nessun messaggio è partito.' };
+  return { ok: true, inviati: r.inviati };
+}
+
 export async function fermaCopriBuchi(id: string): Promise<{ ok: boolean }> {
   await chiudiCampagna(id, 'annullata', 'fermata a mano');
   return { ok: true };
