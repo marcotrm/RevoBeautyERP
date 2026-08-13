@@ -290,6 +290,11 @@ html.light {
 }
 
 /* === APPOINTMENT BLOCK === */
+/* Mentre si trascina, i blocchi sotto il cursore non devono ingrandirsi né
+   reagire: si muovevano sotto il mouse e sembrava che l'agenda ballasse. */
+body.trascinando .appointment-block:hover { transform: none; box-shadow: none; }
+body.trascinando .appointment-block { transition: none; }
+
 .appointment-block {
   position: absolute;
   left: 4px;

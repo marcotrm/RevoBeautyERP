@@ -175,8 +175,12 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
     trascinamento.attivo = true;
     trascinamento.durata = appointment.duration;
     trascinamento.presaY = e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top;
+    document.body.classList.add('trascinando');
   };
-  const handleDragEnd = () => { trascinamento.attivo = false; };
+  const handleDragEnd = () => {
+    trascinamento.attivo = false;
+    document.body.classList.remove('trascinando');
+  };
 
   // Una fetta di appuntamento condiviso non si trascina: sposterebbe anche la
   // parte dell'altra operatrice, che qui non si vede.
@@ -572,6 +576,7 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
 
     if (op && !op.isResource && (riposo || fuori)) {
       trascinamento.attivo = false;
+      document.body.classList.remove('trascinando');
       setConfermaSpostamento({
         appointmentId, operatorId, time, duration,
         nome: `${op.firstName} ${op.lastName}`.trim(),
@@ -580,6 +585,7 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
       return;
     }
     trascinamento.attivo = false;
+    document.body.classList.remove('trascinando');
     onDropAppointment(appointmentId, operatorId, time, duration);
   };
 
@@ -635,7 +641,15 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
                 backgroundImage: 'repeating-linear-gradient(45deg, rgba(148,163,184,0.10) 0, rgba(148,163,184,0.10) 10px, rgba(148,163,184,0.02) 10px, rgba(148,163,184,0.02) 20px)',
               } : { backgroundColor: `${operator.color}08` }}
               onDragOver={e => handleDragOver(e, operator.id, e.currentTarget)}
-              onDragLeave={() => setDragOver(null)}
+              /* Si azzera SOLO uscendo davvero dalla colonna. `dragleave`
+                 scatta anche entrando in un figlio — e dentro una colonna ci
+                 sono sedici fasce orarie, gli spazi verdi e gli appuntamenti:
+                 il rettangolo di anteprima spariva e ricompariva di continuo,
+                 ed è quello che si vedeva lampeggiare. */
+              onDragLeave={e => {
+                const versoDove = e.relatedTarget as Node | null;
+                if (!versoDove || !e.currentTarget.contains(versoDove)) setDragOver(null);
+              }}
               onDrop={e => handleDrop(e, operator.id, e.currentTarget)}>
               {/* Le fasce orarie sono cliccabili anche nel giorno di riposo:
                   se la cliente viene lo stesso, l'appuntamento si deve poter
