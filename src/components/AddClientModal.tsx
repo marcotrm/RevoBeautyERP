@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Client } from '@/types';
 import { getInitials } from '@/lib/helpers';
 import { useClientStore } from '@/stores/useClientStore';
+import { maiuscoleNome } from '@/lib/nomiPropri';
 
 /** Ultime 9 cifre: confronta i numeri ignorando prefisso, spazi e trattini. */
 function codaTelefono(raw: string): string {
@@ -31,8 +32,19 @@ export default function AddClientModal({
   const [address, setAddress] = useState(initialData?.address || '');
   const [city, setCity] = useState(initialData?.city || '');
   const [notes, setNotes] = useState(initialData?.notes || '');
-  const [gdprConsent, setGdprConsent] = useState(initialData?.gdprConsent || false);
-  const [marketingConsent, setMarketingConsent] = useState(initialData?.marketingConsent || false);
+  /**
+   * I consensi nascono già spuntati su una scheda nuova.
+   *
+   * Al banco si chiedono a voce mentre si compila, e ricordarsi di spuntarli
+   * dopo non succede quasi mai: risultato, quasi nessuno riceveva auguri né
+   * l'avviso di un posto libero. Restano due caselle che si possono togliere
+   * in un clic quando la cliente dice di no — e vanno tolte, perché il
+   * consenso è suo, non nostro.
+   *
+   * In modifica invece si rispetta quello che c'è già scritto in scheda.
+   */
+  const [gdprConsent, setGdprConsent] = useState(initialData ? Boolean(initialData.gdprConsent) : true);
+  const [marketingConsent, setMarketingConsent] = useState(initialData ? Boolean(initialData.marketingConsent) : true);
   const [tags, setTags] = useState(initialData?.tags?.join(', ') || '');
 
   /**
@@ -112,9 +124,9 @@ export default function AddClientModal({
             {/* Nome + Cognome */}
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Nome *</label>
-                <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Nome..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+                <input type="text" value={firstName} onChange={e => setFirstName(maiuscoleNome(e.target.value))} placeholder="Nome..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Cognome *</label>
-                <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Cognome..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+                <input type="text" value={lastName} onChange={e => setLastName(maiuscoleNome(e.target.value))} placeholder="Cognome..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
             </div>
             {/* Telefono + Email */}
             <div className="grid grid-cols-2 gap-3">

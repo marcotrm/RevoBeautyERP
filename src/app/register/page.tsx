@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Sparkles, Mail, Lock, User, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { maiuscoleNome } from '@/lib/nomiPropri';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -94,7 +95,7 @@ export default function RegisterPage() {
                 <label className="block text-sm font-medium text-text-secondary mb-1.5">Nome</label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                  <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Mario"
+                  <input type="text" value={firstName} onChange={e => setFirstName(maiuscoleNome(e.target.value))} placeholder="Mario"
                     className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/50 transition-all" />
                 </div>
               </div>
@@ -102,7 +103,7 @@ export default function RegisterPage() {
                 <label className="block text-sm font-medium text-text-secondary mb-1.5">Cognome</label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                  <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Rossi"
+                  <input type="text" value={lastName} onChange={e => setLastName(maiuscoleNome(e.target.value))} placeholder="Rossi"
                     className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/50 transition-all" />
                 </div>
               </div>

@@ -7,6 +7,7 @@ import { useAccountsStore, GestionaleAccount } from '@/stores/useAccountsStore';
 import { useRolesStore } from '@/stores/useRolesStore';
 import { getInitials } from '@/lib/helpers';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
+import { maiuscoleNome } from '@/lib/nomiPropri';
 
 type FormState = {
   firstName: string;
@@ -195,12 +196,12 @@ export function AccountsSection() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Nome</label>
-                      <input type="text" value={formData.firstName} onChange={e => setFormData({ ...formData, firstName: e.target.value })} placeholder="Nome"
+                      <input type="text" value={formData.firstName} onChange={e => setFormData({ ...formData, firstName: maiuscoleNome(e.target.value) })} placeholder="Nome"
                         className="w-full px-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-colors" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Cognome</label>
-                      <input type="text" value={formData.lastName} onChange={e => setFormData({ ...formData, lastName: e.target.value })} placeholder="Cognome"
+                      <input type="text" value={formData.lastName} onChange={e => setFormData({ ...formData, lastName: maiuscoleNome(e.target.value) })} placeholder="Cognome"
                         className="w-full px-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-colors" />
                     </div>
                   </div>

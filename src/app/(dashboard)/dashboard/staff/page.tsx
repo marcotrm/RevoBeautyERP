@@ -14,6 +14,7 @@ import { Operator, TreatmentCategory } from '@/types';
 import { generateShifts, type AgentConfig, type ShiftEntry, type WeekShifts } from '@/lib/shiftAgent';
 import { getWeekShifts, saveWeekShift, saveWeekShiftsBulk, type WeekScheduleMap } from '@/app/actions/weekShifts';
 import { mondayISO } from '@/lib/weekSchedule';
+import { maiuscoleNome } from '@/lib/nomiPropri';
 
 const SPECIALIZATIONS: { value: TreatmentCategory; label: string }[] = [
   { value: 'facial', label: 'Viso' }, { value: 'body', label: 'Corpo' },
@@ -277,9 +278,9 @@ function AddStaffModal({ onClose, onSave }: { onClose: () => void; onSave: (s: O
           <div className="px-6 py-5 space-y-4 max-h-[calc(100vh-14rem)] overflow-y-auto">
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Nome *</label>
-                <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Nome..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+                <input type="text" value={firstName} onChange={e => setFirstName(maiuscoleNome(e.target.value))} placeholder="Nome..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Cognome *</label>
-                <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Cognome..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+                <input type="text" value={lastName} onChange={e => setLastName(maiuscoleNome(e.target.value))} placeholder="Cognome..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Email</label>
@@ -440,9 +441,9 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
             <>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Nome *</label>
-                    <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all" /></div>
+                    <input type="text" value={firstName} onChange={e => setFirstName(maiuscoleNome(e.target.value))} className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all" /></div>
                   <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Cognome *</label>
-                    <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all" /></div>
+                    <input type="text" value={lastName} onChange={e => setLastName(maiuscoleNome(e.target.value))} className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all" /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Email</label>

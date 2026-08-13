@@ -11,6 +11,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
+import { maiuscoleNome } from '@/lib/nomiPropri';
 
 type Landing = {
   ok: boolean;
@@ -175,8 +176,8 @@ export default function LandingAffiliato() {
         </div>
 
         <label style={styles.label}>I tuoi dati</label>
-        <input style={styles.input} {...NO_AUTOFILL} placeholder="Nome" value={firstName} onChange={e => setFirstName(e.target.value)} />
-        <input style={styles.input} {...NO_AUTOFILL} placeholder="Cognome" value={lastName} onChange={e => setLastName(e.target.value)} />
+        <input style={styles.input} {...NO_AUTOFILL} placeholder="Nome" value={firstName} onChange={e => setFirstName(maiuscoleNome(e.target.value))} />
+        <input style={styles.input} {...NO_AUTOFILL} placeholder="Cognome" value={lastName} onChange={e => setLastName(maiuscoleNome(e.target.value))} />
         <input style={styles.input} {...NO_AUTOFILL} placeholder="Cellulare (con WhatsApp)" value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" />
         <input style={styles.input} {...NO_AUTOFILL} placeholder="Email (facoltativa)" value={email} onChange={e => setEmail(e.target.value)} inputMode="email" />
 
