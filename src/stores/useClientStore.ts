@@ -126,6 +126,16 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
         break;
     }
 
-    return filtered.sort((a, b) => a.lastName.localeCompare(b.lastName));
+    /*
+      Prima le ultime arrivate.
+      Qui c'era un ordinamento alfabetico per cognome che rifaceva l'ordine
+      dopo la lettura dal database: cambiare l'ordine nella query non serviva
+      a niente, perché questa riga lo buttava via. A parità di giorno decide
+      l'id, che nasce in ordine di creazione.
+    */
+    return filtered.sort((a, b) =>
+      String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
+      || String(b.id).localeCompare(String(a.id))
+    );
   },
 }));
