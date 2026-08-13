@@ -48,7 +48,15 @@ export function TreatmentsSection() {
   const operatori = useOperatorStore(s => s.operators);
   const fetchOperators = useOperatorStore(s => s.fetchOperators);
   useEffect(() => { fetchOperators(); }, [fetchOperators]);
-  const staff = useMemo(() => operatori.filter(o => !o.isResource), [operatori]);
+  /**
+   * Chi può essere spuntato: le operatrice e anche le cabine automatiche.
+   * La lampada e la pressoterapia non le fa una persona, le fa la cabina —
+   * e devono poter comparire nell'elenco come tutte le altre.
+   */
+  const staff = useMemo(
+    () => [...operatori].sort((a, b) => (a.isResource ? 1 : 0) - (b.isResource ? 1 : 0)),
+    [operatori],
+  );
 
   const openAdd = () => { setEditing(null); setName(''); setCategory('facial'); setWPrice(''); setMPrice(''); setWDur('30'); setMDur(''); setColor('#A855F7'); setSkills([]); setShowModal(true); };
   const openEdit = (t: Treatment) => {
@@ -312,7 +320,7 @@ export function TreatmentsSection() {
                             </button>
                             <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0"
                               style={{ backgroundColor: op.color }}>
-                              {op.firstName.slice(0, 1)}{op.lastName.slice(0, 1)}
+                              {op.isResource ? '☀' : `${op.firstName.slice(0, 1)}${op.lastName.slice(0, 1)}`}
                             </span>
                             <span className="flex-1 min-w-0 text-sm text-text-primary truncate">{op.firstName} {op.lastName}</span>
                             {scelta && (

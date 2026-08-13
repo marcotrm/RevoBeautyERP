@@ -2052,17 +2052,30 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   // rispettando eventuali trattamenti personalizzati del cliente)
   const addService = (t: Treatment, priceOverride?: number) => {
     const custom = selectedClient?.customTreatments?.find(ct => ct.treatmentId === t.id) || null;
+    /*
+      La durata segue tre regole, in ordine: il tempo personalizzato di QUESTA
+      cliente, poi il tempo di CHI lo esegue (a listino), poi lo standard.
+      Senza il passaggio di mezzo, un trattamento aggiunto su una colonna già
+      scelta nasceva con la durata standard anche quando quell'operatrice ne
+      ha una sua: si sceglieva Luisa e in agenda restavano 50 minuti invece
+      dei suoi 40.
+    */
+    const standard = genderDuration(t);
+    const abili = (t.operatorSkills || []).map(k => k.operatorId);
+    const puoFarlo = Boolean(selectedOperatorId) && (abili.length === 0 || abili.includes(selectedOperatorId));
+    const suoTempo = puoFarlo ? durataPerOperatrice(t.id, selectedOperatorId, standard) : standard;
     const service: AppointmentService = {
       treatmentId: t.id,
       treatmentName: t.name,
       treatmentCategory: t.category,
-      duration: custom ? custom.duration : genderDuration(t),
+      duration: custom ? custom.duration : suoTempo,
       price: priceOverride != null ? priceOverride : (custom ? custom.price : genderPrice(t)),
       gender,
       // Se si è cliccato su una colonna, il trattamento nasce già assegnato a
-      // lei: nove volte su dieci è giusto e non si tocca niente.
-      operatorId: selectedOperatorId || undefined,
-      operatorName: selectedOperatorId
+      // lei — ma solo se lo sa fare: altrimenti resta da scegliere, invece di
+      // nascere con un'operatrice che poi il menu non mostra nemmeno.
+      operatorId: puoFarlo ? selectedOperatorId : undefined,
+      operatorName: puoFarlo
         ? (() => { const o = operators.find(x => x.id === selectedOperatorId); return o ? `${o.firstName} ${o.lastName}`.trim() : undefined; })()
         : undefined,
     };
@@ -2550,8 +2563,13 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                           );
                         })}
                         {/* Le cabine automatiche lavorano senza operatrice: la
-                            lampada e la pressoterapia vanno assegnate a loro. */}
-                        {risorse.map((o, k) => (
+                            lampada e la pressoterapia vanno assegnate a loro.
+                            Valgono la stessa regola: se il trattamento dice
+                            chi lo fa, compaiono solo se sono nell'elenco. */}
+                        {risorse.filter(o => {
+                          const abili = chiSaFare(s.treatmentId);
+                          return abili.length === 0 || abili.includes(o.id);
+                        }).map((o, k) => (
                           <option key={o.id} value={o.id}>{etichettaRisorsa(o, k)}</option>
                         ))}
                       </select>
