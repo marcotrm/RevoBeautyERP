@@ -88,6 +88,13 @@ function ClientRow({ client, checked, onToggle, onEdit, onDelete }: { client: Cl
             </p>
           ) : <p className="text-xs text-text-muted">Mai visitato</p>}
           <p className="text-[11px] text-text-muted">Ultima visita</p>
+          {/* La data di registrazione: l'elenco è ordinato per questa, e senza
+              vederla l'ordine sembrerebbe casuale. */}
+          {client.createdAt && (
+            <p className="text-[10px] text-text-muted/70 mt-1">
+              iscritta il {String(client.createdAt).slice(0, 10).split('-').reverse().join('/')}
+            </p>
+          )}
         </div>
         <ChevronRight className="w-4 h-4 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
       </Link>

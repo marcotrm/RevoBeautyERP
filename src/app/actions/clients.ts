@@ -3,8 +3,19 @@
 import { prisma } from '@/lib/prisma';
 import { Client } from '@/types';
 
+/**
+ * L'anagrafica, dall'ultima registrata alla prima.
+ *
+ * Prima era in ordine alfabetico, che è comodo solo se sai già chi cerchi —
+ * e per quello c'è la ricerca. Aprendo la pagina interessa vedere chi è
+ * arrivato di recente. A parità di giorno vale l'id, che nasce in ordine di
+ * creazione: così anche fra due registrate lo stesso pomeriggio l'ultima
+ * arrivata sta sopra.
+ */
 export async function getClients() {
-  const clients = await prisma.client.findMany({ orderBy: { lastName: 'asc' } });
+  const clients = await prisma.client.findMany({
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+  });
   return clients as unknown as Client[];
 }
 

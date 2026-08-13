@@ -2592,6 +2592,8 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   const prodotti = useProductStore(s => s.products);
   const fetchProducts = useProductStore(s => s.fetchProducts);
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
+  // Serve per riassegnare un singolo trattamento a un'altra operatrice
+  const operators = useOperatorStore(s => s.operators);
 
   // Elenco dei trattamenti dell'appuntamento (i vecchi ne hanno uno solo)
   const services: AppointmentService[] = useMemo(() => (
@@ -2675,6 +2677,23 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   const removeServiceAt = (i: number) => {
     if (services.length <= 1) return;
     saveServices(services.filter((_, idx) => idx !== i));
+  };
+
+  /**
+   * Passa un singolo trattamento a un'altra operatrice.
+   *
+   * Serve di continuo: la cliente prende tre cose e una la fa la collega.
+   * Prima si poteva fare solo entrando in modifica, e da qui — dove i
+   * trattamenti sono già elencati uno per uno — non si capiva come.
+   * Vuoto = la fa l'operatrice dell'appuntamento.
+   */
+  const cambiaOperatriceServizio = (i: number, operatorId: string) => {
+    const op = operators.find(o => o.id === operatorId);
+    saveServices(services.map((s, idx) => idx === i ? {
+      ...s,
+      operatorId: operatorId || undefined,
+      operatorName: op ? `${op.firstName} ${op.lastName}`.trim() : undefined,
+    } : s));
   };
 
   const treatmentResults = useMemo(() => {
@@ -2957,11 +2976,25 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                     <p className="text-sm font-medium text-text-primary truncate">{s.productId ? `🧴 ${s.treatmentName}` : s.treatmentName}</p>
                     <p className="text-xs text-text-secondary">
                       {s.productId ? 'Prodotto' : `${s.duration} min`} · {formatCurrency(s.price)}
-                      {/* Con due operatrici sullo stesso appuntamento va detto chi fa cosa */}
-                      {s.operatorId && s.operatorId !== appointment.operatorId && (
-                        <span className="text-accent"> · {s.operatorName || 'altra operatrice'}</span>
-                      )}
                     </p>
+                    {/* Chi lo fa, cambiabile anche ad appuntamento già preso:
+                        capita di continuo che una delle tre cose la faccia la
+                        collega, e prima bisognava entrare in modifica. */}
+                    {!s.productId && appointment.status !== 'completed' && (
+                      <select value={s.operatorId || ''} disabled={busySvc}
+                        onChange={e => cambiaOperatriceServizio(i, e.target.value)}
+                        title="Chi esegue questo trattamento"
+                        className="mt-1.5 w-full max-w-[190px] px-2 py-1 rounded-lg bg-bg-secondary border border-border
+                          text-[11px] text-text-secondary focus:outline-none focus:border-accent/50 disabled:opacity-50">
+                        <option value="">Lo fa {appointment.operatorName}</option>
+                        {operators.filter(o => !o.isResource && o.id !== appointment.operatorId).map(o => (
+                          <option key={o.id} value={o.id}>Lo fa {o.firstName} {o.lastName}</option>
+                        ))}
+                      </select>
+                    )}
+                    {s.productId === undefined && s.operatorId && s.operatorId !== appointment.operatorId && appointment.status === 'completed' && (
+                      <p className="text-xs text-accent">{s.operatorName || 'altra operatrice'}</p>
+                    )}
                   </div>
                   {services.length > 1 && appointment.status !== 'completed' && (
                     <button onClick={() => removeServiceAt(i)} disabled={busySvc} title="Togli trattamento"
