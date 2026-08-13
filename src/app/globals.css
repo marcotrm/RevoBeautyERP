@@ -249,6 +249,11 @@ html.light {
 }
 
 /* === AGENDA GRID SPECIFIC === */
+/* Nella griglia non si seleziona testo (classe `select-none` sul contenitore):
+   se sbagli mira di due pixel e prendi la fascia oraria invece
+   dell'appuntamento, il browser evidenzia i suggerimenti e sembra che il
+   trascinamento non funzioni. */
+
 .agenda-grid {
   display: grid;
   position: relative;

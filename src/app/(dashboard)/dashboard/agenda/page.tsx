@@ -193,21 +193,26 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
   };
 
   /**
-   * Cosa non si trascina: solo il bloccato e il già completato.
+   * Cosa non si sposta: il già completato e quello col lucchetto.
    *
-   * Le fette degli appuntamenti divisi PRIMA erano ferme, per non spostare
-   * di nascosto la parte dell'altra operatrice. Ma un blocco che non si
-   * trascina, alla pressione del mouse, fa selezionare il testo: sembrava
-   * rotto. Ora si trascinano e spostano l'appuntamento intero, pezzi
-   * compresi, che è quello che uno si aspetta.
+   * Un appuntamento completato è storia: spostarlo sposterebbe anche
+   * l'incasso di giornata. Le fette degli appuntamenti divisi invece sì:
+   * prima erano ferme e alla pressione il browser selezionava il testo,
+   * che è il modo peggiore di dire "non si può".
    */
-  const isFrozen = appointment.isLocked || appointment.status === 'completed';
+  const isFrozen = Boolean(appointment.isLocked) || appointment.status === 'completed';
+  const motivoFermo = appointment.isLocked
+    ? 'Appuntamento bloccato: togli il lucchetto per spostarlo'
+    : appointment.status === 'completed'
+      ? 'Già completato: non si sposta, sposterebbe anche l\'incasso di giornata'
+      : '';
 
   return (
     <div
       draggable={!isFrozen}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      title={motivoFermo || undefined}
       onClick={(e) => { e.stopPropagation(); onClick(appointment); }}
       className={`appointment-block group ${isFrozen ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${appointment.status === 'in_cabin' ? 'animate-[pulse_1.5s_ease-in-out_infinite] ring-2 ring-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.3)]' : ''}`}
       style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${blockColor}22`, borderLeftColor: blockColor, ...overlapStyle }}
@@ -636,7 +641,7 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
   })() : 0;
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-auto border border-border rounded-2xl bg-bg-secondary relative">
+    <div ref={scrollRef} className="agenda-giorno select-none flex-1 overflow-auto border border-border rounded-2xl bg-bg-secondary relative">
       {/* Fuori turno si può, ma va detto: durante il trascinamento non si
           può mostrare un avviso, quindi lo si chiede appena mollato. */}
       {confermaSpostamento && (
