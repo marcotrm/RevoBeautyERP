@@ -16,7 +16,7 @@ import { useWaitlistStore, WaitlistEntry } from '@/stores/useWaitlistStore';
 import { Appointment, AppointmentService, AgendaBlock, Operator, Treatment, Product, Client } from '@/types';
 import {
   ChevronLeft, ChevronRight, ChevronDown, CalendarDays, Plus,
-  Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
+  Clock, CheckCircle, Check, CalendarCheck, AlertCircle, Play, XCircle, Ban, ListTodo,
   Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone, Sun, MessageSquare, Users
 , Loader2 } from 'lucide-react';
 import {
@@ -64,16 +64,34 @@ const START_HOUR = 8;
 const END_HOUR = 24; // agenda aperta fino a mezzanotte
 const TOTAL_HOURS = END_HOUR - START_HOUR;
 
+/*
+  La spunta verde vuol dire UNA cosa sola: fatto.
+
+  Prima "confermato" e "completato" avevano la stessa identica spunta e
+  cambiava solo la sfumatura del grigio-verde: guardando l'agenda non si
+  capiva quali clienti erano già passate. Ora il prenotato ha l'icona del
+  calendario in grigio (c'è, deve ancora venire) e il completato la spunta
+  verde piena.
+*/
 const statusIcons: Record<string, React.ReactNode> = {
-  confirmed: <CheckCircle className="w-3 h-3" />,
+  confirmed: <CalendarCheck className="w-3 h-3" />,
   pending: <AlertCircle className="w-3 h-3" />,
   in_progress: <Play className="w-3 h-3" />,
   in_cabin: <Sparkles className="w-3 h-3" />,
-  completed: <CheckCircle className="w-3 h-3" />,
+  completed: <SpuntaVerde />,
   no_show: <XCircle className="w-3 h-3" />,
   cancelled: <Ban className="w-3 h-3" />,
   waitlist: <ListTodo className="w-3 h-3" />,
 };
+
+/** Pallino verde pieno con la spunta bianca: si vede anche di sfuggita. */
+function SpuntaVerde() {
+  return (
+    <span className="inline-flex items-center justify-center w-[15px] h-[15px] rounded-full bg-success text-white flex-shrink-0" title="Completato">
+      <Check className="w-2.5 h-2.5" strokeWidth={4} />
+    </span>
+  );
+}
 
 const WEEK_DAYS_IT = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 const MONTH_NAMES_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];

@@ -99,13 +99,21 @@ export function getStatusLabel(status: string): string {
   return labels[status] || status;
 }
 
+/*
+  Il verde è di chi ha già fatto il trattamento.
+
+  Prima era il colore del "confermato", e il completato era grigio: in agenda
+  e nella scheda cliente il verde finiva così su quello che deve ancora
+  succedere. Adesso il prenotato è neutro (c'è, si aspetta) e il verde dice
+  fatto e pagato.
+*/
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
-    confirmed: '#22C55E',
+    confirmed: '#8B92A5',
     pending: '#F59E0B',
     in_progress: '#3B82F6',
     in_cabin: '#EC4899',
-    completed: '#8B92A5',
+    completed: '#22C55E',
     no_show: '#EF4444',
     cancelled: '#565D73',
     waitlist: '#A855F7',
