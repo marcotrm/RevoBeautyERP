@@ -296,17 +296,26 @@ body.trascinando .appointment-block:hover { transform: none; box-shadow: none; }
 body.trascinando .appointment-block { transition: none; }
 
 .appointment-block {
+  /* Premere su un appuntamento non deve MAI selezionare il testo: sui blocchi
+     non trascinabili (già completati, o bloccati) tenere premuto evidenziava
+     il nome della cliente e sembrava che il trascinamento fosse rotto. */
+  user-select: none;
+  -webkit-user-select: none;
   position: absolute;
   left: 4px;
   right: 4px;
   border-radius: 8px;
   padding: 6px 8px;
-  cursor: pointer;
+  /* Il cursore dice cosa si può fare: mano aperta = si sposta. Sui bloccati
+     resta la freccia col dito, e la regola con la classe vince su questa. */
+  cursor: grab;
   transition: all 0.15s ease;
   overflow: hidden;
   z-index: 10;
   border-left: 3px solid;
 }
+.appointment-block.cursor-pointer { cursor: pointer; }
+.appointment-block:active { cursor: grabbing; }
 
 .appointment-block:hover {
   /* Sopra a tutti, anche agli accavallati: l'ordine della scaletta è scritto

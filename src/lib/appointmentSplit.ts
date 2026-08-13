@@ -25,6 +25,15 @@ export interface SplitAppointment extends Appointment {
    * cliente ne deve 80 (il resto lo fa un'altra operatrice).
    */
   totaleAppuntamento?: number;
+  /**
+   * L'inizio e la durata dell'appuntamento INTERO.
+   *
+   * La fetta porta gli orari del proprio pezzo, ma per trascinarla serve
+   * sapere dove comincia tutto quanto: spostare una fetta deve spostare
+   * l'appuntamento intero, altrimenti i pezzi si staccherebbero fra loro.
+   */
+  inizioReale?: string;
+  durataReale?: number;
 }
 
 /** I trattamenti dell'appuntamento, anche per i vecchi che ne hanno uno solo. */
@@ -79,6 +88,8 @@ export function sliceForOperator(a: Appointment, operatorId: string): SplitAppoi
     ...a,
     parziale: true,
     totaleAppuntamento: services.reduce((sum, s) => sum + (s.price || 0), 0),
+    inizioReale: a.startTime,
+    durataReale: a.duration,
     startTime: minutesToTime(from),
     endTime: minutesToTime(to),
     duration: to - from,

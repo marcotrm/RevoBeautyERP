@@ -145,7 +145,13 @@ function isMinuteUnavailable(op: Operator, date: Date, minFromStart: number, wee
  * l'appuntamento atterra con l'inizio sotto il cursore e quindi salta in su
  * di quanto l'avevi preso più in basso.
  */
-const trascinamento = { attivo: false, presaY: 0, durata: 60 };
+const trascinamento = {
+  attivo: false, presaY: 0, durata: 60,
+  /** Vero se si sta trascinando la fetta di un appuntamento diviso. */
+  fetta: false,
+  /** Inizio della fetta e inizio dell'appuntamento intero, per calcolare lo spostamento. */
+  inizioFetta: '', inizioIntero: '', durataIntera: 60,
+};
 
 function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, color }: { appointment: SplitAppointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties; color?: string }) {
   const pacchettiCliente = usePackageStore(s => s.clientPackages);
@@ -174,6 +180,10 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
     e.dataTransfer.effectAllowed = 'move';
     trascinamento.attivo = true;
     trascinamento.durata = appointment.duration;
+    trascinamento.fetta = Boolean(appointment.parziale);
+    trascinamento.inizioFetta = appointment.startTime;
+    trascinamento.inizioIntero = appointment.inizioReale || appointment.startTime;
+    trascinamento.durataIntera = appointment.durataReale || appointment.duration;
     trascinamento.presaY = e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top;
     document.body.classList.add('trascinando');
   };
@@ -182,9 +192,16 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
     document.body.classList.remove('trascinando');
   };
 
-  // Una fetta di appuntamento condiviso non si trascina: sposterebbe anche la
-  // parte dell'altra operatrice, che qui non si vede.
-  const isFrozen = appointment.isLocked || appointment.status === 'completed' || Boolean(appointment.parziale);
+  /**
+   * Cosa non si trascina: solo il bloccato e il già completato.
+   *
+   * Le fette degli appuntamenti divisi PRIMA erano ferme, per non spostare
+   * di nascosto la parte dell'altra operatrice. Ma un blocco che non si
+   * trascina, alla pressione del mouse, fa selezionare il testo: sembrava
+   * rotto. Ora si trascinano e spostano l'appuntamento intero, pezzi
+   * compresi, che è quello che uno si aspetta.
+   */
+  const isFrozen = appointment.isLocked || appointment.status === 'completed';
 
   return (
     <div
@@ -480,7 +497,8 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
   }) => void;
   onSlotBlock: (operatorId: string, hour: number) => void;
   onRemoveBlock: (block: AgendaBlock) => void;
-  onDropAppointment: (aptId: string, operatorId: string, newStart: string, duration: number) => void;
+  /** `mantieniOperatrice` per le fette: cambia l'orario, non chi fa cosa. */
+  onDropAppointment: (aptId: string, operatorId: string, newStart: string, duration: number, mantieniOperatrice?: boolean) => void;
 }) {
   const trattamenti = useTreatmentStore(s => s.treatments);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -577,8 +595,14 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
     if (op && !op.isResource && (riposo || fuori)) {
       trascinamento.attivo = false;
       document.body.classList.remove('trascinando');
+      const scarto = timeToMinutes(time) - timeToMinutes(trascinamento.inizioFetta);
       setConfermaSpostamento({
-        appointmentId, operatorId, time, duration,
+        appointmentId, operatorId,
+        time: trascinamento.fetta
+          ? minutesToTime(Math.max(0, timeToMinutes(trascinamento.inizioIntero) + scarto))
+          : time,
+        duration: trascinamento.fetta ? trascinamento.durataIntera : duration,
+        mantieni: trascinamento.fetta,
         nome: `${op.firstName} ${op.lastName}`.trim(),
         motivo: riposo ? 'è il suo giorno di riposo' : 'a quell\'ora non è in servizio',
       });
@@ -586,6 +610,14 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
     }
     trascinamento.attivo = false;
     document.body.classList.remove('trascinando');
+    if (trascinamento.fetta) {
+      // Si sposta l'appuntamento intero dello stesso scarto, e le operatrici
+      // restano quelle: chi fa cosa si cambia dal dettaglio, non trascinando.
+      const scarto = timeToMinutes(time) - timeToMinutes(trascinamento.inizioFetta);
+      const nuovoInizio = minutesToTime(Math.max(0, timeToMinutes(trascinamento.inizioIntero) + scarto));
+      onDropAppointment(appointmentId, operatorId, nuovoInizio, trascinamento.durataIntera, true);
+      return;
+    }
     onDropAppointment(appointmentId, operatorId, time, duration);
   };
 
@@ -593,6 +625,8 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
   const [confermaSpostamento, setConfermaSpostamento] = useState<{
     appointmentId: string; operatorId: string; time: string; duration: number;
     nome: string; motivo: string;
+    /** Vero per le fette: si sposta l'orario ma le operatrici non si toccano. */
+    mantieni?: boolean;
   } | null>(null);
 
   // Ghost preview position
@@ -619,7 +653,7 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
             </button>
             <button onClick={() => {
                 onDropAppointment(confermaSpostamento.appointmentId, confermaSpostamento.operatorId,
-                  confermaSpostamento.time, confermaSpostamento.duration);
+                  confermaSpostamento.time, confermaSpostamento.duration, confermaSpostamento.mantieni);
                 setConfermaSpostamento(null);
               }}
               className="px-3 py-1.5 rounded-xl bg-warning text-white text-xs font-semibold hover:brightness-110">
@@ -4204,11 +4238,14 @@ export default function AgendaPage() {
           // Sul vuoto l'ora è già quella giusta: non va cercato niente.
           onGapClick={(operatorId, time) => openAppointmentModal(null, { operatorId, time })}
           onOffriBuco={(b) => setBucoDaOffrire(b)}
-          onDropAppointment={(aptId, opId, newStart, duration) => {
+          onDropAppointment={(aptId, opId, newStart, duration, mantieniOperatrice) => {
             const [h, m] = newStart.split(':').map(Number);
             const endTotal = h * 60 + m + duration;
             const endTime = `${String(Math.floor(endTotal / 60)).padStart(2, '0')}:${String(endTotal % 60).padStart(2, '0')}`;
-            moveAppointment(aptId, opId, newStart, endTime);
+            // Appuntamento diviso fra due operatrici: si sposta l'orario, ma
+            // chi fa cosa resta com'era — si cambia dal dettaglio.
+            const attuale = appointments.find(a => a.id === aptId);
+            moveAppointment(aptId, mantieniOperatrice && attuale ? attuale.operatorId : opId, newStart, endTime);
           }} />
       )}
       {view === 'week' && (

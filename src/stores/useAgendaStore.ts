@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { Appointment, AgendaBlock } from '@/types';
 import { mockOperators } from '@/lib/mock-data';
+import { useOperatorStore } from '@/stores/useOperatorStore';
 import { getAppointments, createAppointment, updateAppointmentAction, deleteAppointmentAction } from '@/app/actions/agenda';
 import { getBlocks, createBlock, deleteBlock } from '@/app/actions/blocks';
 
@@ -171,12 +172,24 @@ export const useAgendaStore = create<AgendaStore>((set, get) => ({
     }
   },
 
+  /**
+   * Sposta un appuntamento (trascinamento in agenda).
+   *
+   * Il nome dell'operatrice si cerca fra quelle VERE. Prima si cercava nei
+   * dati di esempio (`mockOperators`), dove gli id veri non esistono: ogni
+   * trascinamento salvava `operatorName: ''` e il nome spariva dalla scheda.
+   * Se per qualche motivo non la si trova, si lascia il nome com'era invece
+   * di cancellarlo.
+   */
   moveAppointment: async (id, operatorId, startTime, endTime) => {
     try {
-      const op = mockOperators.find((o) => o.id === operatorId);
+      const op = useOperatorStore.getState().operators.find((o) => o.id === operatorId);
+      const precedente = get().appointments.find((a) => a.id === id);
       const updates = {
         operatorId,
-        operatorName: op ? `${op.firstName} ${op.lastName}` : '',
+        operatorName: op
+          ? `${op.firstName} ${op.lastName}`.trim()
+          : (precedente?.operatorName || ''),
         startTime,
         endTime
       };
