@@ -134,6 +134,19 @@ function isMinuteUnavailable(op: Operator, date: Date, minFromStart: number, wee
   return operatorUnavailableBands(op, date, weekMap).some(b => minFromStart >= b.startMin && minFromStart < b.endMin);
 }
 
+/**
+ * Cosa si sta trascinando, in un posto solo.
+ *
+ * Non è uno stato di React apposta: cambia decine di volte al secondo mentre
+ * il mouse si muove, e passarlo per `setState` ridisegnerebbe tutta l'agenda
+ * a ogni pixel — che è esattamente il lampeggio che si vedeva.
+ *
+ * `presaY` è dove hai afferrato il blocco rispetto al suo bordo alto: senza,
+ * l'appuntamento atterra con l'inizio sotto il cursore e quindi salta in su
+ * di quanto l'avevi preso più in basso.
+ */
+const trascinamento = { attivo: false, presaY: 0, durata: 60 };
+
 function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, color }: { appointment: SplitAppointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties; color?: string }) {
   const pacchettiCliente = usePackageStore(s => s.clientPackages);
   const blockColor = color || appointment.color;
@@ -159,7 +172,11 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
     e.dataTransfer.setData('appointmentId', appointment.id);
     e.dataTransfer.setData('duration', String(appointment.duration));
     e.dataTransfer.effectAllowed = 'move';
+    trascinamento.attivo = true;
+    trascinamento.durata = appointment.duration;
+    trascinamento.presaY = e.clientY - (e.currentTarget as HTMLElement).getBoundingClientRect().top;
   };
+  const handleDragEnd = () => { trascinamento.attivo = false; };
 
   // Una fetta di appuntamento condiviso non si trascina: sposterebbe anche la
   // parte dell'altra operatrice, che qui non si vede.
@@ -169,6 +186,7 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
     <div
       draggable={!isFrozen}
       onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onClick={(e) => { e.stopPropagation(); onClick(appointment); }}
       className={`appointment-block group ${isFrozen ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${appointment.status === 'in_cabin' ? 'animate-[pulse_1.5s_ease-in-out_infinite] ring-2 ring-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.3)]' : ''}`}
       style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${blockColor}22`, borderLeftColor: blockColor, ...overlapStyle }}
@@ -510,7 +528,9 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
 
   const calcTimeFromY = (e: React.DragEvent, columnEl: HTMLElement): string => {
     const rect = columnEl.getBoundingClientRect();
-    const y = e.clientY - rect.top;
+    // Meno il punto in cui l'hai afferrato: l'appuntamento deve finire dove
+    // lo vedi, non con l'inizio incollato al cursore.
+    const y = e.clientY - rect.top - trascinamento.presaY;
     // Snap to 15-minute intervals
     const totalMinutes = (y / HOUR_HEIGHT) * 60;
     const snapped = Math.round(totalMinutes / 15) * 15;
@@ -523,7 +543,10 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     const time = calcTimeFromY(e, columnEl);
-    setDragOver({ operatorId, time });
+    // Solo quando cambia davvero: `dragover` scatta a ogni pixel e un
+    // setState per pixel ridisegna l'intera agenda (il lampeggio).
+    setDragOver(prec => (prec && prec.operatorId === operatorId && prec.time === time)
+      ? prec : { operatorId, time });
   };
 
   /**
@@ -548,6 +571,7 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
       && isMinuteUnavailable(op, selectedDate, timeToMinutes(time) - START_HOUR * 60, weekMap);
 
     if (op && !op.isResource && (riposo || fuori)) {
+      trascinamento.attivo = false;
       setConfermaSpostamento({
         appointmentId, operatorId, time, duration,
         nome: `${op.firstName} ${op.lastName}`.trim(),
@@ -555,6 +579,7 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
       });
       return;
     }
+    trascinamento.attivo = false;
     onDropAppointment(appointmentId, operatorId, time, duration);
   };
 
@@ -755,7 +780,7 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
               {/* Drop ghost preview */}
               {dragOver && dragOver.operatorId === operator.id && (
                 <div className="absolute left-1 right-1 rounded-lg border-2 border-dashed border-accent/50 bg-accent/10 pointer-events-none z-30 flex items-center justify-center"
-                  style={{ top: `${dragGhostTop}px`, height: `${HOUR_HEIGHT - 2}px` }}>
+                  style={{ top: `${dragGhostTop}px`, height: `${Math.max((trascinamento.durata / 60) * HOUR_HEIGHT - 2, 22)}px` }}>
                   <span className="text-[10px] font-semibold text-accent">{dragOver.time}</span>
                 </div>
               )}
@@ -3831,6 +3856,9 @@ export default function AgendaPage() {
   // Così un cambio turno (orario, pausa, riposo) si riflette in disponibilità
   // e indisponibilità senza ricaricare la pagina.
   useAutoRefresh(useCallback(() => {
+    // Non mentre si trascina: ricaricare gli appuntamenti ricostruisce tutti
+    // i blocchi e il trascinamento in corso muore a metà, senza spiegazioni.
+    if (trascinamento.attivo) return;
     fetchAppointments();
     fetchBlocks();
     fetchClients();
