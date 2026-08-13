@@ -45,12 +45,14 @@ export default function ClientiPage() {
   const [preset, setPreset] = useState('tre');
   const [periodo, setPeriodo] = useState<Periodo>(() => periodoPreset('tre'));
   const [righe, setRighe] = useState<ClientRow[] | null>(null);
+  /** Le schede di casa tenute fuori dai conti: si dicono, non si nascondono. */
+  const [escluse, setEscluse] = useState<string[]>([]);
 
   useEffect(() => {
     let vivo = true;
     setRighe(null);
     getClientRanking(periodo.from, periodo.to)
-      .then(r => { if (vivo) setRighe(r.righe); })
+      .then(r => { if (vivo) { setRighe(r.righe); setEscluse(r.escluse); } })
       .catch(() => { if (vivo) setRighe([]); });
     return () => { vivo = false; };
   }, [periodo.from, periodo.to]);
@@ -76,6 +78,16 @@ export default function ClientiPage() {
 
         {righe && <Riepilogo righe={righe} />}
         <TabellaClienti righe={righe ?? []} caricando={righe === null} />
+
+        {/* Chi è fuori dai conti va detto, altrimenti i numeri sembrano
+            sbagliati e nessuno sa perché. */}
+        {escluse.length > 0 && (
+          <p className="text-[11px] text-text-muted">
+            Fuori dai conti {escluse.length === 1 ? 'la scheda interna' : 'le schede interne'} di{' '}
+            <strong className="text-text-secondary">{escluse.join(', ')}</strong>: sono prove, non clienti.
+            Si toglie o si rimette dall&apos;etichetta <em>interno</em> nella scheda cliente.
+          </p>
+        )}
       </div>
 
       {/* ===== Andamento generale (ultimi 12 mesi) ===== */}

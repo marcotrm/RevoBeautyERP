@@ -10,6 +10,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { soloClientiVeri, TAG_INTERNO } from '@/lib/clientiInterni';
 
 const norm = (s: string | null | undefined) =>
   (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
@@ -38,6 +39,8 @@ export interface ClientRow {
 export interface ClientRankingResult {
   righe: ClientRow[];
   totali: { clienti: number; spesa: number; visite: number; disdette: number };
+  /** Nomi delle schede di casa tenute fuori: si dice, non si nasconde. */
+  escluse: string[];
 }
 
 /**
@@ -51,7 +54,15 @@ export async function getClientRanking(from: string, to: string): Promise<Client
   // Le query girano una per volta, non in parallelo: il pool di connessioni
   // Prisma è piccolo e questa sezione lancia più statistiche insieme — a
   // raffica satura il pool e le pagine muoiono con "connection pool timeout".
-  const clients = await prisma.client.findMany({ select: { id: true, firstName: true, lastName: true, phone: true } });
+  // Fuori le schede di casa (titolari, prove): un titolare che si prenota per
+  // provare l'agenda finiva primo in classifica e sballava incasso e medie.
+  const tutteLeSchede = await prisma.client.findMany({
+    select: { id: true, firstName: true, lastName: true, phone: true, tags: true },
+  });
+  const clients = soloClientiVeri(tutteLeSchede);
+  const escluse = tutteLeSchede
+    .filter(c => !clients.includes(c))
+    .map(c => `${c.firstName} ${c.lastName}`.trim());
   const apptsPeriodo = await prisma.appointment.findMany({
     where: { date: { gte: start, lte: end } },
     select: { clientId: true, date: true, status: true, treatmentName: true },
@@ -87,8 +98,12 @@ export async function getClientRanking(from: string, to: string): Promise<Client
   const acc = new Map<string, Acc>();
   const prendi = (id: string) => { const a = acc.get(id) || vuoto(); acc.set(id, a); return a; };
 
+  // Solo schede vere: gli appuntamenti di prova dei titolari restano nel
+  // database (servono a provare) ma non fanno numero qui.
+  const idsVeri = new Set(clients.map(c => c.id));
+
   for (const a of apptsPeriodo) {
-    if (!a.clientId) continue;
+    if (!a.clientId || !idsVeri.has(a.clientId)) continue;
     const x = prendi(a.clientId);
     x.prenotati += 1;
     if (a.status === 'completed') {
@@ -158,7 +173,25 @@ export async function getClientRanking(from: string, to: string): Promise<Client
       visite: righe.reduce((s, r) => s + r.visite, 0),
       disdette: righe.reduce((s, r) => s + r.disdette, 0),
     },
+    escluse,
   };
+}
+
+/**
+ * Mette (o toglie) l'etichetta "interno" a una scheda.
+ *
+ * Serve per non dover ricordare come si scrive l'etichetta: dalle statistiche
+ * si toglie una riga con un clic e si rimette allo stesso modo.
+ */
+export async function segnaComeInterno(clientId: string, interno: boolean): Promise<{ ok: boolean }> {
+  const c = await prisma.client.findUnique({ where: { id: clientId }, select: { tags: true } });
+  if (!c) return { ok: false };
+  const senza = (c.tags || []).filter(t => String(t).trim().toLowerCase() !== TAG_INTERNO);
+  await prisma.client.update({
+    where: { id: clientId },
+    data: { tags: interno ? [...senza, TAG_INTERNO] : senza },
+  });
+  return { ok: true };
 }
 
 // ============================================================
@@ -187,9 +220,11 @@ export async function getMarketingStats(from: string, to: string): Promise<Marke
   const oggi = new Date().toISOString().slice(0, 10);
 
   // Una query per volta: vedi la nota in getClientRanking sul pool Prisma.
-  const clients = await prisma.client.findMany({
+  // Anche qui fuori le schede di casa: conteggi, consensi e compleanni devono
+  // parlare di clienti veri.
+  const clients = soloClientiVeri(await prisma.client.findMany({
     select: { id: true, firstName: true, lastName: true, phone: true, email: true, tags: true, birthDate: true, marketingConsent: true, createdAt: true },
-  });
+  }));
   const giftCards = await prisma.giftCard.findMany({ select: { amount: true, remainingBalance: true, status: true, purchaseDate: true } });
   const leads = await prisma.affiliateLead.findMany({ select: { affiliateId: true, status: true, voucherUsedAt: true, clientId: true, createdAt: true } });
   const affiliati = await prisma.affiliate.findMany({ select: { id: true, businessName: true } });
