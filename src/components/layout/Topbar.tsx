@@ -25,6 +25,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard/packages/gift-cards': 'Buoni Regalo',
   '/dashboard/inventory': 'Magazzino',
   '/dashboard/marketing': 'Marketing',
+  '/dashboard/copri-buchi': 'Copri buchi',
   '/dashboard/reports': 'Report & Analytics',
   '/dashboard/staff': 'Gestione Staff',
   '/dashboard/settings': 'Impostazioni',

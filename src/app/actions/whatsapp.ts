@@ -268,6 +268,8 @@ const ESEMPI_PARAMETRI: Record<TemplateKey, string[]> = {
   reminder: ['Maria', 'pulizia viso', 'domani', '15:30'],
   recall: ['Maria'],
   birthday: ['Maria', 'il 20%', '31/12'],
+  copriBuchi: ['Maria', 'Refill unghie', 'oggi alle 16:30'],
+  copriBuchiPreso: ['Maria'],
   review: ['Maria', 'pulizia viso'],
   omaggio: ['Maria', 'pressoterapia'],
   codiceApp: ['123456'],

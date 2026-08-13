@@ -8,6 +8,8 @@ import { useOperatorStore } from '@/stores/useOperatorStore';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
+import { anteprimaCandidate, lanciaCopriBuchi } from '@/app/actions/copriBuchi';
+import type { Candidata } from '@/lib/copriBuchi';
 import { usePackageStore } from '@/stores/usePackageStore';
 import { coperturaPacchetto } from '@/lib/coperturaPacchetto';
 import { useWaitlistStore, WaitlistEntry } from '@/stores/useWaitlistStore';
@@ -16,7 +18,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, CalendarDays, Plus,
   Clock, CheckCircle, AlertCircle, Play, XCircle, Ban, ListTodo,
   Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone, Sun, MessageSquare, Users
-} from 'lucide-react';
+, Loader2 } from 'lucide-react';
 import {
   formatDateLong, timeToMinutes, minutesToTime, getStatusLabel,
   getStatusColor, formatCurrency, getInitials, getCategoryLabel, guessGenderFromName,
@@ -371,34 +373,33 @@ function NowLine() {
 }
 
 /* ========== DAY VIEW ========== */
-/** Il buco più corto che vale la pena segnalare, e il più lungo. */
+/** Lo spazio più corto che vale la pena segnalare, e il più lungo. */
 const BUCO_MIN = 15;
-const BUCO_MAX = 120;
+const BUCO_MAX = 600;
 
 /**
  * I vuoti fra un appuntamento e l'altro nella colonna di un'operatrice.
  *
- * Occupato è tutto: appuntamenti, fasce bloccate, pausa e fuori turno. Il
- * vuoto è quello che resta in mezzo, e conta solo se è chiuso fra due cose:
- * il tempo prima del primo appuntamento e dopo l'ultimo si vede già a occhio,
- * quello incastrato in mezzo no — ed è quello che si perde.
+ * Occupato è tutto: appuntamenti, fasce bloccate, pausa e fuori turno. Quello
+ * che resta è tempo vendibile, e va segnato ovunque sia: l'ora vuota di
+ * apertura vale quanto la mezz'ora incastrata a metà pomeriggio.
  */
 function buchiDellaGiornata(
   appuntamenti: SplitAppointment[],
   fasceBloccate: AgendaBlock[],
   fasceNonInServizio: { startMin: number; endMin: number }[],
 ): { from: number; to: number }[] {
-  const occupati: { from: number; to: number; appuntamento: boolean }[] = [];
+  const occupati: { from: number; to: number }[] = [];
   for (const a of appuntamenti) {
     if (a.status === 'cancelled' || a.status === 'no_show') continue;
-    occupati.push({ from: timeToMinutes(a.startTime), to: timeToMinutes(a.endTime), appuntamento: true });
+    occupati.push({ from: timeToMinutes(a.startTime), to: timeToMinutes(a.endTime) });
   }
   for (const b of fasceBloccate) {
-    occupati.push({ from: timeToMinutes(b.startTime), to: timeToMinutes(b.endTime), appuntamento: false });
+    occupati.push({ from: timeToMinutes(b.startTime), to: timeToMinutes(b.endTime) });
   }
   for (const f of fasceNonInServizio) {
     // Le fasce arrivano in minuti dall'inizio agenda, gli orari in minuti dalla mezzanotte.
-    occupati.push({ from: f.startMin + START_HOUR * 60, to: f.endMin + START_HOUR * 60, appuntamento: false });
+    occupati.push({ from: f.startMin + START_HOUR * 60, to: f.endMin + START_HOUR * 60 });
   }
   if (occupati.length < 2) return [];
 
@@ -406,34 +407,36 @@ function buchiDellaGiornata(
 
   const buchi: { from: number; to: number }[] = [];
   let fine = occupati[0].to;
-  let finePerAppuntamento = occupati[0].appuntamento;
   for (let i = 1; i < occupati.length; i++) {
     const o = occupati[i];
     if (o.from > fine) {
       const durata = o.from - fine;
-      // Il vuoto conta se prima c'è un appuntamento: è il tempo morto in
-      // mezzo alla giornata. La mattina ancora tutta libera non è un buco,
-      // è una mattina libera, e riempirla di scritte non aiuta nessuno.
-      if (durata >= BUCO_MIN && durata <= BUCO_MAX && finePerAppuntamento) {
+      // Ogni spazio libero dentro il turno, non solo quello fra due
+      // appuntamenti: anche l'ora vuota di apertura è un'ora vendibile.
+      if (durata >= BUCO_MIN && durata <= BUCO_MAX) {
         buchi.push({ from: fine, to: o.from });
       }
       fine = o.to;
-      finePerAppuntamento = o.appuntamento;
     } else if (o.to > fine) {
       fine = o.to;
-      finePerAppuntamento = o.appuntamento;
     }
   }
   return buchi;
 }
 
-function DayView({ appointments, blocks, operators, selectedDate, onAppointmentClick, onWaitlistAdd, onSlotClick, onGapClick, onSlotBlock, onRemoveBlock, onDropAppointment }: {
+function DayView({ appointments, blocks, operators, selectedDate, onAppointmentClick, onWaitlistAdd, onSlotClick, onGapClick, onOffriBuco, onSlotBlock, onRemoveBlock, onDropAppointment }: {
   appointments: Appointment[]; blocks: AgendaBlock[]; operators: Operator[]; selectedDate: Date;
   onAppointmentClick: (a: Appointment) => void;
   onWaitlistAdd?: (a: Appointment) => void;
   onSlotClick: (operatorId: string, hour: number) => void;
   /** Clic su un vuoto: apre l'appuntamento esattamente a quell'ora. */
   onGapClick: (operatorId: string, time: string) => void;
+  /** Offri il vuoto alle clienti su WhatsApp (Copri buchi). */
+  onOffriBuco?: (b: {
+    date: string; from: string; to: string;
+    operatorId: string; operatorName: string;
+    treatment: Treatment; durata: number;
+  }) => void;
   onSlotBlock: (operatorId: string, hour: number) => void;
   onRemoveBlock: (block: AgendaBlock) => void;
   onDropAppointment: (aptId: string, operatorId: string, newStart: string, duration: number) => void;
@@ -621,21 +624,37 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
                   .filter(t => (t.duration || 0) > 0 && (t.duration || 0) <= durata)
                   .sort((a, b) => (b.duration || 0) - (a.duration || 0));
                 const titolo = ciStanno.length
-                  ? `${durata} minuti liberi dalle ${ora}. Ci stanno: ${ciStanno.slice(0, 4).map(t => `${t.name} (${t.duration}′)`).join(', ')}${ciStanno.length > 4 ? '…' : ''}. Clicca per prenotare.`
-                  : `${durata} minuti liberi dalle ${ora}. Nessun trattamento a listino così breve.`;
+                  ? `${durata} minuti disponibili dalle ${ora}. Ci stanno: ${ciStanno.slice(0, 4).map(t => `${t.name} (${t.duration}′)`).join(', ')}${ciStanno.length > 4 ? '…' : ''}. Clicca per prenotare.`
+                  : `${durata} minuti disponibili dalle ${ora}. Nessun trattamento a listino così breve.`;
                 // Verde, non viola: il viola è il colore degli appuntamenti e
                 // il tratteggio si confondeva con le prenotazioni. Il verde
                 // dice "libero" prima ancora di leggere.
                 return (
                   <div key={`buco-${buco.from}`} onClick={e => { e.stopPropagation(); onGapClick(operator.id, ora); }}
                     title={titolo}
-                    className="absolute left-1 right-1 z-[2] rounded-lg border border-dashed border-success/50 bg-success/[0.07]
+                    className="group/buco absolute left-1 right-1 z-[2] rounded-lg border border-dashed border-success/50 bg-success/[0.07]
                       hover:bg-success/20 hover:border-success transition-colors cursor-pointer
                       flex flex-col items-center justify-center gap-0.5 overflow-hidden"
                     style={{ top: `${top}px`, height: `${Math.max(h - 2, 14)}px` }}>
-                    <span className="text-[10px] font-semibold text-success whitespace-nowrap">{durata} min liberi</span>
+                    <span className="text-[10px] font-semibold text-success whitespace-nowrap">{durata} min disponibili</span>
                     {h >= 46 && ciStanno.length > 0 && (
                       <span className="text-[9px] text-text-muted truncate max-w-full px-2">ci sta {ciStanno[0].name}</span>
+                    )}
+                    {/* Offrirlo alle clienti invece di aspettare che chiami
+                        qualcuno: compare passandoci sopra, per non riempire
+                        l'agenda di bottoni. */}
+                    {h >= 40 && ciStanno.length > 0 && onOffriBuco && (
+                      <button
+                        onClick={e => { e.stopPropagation(); onOffriBuco({
+                          date: fmtDate(selectedDate), from: ora, to: `${String(Math.floor(buco.to / 60)).padStart(2, '0')}:${String(buco.to % 60).padStart(2, '0')}`,
+                          operatorId: operator.id, operatorName: `${operator.firstName} ${operator.lastName}`.trim(),
+                          treatment: ciStanno[0], durata,
+                        }); }}
+                        title="Offri questo posto alle clienti su WhatsApp"
+                        className="absolute right-1 top-1 opacity-0 group-hover/buco:opacity-100 transition-opacity
+                          px-1.5 py-0.5 rounded-md bg-success text-white text-[9px] font-bold whitespace-nowrap">
+                        Copri
+                      </button>
                     )}
                   </div>
                 );
@@ -1118,6 +1137,149 @@ function CercaCliente({ clients, appointments, onApriAppuntamento, onVaiAlGiorno
         </div>
       )}
     </div>
+  );
+}
+
+/* ========== OFFRI IL BUCO ALLE CLIENTI (Copri buchi) ========== */
+/**
+ * Prima di mandare messaggi si vede chi li riceverebbe e quanto costano.
+ *
+ * Mandare a dieci persone costa poco, ma è pur sempre denaro e soprattutto è
+ * la pazienza delle clienti: chi decide deve vedere i nomi, non premere al
+ * buio un tasto che "fa marketing".
+ */
+function OffriBucoModal({ buco, onClose }: {
+  buco: { date: string; from: string; to: string; operatorId: string; operatorName: string; treatment: Treatment; durata: number };
+  onClose: () => void;
+}) {
+  const [dati, setDati] = useState<{ candidate: Candidata[]; blocco: number; attesa: number; maxGiri: number } | null>(null);
+  const [trattamento, setTrattamento] = useState<Treatment>(buco.treatment);
+  const [invio, setInvio] = useState(false);
+  const [esito, setEsito] = useState<{ ok: boolean; msg: string } | null>(null);
+  const treatments = useTreatmentStore(s => s.treatments);
+
+  // Solo i trattamenti che ci stanno nel buco: offrirne uno più lungo
+  // vorrebbe dire far arrivare una cliente per poi mandarla via.
+  const possibili = useMemo(
+    () => treatments.filter(t => (t.duration || 0) > 0 && (t.duration || 0) <= buco.durata)
+      .sort((a, b) => (b.duration || 0) - (a.duration || 0)),
+    [treatments, buco.durata],
+  );
+
+  useEffect(() => {
+    let vivo = true;
+    setDati(null);
+    anteprimaCandidate({
+      date: buco.date, from: buco.from, to: buco.to,
+      operatorId: buco.operatorId, treatmentName: trattamento.name,
+    }).then(d => { if (vivo) setDati(d); });
+    return () => { vivo = false; };
+  }, [buco.date, buco.from, buco.to, buco.operatorId, trattamento.name]);
+
+  const primoBlocco = dati ? dati.candidate.slice(0, dati.blocco) : [];
+
+  const manda = async () => {
+    setInvio(true);
+    setEsito(null);
+    try {
+      const r = await lanciaCopriBuchi({
+        date: buco.date, from: buco.from, to: buco.to,
+        operatorId: buco.operatorId, operatorName: buco.operatorName,
+        treatmentId: trattamento.id, treatmentName: trattamento.name,
+        prezzo: trattamento.price || 0,
+        origine: 'manuale',
+      });
+      setEsito(r.ok
+        ? { ok: true, msg: `Primo blocco partito: ${r.inviati} messaggi. Il prossimo fra mezz'ora se nessuna risponde.` }
+        : { ok: false, msg: r.errore || 'Non è partito niente.' });
+    } finally { setInvio(false); }
+  };
+
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ type: 'spring', damping: 30, stiffness: 400 }}
+        className="fixed inset-0 z-[61] flex items-center justify-center p-4"
+        onClick={e => e.target === e.currentTarget && onClose()}>
+        <div className="w-full max-w-md bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+            <div>
+              <h3 className="text-base font-display font-semibold text-text-primary">Copri questo buco</h3>
+              <p className="text-xs text-text-muted">
+                {buco.from}–{buco.to} · {buco.durata} min · {buco.operatorName}
+              </p>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
+          </div>
+
+          <div className="px-5 py-4 space-y-4 overflow-y-auto">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1.5">Cosa offriamo</label>
+              <select value={trattamento.id} onChange={e => {
+                const t = possibili.find(x => x.id === e.target.value);
+                if (t) setTrattamento(t);
+              }} className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary">
+                {possibili.map(t => (
+                  <option key={t.id} value={t.id}>{t.name} — {t.duration} min · {t.price} €</option>
+                ))}
+              </select>
+            </div>
+
+            {dati === null ? (
+              <p className="text-xs text-text-muted flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> cerco a chi scrivere…</p>
+            ) : primoBlocco.length === 0 ? (
+              <div className="p-3 rounded-xl bg-warning/10 border border-warning/30 text-xs text-text-secondary">
+                Nessuna cliente da contattare: servono clienti attive, con il consenso ai messaggi,
+                che non abbiano già un appuntamento quel giorno.
+              </div>
+            ) : (
+              <>
+                <div>
+                  <p className="text-xs font-semibold text-text-secondary mb-1.5">
+                    Primo blocco: {primoBlocco.length} client{primoBlocco.length === 1 ? 'e' : 'i'}
+                  </p>
+                  <div className="rounded-xl border border-border divide-y divide-border/40 max-h-56 overflow-y-auto">
+                    {primoBlocco.map(c => (
+                      <div key={c.clientId} className="px-3 py-2">
+                        <p className="text-sm text-text-primary">{c.nome}</p>
+                        <p className="text-[10px] text-text-muted">{c.perche}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-[11px] text-text-muted leading-relaxed">
+                  Se nessuna risponde, fra {dati.attesa} minuti parte il blocco successivo,
+                  fino a {dati.maxGiri} blocchi ({dati.candidate.length} client{dati.candidate.length === 1 ? 'e' : 'i'} disponibili in tutto).
+                  Si ferma alla prima che dice sì, e l&apos;appuntamento va in agenda da solo.
+                  Costo indicativo del primo blocco: <strong className="text-text-secondary">{(primoBlocco.length * 0.07).toFixed(2)} €</strong>
+                  {' '}contro {trattamento.price} € di trattamento.
+                </p>
+              </>
+            )}
+
+            {esito && (
+              <div className={`p-3 rounded-xl text-xs ${esito.ok ? 'bg-success/10 text-success' : 'bg-error/10 text-error'}`}>
+                {esito.msg}
+              </div>
+            )}
+          </div>
+
+          <div className="px-5 py-4 border-t border-border flex justify-end gap-2">
+            <button onClick={onClose} className="px-4 py-2 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover">
+              {esito?.ok ? 'Chiudi' : 'Annulla'}
+            </button>
+            {!esito?.ok && (
+              <button onClick={manda} disabled={invio || !primoBlocco.length}
+                className="px-5 py-2 rounded-xl bg-success text-white text-sm font-medium disabled:opacity-40 hover:brightness-110">
+                {invio ? 'Invio…' : `Manda a ${primoBlocco.length}`}
+              </button>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </>
   );
 }
 
@@ -2657,7 +2819,12 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   const handleCheckInClick = () => {
     // Prima di tutto la scheda: se mancano i dati chiave il check-in si ferma
     // qui e si apre il modulo da completare. L'obiettivo è zero schede a metà.
-    if (clientData && !schedaCompleta(clientData)) {
+    //
+    // Si apre anche a scheda completa quando manca il consenso ai messaggi:
+    // è la sola occasione in cui la cliente è davanti a te e glielo puoi
+    // chiedere. Senza consenso non riceve né auguri né l'avviso di un posto
+    // che si libera — e il consenso non si può spuntare per lei, va chiesto.
+    if (clientData && (!schedaCompleta(clientData) || !clientData.marketingConsent)) {
       setSchedaForm({
         birthDate: clientData.birthDate || '',
         gender: (clientData.gender === 'M' ? 'M' : clientData.gender === 'F' ? 'F' : ''),
@@ -3275,7 +3442,11 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 <input type="checkbox" checked={schedaForm.marketing}
                   onChange={e => setSchedaForm(f => ({ ...f, marketing: e.target.checked }))}
                   className="mt-0.5 w-4 h-4 rounded border-border accent-accent" />
-                <span>Acconsente a ricevere promozioni e auguri (WhatsApp): vale oro per il marketing</span>
+                <span>
+                  Acconsente a ricevere messaggi su WhatsApp: auguri di compleanno e
+                  <strong className="text-text-primary"> l&apos;avviso quando si libera un posto</strong>.
+                  Senza questa spunta non riceve nulla — chiediglielo, non spuntarla per lei.
+                </span>
               </label>
             </div>
 
@@ -3574,6 +3745,13 @@ export default function AgendaPage() {
     [blocks, dateStr]
   );
 
+  /** Il buco che si sta per offrire alle clienti: prima si conferma, poi si spende. */
+  const [bucoDaOffrire, setBucoDaOffrire] = useState<{
+    date: string; from: string; to: string;
+    operatorId: string; operatorName: string;
+    treatment: Treatment; durata: number;
+  } | null>(null);
+
   const handleAppointmentClick = useCallback((apt: Appointment) => setSelectedApt(apt), []);
 
   const handleWaitlistAdd = useCallback((apt: Appointment) => {
@@ -3805,6 +3983,7 @@ export default function AgendaPage() {
           }}
           // Sul vuoto l'ora è già quella giusta: non va cercato niente.
           onGapClick={(operatorId, time) => openAppointmentModal(null, { operatorId, time })}
+          onOffriBuco={(b) => setBucoDaOffrire(b)}
           onDropAppointment={(aptId, opId, newStart, duration) => {
             const [h, m] = newStart.split(':').map(Number);
             const endTotal = h * 60 + m + duration;
@@ -3848,6 +4027,11 @@ export default function AgendaPage() {
       </AnimatePresence>
       <AnimatePresence>
         {showWaitlistPanel && <WaitlistPanel onClose={() => setShowWaitlistPanel(false)} onOpenNew={() => { setShowWaitlistPanel(false); handleOpenWaitlistModal(); }} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {bucoDaOffrire && (
+          <OffriBucoModal buco={bucoDaOffrire} onClose={() => setBucoDaOffrire(null)} />
+        )}
       </AnimatePresence>
       <AnimatePresence>
         {blockModal && (

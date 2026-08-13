@@ -67,8 +67,24 @@ export async function register() {
     }
   };
 
+  /**
+   * Copri buchi: le campagne aperte vanno a blocchi con mezz'ora di attesa,
+   * quindi non hanno un orario fisso come le altre automazioni — vanno
+   * guardate a ogni giro di lancetta per vedere se è ora del blocco dopo.
+   */
+  const buchiTick = async () => {
+    try {
+      const { avanzaCampagne } = await import('@/lib/copriBuchi');
+      const fatti = await avanzaCampagne();
+      for (const f of fatti) console.log(`[copri-buchi] ${f.id}: ${f.azione}`);
+    } catch (err) {
+      console.error('[copri-buchi] scheduler error', err);
+    }
+  };
+
   // Controlla ogni minuto
-  setInterval(() => { void tick(); void waTick(); }, 60 * 1000);
+  setInterval(() => { void tick(); void waTick(); void buchiTick(); }, 60 * 1000);
   console.log('[reports] Scheduler report Telegram attivo (invio alle 20:00 Europe/Rome)');
   console.log('[wa] Scheduler automazioni WhatsApp attivo');
+  console.log('[copri-buchi] Scheduler copri buchi attivo');
 }

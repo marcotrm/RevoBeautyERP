@@ -114,6 +114,34 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
   if (updates.status === 'completed' && prev?.status !== 'completed' && appointment.clientId) {
     avanzaSfide(appointment.clientId, 'appointments').catch(() => {});
   }
+  // Disdetta: il posto resta vuoto, e un posto vuoto è incasso perso. Si
+  // prova a riempirlo offrendolo alle clienti attive. Parte solo se allo
+  // slot manca abbastanza tempo — ci pensa il motore a controllarlo — e non
+  // blocca la disdetta se qualcosa va storto.
+  if (updates.status === 'cancelled' && prev?.status !== 'cancelled') {
+    void (async () => {
+      try {
+        const { creaCampagna, mandaGiro, chiudiCampagna } = await import('@/lib/copriBuchi');
+        const c = await creaCampagna({
+          date: appointment.date, from: appointment.startTime, to: appointment.endTime,
+          operatorId: appointment.operatorId, operatorName: appointment.operatorName,
+          treatmentId: appointment.treatmentId, treatmentName: appointment.treatmentName,
+          prezzo: appointment.price,
+          origine: 'disdetta', disdettaDi: appointment.clientName,
+        });
+        const r = await mandaGiro(c);
+        if (r.inviati === 0) {
+          await chiudiCampagna(c.id, 'annullata', r.motivo || 'nessun messaggio partito');
+          console.log(`[copri-buchi] non partita: ${r.motivo}`);
+        } else {
+          console.log(`[copri-buchi] ${c.id}: primo blocco, ${r.inviati} messaggi`);
+        }
+      } catch (e) {
+        console.error('[copri-buchi] avvio da disdetta fallito', e);
+      }
+    })();
+  }
+
   // Notifica Telegram all'annullamento (non alla modifica del solo motivo)
   if (updates.status === 'cancelled' && prev?.status !== 'cancelled') {
     notifyCancellazione({

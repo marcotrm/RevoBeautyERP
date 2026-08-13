@@ -131,6 +131,38 @@ export const WA_TEMPLATES = {
       'per questo la frase dice "un regalo per te: X sul prossimo trattamento" e non "un regalo: X".',
   },
 
+  copriBuchi: {
+    name: 'slot_liberato',
+    category: 'MARKETING',
+    language: 'it',
+    params: ['nome cliente', 'trattamento (es. "Refill unghie")', 'giorno e ora (es. "oggi alle 16:30")'],
+    body:
+      'Ciao {{1}}, si è appena liberato un posto da RevoBeauty per {{2}}: {{3}}.\n' +
+      'Lo tieni tu? Rispondi con il bottone qui sotto — lo prende la prima che risponde.',
+    buttons: [
+      { type: 'QUICK_REPLY', text: 'Lo prendo io' },
+      { type: 'QUICK_REPLY', text: 'Non stavolta' },
+    ],
+    note:
+      'Copri buchi: parte quando una cliente disdice e resta un posto vuoto in giornata. Va a ' +
+      'blocchi di dieci clienti attive, con mezz\'ora fra un blocco e l\'altro, e si ferma alla ' +
+      'prima che dice sì. È MARKETING, quindi solo a chi ha dato il consenso.',
+  },
+
+  copriBuchiPreso: {
+    name: 'slot_gia_preso',
+    category: 'UTILITY',
+    language: 'it',
+    params: ['nome cliente'],
+    body:
+      'Grazie {{1}}! Purtroppo il posto l\'ha appena preso un\'altra cliente.\n' +
+      'Ti avvisiamo al prossimo che si libera. A presto!',
+    note:
+      'Risposta a chi dice sì dopo che il posto è già andato. Senza, la seconda che risponde ' +
+      'resta senza risposta e rischia di presentarsi lo stesso. È UTILITY: risponde a un ' +
+      'messaggio suo, non propone niente.',
+  },
+
   review: {
     name: 'richiesta_recensione',
     category: 'UTILITY',

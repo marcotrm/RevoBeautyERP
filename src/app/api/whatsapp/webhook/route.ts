@@ -13,6 +13,7 @@
 import { prisma } from '@/lib/prisma';
 import { normalizePhone } from '@/lib/whatsapp';
 import { handleReminderReply } from '@/lib/wa-appointments';
+import { rispostaCopriBuchi } from '@/lib/copriBuchi';
 import { handleBookingMessage } from '@/lib/wa-booking';
 import { handleAssistantMessage } from '@/lib/wa-assistant';
 import { logInbound, type WaMedia, type WaMediaKind } from '@/lib/wa-conversations';
@@ -208,6 +209,15 @@ export async function POST(request: Request) {
           });
           console.log(`[wa-webhook] opt-out da ${phone}: ${updated.count} cliente/i aggiornati`);
           continue; // chi chiede di non essere più contattato non va interpretato oltre
+        }
+
+        // Copri buchi: "Lo prendo io" sul posto che si è liberato. Va prima di
+        // tutto il resto perché è una corsa — vince chi risponde per prima, e
+        // ogni secondo speso a interpretare altro è un secondo perso.
+        const buco = await rispostaCopriBuchi({ phone, text, payloadId });
+        if (buco.gestita) {
+          console.log(`[wa-webhook] ${phone}: copri buchi — ${buco.nota}`);
+          continue;
         }
 
         // Risposte al promemoria: "Confermo" conferma l'appuntamento, "Devo spostare"
