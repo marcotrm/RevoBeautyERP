@@ -1,0 +1,914 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Agenda Piena: il gestionale per centri estetici che trova i posti vuoti in agenda e li riempie. Copri buchi, WhatsApp dal numero del centro, cassa con scontrino fiscale.">
+<meta name="theme-color" content="#120C16">
+<meta property="og:title" content="Agenda Piena — il gestionale che riempie i posti vuoti">
+<meta property="og:description" content="I buchi in agenda te li trova, e poi te li riempie. Gestionale per centri estetici, laser clinic e spa.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23120C16%27/%3E%3Crect x=%275%27 y=%276%27 width=%2722%27 height=%275%27 rx=%272%27 fill=%27%239B5CF6%27/%3E%3Crect x=%275%27 y=%2713.5%27 width=%2722%27 height=%275%27 rx=%272%27 fill=%27%23E63B8C%27/%3E%3Crect x=%275%27 y=%2721%27 width=%2722%27 height=%275%27 rx=%272%27 fill=%27%232ED47A%27/%3E%3C/svg%3E">
+<style>*{margin:0}</style>
+<title>Agenda Piena — il gestionale che riempie i posti vuoti</title>
+</head>
+<body>
+
+<style>
+  /* ============================================================
+     AGENDA PIENA
+     L'identità nasce da una cosa sola: una colonna che si riempie.
+     Il fondo è inchiostro di prugna, i blocchi degli appuntamenti
+     sono il colore, e il verde vuol dire una cosa sola — un posto
+     libero che sta per diventare incasso.
+     ============================================================ */
+  :root {
+    --ink-950: #120C16;
+    --ink-900: #1A1020;
+    --ink-800: #241630;
+    --ink-700: #33203F;
+
+    --carta-50:  #FBF7F5;
+    --carta-100: #F4EAE6;
+    --carta-200: #E6D3CD;
+    --carta-300: #C9AEA8;
+
+    --magenta: #E63B8C;
+    --viola:   #9B5CF6;
+    --verde:   #2ED47A;
+    --verde-2: #7BF0B0;
+    --ambra:   #F2A65A;
+    --ciano:   #4CC9F0;
+
+    /* token di tema */
+    --fondo:      var(--ink-950);
+    --fondo-2:    var(--ink-900);
+    --fondo-3:    var(--ink-800);
+    --testo:      var(--carta-50);
+    --testo-2:    #B49CAE;
+    --linea:      #38243F;
+    --accento:    var(--magenta);
+    --accento-2:  var(--viola);
+    --libero:     var(--verde-2);
+    --ombra:      0 40px 90px -50px rgba(0,0,0,.9);
+
+    --display: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+    --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --fondo: var(--carta-50);
+      --fondo-2: #FFFFFF;
+      --fondo-3: var(--carta-100);
+      --testo: var(--ink-950);
+      --testo-2: #6E5468;
+      --linea: var(--carta-200);
+      --accento: #D42B7E;
+      --accento-2: #7C3AED;
+      --libero: #159356;
+      --ombra: 0 40px 90px -55px rgba(26,16,32,.4);
+    }
+  }
+  :root[data-theme="light"] {
+    --fondo: var(--carta-50);
+    --fondo-2: #FFFFFF;
+    --fondo-3: var(--carta-100);
+    --testo: var(--ink-950);
+    --testo-2: #6E5468;
+    --linea: var(--carta-200);
+    --accento: #D42B7E;
+    --accento-2: #7C3AED;
+    --libero: #159356;
+    --ombra: 0 40px 90px -55px rgba(26,16,32,.4);
+  }
+  :root[data-theme="dark"] {
+    --fondo: var(--ink-950);
+    --fondo-2: var(--ink-900);
+    --fondo-3: var(--ink-800);
+    --testo: var(--carta-50);
+    --testo-2: #B49CAE;
+    --linea: #38243F;
+    --accento: var(--magenta);
+    --accento-2: var(--viola);
+    --libero: var(--verde-2);
+    --ombra: 0 40px 90px -50px rgba(0,0,0,.9);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--fondo);
+    color: var(--testo);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  .stretto { max-width: 900px; }
+
+  h1, h2, h3, .cifrone { font-family: var(--display); font-weight: 600; margin: 0; text-wrap: balance; }
+  h1 { font-size: clamp(3rem, 9.2vw, 7.4rem); line-height: .94; letter-spacing: -.032em; }
+  h2 { font-size: clamp(2.1rem, 5.4vw, 4rem); line-height: 1.03; letter-spacing: -.026em; }
+  h3 { font-family: var(--sans); font-size: 1.06rem; font-weight: 700; letter-spacing: -.01em; }
+  p { margin: 0; }
+  a { color: inherit; }
+
+  .occhiello {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .22em;
+    text-transform: uppercase; color: var(--accento);
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .occhiello::before { content: ''; width: 26px; height: 2px; background: var(--accento); }
+
+  .guida { font-size: clamp(1.05rem, 1.6vw, 1.28rem); color: var(--testo-2); max-width: 60ch; }
+
+  .col { display: flex; flex-direction: column; }
+  .g10 { gap: 10px } .g16 { gap: 16px } .g20 { gap: 20px } .g28 { gap: 28px } .g40 { gap: 40px } .g56 { gap: 56px }
+
+  section { padding: clamp(72px, 11vw, 150px) 0; position: relative; }
+
+  /* ---------- Barra in alto ---------- */
+  .barra {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(14px);
+    background: color-mix(in srgb, var(--fondo) 82%, transparent);
+    border-bottom: 1px solid transparent;
+    transition: border-color .3s ease;
+  }
+  .barra.giu { border-bottom-color: var(--linea); }
+  .barra-int { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 0; }
+  .logo { display: inline-flex; align-items: center; gap: 11px; font-weight: 700; letter-spacing: -.02em; font-size: 17px; }
+  .logo-segno {
+    width: 30px; height: 30px; border-radius: 9px; flex: none;
+    background: var(--fondo-3); position: relative; overflow: hidden;
+    border: 1px solid var(--linea);
+  }
+  .logo-segno i { position: absolute; left: 4px; right: 4px; border-radius: 2px; display: block; }
+  .logo-segno i:nth-child(1) { top: 5px;  height: 5px; background: var(--viola); }
+  .logo-segno i:nth-child(2) { top: 12px; height: 5px; background: var(--magenta); }
+  .logo-segno i:nth-child(3) { top: 19px; height: 5px; background: var(--verde); }
+
+  /* ---------- Bottoni ---------- */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+    padding: 15px 28px; border-radius: 999px; text-decoration: none;
+    font-size: 15px; font-weight: 650; border: 1px solid transparent; cursor: pointer;
+    transition: transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .2s ease, background .2s ease;
+    white-space: nowrap;
+  }
+  .btn-pieno {
+    color: #fff;
+    background: linear-gradient(100deg, var(--magenta), var(--viola));
+    box-shadow: 0 14px 40px -16px var(--magenta);
+  }
+  .btn-pieno:hover { transform: translateY(-3px); box-shadow: 0 22px 48px -18px var(--magenta); }
+  .btn-vuoto { border-color: var(--linea); color: var(--testo); }
+  .btn-vuoto:hover { background: var(--fondo-2); transform: translateY(-2px); }
+  .btn-sm { padding: 10px 18px; font-size: 14px; }
+  .btn:focus-visible { outline: 2px solid var(--accento); outline-offset: 3px; }
+
+  /* ---------- HERO ---------- */
+  .hero { padding-top: clamp(46px, 7vw, 86px); padding-bottom: clamp(56px, 8vw, 110px); overflow: hidden; }
+  .alone {
+    position: absolute; pointer-events: none; z-index: 0;
+    width: 900px; height: 900px; border-radius: 50%;
+    top: -420px; right: -260px;
+    background: radial-gradient(circle, color-mix(in srgb, var(--viola) 34%, transparent), transparent 62%);
+    filter: blur(30px);
+  }
+  .alone.due {
+    top: 240px; right: 34%; width: 620px; height: 620px;
+    background: radial-gradient(circle, color-mix(in srgb, var(--magenta) 26%, transparent), transparent 62%);
+  }
+  .hero-int { position: relative; z-index: 1; display: grid; gap: clamp(44px, 5vw, 70px); align-items: center; }
+  @media (min-width: 1040px) { .hero-int { grid-template-columns: 1.02fr .98fr; } }
+
+  h1 .piena {
+    background: linear-gradient(100deg, var(--magenta) 10%, var(--viola) 90%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+  }
+
+  .prova-sociale { display: flex; flex-wrap: wrap; gap: 8px; }
+  .gettone {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    padding: 7px 12px; border-radius: 999px; border: 1px solid var(--linea);
+    color: var(--testo-2); background: var(--fondo-2);
+  }
+
+  /* ---------- La griglia viva ---------- */
+  .griglia-viva {
+    background: var(--fondo-3); border: 1px solid var(--linea);
+    border-radius: 20px; overflow: hidden; box-shadow: var(--ombra);
+  }
+  .gv-testa {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding: 13px 16px; border-bottom: 1px solid var(--linea);
+  }
+  .gv-titolo { font-family: var(--mono); font-size: 11px; letter-spacing: .13em; text-transform: uppercase; color: var(--testo-2); }
+  .gv-incasso {
+    font-family: var(--mono); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums;
+    color: var(--libero);
+  }
+  .gv-corpo { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; padding: 14px; min-height: 360px; }
+  .gv-col { display: flex; flex-direction: column; gap: 5px; }
+  .gv-nome {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--testo-2); text-align: center; padding-bottom: 4px; border-bottom: 1px solid var(--linea);
+    margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cella {
+    border-radius: 5px; border-left: 2px solid transparent; min-height: 13px;
+    opacity: 0; transform: translateY(6px) scale(.96);
+    transition: opacity .45s ease, transform .45s cubic-bezier(.2,.8,.2,1), background .4s ease, border-color .4s ease;
+  }
+  .cella.on { opacity: 1; transform: none; }
+  .cella.vuota { background: transparent; border-left-color: transparent; }
+  .cella.libera {
+    border: 1px dashed color-mix(in srgb, var(--verde) 85%, transparent);
+    background: color-mix(in srgb, var(--verde) 20%, transparent);
+    display: grid; place-items: center;
+    font-family: var(--mono); font-size: 8.5px; letter-spacing: .06em;
+    color: var(--libero); text-transform: uppercase;
+  }
+  .cella.libera.riempita {
+    border-style: solid;
+    background: color-mix(in srgb, var(--verde) 30%, transparent);
+    color: var(--testo);
+  }
+
+  .legenda {
+    display: flex; flex-wrap: wrap; gap: 14px; padding: 0 16px 14px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--testo-2);
+  }
+  .legenda span { display: inline-flex; align-items: center; gap: 6px; }
+  .legenda b { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+
+  /* ---------- Nastro ---------- */
+  .nastro {
+    border-top: 1px solid var(--linea); border-bottom: 1px solid var(--linea);
+    background: var(--fondo-2); overflow: hidden; padding: 15px 0;
+  }
+  .nastro-pista { display: flex; gap: 40px; width: max-content; animation: scorri 42s linear infinite; }
+  .nastro-pista span {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--testo-2); white-space: nowrap; display: inline-flex; align-items: center; gap: 40px;
+  }
+  .nastro-pista span::after { content: '◆'; color: var(--accento); font-size: 8px; }
+  @keyframes scorri { to { transform: translateX(-50%); } }
+
+  /* ---------- Rivelazione allo scorrimento ---------- */
+  .su { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s cubic-bezier(.2,.8,.2,1); }
+  .su.vista { opacity: 1; transform: none; }
+
+  /* ---------- Numeri ---------- */
+  .numeri { display: grid; gap: 18px; }
+  @media (min-width: 760px) { .numeri { grid-template-columns: repeat(3, 1fr); } }
+  .numero {
+    border: 1px solid var(--linea); border-radius: 18px; padding: 30px;
+    background: var(--fondo-2);
+  }
+  .cifrone {
+    font-size: clamp(3rem, 6vw, 4.4rem); line-height: 1; letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums;
+    background: linear-gradient(120deg, var(--verde), var(--ciano));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+  }
+  .cifrone.rosa { background: linear-gradient(120deg, var(--magenta), var(--viola)); -webkit-background-clip: text; background-clip: text; }
+  .numero p { font-size: 14.5px; color: var(--testo-2); margin-top: 12px; }
+
+  /* ---------- Copri buchi ---------- */
+  .faro {
+    border-radius: 26px; padding: clamp(28px, 4vw, 54px);
+    background:
+      radial-gradient(120% 140% at 8% 0%, color-mix(in srgb, var(--verde) 16%, transparent), transparent 55%),
+      var(--fondo-2);
+    border: 1px solid var(--linea);
+    display: grid; gap: clamp(32px, 4vw, 52px);
+  }
+  @media (min-width: 1000px) { .faro { grid-template-columns: 1fr 1fr; align-items: center; } }
+
+  .passi { counter-reset: p; display: flex; flex-direction: column; }
+  .passo { display: grid; grid-template-columns: 40px 1fr; gap: 16px; padding: 17px 0; border-bottom: 1px solid var(--linea); }
+  .passo:last-child { border-bottom: 0; }
+  .passo::before {
+    counter-increment: p; content: counter(p);
+    font-family: var(--mono); font-size: 12px; color: var(--libero);
+    border: 1px solid color-mix(in srgb, var(--verde) 45%, transparent);
+    border-radius: 50%; width: 26px; height: 26px; display: grid; place-items: center;
+  }
+  .passo p { font-size: 14.5px; color: var(--testo-2); margin-top: 3px; }
+
+  /* la chat finta */
+  .telefono {
+    background: var(--fondo-3); border: 1px solid var(--linea); border-radius: 20px;
+    padding: 16px; display: flex; flex-direction: column; gap: 9px;
+  }
+  .bolla {
+    max-width: 86%; padding: 10px 13px; border-radius: 14px; font-size: 13.5px; line-height: 1.45;
+    opacity: 0; transform: translateY(8px);
+    transition: opacity .5s ease, transform .5s ease;
+  }
+  .bolla.vista { opacity: 1; transform: none; }
+  .bolla.noi { align-self: flex-start; background: var(--fondo-2); border: 1px solid var(--linea); border-bottom-left-radius: 5px; }
+  .bolla.lei { align-self: flex-end; background: color-mix(in srgb, var(--verde) 24%, var(--fondo-2)); border-bottom-right-radius: 5px; }
+  .bolla .tasti { display: flex; gap: 6px; margin-top: 9px; }
+  .bolla .tasti i {
+    font-style: normal; font-size: 11.5px; font-weight: 650; padding: 6px 11px; border-radius: 8px;
+    background: color-mix(in srgb, var(--verde) 18%, transparent); color: var(--libero);
+  }
+  .bolla .tasti i.spento { background: var(--fondo-3); color: var(--testo-2); }
+  .esito {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--libero); text-align: center; padding-top: 6px;
+    opacity: 0; transition: opacity .6s ease;
+  }
+  .esito.vista { opacity: 1; }
+
+  /* ---------- Schede funzioni ---------- */
+  .schede { display: grid; gap: 16px; }
+  @media (min-width: 700px) { .schede { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 1020px) { .schede.tre { grid-template-columns: repeat(3, 1fr); } }
+  .scheda {
+    position: relative; overflow: hidden;
+    background: var(--fondo-2); border: 1px solid var(--linea); border-radius: 18px;
+    padding: 26px; display: flex; flex-direction: column; gap: 9px;
+    transition: transform .25s cubic-bezier(.2,.8,.2,1), border-color .25s ease;
+  }
+  .scheda::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--tinta, var(--accento)); }
+  .scheda:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--tinta, var(--accento)) 50%, var(--linea)); }
+  .scheda .tag {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .15em; text-transform: uppercase;
+    color: var(--tinta, var(--accento));
+  }
+  .scheda p { font-size: 14.5px; color: var(--testo-2); }
+
+  /* ---------- Confronto ---------- */
+  .tab-wrap { overflow-x: auto; border: 1px solid var(--linea); border-radius: 18px; background: var(--fondo-2); }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 640px; }
+  th, td { padding: 16px 20px; text-align: left; border-bottom: 1px solid var(--linea); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  th { font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--testo-2); font-weight: 500; }
+  td:first-child { font-weight: 650; }
+  .si { color: var(--libero); font-weight: 700; }
+  .no { color: var(--testo-2); opacity: .7; }
+
+  /* ---------- Chiusura ---------- */
+  .finale {
+    border-radius: 28px; padding: clamp(38px, 6vw, 82px);
+    background:
+      radial-gradient(100% 160% at 100% 0%, color-mix(in srgb, var(--viola) 42%, transparent), transparent 60%),
+      radial-gradient(90% 140% at 0% 100%, color-mix(in srgb, var(--magenta) 34%, transparent), transparent 60%),
+      var(--ink-900);
+    color: var(--carta-50);
+    display: flex; flex-direction: column; gap: 22px; align-items: flex-start;
+  }
+  .finale h2 { color: #fff; }
+  .finale p { color: var(--carta-200); max-width: 54ch; }
+  .finale .btn-vuoto { border-color: rgba(255,255,255,.28); color: #fff; }
+  .finale .btn-vuoto:hover { background: rgba(255,255,255,.08); }
+
+  footer {
+    border-top: 1px solid var(--linea); padding: 32px 0 52px;
+    font-size: 13px; color: var(--testo-2);
+    display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between;
+  }
+
+  .nota { font-size: 13.5px; color: var(--testo-2); border-left: 2px solid var(--linea); padding-left: 15px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .su, .cella, .bolla, .esito { opacity: 1 !important; transform: none !important; }
+  }
+</style>
+
+<!-- =================== BARRA =================== -->
+<div class="barra" id="barra">
+  <div class="wrap barra-int">
+    <span class="logo">
+      <span class="logo-segno"><i></i><i></i><i></i></span>
+      Agenda Piena
+    </span>
+    <a class="btn btn-pieno btn-sm" href="#demo">Prenota una demo</a>
+  </div>
+</div>
+
+<!-- =================== HERO =================== -->
+<section class="hero">
+  <div class="alone"></div>
+  <div class="alone due"></div>
+  <div class="wrap hero-int">
+    <div class="col g28">
+      <span class="occhiello">Gestionale per centri estetici</span>
+      <h1>L'agenda<br><span class="piena">piena</span><br>non è fortuna.</h1>
+      <p class="guida">
+        È il posto disdetto che qualcuno riprende in dieci minuti. È la mezz'ora scoperta
+        che qualcuno nota. Agenda Piena fa la cosa che nessun altro gestionale fa:
+        i buchi te li trova, e poi te li riempie.
+      </p>
+      <div style="display:flex; flex-wrap:wrap; gap:12px;">
+        <a class="btn btn-pieno" href="#demo">Prenota una demo</a>
+        <a class="btn btn-vuoto" href="#differenza">Cosa fa in più</a>
+      </div>
+      <div class="prova-sociale">
+        <span class="gettone">Agenda</span>
+        <span class="gettone">WhatsApp</span>
+        <span class="gettone">Cassa fiscale</span>
+        <span class="gettone">App clienti</span>
+        <span class="gettone">Magazzino</span>
+        <span class="gettone">Conti</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="griglia-viva" id="griglia">
+        <div class="gv-testa">
+          <span class="gv-titolo">Giovedì · 5 postazioni</span>
+          <span class="gv-incasso" id="incasso">0 €</span>
+        </div>
+        <div class="gv-corpo" id="gv-corpo"></div>
+        <div class="legenda">
+          <span><b style="background:var(--viola)"></b> prenotato</span>
+          <span><b style="background:var(--verde)"></b> posto libero</span>
+          <span id="conta-liberi">2 spazi ancora vendibili</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================== NASTRO =================== -->
+<div class="nastro" aria-hidden="true">
+  <div class="nastro-pista">
+    <span>Copri buchi</span><span>Spazi liberi segnati</span><span>WhatsApp dal tuo numero</span>
+    <span>Assistente che prenota</span><span>Scontrino fiscale</span><span>Recensioni Google</span>
+    <span>Turni scritti a parole</span><span>App clienti</span><span>Punto di pareggio</span>
+    <span>Copri buchi</span><span>Spazi liberi segnati</span><span>WhatsApp dal tuo numero</span>
+    <span>Assistente che prenota</span><span>Scontrino fiscale</span><span>Recensioni Google</span>
+    <span>Turni scritti a parole</span><span>App clienti</span><span>Punto di pareggio</span>
+  </div>
+</div>
+
+<!-- =================== IL CONTO =================== -->
+<section>
+  <div class="wrap col g40">
+    <div class="col g20 su">
+      <span class="occhiello">Il conto che nessuno fa</span>
+      <h2 class="stretto">Un'ora vuota al giorno<br>è uno stipendio all'anno.</h2>
+      <p class="guida">
+        Quaranta minuti il martedì, un'ora il giovedì, una disdetta il sabato mattina.
+        Nessuno li somma, perché nessun gestionale li mostra: l'agenda dice cosa hai
+        prenotato, mai cosa hai perso.
+      </p>
+    </div>
+    <div class="numeri">
+      <div class="numero su">
+        <div class="cifrone"><span data-conta="45">0</span>&nbsp;€</div>
+        <p>Quanto vale in media un posto rimasto scoperto. Uno al giorno fa più di mille
+        euro al mese che non entrano in cassa.</p>
+      </div>
+      <div class="numero su">
+        <div class="cifrone"><span data-conta="70" data-prefisso="0,">0</span>&nbsp;€</div>
+        <p>Quanto costa provare a riempirlo: dieci messaggi WhatsApp alle clienti giuste.
+        Il rapporto fra le due cifre è tutta l'idea.</p>
+      </div>
+      <div class="numero su">
+        <div class="cifrone rosa"><span data-conta="30">0</span>&nbsp;min</div>
+        <p>Quanto aspetta prima di allargare il giro. Non scrive a tutta l'anagrafica:
+        procede a blocchi e si ferma appena qualcuna dice sì.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================== COPRI BUCHI =================== -->
+<section id="copri">
+  <div class="wrap col g40">
+    <div class="col g20 su">
+      <span class="occhiello">La funzione che non trovi altrove</span>
+      <h2 class="stretto">Copri buchi</h2>
+      <p class="guida">
+        Una cliente disdice l'appuntamento del pomeriggio. Invece di restare lì a guardare
+        il buco, Agenda Piena lo mette in vendita — alle persone giuste, nell'ordine
+        giusto, senza svegliare mezza anagrafica.
+      </p>
+    </div>
+
+    <div class="faro su">
+      <div class="passi">
+        <div class="passo">
+          <div>
+            <h3>Il posto si libera</h3>
+            <p>Una disdetta, o semplicemente uno spazio scoperto che vedi in agenda.
+            Ci passi sopra e premi «Copri».</p>
+          </div>
+        </div>
+        <div class="passo">
+          <div>
+            <h3>Sceglie a chi scrivere, e non a caso</h3>
+            <p>Prima chi quel trattamento lo fa di solito, poi chi secondo la sua cadenza
+            sarebbe già dovuta tornare, poi chi non disdice mai. Fuori le dormienti, fuori
+            chi ha già un appuntamento quel giorno, fuori chi ha detto no da poco.</p>
+          </div>
+        </div>
+        <div class="passo">
+          <div>
+            <h3>Dieci per volta, non tutte insieme</h3>
+            <p>Se nessuna risponde, mezz'ora dopo parte il blocco successivo. Massimo
+            quattro blocchi, mai prima delle 9 né dopo le 20, mai se al posto mancano
+            meno di due ore.</p>
+          </div>
+        </div>
+        <div class="passo">
+          <div>
+            <h3>Lo prende la prima che risponde</h3>
+            <p>Due bottoni, niente frasi da interpretare. Al primo sì l'appuntamento entra
+            in agenda da solo e la chiamata si spegne all'istante.</p>
+          </div>
+        </div>
+        <div class="passo">
+          <div>
+            <h3>E alla seconda risponde comunque</h3>
+            <p>Chi scrive venti secondi dopo riceve subito «l'ha appena preso un'altra».
+            È il dettaglio che evita due clienti allo stesso orario.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="telefono" id="chat">
+        <div class="bolla noi" data-b="0">
+          Ciao Anna, si è appena liberato un posto per <b>Ricostruzione</b>: oggi alle 15:00.<br>
+          Lo tieni tu? Lo prende la prima che risponde.
+          <span class="tasti"><i>Lo prendo io</i><i class="spento">Non stavolta</i></span>
+        </div>
+        <div class="bolla lei" data-b="1">Lo prendo io 🙌</div>
+        <div class="bolla noi" data-b="2">
+          Perfetto Anna, è tuo: <b>oggi 15:00 – 16:25</b> con Luisa.<br>Ti aspettiamo!
+        </div>
+        <div class="bolla noi" data-b="3">
+          <b>A Giada, che ha risposto dopo:</b><br>
+          Grazie! Purtroppo l'ha appena preso un'altra cliente. Ti avvisiamo al prossimo.
+        </div>
+        <p class="esito" id="esito">Posto ripreso in 11 minuti · 45 € · costo 0,70 €</p>
+      </div>
+    </div>
+
+    <p class="nota su">
+      Prima di mandare qualsiasi cosa vedi i nomi, il motivo per cui il sistema ha scelto
+      proprio loro, e quanto costa il blocco. Nessun messaggio parte senza che qualcuno
+      lo abbia deciso.
+    </p>
+  </div>
+</section>
+
+<!-- =================== AGENDA =================== -->
+<section>
+  <div class="wrap col g40">
+    <div class="col g20 su">
+      <span class="occhiello">L'agenda</span>
+      <h2 class="stretto">Fatta da chi sta al banco,<br>non da chi disegna software.</h2>
+    </div>
+    <div class="schede su">
+      <div class="scheda" style="--tinta: var(--verde)">
+        <span class="tag">Tempo vendibile</span>
+        <h3>Ogni spazio libero è segnato</h3>
+        <p>Le finestre scoperte compaiono in verde con la durata e con il trattamento più
+        lungo che ci sta dentro: «45 min disponibili — ci sta Pressoterapia». Un clic e
+        l'appuntamento è già aperto su quell'ora.</p>
+      </div>
+      <div class="scheda" style="--tinta: var(--ambra)">
+        <span class="tag">Niente muri</span>
+        <h3>Ti avvisa, non ti blocca</h3>
+        <p>Cento minuti a listino spesso ne durano ottanta: dieci di sovrapposizione non
+        fermano nessuno. Te lo dice — «si sovrappone di 10 min» — e il tasto diventa
+        «Prenota comunque». Vale anche fuori orario e nel giorno di riposo.</p>
+      </div>
+      <div class="scheda" style="--tinta: var(--magenta)">
+        <span class="tag">Incasso</span>
+        <h3>I soldi si vedono dal calendario</h3>
+        <p>Sotto ogni giorno del mese, l'incasso previsto. Sopra il nome di ogni
+        operatrice, quanto ha fatto oggi. Senza aprire un report.</p>
+      </div>
+      <div class="scheda" style="--tinta: var(--viola)">
+        <span class="tag">Sovrapposizioni</span>
+        <h3>Due appuntamenti insieme si leggono</h3>
+        <p>Niente colonnine da un centimetro: restano larghi quanto la colonna e si
+        accavallano a scaletta, con quello che tocchi sempre davanti.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================== WHATSAPP =================== -->
+<section>
+  <div class="wrap col g40">
+    <div class="col g20 su">
+      <span class="occhiello">WhatsApp, dal numero del centro</span>
+      <h2 class="stretto">Le clienti scrivono<br>dove scrivono già.</h2>
+      <p class="guida">
+        Nessuna app da far scaricare, nessun numero nuovo da imparare. Le conversazioni
+        arrivano dentro il gestionale, con la scheda della cliente accanto al messaggio.
+      </p>
+    </div>
+    <div class="schede tre su">
+      <div class="scheda" style="--tinta: var(--verde)">
+        <span class="tag">Da sole</span>
+        <h3>Conferma e promemoria</h3>
+        <p>Partono quando prenoti e il giorno prima, con i bottoni «Confermo» e «Devo
+        spostare» che aggiornano l'agenda senza che nessuno tocchi niente.</p>
+      </div>
+      <div class="scheda" style="--tinta: var(--ciano)">
+        <span class="tag">Assistente</span>
+        <h3>Risponde e prenota di notte</h3>
+        <p>Una cliente chiede quanto costa un trattamento alle undici di sera: risponde,
+        propone gli orari liberi e fissa l'appuntamento.</p>
+      </div>
+      <div class="scheda" style="--tinta: var(--ambra)">
+        <span class="tag">Recensioni</span>
+        <h3>Chieste una volta sola</h3>
+        <p>Il giorno dopo la visita parte la richiesta con il link diretto alla scheda
+        Google. A ogni cliente una volta nella vita, non a ogni passaggio.</p>
+      </div>
+      <div class="scheda" style="--tinta: var(--magenta)">
+        <span class="tag">Compleanni</span>
+        <h3>Gli auguri col regalo dentro</h3>
+        <p>Partono la mattina del compleanno con lo sconto o il trattamento in omaggio e
+        la scadenza già calcolata.</p>
+      </div>
+      <div class="scheda" style="--tinta: var(--viola)">
+        <span class="tag">Chi sparisce</span>
+        <h3>Recall di chi non si vede più</h3>
+        <p>Un messaggio scritto bene, non una promozione urlata. E chi risponde «basta»
+        esce dalla lista per sempre, da solo.</p>
+      </div>
+      <div class="scheda" style="--tinta: var(--verde)">
+        <span class="tag">Campagne</span>
+        <h3>Scrivi, fai approvare, manda</h3>
+        <p>Il messaggio si scrive dentro il gestionale, si manda in approvazione con un
+        tasto e si spedisce alle clienti che scegli.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================== IL RESTO =================== -->
+<section>
+  <div class="wrap col g40">
+    <div class="col g20 su">
+      <span class="occhiello">E poi tutto il resto</span>
+      <h2 class="stretto">Un centro non è solo l'agenda.</h2>
+    </div>
+    <div class="schede tre su">
+      <div class="scheda" style="--tinta: var(--ambra)">
+        <span class="tag">Cassa</span><h3>Scontrino fiscale incluso</h3>
+        <p>L'incasso emette il documento commerciale al registratore telematico. Nessun
+        secondo programma da tenere aperto accanto.</p>
+      </div>
+      <div class="scheda" style="--tinta: var(--ciano)">
+        <span class="tag">App clienti</span><h3>Prenotano da sole, dal telefono</h3>
+        <p>E vedono solo le operatrici che quel trattamento lo sanno fare davvero: chi fa
+        cosa lo imposti tu, una volta.</p>
+      </div>
+      <div class="scheda" style="--tinta: var(--viola)">
+        <span class="tag">Staff</span><h3>Turni scritti a parole</h3>
+        <p>«Luisa di mattina, Michela il pomeriggio tranne il giovedì»: lo scrivi così e i
+        turni della settimana si compilano.</p>
+      </div>
+      <div class="scheda" style="--tinta: var(--magenta)">
+        <span class="tag">Passaparola</span><h3>Affiliazione con QR</h3>
+        <p>Ogni attività amica ha il suo codice e il suo QR, e un portale dove vede quante
+        clienti ha portato.</p>
+      </div>
+      <div class="scheda" style="--tinta: var(--verde)">
+        <span class="tag">Conti</span><h3>Punto di pareggio e cash flow</h3>
+        <p>Costi fissi, variabili, investimenti, obiettivi. Sai a che giorno del mese
+        cominci a guadagnare.</p>
+      </div>
+      <div class="scheda" style="--tinta: var(--ambra)">
+        <span class="tag">Clienti</span><h3>Chi torna, chi spende, chi sparisce</h3>
+        <p>Per ognuna la cadenza vera con cui torna, lo scontrino medio, quante volte ha
+        disdetto. Non un grafico: una lista di nomi da chiamare.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =================== DIFFERENZA =================== -->
+<section id="differenza">
+  <div class="wrap col g40">
+    <div class="col g20 su">
+      <span class="occhiello">La differenza</span>
+      <h2 class="stretto">Quello che gli altri non fanno.</h2>
+      <p class="guida">
+        Prenotazioni, schede e magazzino li hanno tutti. Qui sotto c'è il motivo per cui
+        vale la pena cambiare.
+      </p>
+    </div>
+    <div class="tab-wrap su">
+      <table>
+        <thead>
+          <tr><th>Funzione</th><th>Agenda Piena</th><th>Come va di solito</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Riempire un posto disdetto</td><td class="si">A blocchi, da solo</td><td class="no">Telefonate a memoria, quando c'è tempo</td></tr>
+          <tr><td>Spazi liberi in agenda</td><td class="si">Segnati, misurati, cliccabili</td><td class="no">Spazio bianco: lo devi notare tu</td></tr>
+          <tr><td>Sovrapporre di dieci minuti</td><td class="si">Avvisa e lascia fare</td><td class="no">Bloccato, o permesso in silenzio</td></tr>
+          <tr><td>Prenotare fuori orario</td><td class="si">Si può, con avviso in chiaro</td><td class="no">Impossibile senza cambiare i turni</td></tr>
+          <tr><td>WhatsApp</td><td class="si">Dal numero del centro, con assistente che prenota</td><td class="no">SMS, o un link a un numero di servizio</td></tr>
+          <tr><td>Chi può fare cosa</td><td class="si">Competenze per operatrice, rispettate in prenotazione</td><td class="no">Chiunque prenotabile per qualsiasi trattamento</td></tr>
+          <tr><td>Scontrino fiscale</td><td class="si">Dentro la cassa</td><td class="no">Programma separato</td></tr>
+          <tr><td>Recensioni Google</td><td class="si">Chieste una volta sola, arrivo segnalato</td><td class="no">Da chiedere a voce, se ci si ricorda</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- =================== DEMO =================== -->
+<section id="demo">
+  <div class="wrap">
+    <div class="finale su">
+      <span class="occhiello" style="color: var(--carta-200)">Vederlo dal vivo</span>
+      <h2>Mezz'ora, sulla tua agenda vera.</h2>
+      <p>
+        Te lo facciamo vedere con i tuoi trattamenti e i tuoi orari, non con dati finti.
+        Se dopo mezz'ora non ti ha convinto, ci siamo tolti il dubbio in mezz'ora.
+      </p>
+      <div style="display:flex; flex-wrap:wrap; gap:12px;">
+        <a class="btn btn-pieno" href="mailto:info@agendapiena.it?subject=Demo%20Agenda%20Piena">Scrivici per la demo</a>
+        <a class="btn btn-vuoto" href="tel:+39">Chiamaci</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="wrap">
+  <span>Agenda Piena · gestionale per centri estetici, laser clinic e spa</span>
+  <span>info@agendapiena.it</span>
+</footer>
+
+<script>
+(function () {
+  var ridotto = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- barra che si stacca ---------- */
+  var barra = document.getElementById('barra');
+  addEventListener('scroll', function () {
+    barra.classList.toggle('giu', scrollY > 8);
+  }, { passive: true });
+
+  /* ---------- la griglia dell'hero: una giornata che si riempie ----------
+     Cinque postazioni, mezz'ora a cella. Le celle prenotate compaiono una
+     dopo l'altra e l'incasso sale con loro; restano due spazi verdi, che
+     sono il punto di tutta la pagina. */
+  var COLONNE = [
+    { nome: 'Luisa',   celle: 'VVV..MMM.VV..' },
+    { nome: 'Michela', celle: '.MM.VVVV..AA.' },
+    { nome: 'Marta',   celle: 'AA..VV.MMM.V.' },
+    { nome: 'Cabina 1',celle: '..VV.AAA..MM.' },
+    { nome: 'Cabina 2',celle: 'MM..L..VVV.AA' }
+  ];
+  var TINTE = { V: 'var(--viola)', M: 'var(--magenta)', A: 'var(--ambra)' };
+  var PREZZI = { V: 45, M: 30, A: 25 };
+
+  var corpo = document.getElementById('gv-corpo');
+  var incassoEl = document.getElementById('incasso');
+  var contaEl = document.getElementById('conta-liberi');
+  var celle = [];
+
+  COLONNE.forEach(function (col) {
+    var divCol = document.createElement('div');
+    divCol.className = 'gv-col';
+    var testa = document.createElement('div');
+    testa.className = 'gv-nome';
+    testa.textContent = col.nome;
+    divCol.appendChild(testa);
+
+    col.celle.split('').forEach(function (ch) {
+      var c = document.createElement('div');
+      c.className = 'cella';
+      c.style.flex = '1';
+      if (ch === '.') { c.classList.add('vuota'); c.classList.add('on'); }
+      else if (ch === 'L') { c.classList.add('libera'); c.textContent = '45 min'; celle.push({ el: c, tipo: 'L' }); }
+      else {
+        c.style.background = 'color-mix(in srgb, ' + TINTE[ch] + ' 42%, transparent)';
+        c.style.borderLeftColor = TINTE[ch];
+        c.style.boxShadow = 'inset 3px 0 0 ' + TINTE[ch];
+        celle.push({ el: c, tipo: ch, prezzo: PREZZI[ch] });
+      }
+      divCol.appendChild(c);
+    });
+    corpo.appendChild(divCol);
+  });
+
+  // una seconda casella libera, per far vedere che non è un caso
+  var extra = document.createElement('div');
+  extra.className = 'cella libera';
+  extra.textContent = '30 min';
+  extra.style.flex = '1';
+  corpo.children[2].appendChild(extra);
+  celle.push({ el: extra, tipo: 'L' });
+
+  var totale = 0;
+  function riempi() {
+    var i = 0;
+    var prenotate = celle.filter(function (c) { return c.tipo !== 'L'; });
+    var libere = celle.filter(function (c) { return c.tipo === 'L'; });
+
+    function passo() {
+      if (i >= prenotate.length) {
+        libere.forEach(function (c, k) {
+          setTimeout(function () { c.el.classList.add('on'); }, k * 260);
+        });
+        setTimeout(function () {
+          contaEl.textContent = libere.length + ' spazi ancora vendibili · 75 €';
+        }, 700);
+        return;
+      }
+      var c = prenotate[i++];
+      c.el.classList.add('on');
+      totale += c.prezzo;
+      incassoEl.textContent = totale.toLocaleString('it-IT') + ' €';
+      setTimeout(passo, ridotto ? 0 : 65);
+    }
+    passo();
+  }
+
+  /* ---------- rivelazioni allo scorrimento ---------- */
+  var osserva = new IntersectionObserver(function (voci) {
+    voci.forEach(function (v) {
+      if (!v.isIntersecting) return;
+      v.target.classList.add('vista');
+      osserva.unobserve(v.target);
+    });
+  }, { threshold: .18, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.su').forEach(function (el) { osserva.observe(el); });
+
+  /* ---------- numeri che salgono ---------- */
+  function conta(el) {
+    var meta = parseInt(el.getAttribute('data-conta'), 10);
+    var pre = el.getAttribute('data-prefisso') || '';
+    if (ridotto) { el.textContent = pre + meta; return; }
+    var inizio = performance.now(), durata = 1100;
+    function tic(t) {
+      var q = Math.min(1, (t - inizio) / durata);
+      var e = 1 - Math.pow(1 - q, 3);
+      el.textContent = pre + Math.round(meta * e);
+      if (q < 1) requestAnimationFrame(tic);
+    }
+    requestAnimationFrame(tic);
+  }
+  var osservaNum = new IntersectionObserver(function (voci) {
+    voci.forEach(function (v) {
+      if (!v.isIntersecting) return;
+      conta(v.target);
+      osservaNum.unobserve(v.target);
+    });
+  }, { threshold: .6 });
+  document.querySelectorAll('[data-conta]').forEach(function (el) { osservaNum.observe(el); });
+
+  /* ---------- la chat che si scrive da sola ---------- */
+  var chat = document.getElementById('chat');
+  var esito = document.getElementById('esito');
+  var osservaChat = new IntersectionObserver(function (voci) {
+    voci.forEach(function (v) {
+      if (!v.isIntersecting) return;
+      chat.querySelectorAll('.bolla').forEach(function (b, k) {
+        setTimeout(function () { b.classList.add('vista'); }, ridotto ? 0 : 500 + k * 850);
+      });
+      setTimeout(function () { esito.classList.add('vista'); }, ridotto ? 0 : 4200);
+      osservaChat.unobserve(v.target);
+    });
+  }, { threshold: .3 });
+  osservaChat.observe(chat);
+
+  /* ---------- avvio dell'hero ---------- */
+  var partita = false;
+  function avvia() {
+    if (partita) return;
+    partita = true;
+    riempi();
+  }
+  var osservaGriglia = new IntersectionObserver(function (voci) {
+    voci.forEach(function (v) { if (v.isIntersecting) { avvia(); osservaGriglia.unobserve(v.target); } });
+  }, { threshold: .25 });
+  osservaGriglia.observe(document.getElementById('griglia'));
+
+  // Rete di sicurezza: se la pagina è stata aperta in una scheda in secondo
+  // piano l'osservatore non scatta, e chi arriva trova una griglia vuota —
+  // cioè il contrario di quello che il sito racconta.
+  setTimeout(avvia, 1500);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) avvia();
+  });
+})();
+</script>
+
+</body>
+</html>
