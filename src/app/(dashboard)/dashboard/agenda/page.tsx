@@ -526,21 +526,43 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
     setDragOver({ operatorId, time });
   };
 
+  /**
+   * Trascinamento finito.
+   *
+   * Se la destinazione è fuori turno, in pausa o nel giorno di riposo NON si
+   * rifiuta più in silenzio: era l'ultimo posto dove il gestionale diceva di
+   * no senza spiegare, e da fuori sembrava che l'appuntamento fosse bloccato.
+   * Si chiede conferma e si sposta lo stesso.
+   */
   const handleDrop = (e: React.DragEvent, operatorId: string, columnEl: HTMLElement) => {
     e.preventDefault();
     const appointmentId = e.dataTransfer.getData('appointmentId');
     const duration = Number(e.dataTransfer.getData('duration')) || 60;
     if (!appointmentId) return;
     const time = calcTimeFromY(e, columnEl);
-    // Non spostare dentro fuori-orario o pausa dell'operatrice
+    setDragOver(null);
+
     const op = operators.find(o => o.id === operatorId);
-    if (op && isMinuteUnavailable(op, selectedDate, timeToMinutes(time) - START_HOUR * 60, weekMap)) {
-      setDragOver(null);
+    const riposo = op ? !operatorWorksOn(op, selectedDate, weekMap) : false;
+    const fuori = op && !op.isResource && !riposo
+      && isMinuteUnavailable(op, selectedDate, timeToMinutes(time) - START_HOUR * 60, weekMap);
+
+    if (op && !op.isResource && (riposo || fuori)) {
+      setConfermaSpostamento({
+        appointmentId, operatorId, time, duration,
+        nome: `${op.firstName} ${op.lastName}`.trim(),
+        motivo: riposo ? 'è il suo giorno di riposo' : 'a quell\'ora non è in servizio',
+      });
       return;
     }
     onDropAppointment(appointmentId, operatorId, time, duration);
-    setDragOver(null);
   };
+
+  /** Spostamento in attesa di conferma, perché finisce fuori dal turno. */
+  const [confermaSpostamento, setConfermaSpostamento] = useState<{
+    appointmentId: string; operatorId: string; time: string; duration: number;
+    nome: string; motivo: string;
+  } | null>(null);
 
   // Ghost preview position
   const dragGhostTop = dragOver ? (() => {
@@ -550,6 +572,31 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-auto border border-border rounded-2xl bg-bg-secondary relative">
+      {/* Fuori turno si può, ma va detto: durante il trascinamento non si
+          può mostrare un avviso, quindi lo si chiede appena mollato. */}
+      {confermaSpostamento && (
+        <div className="sticky top-0 z-[70] flex justify-center pt-3 px-3">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-bg-secondary border border-warning/40 shadow-2xl max-w-lg">
+            <AlertCircle className="w-5 h-5 text-warning flex-shrink-0" />
+            <p className="text-sm text-text-primary flex-1">
+              <strong>{confermaSpostamento.nome}</strong> {confermaSpostamento.motivo}.
+              Sposto lo stesso alle {confermaSpostamento.time}?
+            </p>
+            <button onClick={() => setConfermaSpostamento(null)}
+              className="px-3 py-1.5 rounded-xl border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover">
+              No
+            </button>
+            <button onClick={() => {
+                onDropAppointment(confermaSpostamento.appointmentId, confermaSpostamento.operatorId,
+                  confermaSpostamento.time, confermaSpostamento.duration);
+                setConfermaSpostamento(null);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-warning text-white text-xs font-semibold hover:brightness-110">
+              Sposta
+            </button>
+          </div>
+        </div>
+      )}
       <div className="flex min-w-0">
         <TimeGutter />
         {operators.map(operator => {
@@ -562,9 +609,9 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
               style={off ? {
                 backgroundImage: 'repeating-linear-gradient(45deg, rgba(148,163,184,0.10) 0, rgba(148,163,184,0.10) 10px, rgba(148,163,184,0.02) 10px, rgba(148,163,184,0.02) 20px)',
               } : { backgroundColor: `${operator.color}08` }}
-              onDragOver={e => !off && handleDragOver(e, operator.id, e.currentTarget)}
+              onDragOver={e => handleDragOver(e, operator.id, e.currentTarget)}
               onDragLeave={() => setDragOver(null)}
-              onDrop={e => !off && handleDrop(e, operator.id, e.currentTarget)}>
+              onDrop={e => handleDrop(e, operator.id, e.currentTarget)}>
               {/* Le fasce orarie sono cliccabili anche nel giorno di riposo:
                   se la cliente viene lo stesso, l'appuntamento si deve poter
                   scrivere. Ci pensa la finestra ad avvisare. */}
