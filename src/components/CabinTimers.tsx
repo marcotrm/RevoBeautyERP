@@ -198,9 +198,19 @@ export default function CabinTimers() {
 
   return createPortal(
     <>
-      {/* Pannello con i trattamenti in corso */}
+      {/*
+        Pannello con i trattamenti in corso.
+
+        Sta a z-45: sotto ai pannelli e ai modali (che partono da z-50), sopra
+        al resto della pagina. Con z-80 finiva DAVANTI al pannello
+        dell'appuntamento e si mangiava i pulsanti in basso a destra: su uno
+        schermo da portatile il Check-in cascava proprio lì sotto e al clic non
+        succedeva niente. Il conto alla rovescia è un'informazione, non deve
+        mai coprire un comando; l'avviso di fine trattamento, che invece va
+        visto subito, resta a z-95.
+      */}
       {running.length > 0 && (
-        <div className="fixed bottom-4 right-4 z-[80] w-[280px] rounded-2xl border border-border bg-bg-secondary/95 backdrop-blur-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-4 right-4 z-[45] w-[280px] rounded-2xl border border-border bg-bg-secondary/95 backdrop-blur-xl shadow-2xl overflow-hidden">
           <button onClick={() => setCollapsed(c => !c)}
             className="w-full flex items-center gap-2 px-3 py-2.5 bg-accent/10 hover:bg-accent/15 transition-colors">
             <Timer className="w-4 h-4 text-accent" />
