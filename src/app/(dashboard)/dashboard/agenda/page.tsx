@@ -28,7 +28,7 @@ import { GIFT_OPTIONS, isGiftPackage } from '@/lib/giftOptions';
 import { changeGiftTreatment } from '@/app/actions/packages';
 import { type WeekScheduleMap } from '@/app/actions/weekShifts';
 import { resolveDaySchedule, mondayISO } from '@/lib/weekSchedule';
-import { isWalkIn } from '@/lib/walkIn';
+import { isWalkIn, oraDiAdesso } from '@/lib/walkIn';
 import { schedaCompleta, campiMancanti } from '@/lib/schedaCliente';
 import { todayRome } from '@/lib/date';
 import { useCabinStore } from '@/stores/useCabinStore';
@@ -1970,7 +1970,15 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
         setSelectedServices([]); setTreatmentQuery('');
         const firstWorking = operators.find(o => !o.isResource && operatorWorksOn(o, selectedDate, apptWeekMap)) || operators.find(o => !o.isResource) || operators[0];
         setSelectedOperatorId(firstWorking?.id || '');
-        setStartTime('09:00'); setApptDate(fmtDate(selectedDate)); setNotes('');
+        /*
+          Aprendo "Nuovo appuntamento" senza aver cliccato una fascia, quasi
+          sempre la cliente è lì davanti: l'orario parte da adesso, non dalle
+          nove di mattina. Se si sta guardando un altro giorno resta l'apertura,
+          perché "adesso" su un altro giorno non vuol dire niente.
+        */
+        const oggi = fmtDate(selectedDate) === fmtDate(new Date());
+        setStartTime(oggi ? oraDiAdesso() : '09:00');
+        setApptDate(fmtDate(selectedDate)); setNotes('');
       }
       setShowClientDropdown(false);
       setTreatmentOpen(false);

@@ -17,6 +17,20 @@ function minutesOfDay(hhmm: string): number {
   return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
 }
 
+/**
+ * L'ora di adesso, arrotondata al quarto d'ora appena passato.
+ *
+ * È l'orario giusto per una cliente che è già davanti al banco: si scrive
+ * l'appuntamento mentre lei aspetta, quindi comincia adesso, non alle nove
+ * di mattina. Si arrotonda per difetto perché l'agenda lavora a quarti
+ * d'ora e alle 14:37 la cliente è entrata nel quarto delle 14:30.
+ */
+export function oraDiAdesso(): string {
+  const minuti = minutesOfDay(nowTimeRome());
+  const quarto = Math.floor(minuti / 15) * 15;
+  return `${String(Math.floor(quarto / 60)).padStart(2, '0')}:${String(quarto % 60).padStart(2, '0')}`;
+}
+
 /** Vero se l'appuntamento è di oggi e inizia adesso (o è già iniziato). */
 export function isWalkIn(date: string, startTime: string): boolean {
   if (date !== todayRome()) return false;
