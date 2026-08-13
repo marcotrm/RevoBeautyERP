@@ -623,14 +623,17 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
                 const titolo = ciStanno.length
                   ? `${durata} minuti liberi dalle ${ora}. Ci stanno: ${ciStanno.slice(0, 4).map(t => `${t.name} (${t.duration}′)`).join(', ')}${ciStanno.length > 4 ? '…' : ''}. Clicca per prenotare.`
                   : `${durata} minuti liberi dalle ${ora}. Nessun trattamento a listino così breve.`;
+                // Verde, non viola: il viola è il colore degli appuntamenti e
+                // il tratteggio si confondeva con le prenotazioni. Il verde
+                // dice "libero" prima ancora di leggere.
                 return (
                   <div key={`buco-${buco.from}`} onClick={e => { e.stopPropagation(); onGapClick(operator.id, ora); }}
                     title={titolo}
-                    className="absolute left-1 right-1 z-[2] rounded-lg border border-dashed border-accent/40 bg-accent/[0.06]
-                      hover:bg-accent/15 hover:border-accent/70 transition-colors cursor-pointer
+                    className="absolute left-1 right-1 z-[2] rounded-lg border border-dashed border-success/50 bg-success/[0.07]
+                      hover:bg-success/20 hover:border-success transition-colors cursor-pointer
                       flex flex-col items-center justify-center gap-0.5 overflow-hidden"
                     style={{ top: `${top}px`, height: `${Math.max(h - 2, 14)}px` }}>
-                    <span className="text-[10px] font-semibold text-accent/80 whitespace-nowrap">{durata} min liberi</span>
+                    <span className="text-[10px] font-semibold text-success whitespace-nowrap">{durata} min liberi</span>
                     {h >= 46 && ciStanno.length > 0 && (
                       <span className="text-[9px] text-text-muted truncate max-w-full px-2">ci sta {ciStanno[0].name}</span>
                     )}
