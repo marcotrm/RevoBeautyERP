@@ -181,6 +181,37 @@ export const WA_TEMPLATES = {
       'di sessione (sxsrf, ved, si) e le dimensioni della finestra di chi l\'ha copiato, quindi altrove può scadere.',
   },
 
+  /**
+   * La richiesta di recensione col link, che il primo template non ha mai avuto.
+   *
+   * `richiesta_recensione` è stato approvato SENZA il bottone: alle clienti
+   * arriva "ci lasci una recensione?" e nient'altro — nessun link, nessuna
+   * indicazione di dove andare. Chi ci prova cerca il centro su Maps, sbaglia
+   * scheda (a Marcianise ce n'è un'altra) o lascia perdere.
+   *
+   * Un template approvato non si modifica dal gestionale, quindi la versione
+   * col bottone deve avere un nome nuovo. Il testo cambia anche nel corpo:
+   * dice esplicitamente di toccare il bottone qui sotto, perché su WhatsApp
+   * il bottone è staccato dal messaggio e chi non lo aspetta non lo vede.
+   */
+  reviewV2: {
+    name: 'richiesta_recensione_link',
+    category: 'UTILITY',
+    language: 'it',
+    params: ['nome cliente', 'trattamento'],
+    body:
+      'Ciao {{1}}, grazie per essere venuta da RevoBeauty per {{2}}.\n' +
+      'Ci lasci una recensione su Google? Tocca il bottone qui sotto: si apre la pagina del centro, ' +
+      'scegli le stelle e hai finito. Sono 30 secondi e per noi valgono tantissimo.',
+    buttons: [{ type: 'URL', text: 'Lascia la recensione', link: 'review-redirect' }],
+    note:
+      'È la versione col bottone URL di `richiesta_recensione`. Il link non sta nel corpo ma nel ' +
+      'bottone: così il testo resta UTILITY (niente consenso marketing) e l\'indirizzo si può cambiare ' +
+      'senza rifare l\'approvazione, perché punta al nostro /r/recensione e non a Google.\n' +
+      'Nome diverso dal primo perché Meta non lascia riscrivere un template già approvato, e lo stesso ' +
+      'nome non si può riusare per 30 giorni dopo la cancellazione.',
+  },
+
   codiceApp: {
     name: 'codice_accesso_app',
     category: 'UTILITY',

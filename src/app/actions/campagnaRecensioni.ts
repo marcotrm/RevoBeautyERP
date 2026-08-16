@@ -15,7 +15,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { sendD360Template } from '@/lib/whatsapp360';
+import { sendD360Template, listD360Templates } from '@/lib/whatsapp360';
 import { normalizePhone, isSendablePhone, waProvider } from '@/lib/whatsapp';
 import { logOutbound } from '@/lib/wa-conversations';
 import { sanitizeParam, WA_TEMPLATES } from '@/lib/wa-templates';
@@ -115,6 +115,67 @@ export async function candidateRecensioni(giorni: number = GIORNI_FINESTRA): Pro
   return { candidate, scartati, finestra: giorni };
 }
 
+export interface StatoTemplateRecensione {
+  /** Il template che partirebbe adesso, se ce n'è uno approvato. */
+  nome?: string;
+  stato?: string;
+  /** Vero se quello che parte ha davvero il bottone col link. */
+  conLink: boolean;
+  /** Il nome della versione col bottone, approvata o no. */
+  nomeConLink: string;
+  /** Stato della versione col bottone: 'assente' se non è mai stata creata. */
+  statoConLink: string;
+  /** Perché non si può mandare, quando non si può. */
+  problema?: string;
+}
+
+/**
+ * Quale messaggio parte davvero, e se ha il link dentro.
+ *
+ * Serve perché il primo template (`richiesta_recensione`) è stato approvato
+ * senza bottone: chiede la recensione e non dice dove lasciarla. Da qui il
+ * gestionale sa se sta per mandare un messaggio monco, e può dirlo prima di
+ * spendere i soldi dell'invio.
+ */
+export async function statoTemplateRecensione(): Promise<StatoTemplateRecensione> {
+  const conBottone = WA_TEMPLATES.reviewV2;
+  const vecchio = WA_TEMPLATES.review;
+  const base: StatoTemplateRecensione = {
+    conLink: false, nomeConLink: conBottone.name, statoConLink: 'assente',
+  };
+
+  const remote = await listD360Templates();
+  // Non poter leggere l'elenco è un'altra cosa dal non avere il template: se
+  // qui dicessimo "non c'è nessun messaggio" si andrebbe a crearne uno doppio.
+  if (!remote.ok) return { ...base, problema: `Non riesco a leggere i messaggi approvati su WhatsApp: ${remote.error}` };
+
+  const trova = (nome: string) => remote.templates.find(t => t.name === nome && t.language === 'it');
+  const v2 = trova(conBottone.name);
+  const v1 = trova(vecchio.name);
+  const haUrl = (t?: { buttons?: { type: string; url?: string }[] }) =>
+    Boolean(t?.buttons?.some(b => b.type.toUpperCase() === 'URL' && b.url));
+
+  if (v2) base.statoConLink = v2.status;
+
+  // Prima scelta: la versione col bottone, se Meta l'ha approvata.
+  if (v2?.status === 'APPROVED') {
+    return { ...base, nome: v2.name, stato: v2.status, conLink: haUrl(v2) };
+  }
+  // Ripiego: la vecchia. Parte lo stesso, ma senza link — e lo diciamo.
+  if (v1?.status === 'APPROVED') {
+    return {
+      ...base,
+      nome: v1.name,
+      stato: v1.status,
+      conLink: haUrl(v1),
+      problema: haUrl(v1)
+        ? undefined
+        : 'Il messaggio approvato non ha il bottone col link: la cliente legge la richiesta ma non ha dove andare.',
+    };
+  }
+  return { ...base, problema: 'Nessun messaggio di richiesta recensione approvato su WhatsApp.' };
+}
+
 export interface EsitoRecensioni {
   inviate: number;
   fallite: number;
@@ -135,6 +196,15 @@ export async function mandaRichiesteRecensione(clientIds: string[]): Promise<Esi
   if (!waProvider()) { esito.errori.push('WhatsApp non configurato'); return esito; }
   if (clientIds.length === 0) return esito;
 
+  // Quale messaggio parte: quello col bottone se approvato, altrimenti il
+  // vecchio. Se non c'è niente di approvato non si manda: spendere per un
+  // messaggio che Meta rifiuta è solo un errore silenzioso in più.
+  const tpl = await statoTemplateRecensione();
+  if (!tpl.nome) {
+    esito.errori.push(tpl.problema || 'Nessun template approvato');
+    return esito;
+  }
+
   const { candidate } = await candidateRecensioni(365);
   const perId = new Map(candidate.map(c => [c.clientId, c]));
   const adesso = new Date().toISOString();
@@ -143,8 +213,8 @@ export async function mandaRichiesteRecensione(clientIds: string[]): Promise<Esi
     const c = perId.get(id);
     if (!c) { esito.fallite++; continue; }
 
-    const res = await sendD360Template(c.phone, WA_TEMPLATES.review.name, {
-      language: WA_TEMPLATES.review.language,
+    const res = await sendD360Template(c.phone, tpl.nome, {
+      language: 'it',
       bodyParams: [sanitizeParam(c.primoNome), sanitizeParam(c.trattamento)],
     });
 
@@ -155,7 +225,7 @@ export async function mandaRichiesteRecensione(clientIds: string[]): Promise<Esi
       messageId: res.messageId,
       ok: res.ok,
       error: res.error,
-      template: { name: WA_TEMPLATES.review.name },
+      template: { name: tpl.nome },
     });
 
     // Si segna solo quando parte davvero: un errore non deve bruciare la

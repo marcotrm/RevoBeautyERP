@@ -11,11 +11,12 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Star, Send, Loader2, RefreshCw, ExternalLink, Info, CheckCircle } from 'lucide-react';
+import { Star, Send, Loader2, RefreshCw, ExternalLink, Info, CheckCircle, AlertTriangle, Link2 } from 'lucide-react';
 import {
-  candidateRecensioni, mandaRichiesteRecensione, statoCampagnaRecensioni,
-  type StatoCampagnaRecensioni,
+  candidateRecensioni, mandaRichiesteRecensione, statoCampagnaRecensioni, statoTemplateRecensione,
+  type StatoCampagnaRecensioni, type StatoTemplateRecensione,
 } from '@/app/actions/campagnaRecensioni';
+import { creaTemplateRecensione } from '@/app/actions/whatsapp';
 import { costoStimato, type CandidataRecensione } from '@/lib/campagnaRecensioni';
 
 const FINESTRE = [7, 14, 30];
@@ -39,23 +40,42 @@ export default function ChiediRecensioni() {
   const [scartati, setScartati] = useState<{ nome: string; motivo: string }[]>([]);
   const [scelti, setScelti] = useState<Set<string>>(new Set());
   const [stato, setStato] = useState<StatoCampagnaRecensioni | null>(null);
+  const [tpl, setTpl] = useState<StatoTemplateRecensione | null>(null);
   const [caricando, setCaricando] = useState(true);
   const [inviando, setInviando] = useState(false);
+  const [creando, setCreando] = useState(false);
   const [esito, setEsito] = useState<string | null>(null);
 
   const carica = useCallback(async (giorni: number) => {
     setCaricando(true);
     try {
-      const [c, s] = await Promise.all([candidateRecensioni(giorni), statoCampagnaRecensioni()]);
+      const [c, s, t] = await Promise.all([
+        candidateRecensioni(giorni), statoCampagnaRecensioni(), statoTemplateRecensione(),
+      ]);
       setCandidate(c.candidate);
       setScartati(c.scartati);
       // Tutte spuntate: il caso normale è "mandale a tutte", chi va tolta si toglie.
       setScelti(new Set(c.candidate.map(x => x.clientId)));
       setStato(s);
+      setTpl(t);
     } finally {
       setCaricando(false);
     }
   }, []);
+
+  /** Manda in approvazione la versione col bottone. Si fa una volta sola. */
+  const creaConLink = async () => {
+    setCreando(true);
+    try {
+      const r = await creaTemplateRecensione();
+      setEsito(r.ok
+        ? `Messaggio col link mandato in approvazione (${r.status || 'PENDING'}). Di solito Meta risponde in pochi minuti: torna qui e premi Aggiorna.`
+        : r.error || 'Creazione fallita');
+      setTpl(await statoTemplateRecensione());
+    } finally {
+      setCreando(false);
+    }
+  };
 
   useEffect(() => { void carica(finestra); }, [carica, finestra]);
 
@@ -68,7 +88,10 @@ export default function ChiediRecensioni() {
   const manda = async () => {
     const ids = candidate.filter(c => scelti.has(c.clientId)).map(c => c.clientId);
     if (ids.length === 0) return;
-    if (!window.confirm(`Mandare la richiesta di recensione a ${ids.length} client${ids.length === 1 ? 'e' : 'i'}?\n\nCosto stimato ${costoStimato(ids.length).toFixed(2)} €.`)) return;
+    const avviso = tpl && !tpl.conLink
+      ? '\n\nATTENZIONE: il messaggio che parte non ha il bottone col link. La cliente legge la richiesta ma non ha dove andare.'
+      : '';
+    if (!window.confirm(`Mandare la richiesta di recensione a ${ids.length} client${ids.length === 1 ? 'e' : 'i'}?\n\nCosto stimato ${costoStimato(ids.length).toFixed(2)} €.${avviso}`)) return;
 
     setInviando(true);
     try {
@@ -116,6 +139,46 @@ export default function ChiediRecensioni() {
       )}
 
       <div className="p-5 space-y-4">
+        {/*
+          Il messaggio ha il link, sì o no.
+          Sta in cima a tutto perché è la differenza fra una campagna che porta
+          recensioni e una che brucia soldi: il primo template è stato
+          approvato senza bottone, e chi lo riceve non capisce dove andare.
+        */}
+        {tpl && !tpl.conLink && (
+          <div className="p-3.5 rounded-xl bg-warning/10 border border-warning/30 space-y-2.5">
+            <div className="flex gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+              <div className="text-xs text-text-secondary leading-relaxed">
+                <p className="font-semibold text-text-primary">Il messaggio non ha il bottone col link</p>
+                <p className="mt-0.5">
+                  {tpl.nome
+                    ? <>Adesso partirebbe <code>{tpl.nome}</code>, che chiede la recensione senza dire dove lasciarla: la cliente legge, non trova niente da toccare e lascia perdere. Un template già approvato non si può correggere — Meta non lo permette — quindi va creata una versione nuova col bottone.</>
+                    : <>{tpl.problema || 'Non c\'è nessun messaggio approvato: prima di mandare qualcosa va creato.'}</>}
+                </p>
+                <p className="mt-1 text-[11px] text-text-muted">
+                  Nuovo messaggio: <code>{tpl.nomeConLink}</code> — stato {tpl.statoConLink.toLowerCase()}
+                </p>
+              </div>
+            </div>
+            {tpl.statoConLink !== 'APPROVED' && (
+              <button onClick={creaConLink} disabled={creando || tpl.statoConLink === 'PENDING'}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-warning text-white text-xs font-bold hover:opacity-90 disabled:opacity-50">
+                {creando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                {tpl.statoConLink === 'PENDING'
+                  ? 'In attesa che Meta lo approvi'
+                  : 'Crea il messaggio col link e mandalo in approvazione'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {tpl?.conLink && (
+          <p className="flex items-center gap-1.5 text-[11px] text-success">
+            <CheckCircle className="w-3.5 h-3.5" /> Parte <code>{tpl.nome}</code>, col bottone che apre il modulo di Google.
+          </p>
+        )}
+
         {/* Cosa si può e cosa non si può fare col link */}
         <div className="flex gap-2.5 p-3 rounded-xl bg-accent/5 border border-accent/20">
           <Info className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
@@ -199,7 +262,7 @@ export default function ChiediRecensioni() {
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
-              <button onClick={manda} disabled={inviando || quanti === 0}
+              <button onClick={manda} disabled={inviando || quanti === 0 || !tpl?.nome}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
                 {inviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 {inviando ? 'Sto mandando…' : `Manda a ${quanti} client${quanti === 1 ? 'e' : 'i'}`}

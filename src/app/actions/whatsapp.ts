@@ -220,7 +220,9 @@ export async function sendManualReply(phone: string, text: string): Promise<{ ok
  * delle recensioni non parte.
  */
 export async function creaTemplateRecensione(): Promise<{ ok: boolean; status?: string; error?: string }> {
-  const tpl = WA_TEMPLATES.review;
+  // Si crea la versione col bottone (`reviewV2`): la prima, senza link, è già
+  // approvata e non si può più toccare.
+  const tpl = WA_TEMPLATES.reviewV2;
   // Un esempio per ogni {{n}}: senza, Meta rifiuta.
   const example = ['Maria', 'pressoterapia'];
   // L'etichetta viene dal catalogo, così creazione, anteprima e archivio
@@ -239,11 +241,12 @@ export async function creaTemplateRecensione(): Promise<{ ok: boolean; status?: 
   if (esistente) {
     return {
       ok: false,
+      status: esistente.status,
       error:
-        `Il template "${tpl.name}" esiste già (${esistente.status}) senza bottone. Con la chiave del canale i ` +
-        'template si creano ma non si modificano: la modifica sta sulla Partner API di 360dialog, che vuole ' +
-        'un token diverso. Il bottone va aggiunto a mano da 360dialog Hub → Templates, incollando come URL ' +
-        `${reviewRedirectUrl()}`,
+        `Il template "${tpl.name}" esiste già ed è ${esistente.status}. ` +
+        (esistente.status === 'APPROVED'
+          ? 'Va bene così: la campagna recensioni lo usa già.'
+          : 'Aspetta che Meta lo approvi, di solito ci vogliono pochi minuti.'),
     };
   }
 
@@ -270,6 +273,7 @@ const ESEMPI_PARAMETRI: Record<TemplateKey, string[]> = {
   birthday: ['Maria', 'il 20%', '31/12'],
   copriBuchi: ['Maria', 'Refill unghie', 'oggi alle 16:30'],
   copriBuchiPreso: ['Maria'],
+  reviewV2: ['Maria', 'pulizia viso'],
   review: ['Maria', 'pulizia viso'],
   omaggio: ['Maria', 'pressoterapia'],
   codiceApp: ['123456'],
