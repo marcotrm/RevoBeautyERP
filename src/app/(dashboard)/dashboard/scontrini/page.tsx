@@ -154,12 +154,40 @@ export default function ScontriniPage() {
         </div>
       )}
 
-      <div className="px-4 py-2.5 rounded-xl bg-bg-secondary border border-border text-xs text-text-secondary">
-        Nel periodo: <strong className="text-text-primary">{rows.length}</strong> movimenti ·{' '}
-        <strong className="text-success">{emessi}</strong> con scontrino fiscale ·{' '}
-        {mancanti > 0
-          ? <strong className="text-error">{mancanti} senza scontrino fiscale</strong>
-          : <span className="text-success">nessuna vendita senza scontrino</span>}
+      {/*
+        Quanto hanno fatto gli scontrini, in cima.
+        Gli stessi totali stanno anche in fondo all'elenco, ma con un mese
+        selezionato sono duecento righe più giù: la domanda "quanto abbiamo
+        fatto?" non deve costare uno scroll.
+      */}
+      <div className="px-4 py-3 rounded-xl bg-bg-secondary border border-border flex items-center gap-5 flex-wrap">
+        <div>
+          <p className="text-[11px] text-text-muted uppercase tracking-wider">Totale periodo</p>
+          <p className="text-xl font-display font-bold text-accent leading-tight">{formatCurrency(totali.totale)}</p>
+        </div>
+        <div className="h-8 w-px bg-border" />
+        <div className="text-xs text-text-secondary">
+          <p><strong className="text-text-primary">{rows.length}</strong> movimenti</p>
+          <p className="text-[11px] text-text-muted">nel periodo scelto</p>
+        </div>
+        <div className="text-xs text-text-secondary">
+          <p><strong className="text-success">{emessi}</strong> con scontrino fiscale</p>
+          <p className="text-[11px] text-success/80">{formatCurrency(totali.conScontrino)}</p>
+        </div>
+        <div className="text-xs text-text-secondary">
+          {mancanti > 0
+            ? <>
+                <p><strong className="text-error">{mancanti}</strong> senza scontrino fiscale</p>
+                <p className="text-[11px] text-error/80">{formatCurrency(totali.senzaScontrino)}</p>
+              </>
+            : <p className="text-success">Nessuna vendita senza scontrino</p>}
+        </div>
+        {totali.resi !== 0 && (
+          <div className="text-xs text-text-secondary">
+            <p className="text-warning font-semibold">Resi</p>
+            <p className="text-[11px] text-warning/80">{formatCurrency(totali.resi)}</p>
+          </div>
+        )}
       </div>
 
       {/* Elenco */}
