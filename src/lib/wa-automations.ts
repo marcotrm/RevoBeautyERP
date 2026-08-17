@@ -57,6 +57,24 @@ export interface WaAutomationsConfig {
    * dalla modalità simulazione.
    */
   assistant: boolean;
+  /**
+   * Agente che gestisce gli spostamenti (lib/wa-spostamento.ts).
+   *
+   * Quando la cliente risponde "devo spostare" al promemoria o alla conferma,
+   * invece di limitarsi ad avvisare il centro le propone i giorni e gli orari
+   * liberi e sposta davvero l'appuntamento in agenda. Spento di default: tocca
+   * l'agenda da solo, quindi va acceso con cognizione.
+   */
+  spostamenti: boolean;
+  /**
+   * Quando un posto si libera (spostamento o disdetta), parte da sola la
+   * chiamata Copri buchi verso le clienti che potrebbero prenderlo.
+   *
+   * Spento di default: manda messaggi a pagamento a dieci persone senza che
+   * nessuno abbia premuto niente. Da acceso, il buco viene coperto anche se la
+   * disdetta arriva di domenica sera.
+   */
+  copriBuchiAuto: boolean;
 }
 
 export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
@@ -72,6 +90,8 @@ export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
   dryRun: true,
   booking: false,
   assistant: false,
+  spostamenti: false,
+  copriBuchiAuto: false,
 };
 
 export async function getWaAutomationsConfig(): Promise<WaAutomationsConfig> {

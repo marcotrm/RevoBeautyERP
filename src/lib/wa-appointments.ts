@@ -21,6 +21,7 @@ import { sendTelegram } from '@/lib/telegram';
 import { sendWhatsAppTemplate, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
 import { sanitizeParam, WA_TEMPLATES } from '@/lib/wa-templates';
 import { getWaAutomationsConfig } from '@/lib/wa-automations';
+import { avviaSpostamento } from '@/lib/wa-spostamento';
 
 /** Un appuntamento già passato o annullato non si conferma né si sposta. */
 const OPEN_STATUSES = ['confirmed', 'pending', 'scheduled', 'booked'];
@@ -101,7 +102,19 @@ export async function handleReminderReply(params: {
       return { handled: true, intent, appointmentId: appt.id };
     }
 
-    // Richiesta di spostamento: si annota e si avvisa, l'agenda non si tocca.
+    /*
+      Richiesta di spostamento.
+
+      Se l'agente è acceso prende lui la conversazione: propone giorni e orari
+      liberi, sposta davvero e poi rimette in vendita il posto lasciato libero.
+      Da spento resta il comportamento di prima — si annota e si avvisa il
+      centro, l'agenda non si tocca — che è meglio di un bot a metà.
+    */
+    const preso = await avviaSpostamento({ phone: params.phone, appointment: appt });
+    if (preso.handled) {
+      return { handled: true, intent, appointmentId: appt.id, note: preso.nota || 'gestita dall\'agente spostamenti' };
+    }
+
     const nota = `[WhatsApp ${new Date().toLocaleDateString('it-IT')}] Il cliente ha chiesto di spostare questo appuntamento.`;
     await prisma.appointment.update({
       where: { id: appt.id },

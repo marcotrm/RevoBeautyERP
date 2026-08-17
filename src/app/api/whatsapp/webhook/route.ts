@@ -15,6 +15,7 @@ import { normalizePhone } from '@/lib/whatsapp';
 import { handleReminderReply } from '@/lib/wa-appointments';
 import { rispostaCopriBuchi } from '@/lib/copriBuchi';
 import { handleBookingMessage } from '@/lib/wa-booking';
+import { handleSpostamentoMessage } from '@/lib/wa-spostamento';
 import { handleAssistantMessage } from '@/lib/wa-assistant';
 import { logInbound, type WaMedia, type WaMediaKind } from '@/lib/wa-conversations';
 
@@ -220,8 +221,18 @@ export async function POST(request: Request) {
           continue;
         }
 
+        // Spostamento in corso: se per questo numero c'è una conversazione
+        // aperta ("in che giorno?", "quale orario?"), il numero che arriva
+        // adesso è una risposta a quella. Va prima della prenotazione,
+        // altrimenti un "2" verrebbe letto come scelta di un trattamento.
+        const spostamento = await handleSpostamentoMessage({ phone, text, origin });
+        if (spostamento.handled) {
+          console.log(`[wa-webhook] ${phone}: spostamento, passo ${spostamento.passo || 'concluso'}`);
+          continue;
+        }
+
         // Risposte al promemoria: "Confermo" conferma l'appuntamento, "Devo spostare"
-        // lascia l'agenda intatta e avvisa il centro.
+        // apre lo spostamento guidato (o avvisa il centro, se l'agente è spento).
         const reply = await handleReminderReply({ phone, text, payloadId, contactName });
         if (reply.handled) {
           console.log(`[wa-webhook] ${phone}: promemoria ${reply.intent} su appuntamento ${reply.appointmentId}`);

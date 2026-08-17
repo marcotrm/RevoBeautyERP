@@ -336,6 +336,71 @@ export default function WhatsAppAutomationsConfig() {
             </p>
           </div>
 
+          {/* Agente spostamenti: l'unico che MODIFICA un appuntamento già in
+              agenda, quindi ha il suo avviso e il suo interruttore separato. */}
+          <div className="p-3 rounded-xl bg-bg-secondary border border-border/50">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex items-start gap-2">
+                <CalendarPlus className="w-4 h-4 text-text-muted flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-text-primary">Spostamenti e disdette</span>
+                  <span className="ml-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-warning/15 text-warning align-middle">RISPONDE DA SOLO</span>
+                  <p className="text-[11px] text-text-muted">
+                    Chi risponde &quot;devo spostare&quot; sceglie giorno e orario fra quelli liberi, e l&apos;appuntamento
+                    si sposta davvero in agenda.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => save({ spostamenti: !cfg.spostamenti })} disabled={saving}
+                className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${cfg.spostamenti ? 'bg-success' : 'bg-bg-hover'}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${cfg.spostamenti ? 'left-6' : 'left-1'}`} />
+              </button>
+            </div>
+            {cfg.spostamenti ? (
+              <p className="text-[10px] text-warning mt-2 leading-relaxed">
+                Attivo: sposta e disdice da solo. Non tocca gli appuntamenti che iniziano fra meno di due ore
+                (lì fa richiamare una persona) né quelli col lucchetto. Ogni spostamento ti arriva su Telegram.
+              </p>
+            ) : (
+              <p className="text-[10px] text-text-muted/70 mt-2 leading-relaxed">
+                Spento: alla richiesta di spostamento l&apos;appuntamento resta in agenda e ti arriva la notifica,
+                come adesso.
+              </p>
+            )}
+          </div>
+
+          {/* Copri buchi automatico: non risponde a nessuno, ma spende. */}
+          <div className="p-3 rounded-xl bg-bg-secondary border border-border/50">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex items-start gap-2">
+                <Bot className="w-4 h-4 text-text-muted flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-text-primary">Copri buchi automatico</span>
+                  <span className="ml-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-error/15 text-error align-middle">SPENDE</span>
+                  <p className="text-[11px] text-text-muted">
+                    Quando un posto si libera per uno spostamento o una disdetta, parte da sola la chiamata
+                    alle clienti che potrebbero prenderlo.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => save({ copriBuchiAuto: !cfg.copriBuchiAuto })} disabled={saving}
+                className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${cfg.copriBuchiAuto ? 'bg-success' : 'bg-bg-hover'}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${cfg.copriBuchiAuto ? 'left-6' : 'left-1'}`} />
+              </button>
+            </div>
+            {cfg.copriBuchiAuto ? (
+              <p className="text-[10px] text-warning mt-2 leading-relaxed">
+                Attivo: primo giro subito, a dieci clienti per volta. Il buco viene coperto anche se la disdetta
+                arriva di domenica sera — ma i messaggi si pagano.
+              </p>
+            ) : (
+              <p className="text-[10px] text-text-muted/70 mt-2 leading-relaxed">
+                Spento: il posto liberato ti arriva su Telegram e resta segnato in agenda, la chiamata la lanci
+                tu dalla striscia verde.
+              </p>
+            )}
+          </div>
+
           {/* Assistente AI */}
           <div className="p-3 rounded-xl bg-bg-secondary border border-border/50">
             <div className="flex items-center justify-between gap-2">
