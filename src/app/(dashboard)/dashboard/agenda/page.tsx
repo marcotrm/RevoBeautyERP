@@ -2269,6 +2269,35 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     return fette;
   }, [selectedOperatorId, selectedServices]);
 
+  /**
+   * Fino a che ora quel posto è davvero occupato.
+   *
+   * Non è sempre l'ora di fine scritta in agenda: se la cliente ha già fatto il
+   * check-out, la cabina è libera da quel momento. Succede tutti i giorni con
+   * le lampade — prenotate 25 minuti, la cliente esce dopo 15 — e prima
+   * l'agenda diceva "occupata" a chi stava entrando davvero, con la stanza
+   * vuota davanti agli occhi.
+   *
+   * Vale solo per il check-out fatto nello stesso giorno: una data diversa è
+   * quasi sempre una chiusura dimenticata la sera prima, e non dice niente su
+   * quanto è durato il trattamento.
+   */
+  const fineOccupazione = useCallback((a: Appointment): number => {
+    const fine = timeToMinutes(a.endTime);
+    if (!a.checkOutAt) return fine;
+    const uscita = new Date(a.checkOutAt);
+    if (Number.isNaN(uscita.getTime())) return fine;
+    const giorno = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(uscita);
+    if (giorno !== a.date) return fine;
+    const ora = new Intl.DateTimeFormat('it-IT', {
+      timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(uscita);
+    const min = timeToMinutes(ora);
+    // Mai prima dell'inizio: un check-out anomalo non deve rendere il posto
+    // "libero da ieri".
+    return Math.max(timeToMinutes(a.startTime), Math.min(fine, min));
+  }, []);
+
   const conflictsAt = useCallback((startMin: number, durataSeVuoto = 15) => {
     if (!selectedOperatorId) return [] as { operatorId: string; nome: string; motivo: string; minuti: number }[];
 
@@ -2298,13 +2327,14 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       }
       // Anche i trattamenti che altri appuntamenti hanno affidato a lei occupano il suo tempo
       const scontro = appointmentsForOperator(altri, opId).find(a =>
-        !(timeToMinutes(a.endTime) <= range.from || timeToMinutes(a.startTime) >= range.to)
+        !(fineOccupazione(a) <= range.from || timeToMinutes(a.startTime) >= range.to)
       );
       if (scontro) {
+        const finito = fineOccupazione(scontro);
         conflitti.push({
           operatorId: opId, nome,
-          minuti: quantoSiSovrappone(range.from, range.to, timeToMinutes(scontro.startTime), timeToMinutes(scontro.endTime)),
-          motivo: `ha già ${scontro.clientName} dalle ${scontro.startTime} alle ${scontro.endTime}`,
+          minuti: quantoSiSovrappone(range.from, range.to, timeToMinutes(scontro.startTime), finito),
+          motivo: `ha già ${scontro.clientName} dalle ${scontro.startTime} alle ${minutesToTime(finito)}`,
         });
         continue;
       }
@@ -2321,7 +2351,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       }
     }
     return conflitti;
-  }, [selectedOperatorId, fetteAt, dateStr, appointments, blocks, editingAppointment, operators]);
+  }, [selectedOperatorId, fetteAt, dateStr, appointments, blocks, editingAppointment, operators, fineOccupazione]);
 
   const slotIsFree = useCallback(
     (startMin: number, duration: number) => conflictsAt(startMin, duration).length === 0,
