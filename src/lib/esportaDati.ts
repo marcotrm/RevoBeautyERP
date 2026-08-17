@@ -188,6 +188,70 @@ export async function fogliExport(periodo: PeriodoExport = {}): Promise<Foglio[]
   ];
 }
 
+/*
+  Il permesso di scaricare.
+
+  Il file contiene nome, telefono, indirizzo e data di nascita di tutte le
+  clienti: un indirizzo che risponde a chiunque lo digiti sarebbe una fuga di
+  dati, non una funzione. E non basta un indirizzo difficile da indovinare —
+  finirebbe nella cronologia, in un messaggio, nei log di qualche proxy.
+
+  Quindi: chi ha il gestionale aperto chiede un permesso, valido cinque minuti
+  e una volta sola. Il link scaricato ieri oggi non apre più niente.
+*/
+
+const KIND_TOKEN = 'export_token';
+const VALIDO_MINUTI = 5;
+
+function rigaToken(token: string): string {
+  return `export:token:${token}`;
+}
+
+/** Crea il permesso usa-e-getta e restituisce il token da mettere nel link. */
+export async function creaTokenExport(periodo: PeriodoExport = {}): Promise<string> {
+  const token = crypto.randomUUID().replaceAll('-', '');
+  const adesso = new Date();
+  await prisma.adminEntry.create({
+    data: {
+      rowId: rigaToken(token),
+      kind: KIND_TOKEN,
+      entityId: token,
+      // Prisma vuole un oggetto JSON semplice: PeriodoExport ha campi
+      // facoltativi e non passa il controllo, quindi si appiattisce qui.
+      data: {
+        da: periodo.da ?? null,
+        a: periodo.a ?? null,
+        scade: new Date(adesso.getTime() + VALIDO_MINUTI * 60_000).toISOString(),
+        usato: false,
+      } as object,
+      createdAt: adesso.toISOString(),
+    },
+  });
+  return token;
+}
+
+/**
+ * Verifica il permesso e lo brucia. Torna il periodo richiesto quando è
+ * valido, `null` in tutti gli altri casi (mai esistito, scaduto, già usato).
+ */
+export async function consumaTokenExport(token: string): Promise<PeriodoExport | null> {
+  if (!/^[a-f0-9]{32}$/.test(token)) return null;
+  const riga = await prisma.adminEntry.findUnique({ where: { rowId: rigaToken(token) } });
+  if (!riga) return null;
+
+  const d = (riga.data || {}) as { da?: string | null; a?: string | null; scade?: string; usato?: boolean };
+  if (d.usato) return null;
+  if (!d.scade || Date.parse(d.scade) < Date.now()) return null;
+
+  // Bruciato subito: se il download si interrompe si chiede un permesso nuovo,
+  // che costa un clic. Riusarlo costerebbe molto di più.
+  await prisma.adminEntry.update({
+    where: { rowId: rigaToken(token) },
+    data: { data: { ...d, usato: true, usatoIl: new Date().toISOString() } as object },
+  });
+  return { da: d.da || undefined, a: d.a || undefined };
+}
+
 /** Nome del file, con dentro il periodo: due export non si confondono. */
 export function nomeFile(periodo: PeriodoExport = {}): string {
   const pezzo = periodo.da || periodo.a

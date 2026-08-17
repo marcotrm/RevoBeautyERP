@@ -7,19 +7,29 @@
  */
 
 import * as XLSX from 'xlsx';
-import { fogliExport, nomeFile, type PeriodoExport } from '@/lib/esportaDati';
+import { consumaTokenExport, fogliExport, nomeFile } from '@/lib/esportaDati';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const ISO = /^\d{4}-\d{2}-\d{2}$/;
-
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const periodo: PeriodoExport = {
-    da: ISO.test(url.searchParams.get('da') || '') ? url.searchParams.get('da')! : undefined,
-    a: ISO.test(url.searchParams.get('a') || '') ? url.searchParams.get('a')! : undefined,
-  };
+
+  /*
+    Senza un permesso valido non esce niente.
+
+    Il periodo NON si legge dall'indirizzo ma dal permesso: altrimenti chi
+    intercetta un link potrebbe cambiare le date e farsi dare gli anni che
+    vuole. Nell'indirizzo le date restano solo perché il file scaricato porti
+    il nome giusto.
+  */
+  const periodo = await consumaTokenExport(url.searchParams.get('t') || '');
+  if (!periodo) {
+    return new Response(
+      'Permesso mancante o scaduto. Torna in Amministrazione → Esporta dati e premi di nuovo Scarica.',
+      { status: 401 },
+    );
+  }
 
   try {
     const fogli = await fogliExport(periodo);

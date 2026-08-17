@@ -10,7 +10,8 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Download, FileSpreadsheet, ShieldCheck } from 'lucide-react';
+import { Download, FileSpreadsheet, ShieldCheck, Loader2 } from 'lucide-react';
+import { linkEsportazione } from '@/app/actions/esporta';
 
 const FOGLI = [
   ['Clienti', 'anagrafica completa, consensi, visite e speso'],
@@ -34,8 +35,26 @@ export default function EsportaPage() {
   const [tutto, setTutto] = useState(true);
   const [da, setDa] = useState(primoGennaio());
   const [a, setA] = useState(oggi());
+  const [preparando, setPreparando] = useState(false);
+  const [errore, setErrore] = useState<string | null>(null);
 
-  const link = tutto ? '/api/esporta' : `/api/esporta?da=${da}&a=${a}`;
+  /**
+   * Il download parte da un permesso chiesto adesso, non da un indirizzo
+   * fisso: il file ha dentro i dati delle clienti e un link buono per sempre
+   * sarebbe una porta aperta per chiunque se lo ritrovi.
+   */
+  const scarica = async () => {
+    setPreparando(true);
+    setErrore(null);
+    try {
+      const url = await linkEsportazione(tutto ? {} : { da, a });
+      window.location.href = url;
+    } catch {
+      setErrore('Non sono riuscito a preparare il file. Riprova fra un momento.');
+    } finally {
+      setPreparando(false);
+    }
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5 max-w-3xl">
@@ -101,15 +120,16 @@ export default function EsportaPage() {
           </div>
         </div>
 
-        {/* Un link, non una fetch: il file lo scarica il browser, senza tenere
-            in memoria della pagina qualche mega di dati. */}
-        <a href={link} download
-          className="inline-flex items-center gap-2 px-5 py-3 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity">
-          <Download className="w-4 h-4" /> Scarica il foglio Excel
-        </a>
+        <button onClick={scarica} disabled={preparando}
+          className="inline-flex items-center gap-2 px-5 py-3 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50">
+          {preparando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          {preparando ? 'Preparo il file…' : 'Scarica il foglio Excel'}
+        </button>
+        {errore && <p className="text-xs text-error">{errore}</p>}
         <p className="text-[11px] text-text-muted">
           Con qualche migliaio di appuntamenti ci mette una decina di secondi. Dentro ci sono dati delle
-          clienti: tienilo dove terresti l&apos;agenda cartacea, non su una chiavetta che gira.
+          clienti: tienilo dove terresti l&apos;agenda cartacea, non su una chiavetta che gira. Il link del
+          download vale cinque minuti e una volta sola — se lo riapri domani non scarica più niente.
         </p>
       </div>
     </motion.div>
