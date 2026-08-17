@@ -384,6 +384,10 @@ model PosTransaction {
   date          String
   time          String
   clientName    String?
+  /// L'appuntamento incassato con questa vendita, quando arriva dal check-out.
+  /// Senza questo legame un appuntamento "completato" non sapeva dire se i
+  /// soldi fossero stati presi davvero.
+  appointmentId String?
   items         Json    @default("[]")
   productLines  Json? // [{ productId, qty }] per lo scarico/ricarico magazzino
   total         Float

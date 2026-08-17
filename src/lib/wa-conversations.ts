@@ -116,6 +116,28 @@ function eReazione(m: WaMessageRow): boolean {
   return m.direction === 'in' && /\(reazione a un messaggio\)\s*$/.test(m.text || '');
 }
 
+/**
+ * "Confermo" chiude il discorso, non lo apre.
+ *
+ * È la risposta al nostro promemoria: l'appuntamento passa a confermato da
+ * solo e non c'è niente da dire. Tenerla fra le cose da rispondere riempirebbe
+ * l'elenco di chat in cui l'unica replica possibile è "ok" — e un elenco pieno
+ * di roba inutile è un elenco che si smette di guardare.
+ *
+ * Vale solo se il messaggio è TUTTO lì: "Confermo, ma posso spostare alle 17?"
+ * è una domanda vera e resta da rispondere. Un "grazie" invece va risposto —
+ * è una cortesia, e l'ultima parola deve restare nostra.
+ *
+ * Le parole sono le stesse che riconosce `detectReminderIntent` in
+ * lib/wa-appointments: se una cambia lì, va cambiata anche qui.
+ */
+function eConfermaSecca(m: WaMessageRow): boolean {
+  if (m.direction !== 'in') return false;
+  const t = (m.text || '').trim();
+  return /^(s[ìi]|ok|okay|va bene|confermo|confermato|conferma|confermata|perfetto|ci sono|presente|d'accordo|certo)[\s.,!👍✅😊🙂❤️💜]*$/i.test(t)
+    || /^[👍✅👌🙏❤️💜]+$/u.test(t);
+}
+
 /** Minuti trascorsi da un istante ISO. */
 function minutiDa(iso: string): number {
   const t = Date.parse(iso);
@@ -442,7 +464,7 @@ export async function listConversations(limit = 300): Promise<WaConversation[]> 
     let primoSenzaRisposta: string | undefined;
     for (const m of msgs) {
       if (m.direction === 'out') break;
-      if (eReazione(m)) continue;
+      if (eReazione(m) || eConfermaSecca(m)) continue;
       senzaRisposta++;
       primoSenzaRisposta = m.at;
     }

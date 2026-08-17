@@ -31,6 +31,7 @@ import { resolveDaySchedule, mondayISO } from '@/lib/weekSchedule';
 import { isWalkIn, oraDiAdesso } from '@/lib/walkIn';
 import { schedaCompleta, campiMancanti } from '@/lib/schedaCliente';
 import { todayRome } from '@/lib/date';
+import { sedutaIncassata } from '@/app/actions/daIncassare';
 import { useCabinStore } from '@/stores/useCabinStore';
 import { useProductStore } from '@/stores/useProductStore';
 import { appointmentsForOperator, servicesOf, serviceOperatorId, hasMultipleOperators, type SplitAppointment } from '@/lib/appointmentSplit';
@@ -3061,6 +3062,40 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   const packagesWithDebt = clientPkgs.filter(cp => cp.remainingBalance > 0);
   const totalPkgDebt = packagesWithDebt.reduce((s, cp) => s + (cp.remainingBalance || 0), 0);
 
+  /*
+    Questa seduta è stata incassata davvero?
+
+    Si chiede al server, perché la risposta sta in cassa e non nell'appuntamento:
+    finché non lo sappiamo resta `null` e non si scrive niente — dire "non
+    pagata" per mezzo secondo su una seduta pagata sarebbe peggio del problema.
+  */
+  const [incassata, setIncassata] = useState<boolean | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    if (appointment.status !== 'completed') { setIncassata(null); return; }
+    sedutaIncassata(appointment.id).then(r => { if (vivo) setIncassata(r); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [appointment.id, appointment.status]);
+
+  /** Rimanda in cassa la seduta chiusa e mai incassata, col conto già pronto. */
+  const vaiAIncassare = () => {
+    const daPagare = services.filter(s => s.price > 0);
+    const trattamenti = daPagare.filter(s => !s.productId);
+    try {
+      sessionStorage.setItem('revo_pos_autosale', JSON.stringify({
+        appointmentId: appointment.id,
+        client: appointment.clientName,
+        treatment: trattamenti.map(s => s.treatmentName).join(' + ') || appointment.treatmentName,
+        treatmentId: trattamenti.length > 0 ? appointment.treatmentId : '',
+        price: trattamenti.reduce((sum, s) => sum + s.price, 0) || appointment.price,
+        products: daPagare.filter(s => s.productId).map(s => ({ id: s.productId, name: s.treatmentName, price: s.price, qty: 1 })),
+        operator: appointment.operatorName,
+      }));
+    } catch { /* no-op */ }
+    onClose();
+    router.push('/dashboard/pos');
+  };
+
   const fmtClock = (iso?: string) => iso ? new Date(iso).toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' }) : '';
   const cabinMinutes = appointment.checkInAt && appointment.checkOutAt
     ? Math.max(1, Math.round((Date.parse(appointment.checkOutAt) - Date.parse(appointment.checkInAt)) / 60000))
@@ -3119,6 +3154,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
       onClose();
       try {
         sessionStorage.setItem('revo_pos_autosale', JSON.stringify({
+          appointmentId: appointment.id,
           client: appointment.clientName,
           // Con più trattamenti il conto è unico: nome e totale di tutta la seduta
           treatment: trattamentiPagati.map(s => s.treatmentName).join(' + '),
@@ -3533,16 +3569,47 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
 
           {/* Action Buttons */}
           {appointment.status === 'completed' ? (
-            /* Appuntamento chiuso e pagato: NESSUNA modifica possibile (protezione anti-frode) */
-            <div className="flex items-start gap-3 px-4 py-4 rounded-2xl bg-success/5 border border-success/20">
-              <div className="w-9 h-9 rounded-full bg-success/15 flex items-center justify-center flex-shrink-0">
-                <Lock className="w-4 h-4 text-success" />
+            /* Appuntamento chiuso: modifiche bloccate (protezione anti-frode).
+               Ma "chiuso" e "pagato" sono due cose diverse, e confonderle è
+               costato incassi: il check-out chiude la seduta e solo dopo manda
+               in cassa: se l'incasso non viene completato, qui si leggeva
+               "pagato" su soldi mai presi. */
+            incassata === false ? (
+              <div className="flex items-start gap-3 px-4 py-4 rounded-2xl bg-error/10 border border-error/30">
+                <div className="w-9 h-9 rounded-full bg-error/15 flex items-center justify-center flex-shrink-0">
+                  <Euro className="w-4 h-4 text-error" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-error">Seduta chiusa ma NON incassata</p>
+                  <p className="text-xs text-text-secondary mt-0.5">
+                    Il trattamento risulta fatto, ma di questi {formatCurrency(appointment.price)} non c&apos;è traccia
+                    in cassa e non è stato emesso nessuno scontrino.
+                  </p>
+                  <button onClick={vaiAIncassare}
+                    className="mt-2.5 w-full py-2 rounded-xl bg-error text-white text-sm font-bold hover:opacity-90 transition-opacity">
+                    Incassa adesso
+                  </button>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-text-primary">Appuntamento completato e pagato</p>
-                <p className="text-xs text-text-muted mt-0.5">L&apos;appuntamento è chiuso e non può più essere modificato, annullato o eliminato.</p>
+            ) : (
+              <div className="flex items-start gap-3 px-4 py-4 rounded-2xl bg-success/5 border border-success/20">
+                <div className="w-9 h-9 rounded-full bg-success/15 flex items-center justify-center flex-shrink-0">
+                  <Lock className="w-4 h-4 text-success" />
+                </div>
+                <div>
+                  {/* Finché la cassa non ha risposto non si scrive "pagato":
+                      è proprio la parola che ha coperto i 400 € mancanti. */}
+                  <p className="text-sm font-semibold text-text-primary">
+                    {incassata === true ? 'Appuntamento completato e pagato' : 'Appuntamento completato'}
+                  </p>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    {incassata === null
+                      ? 'Controllo in cassa se è stato incassato…'
+                      : 'L\u2019appuntamento è chiuso e non può più essere modificato, annullato o eliminato.'}
+                  </p>
+                </div>
               </div>
-            </div>
+            )
           ) : (
           <div className="space-y-2">
             {!['in_progress', 'in_cabin'].includes(appointment.status) && (

@@ -42,7 +42,7 @@ const PAYMENT_METHODS = [
 
 function NewSaleModal({ onClose, onComplete, initialData }: {
   onClose: () => void; onComplete: (tx: Omit<TransactionRecord, 'id'>, debtPkgId?: string) => Promise<TransactionRecord | undefined>;
-  initialData?: { client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string; cabinMinutes?: number; products?: { id: string; name: string; price: number; qty: number }[] } | null;
+  initialData?: { client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string; cabinMinutes?: number; appointmentId?: string; products?: { id: string; name: string; price: number; qty: number }[] } | null;
 }) {
   const treatments = useTreatmentStore(s => s.treatments);
   const products = useProductStore(s => s.products);
@@ -190,6 +190,9 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       // Solo i prodotti (non trattamenti/pacchetti) scaricano il magazzino
       productLines: cart.filter(i => i.type === 'product').map(i => ({ productId: i.id, qty: i.qty })),
       cabinMinutes: initialData?.cabinMinutes,
+      // Il legame con l'appuntamento: da qui in poi il gestionale sa che quella
+      // seduta è stata incassata davvero, e non solo chiusa.
+      appointmentId: initialData?.appointmentId,
     }, initialData?.debtPkgId).catch(() => undefined);
     setSavedTx(saved || null);
     setSaving(false);
@@ -563,7 +566,7 @@ function POSPageInner() {
   const fetchClients = useClientStore(s => s.fetchClients);
   const fetchTreatments = useTreatmentStore(s => s.fetchTreatments);
   const [showSaleModal, setShowSaleModal] = useState(false);
-  const [saleInitialData, setSaleInitialData] = useState<{ client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string; cabinMinutes?: number; products?: { id: string; name: string; price: number; qty: number }[] } | null>(null);
+  const [saleInitialData, setSaleInitialData] = useState<{ client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string; cabinMinutes?: number; appointmentId?: string; products?: { id: string; name: string; price: number; qty: number }[] } | null>(null);
   const [showCloseCassa, setShowCloseCassa] = useState(false);
   const [showLastReceipt, setShowLastReceipt] = useState(false);
   const [showRefund, setShowRefund] = useState(false);
@@ -655,6 +658,7 @@ function POSPageInner() {
             price: Number(d.price) || 0, operator: d.operator || 'Staff',
             debtPkgId: d.debtPkgId || undefined,
             cabinMinutes: d.cabinMinutes ? Number(d.cabinMinutes) : undefined,
+            appointmentId: d.appointmentId || undefined,
             products: prodotti,
           });
           setShowSaleModal(true);

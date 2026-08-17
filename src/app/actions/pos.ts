@@ -20,6 +20,12 @@ export interface TransactionRecord {
   operator: string;
   productLines?: ProductLine[]; // prodotti venduti (per scaricare/ricaricare il magazzino)
   cabinMinutes?: number; // minuti trascorsi in cabina (check-in → check-out), solo per la notifica
+  /**
+   * L'appuntamento che questa vendita sta incassando, quando la vendita nasce
+   * dal check-out in agenda. È il legame che permette di dire "questa seduta è
+   * stata pagata" senza indovinare per nome e importo.
+   */
+  appointmentId?: string;
   c95Status?: string | null; // stato scontrino fiscale: emitted | failed | uncertain | reso_* | null
   c95Error?: string | null;
   c95Progressivo?: string | null; // numero documento commerciale AdE (es. DCW2026/1565-0455)
@@ -196,6 +202,7 @@ export async function createTransaction(data: Omit<TransactionRecord, 'id'>, ori
       paymentMethod: data.method,
       operator: data.operator,
       isRefund: data.total < 0,
+      appointmentId: data.appointmentId || null,
     },
   });
   // Scarico magazzino: scala la giacenza dei prodotti venduti
