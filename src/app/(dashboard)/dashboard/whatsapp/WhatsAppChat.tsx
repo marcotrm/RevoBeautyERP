@@ -12,7 +12,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X, Search } from 'lucide-react';
+import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X, Search, Smile } from 'lucide-react';
 import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione } from '@/app/actions/whatsapp';
 import {
   listaTemplate, clientiPerCampagna, creaTemplateApertura,
@@ -41,6 +41,21 @@ const SOURCE_META: Record<string, { label: string; icon: typeof Bot; cls: string
 function timeLabel(iso: string): string {
   return new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
+
+/**
+ * Le faccine, scelte a mano.
+ *
+ * Non c'è una libreria: mille emoji divise per categorie servono a una chat fra
+ * ragazzi, non al bancone di un centro estetico. Qui stanno quelle che si usano
+ * davvero rispondendo a una cliente — un saluto, un grazie, un cuore, i giorni
+ * e gli orari — così si trovano al primo colpo d'occhio senza cercare.
+ */
+const EMOJI: { titolo: string; lista: string[] }[] = [
+  { titolo: 'Faccine', lista: ['😊', '😄', '🥰', '😍', '😉', '😅', '🙃', '😘', '🤗', '😌', '🥲', '😢', '😔', '🙈'] },
+  { titolo: 'Gesti', lista: ['👍', '👌', '🙏', '👏', '💪', '🤝', '👋', '✌️', '🤞', '💅', '💇‍♀️', '💆‍♀️'] },
+  { titolo: 'Cuori e stelle', lista: ['❤️', '💜', '💖', '💕', '✨', '⭐', '🌟', '🔥', '🌸', '🌺', '💐', '🎀'] },
+  { titolo: 'Appuntamenti', lista: ['📅', '🕐', '⏰', '✅', '❌', '📍', '📲', '💶', '🎁', '🎉', '🥳', '☀️'] },
+];
 
 /** Da quanto aspetta, detto come lo direbbe una persona: "40 min", "3 ore", "2 giorni". */
 function attesaLeggibile(minuti?: number): string {
@@ -465,6 +480,37 @@ export default function WhatsAppChat() {
   const [clientAvatar, setClientAvatar] = useState<string | undefined>();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [emojiAperto, setEmojiAperto] = useState(false);
+  const rispostaRef = useRef<HTMLTextAreaElement>(null);
+  /** Dove rimettere il cursore dopo che React ha riscritto la casella. */
+  const caretRef = useRef<number | null>(null);
+
+  /**
+   * Mette la faccina dove sta il cursore, non in fondo.
+   *
+   * Chi scrive "grazie mille" e poi vuole il cuore dopo "grazie" deve poterlo
+   * fare: appiccicarla sempre alla fine costringerebbe a riscrivere la frase.
+   * Il pannello resta aperto — di solito se ne mettono due o tre di fila.
+   */
+  const inserisciEmoji = (e: string) => {
+    const box = rispostaRef.current;
+    const da = box?.selectionStart ?? draft.length;
+    const a = box?.selectionEnd ?? draft.length;
+    setDraft(draft.slice(0, da) + e + draft.slice(a));
+    // Il cursore va DOPO la faccina. Non si può spostare qui: React deve prima
+    // riscrivere la casella col testo nuovo, e ogni tentativo fatto adesso
+    // verrebbe cancellato — il cursore finirebbe in fondo, e la parola scritta
+    // subito dopo si troverebbe in coda alla frase invece che dove serve.
+    caretRef.current = da + e.length;
+  };
+
+  useEffect(() => {
+    const pos = caretRef.current;
+    if (pos == null || !rispostaRef.current) return;
+    caretRef.current = null;
+    rispostaRef.current.focus();
+    rispostaRef.current.setSelectionRange(pos, pos);
+  }, [draft]);
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -889,8 +935,38 @@ export default function WhatsAppChat() {
                 />
               ) : (
                 <>
-                  <div className="flex items-end gap-2">
+                  <div className="flex items-end gap-2 relative">
+                    {/* Le faccine: si aprono sopra alla casella, non sotto, o
+                        finirebbero fuori dallo schermo sui portatili bassi. */}
+                    {emojiAperto && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setEmojiAperto(false)} />
+                        <div className="absolute bottom-full left-0 mb-2 z-20 w-72 max-h-64 overflow-y-auto
+                          rounded-2xl border border-border bg-bg-secondary shadow-2xl p-3 space-y-2">
+                          {EMOJI.map(gruppo => (
+                            <div key={gruppo.titolo}>
+                              <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1">{gruppo.titolo}</p>
+                              <div className="flex flex-wrap gap-0.5">
+                                {gruppo.lista.map(e => (
+                                  <button key={e} onClick={() => inserisciEmoji(e)} title={e}
+                                    className="w-8 h-8 rounded-lg text-lg leading-none hover:bg-bg-hover transition-colors">
+                                    {e}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                    <button onClick={() => setEmojiAperto(v => !v)} title="Faccine"
+                      className={`p-2.5 rounded-xl border transition-colors flex-shrink-0 ${
+                        emojiAperto ? 'border-accent/50 bg-accent/10 text-accent' : 'border-border bg-bg-tertiary text-text-secondary hover:text-accent'
+                      }`}>
+                      <Smile className="w-4 h-4" />
+                    </button>
                     <textarea
+                      ref={rispostaRef}
                       value={draft} onChange={e => setDraft(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
                       rows={2} placeholder="Scrivi la tua risposta…"
