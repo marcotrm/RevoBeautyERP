@@ -260,6 +260,9 @@ export interface Appointment {
   checkOutAt?: string; // ISO — fine trattamento in cabina (check-out)
   cabinNumber?: string; // cabina scelta al check-in: è quella che l'annuncio vocale chiama
   isLocked: boolean;
+  /** Sconto concordato: quanto tolto dal totale di listino, e perché. */
+  discountAmount?: number;
+  discountReason?: string;
   color: string;
   createdAt: string;
   updatedAt: string;

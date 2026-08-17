@@ -2929,7 +2929,10 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   /** Salva i trattamenti ricalcolando durata, fine e totale. */
   const saveServices = async (next: AppointmentService[], extra: Partial<Appointment> = {}) => {
     const totalDuration = next.reduce((s, x) => s + x.duration, 0);
-    const totalPrice = next.reduce((s, x) => s + x.price, 0);
+    // Lo sconto concordato resta valido anche se si aggiunge o si toglie un
+    // trattamento: `price` è sempre il prezzo finale, listino meno sconto.
+    const sconto = appointment.discountAmount || 0;
+    const totalPrice = Math.max(0, next.reduce((s, x) => s + x.price, 0) - sconto);
     setBusySvc(true);
     try {
       await updateAppt(appointment.id, {
@@ -3077,6 +3080,49 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     return () => { vivo = false; };
   }, [appointment.id, appointment.status]);
 
+  /*
+    Il prezzo concordato con la cliente.
+
+    `listino` è la somma dei trattamenti fatti: resta il riferimento, non si
+    tocca. Quello che cambia è `price`, cioè quanto paga davvero — così ogni
+    conto già scritto (incasso previsto, cassa, statistiche, scontrino) prende
+    la cifra giusta senza dover sapere che esiste uno sconto.
+  */
+  const listino = services.reduce((s, x) => s + x.price, 0);
+  const [scontoAperto, setScontoAperto] = useState(false);
+  const [prezzoConcordato, setPrezzoConcordato] = useState('');
+  const [motivoSconto, setMotivoSconto] = useState('');
+
+  const apriSconto = () => {
+    setPrezzoConcordato(String(appointment.price));
+    setMotivoSconto(appointment.discountReason || '');
+    setScontoAperto(true);
+  };
+
+  const salvaSconto = async () => {
+    const finale = Number(prezzoConcordato);
+    if (!isFinite(finale) || finale < 0) return;
+    // Un prezzo più alto del listino non è uno sconto: è un altro listino, e
+    // si scrive cambiando il prezzo del trattamento. Qui si scende soltanto.
+    const sconto = Math.max(0, Math.round((listino - finale) * 100) / 100);
+    setBusySvc(true);
+    try {
+      await updateAppt(appointment.id, {
+        price: Math.min(listino, Math.max(0, finale)),
+        discountAmount: sconto || undefined,
+        discountReason: sconto ? (motivoSconto.trim() || undefined) : undefined,
+      });
+      setScontoAperto(false);
+    } finally { setBusySvc(false); }
+  };
+
+  const togliSconto = async () => {
+    setBusySvc(true);
+    try {
+      await updateAppt(appointment.id, { price: listino, discountAmount: undefined, discountReason: undefined });
+    } finally { setBusySvc(false); }
+  };
+
   /** Rimanda in cassa la seduta chiusa e mai incassata, col conto già pronto. */
   const vaiAIncassare = () => {
     const daPagare = services.filter(s => s.price > 0);
@@ -3148,7 +3194,9 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     // e contano nella classifica upsell di chi li ha venduti).
     const trattamentiPagati = daIncassare.filter(s => !s.productId);
     const prodottiInCarrello = daIncassare.filter(s => s.productId);
-    const totaleTrattamenti = trattamentiPagati.reduce((sum, s) => sum + s.price, 0);
+    // Il conto che arriva in cassa è quello concordato: se sulla seduta c'è uno
+    // sconto, lo scontrino deve dire quella cifra, non il listino.
+    const totaleTrattamenti = Math.max(0, trattamentiPagati.reduce((sum, s) => sum + s.price, 0) - (appointment.discountAmount || 0));
 
     if (totaleDaIncassare > 0) {
       onClose();
@@ -3412,6 +3460,75 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                   <span className="text-text-secondary">Totale ({appointment.duration} min)</span>
                   <span className="font-bold text-text-primary">{formatCurrency(appointment.price)}</span>
                 </div>
+              )}
+
+              {/*
+                Il prezzo concordato.
+
+                Al bancone si tratta: "a Rosario gli abbiamo fatto 80 per
+                prenderlo". Se quel numero resta solo nella testa di chi l'ha
+                detto, chi incassa batte il listino e la promessa salta. Qui si
+                scrive una volta e vale ovunque: in agenda, nell'incasso
+                previsto, in cassa e sullo scontrino.
+              */}
+              {!(appointment.isLocked || appointment.status === 'completed') && (
+                scontoAperto ? (
+                  <div className="pt-2 mt-1 border-t border-border/60 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1">Prezzo concordato</label>
+                        <input type="number" min={0} step="0.5" value={prezzoConcordato} autoFocus
+                          onChange={e => setPrezzoConcordato(e.target.value)}
+                          placeholder={String(listino)}
+                          className="w-full px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1">Perché</label>
+                        <input type="text" value={motivoSconto} {...NO_AUTOFILL}
+                          onChange={e => setMotivoSconto(e.target.value)}
+                          placeholder="es. prima volta"
+                          className="w-full px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted" />
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-text-muted">
+                      Listino {formatCurrency(listino)}
+                      {Number(prezzoConcordato) > 0 && Number(prezzoConcordato) < listino
+                        ? ` · sconto ${formatCurrency(listino - Number(prezzoConcordato))}`
+                        : ''}
+                    </p>
+                    <div className="flex gap-2">
+                      <button onClick={() => setScontoAperto(false)}
+                        className="flex-1 py-2 rounded-xl border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover">
+                        Annulla
+                      </button>
+                      <button onClick={salvaSconto} disabled={busySvc}
+                        className="flex-1 py-2 rounded-xl gradient-accent text-white text-xs font-bold disabled:opacity-50">
+                        Applica
+                      </button>
+                    </div>
+                  </div>
+                ) : appointment.discountAmount ? (
+                  <div className="flex items-center justify-between gap-2 pt-1.5 mt-1 border-t border-border/60">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-success">
+                        Sconto {formatCurrency(appointment.discountAmount)}
+                        {appointment.discountReason ? ` — ${appointment.discountReason}` : ''}
+                      </p>
+                      <p className="text-[11px] text-text-muted">
+                        Listino {formatCurrency(listino)} · paga <b className="text-text-primary">{formatCurrency(appointment.price)}</b>
+                      </p>
+                    </div>
+                    <div className="flex gap-1.5 flex-shrink-0">
+                      <button onClick={apriSconto} className="px-2.5 py-1.5 rounded-lg bg-bg-tertiary text-[11px] font-medium text-text-secondary hover:bg-bg-hover">Cambia</button>
+                      <button onClick={togliSconto} disabled={busySvc} className="px-2.5 py-1.5 rounded-lg bg-bg-tertiary text-[11px] font-medium text-error hover:bg-error/10 disabled:opacity-50">Togli</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={apriSconto}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 mt-1 rounded-lg bg-bg-tertiary/60 text-[11px] font-semibold text-text-secondary hover:bg-bg-hover transition-colors">
+                    <Euro className="w-3 h-3" /> Fai un prezzo diverso dal listino
+                  </button>
+                )
               )}
             </div>
             <div className="grid grid-cols-2 gap-3">

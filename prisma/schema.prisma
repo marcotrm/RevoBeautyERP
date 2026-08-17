@@ -292,6 +292,11 @@ model Appointment {
    */
   cabinNumber       String?
   isLocked          Boolean @default(false)
+  /// Sconto concordato sulla seduta: quanto è stato tolto dal totale e perché.
+  /// `price` resta il prezzo FINALE, quello che la cliente paga davvero, così
+  /// incasso previsto, cassa e statistiche non vanno corretti da nessuna parte.
+  discountAmount    Float?
+  discountReason    String?
   color             String
   createdAt         String
   updatedAt         String
