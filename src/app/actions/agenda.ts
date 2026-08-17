@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { avanzaSfide } from '@/lib/challenge';
 import { Appointment } from '@/types';
 import { mockOperators, mockTreatments, mockClients } from '@/lib/mock-data';
-import { notifyCancellazione, notifyNuovoAppuntamento } from '@/lib/telegram';
+import { notifyCancellazione, notifyNuovoAppuntamento, sendTelegram } from '@/lib/telegram';
 import { sendAppointmentConfirmation } from '@/lib/wa-appointments';
 
 export async function getAppointments() {
@@ -99,8 +99,15 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
   // Lo stato precedente serve in due casi: per notificare l'annullamento una
   // volta sola, e per far avanzare le sfide solo alla prima volta che
   // l'appuntamento viene completato (un check-out ripetuto non vale due passi).
-  const prev = updates.status === 'cancelled' || updates.status === 'completed'
-    ? await prisma.appointment.findUnique({ where: { id }, select: { status: true, clientId: true } })
+  // Lo sconto entra qui perché il prezzo diverso dal listino va segnalato una
+  // volta sola, quando viene deciso: rileggerlo dopo servirebbe a poco.
+  const guardaPrima = updates.status === 'cancelled' || updates.status === 'completed'
+    || updates.discountAmount !== undefined;
+  const prev = guardaPrima
+    ? await prisma.appointment.findUnique({
+        where: { id },
+        select: { status: true, clientId: true, discountAmount: true, price: true },
+      })
     : null;
   const appointment = await prisma.appointment.update({
     where: { id },
@@ -110,6 +117,34 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
       updatedAt: new Date().toISOString()
     }
   });
+  /*
+    Prezzo diverso dal listino: avviso su Telegram.
+
+    Uno sconto è l'unica cosa che abbassa l'incasso senza che nessun numero
+    diventi rosso: la giornata torna, la cassa torna, e la differenza si scopre
+    solo mettendo in fila i listini a fine mese. Meglio saperlo mentre succede.
+    Si avvisa solo quando lo sconto CAMBIA, non a ogni salvataggio.
+  */
+  if (updates.discountAmount !== undefined && (prev?.discountAmount || 0) !== (updates.discountAmount || 0)) {
+    const listino = (appointment.services as { price?: number }[] | null)?.reduce((s, x) => s + (x?.price || 0), 0)
+      || appointment.price + (updates.discountAmount || 0);
+    const quando = `${appointment.date.split('-').reverse().join('/')} alle ${appointment.startTime}`;
+    const chi = updates.discountBy || appointment.discountBy;
+    const messaggio = updates.discountAmount
+      ? `💸 <b>Prezzo diverso dal listino</b>\n` +
+        `${appointment.clientName} — ${appointment.treatmentName}\n` +
+        `Listino ${listino.toFixed(2)} € → paga <b>${appointment.price.toFixed(2)} €</b> (sconto ${(updates.discountAmount).toFixed(2)} €)\n` +
+        `${appointment.discountReason ? `Motivo: ${appointment.discountReason}\n` : ''}` +
+        `Appuntamento del ${quando}${chi ? `\nFatto da: ${chi}` : ''}`
+      : `↩️ <b>Sconto tolto</b>\n${appointment.clientName} — ${appointment.treatmentName}\n` +
+        `Torna a listino: ${appointment.price.toFixed(2)} €\nAppuntamento del ${quando}${chi ? `\nDa: ${chi}` : ''}`;
+    // Un avviso che non parte deve lasciare traccia: oggi abbiamo già scoperto
+    // cosa costa un errore ingoiato in silenzio.
+    sendTelegram(messaggio)
+      .then(r => { if (!r.ok) console.error('[sconto] avviso Telegram non inviato:', r.error); })
+      .catch(e => console.error('[sconto] avviso Telegram fallito:', e));
+  }
+
   // Appuntamento portato a termine: avanza le sfide legate alle visite.
   if (updates.status === 'completed' && prev?.status !== 'completed' && appointment.clientId) {
     avanzaSfide(appointment.clientId, 'appointments').catch(() => {});

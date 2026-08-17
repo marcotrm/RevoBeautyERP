@@ -8,6 +8,7 @@ import { useOperatorStore } from '@/stores/useOperatorStore';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { anteprimaCandidate, lanciaCopriBuchi } from '@/app/actions/copriBuchi';
 import type { Candidata } from '@/lib/copriBuchi';
 import { usePackageStore } from '@/stores/usePackageStore';
@@ -3107,10 +3108,14 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     const sconto = Math.max(0, Math.round((listino - finale) * 100) / 100);
     setBusySvc(true);
     try {
+      const io = useAuthStore.getState().user;
       await updateAppt(appointment.id, {
         price: Math.min(listino, Math.max(0, finale)),
         discountAmount: sconto || undefined,
         discountReason: sconto ? (motivoSconto.trim() || undefined) : undefined,
+        // Chi lo sta facendo: finisce nell'avviso su Telegram e resta scritto
+        // sull'appuntamento, così a fine mese uno sconto non è di nessuno.
+        discountBy: sconto ? [io?.firstName, io?.lastName].filter(Boolean).join(' ').trim() || undefined : undefined,
       });
       setScontoAperto(false);
     } finally { setBusySvc(false); }

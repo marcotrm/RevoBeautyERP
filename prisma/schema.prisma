@@ -297,6 +297,9 @@ model Appointment {
   /// incasso previsto, cassa e statistiche non vanno corretti da nessuna parte.
   discountAmount    Float?
   discountReason    String?
+  /// Chi ha deciso il prezzo diverso: serve a chi guarda i conti a fine mese,
+  /// non a controllare le persone — ma senza, uno sconto è di nessuno.
+  discountBy        String?
   color             String
   createdAt         String
   updatedAt         String

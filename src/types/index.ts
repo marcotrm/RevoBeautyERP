@@ -263,6 +263,8 @@ export interface Appointment {
   /** Sconto concordato: quanto tolto dal totale di listino, e perché. */
   discountAmount?: number;
   discountReason?: string;
+  /** Chi ha applicato il prezzo diverso dal listino. */
+  discountBy?: string;
   color: string;
   createdAt: string;
   updatedAt: string;
