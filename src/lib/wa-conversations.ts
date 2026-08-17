@@ -86,6 +86,43 @@ export interface WaMessageRow {
 /** La finestra di servizio Meta: testo libero solo entro 24h dall'ultimo messaggio del cliente. */
 export const WINDOW_HOURS = 24;
 
+/**
+ * L'ultimo messaggio deve essere sempre il nostro.
+ *
+ * Prima una chat usciva dai "da leggere" appena la si apriva: bastava dare
+ * un'occhiata e spariva dall'elenco, anche senza aver risposto una parola. Le
+ * conversazioni finivano così — la cliente scrive "grazie mille, ti faccio
+ * sapere", qualcuno legge, nessuno chiude, e a schermo non resta traccia che
+ * quella persona è rimasta senza una risposta.
+ *
+ * Ora conta una cosa sola: chi ha parlato per ultimo. Se è la cliente e sono
+ * passati più di questi minuti, la conversazione torna in cima come DA
+ * RISPONDERE, e ci resta finché non le scriviamo davvero.
+ *
+ * I quindici minuti sono il margine per chi è in cabina con le mani occupate:
+ * sotto quella soglia non è un buco, è normale lavoro.
+ */
+export const ATTESA_RISPOSTA_MIN = 15;
+
+/**
+ * Il "cuoricino" su un nostro messaggio non è una domanda.
+ *
+ * WhatsApp manda le reazioni come messaggi in entrata, e il gestionale le
+ * archivia con questa dicitura (vedi `messageText` nel webhook). Pretendere di
+ * rispondere a un 👍 vorrebbe dire tenere chat segnalate per sempre e
+ * insegnare a ignorare l'avviso.
+ */
+function eReazione(m: WaMessageRow): boolean {
+  return m.direction === 'in' && /\(reazione a un messaggio\)\s*$/.test(m.text || '');
+}
+
+/** Minuti trascorsi da un istante ISO. */
+function minutiDa(iso: string): number {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return 0;
+  return Math.max(0, Math.floor((Date.now() - t) / 60_000));
+}
+
 export interface WaConversation {
   phone: string;
   name?: string;
@@ -104,6 +141,23 @@ export interface WaConversation {
   unread: number;
   /** Quando è arrivato il più vecchio dei messaggi non letti: da qui si conta l'attesa. */
   oldestUnreadAt?: string;
+  /** Messaggi della cliente rimasti senza una nostra risposta dopo di loro. */
+  senzaRisposta: number;
+  /** Il primo di quei messaggi: da lì si conta da quanto sta aspettando. */
+  senzaRispostaDa?: string;
+  /** Minuti di attesa, se c'è qualcosa a cui rispondere. */
+  attesaMinuti?: number;
+  /** Vero oltre i 15 minuti: è la chat che deve tornare in cima. */
+  daRispondere: boolean;
+  /**
+   * Vero quando aspetta da oltre 15 minuti MA la finestra 24h è chiusa.
+   *
+   * Sono le conversazioni lasciate cadere: si vedono, perché sapere che è
+   * successo serve, ma non entrano nel conteggio urgente — a testo libero
+   * WhatsApp non ci fa più scrivere, e chiedere di rispondere sarebbe chiedere
+   * una cosa impossibile.
+   */
+  rispostaScaduta: boolean;
 }
 
 /** Riassunto dei non letti per l'avviso in tutto il gestionale. */
@@ -377,6 +431,24 @@ export async function listConversations(limit = 300): Promise<WaConversation[]> 
     const readAt = reads.get(phone);
     const win = windowState(windows.get(phone));
     const unreadMsgs = msgs.filter(m => m.direction === 'in' && (!readAt || m.at > readAt));
+
+    /*
+      Da dove parte l'attesa: si risale dal più recente e ci si ferma al primo
+      messaggio nostro. Tutto quello che sta sopra è rimasto senza risposta, e
+      l'attesa si conta dal più vecchio del gruppo — se la cliente ha scritto
+      tre volte in mezz'ora, aspetta da mezz'ora, non dall'ultimo messaggio.
+    */
+    let senzaRisposta = 0;
+    let primoSenzaRisposta: string | undefined;
+    for (const m of msgs) {
+      if (m.direction === 'out') break;
+      if (eReazione(m)) continue;
+      senzaRisposta++;
+      primoSenzaRisposta = m.at;
+    }
+    const attesaMinuti = primoSenzaRisposta ? minutiDa(primoSenzaRisposta) : undefined;
+    const inAttesa = senzaRisposta > 0 && (attesaMinuti ?? 0) >= ATTESA_RISPOSTA_MIN;
+
     conversations.push({
       phone,
       // Prima il nome in anagrafica: dice davvero a chi appartiene il numero.
@@ -393,6 +465,11 @@ export async function listConversations(limit = 300): Promise<WaConversation[]> 
       unread: unreadMsgs.length,
       // `msgs` è ordinato dal più recente: l'ultimo non letto è il più vecchio.
       oldestUnreadAt: unreadMsgs.length ? unreadMsgs[unreadMsgs.length - 1].at : undefined,
+      senzaRisposta,
+      senzaRispostaDa: primoSenzaRisposta,
+      attesaMinuti,
+      daRispondere: inAttesa && win.open,
+      rispostaScaduta: inAttesa && !win.open,
     });
   }
 
@@ -400,11 +477,21 @@ export async function listConversations(limit = 300): Promise<WaConversation[]> 
   // limite): con l'ordinamento solo per orario, le conversazioni già risposte
   // più recenti seppellivano quelle in attesa e il pallino diceva "4" senza
   // che si capisse quali fossero.
+  /*
+    Ordine: prima chi aspetta una risposta, e fra loro chi aspetta da più
+    tempo. Poi i messaggi nuovi non ancora letti, poi il resto per orario.
+    Chi aspetta da un'ora deve stare sopra a chi ha appena scritto, altrimenti
+    l'elenco premia le chat fresche e seppellisce proprio quelle in ritardo.
+  */
   return conversations
     .sort((a, b) => {
-      const aDaLeggere = a.unread > 0 ? 1 : 0;
-      const bDaLeggere = b.unread > 0 ? 1 : 0;
-      if (aDaLeggere !== bDaLeggere) return bDaLeggere - aDaLeggere;
+      if (a.daRispondere !== b.daRispondere) return a.daRispondere ? -1 : 1;
+      if (a.daRispondere && b.daRispondere) {
+        return (a.senzaRispostaDa || '').localeCompare(b.senzaRispostaDa || '');
+      }
+      const aNuovi = a.unread > 0 ? 1 : 0;
+      const bNuovi = b.unread > 0 ? 1 : 0;
+      if (aNuovi !== bNuovi) return bNuovi - aNuovi;
       return b.lastAt.localeCompare(a.lastAt);
     })
     .slice(0, limit);
@@ -417,9 +504,19 @@ export async function listConversations(limit = 300): Promise<WaConversation[]> 
  */
 export async function listUnreadChats(): Promise<WaUnreadChat[]> {
   const conversations = await listConversations(100);
+  /*
+    Qui non contano più i messaggi "non letti" ma quelli SENZA RISPOSTA: è la
+    stessa cosa che dice l'avviso ("3 messaggi senza risposta") e finalmente è
+    vera. Prima bastava aprire la chat per far sparire il numero, e il numero
+    diceva quante chat erano state guardate, non quante persone stavano ancora
+    aspettando.
+  */
   return conversations
-    .filter((c): c is WaConversation & { oldestUnreadAt: string } => c.unread > 0 && !!c.oldestUnreadAt)
-    .map(c => ({ phone: c.phone, name: c.name, unread: c.unread, lastText: c.lastText, oldestUnreadAt: c.oldestUnreadAt }))
+    .filter((c): c is WaConversation & { senzaRispostaDa: string } => c.daRispondere && !!c.senzaRispostaDa)
+    .map(c => ({
+      phone: c.phone, name: c.name, unread: c.senzaRisposta,
+      lastText: c.lastText, oldestUnreadAt: c.senzaRispostaDa,
+    }))
     .sort((a, b) => a.oldestUnreadAt.localeCompare(b.oldestUnreadAt));
 }
 

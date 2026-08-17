@@ -42,6 +42,16 @@ function timeLabel(iso: string): string {
   return new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
+/** Da quanto aspetta, detto come lo direbbe una persona: "40 min", "3 ore", "2 giorni". */
+function attesaLeggibile(minuti?: number): string {
+  const m = Math.max(0, minuti ?? 0);
+  if (m < 60) return `${m} min`;
+  const ore = Math.floor(m / 60);
+  if (ore < 24) return `${ore} ${ore === 1 ? 'ora' : 'ore'}`;
+  const giorni = Math.floor(ore / 24);
+  return `${giorni} ${giorni === 1 ? 'giorno' : 'giorni'}`;
+}
+
 /**
  * Le spunte dei messaggi che mandiamo noi, come su WhatsApp: una spunta se è
  * partito, due se è arrivato sul telefono, due azzurre quando la cliente l'ha
@@ -698,12 +708,27 @@ export default function WhatsAppChat() {
                     {c.lastDirection === 'out' && <span className="text-text-muted/70">Tu: </span>}{c.lastText}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className="text-[10px] text-text-muted/70">{timeLabel(c.lastAt)}</span>
                   {/* Col nome dall'anagrafica il numero sparirebbe dalla riga: lo teniamo qui */}
                   {c.name && <span className="text-[10px] text-text-muted/60 font-mono truncate">+{c.phone}</span>}
                   {!c.windowOpen && (
                     <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-bg-tertiary text-text-muted">CHIUSA</span>
+                  )}
+                  {/* Ha parlato per ultima lei e nessuno le ha risposto: è
+                      l'unica etichetta che non se ne va aprendo la chat. */}
+                  {c.daRispondere && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-error text-white flex-shrink-0">
+                      DA RISPONDERE · {attesaLeggibile(c.attesaMinuti)}
+                    </span>
+                  )}
+                  {/* Rimasta senza risposta troppo a lungo: la finestra è
+                      chiusa e a testo libero non si può più scrivere. Si vede,
+                      ma in grigio: è una cosa da sapere, non da fare adesso. */}
+                  {c.rispostaScaduta && (
+                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-warning/15 text-warning flex-shrink-0">
+                      MAI RISPOSTO · {attesaLeggibile(c.attesaMinuti)}
+                    </span>
                   )}
                 </div>
               </div>
@@ -766,6 +791,22 @@ export default function WhatsAppChat() {
                 <MailQuestion className="w-3.5 h-3.5" /> Da leggere
               </button>
             </div>
+
+            {/* Sta aspettando adesso, mentre guardi la chat: va detto qui, non
+                solo nell'elenco che in questo momento non stai guardando. */}
+            {(() => {
+              const c = conversations?.find(x => x.phone === active);
+              if (!c?.daRispondere) return null;
+              return (
+                <div className="px-4 py-2 bg-error/10 border-b border-error/20 flex items-center gap-2">
+                  <MailQuestion className="w-3.5 h-3.5 text-error flex-shrink-0" />
+                  <p className="text-[11px] text-error leading-tight">
+                    Aspetta una risposta da <b>{attesaLeggibile(c.attesaMinuti)}</b>. Resta segnata finché non le
+                    scrivi: anche solo &quot;a presto&quot; chiude la conversazione.
+                  </p>
+                </div>
+              );
+            })()}
 
             <div ref={boxRef} onScroll={segnaPosizione} className="flex-1 overflow-y-auto p-4 space-y-3 relative">
               {thread.map((m, i) => {
