@@ -45,6 +45,16 @@ const ROUTE_PERMISSIONS: { prefix: string; permission: string }[] = [
   { prefix: '/dashboard/admin/reports', permission: 'admin_reports' },
   { prefix: '/dashboard/admin', permission: 'admin_dashboard' },
   { prefix: '/dashboard/agenda', permission: 'agenda_view' },
+  /*
+    Le pagine del telefono chiedono gli stessi permessi delle loro gemelle sul
+    computer. Stavano fuori dal controllo per ruolo — bastava conoscere
+    l'indirizzo per vedere la cassaforte da qualunque account.
+  */
+  { prefix: '/m', permission: 'dashboard' },
+  { prefix: '/agenda-mobile', permission: 'agenda_view' },
+  { prefix: '/clienti-mobile', permission: 'clients_view' },
+  { prefix: '/dashboard-mobile', permission: 'dashboard' },
+  { prefix: '/cassaforte-mobile', permission: 'pos' },
   { prefix: '/dashboard/clients', permission: 'clients_view' },
   { prefix: '/dashboard/pos', permission: 'pos' },
   { prefix: '/dashboard/cassa-contanti', permission: 'pos' },

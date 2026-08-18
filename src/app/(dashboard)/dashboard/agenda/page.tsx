@@ -42,7 +42,7 @@ import { riassuntoAffidabilita, consiglioAffidabilita } from '@/lib/affidabilita
 import { sedutaIncassata } from '@/app/actions/daIncassare';
 import { useCabinStore } from '@/stores/useCabinStore';
 import { useProductStore } from '@/stores/useProductStore';
-import { appointmentsForOperator, servicesOf, serviceOperatorId, hasMultipleOperators, type SplitAppointment } from '@/lib/appointmentSplit';
+import { appointmentsForOperator, servicesOf, serviceOperatorId, hasMultipleOperators, durataInFila, type SplitAppointment } from '@/lib/appointmentSplit';
 import { useWeekShiftsStore } from '@/stores/useWeekShiftsStore';
 import CabinCountdown from '@/components/CabinCountdown';
 import WaitlistModal from '@/components/WaitlistModal';
@@ -227,12 +227,16 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
    * prima erano ferme e alla pressione il browser selezionava il testo,
    * che è il modo peggiore di dire "non si può".
    */
-  const isFrozen = Boolean(appointment.isLocked) || appointment.status === 'completed';
+  const isFrozen = Boolean(appointment.isLocked) || appointment.status === 'completed' || Boolean(appointment.oraFissata);
   const motivoFermo = appointment.isLocked
     ? 'Appuntamento bloccato: togli il lucchetto per spostarlo'
     : appointment.status === 'completed'
       ? 'Già completato: non si sposta, sposterebbe anche l\'incasso di giornata'
-      : '';
+      : appointment.oraFissata
+        // Trascinarlo sposterebbe l'appuntamento intero, non questo pezzo:
+        // l'ora l'ha scritta qualcuno a mano, si cambia da dove l'ha scritta.
+        ? 'Orario messo a mano: si cambia aprendo l\'appuntamento'
+        : '';
 
   return (
     <div
@@ -973,7 +977,7 @@ function DayView({ appointments, blocks, operators, selectedDate, coccole, risch
 
                     return (
                       <AppointmentBlock
-                        key={apt.id}
+                        key={apt.fettaId || apt.id}
                         appointment={apt}
                         onClick={onAppointmentClick}
                         onWaitlistAdd={onWaitlistAdd}
@@ -2221,6 +2225,11 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
    * il laser lo fanno in due e ci mettono tempi diversi, e l'agenda deve
    * riservare il tempo giusto.
    */
+  /** L'ora di un trattamento già in fase di prenotazione. Vuoto = di seguito. */
+  const setServiceStart = (index: number, orario: string) => {
+    setSelectedServices(prev => prev.map((s, i) => i === index ? { ...s, startTime: orario || undefined } : s));
+  };
+
   const setServiceOperator = (index: number, operatorId: string) => {
     const op = operators.find(o => o.id === operatorId);
     setSelectedServices(prev => prev.map((s, i) => {
@@ -2237,7 +2246,15 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     }));
   };
 
-  const totalDuration = useMemo(() => selectedServices.reduce((s, x) => s + x.duration, 0), [selectedServices]);
+  /*
+    La durata dell'appuntamento sono i trattamenti in fila: quelli con l'ora
+    scritta a mano stanno per conto loro (vedi src/lib/appointmentSplit.ts) e
+    non devono allungare il blocco fino a lì, coprendo tempo che è libero.
+  */
+  const totalDuration = useMemo(() => {
+    const inFila = durataInFila(selectedServices);
+    return inFila > 0 ? inFila : selectedServices.reduce((s, x) => s + x.duration, 0);
+  }, [selectedServices]);
   const totalPrice = useMemo(() => selectedServices.reduce((s, x) => s + x.price, 0), [selectedServices]);
 
   const endTime = useMemo(() => {
@@ -2661,7 +2678,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                   {selectedServices.map((s, i) => (
                     <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-accent/5 border border-accent/20 flex-wrap">
                       <span className="flex items-center justify-center w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-bold flex-shrink-0">{i + 1}</span>
-                      <span className="text-sm text-text-primary flex-1 min-w-0 truncate">{s.treatmentName}</span>
+                      <span className="text-sm text-text-primary flex-1 min-w-[120px] truncate">{s.treatmentName}</span>
                       <span className="text-xs text-text-muted flex-shrink-0">{s.gender === 'male' ? '♂' : '♀'} {s.duration}min · {formatCurrency(s.price)}</span>
                       {/* Chi lo fa: vuoto = l'operatrice principale scelta sotto.
                           Serve quando due operatrici si dividono la stessa cliente. */}
@@ -2696,6 +2713,13 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                           <option key={o.id} value={o.id}>{etichettaRisorsa(o, k)}</option>
                         ))}
                       </select>
+                      {/* L'ora sua, quando non va di seguito agli altri: la
+                          collega che lo fa insieme, o che può solo più tardi. */}
+                      <input type="time" step={300} value={s.startTime || ''}
+                        onChange={e => setServiceStart(i, e.target.value)}
+                        title="A che ora si fa questo trattamento. Vuoto = di seguito agli altri"
+                        className={`px-2 py-1 rounded-lg border text-[11px] focus:outline-none flex-shrink-0 ${
+                          s.startTime ? 'bg-accent/10 border-accent/40 text-accent font-semibold' : 'bg-bg-secondary border-border text-text-muted'}`} />
                       <button type="button" onClick={() => removeService(i)} className="p-1 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-colors flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
                     </div>
                   ))}
@@ -2703,7 +2727,8 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                     <p className="flex items-start gap-1.5 text-[11px] text-text-muted px-1">
                       <Users className="w-3.5 h-3.5 flex-shrink-0 mt-px" />
                       I trattamenti si susseguono nell&apos;ordine dell&apos;elenco: ogni operatrice vedrà in agenda
-                      solo il proprio pezzo, con il suo orario.
+                      solo il proprio pezzo, con il suo orario. Se invece uno si fa a un&apos;ora precisa —
+                      insieme agli altri o più tardi — scrivila nel campo dell&apos;ora.
                     </p>
                   )}
                 </div>
@@ -2996,7 +3021,14 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
 
   /** Salva i trattamenti ricalcolando durata, fine e totale. */
   const saveServices = async (next: AppointmentService[], extra: Partial<Appointment> = {}) => {
-    const totalDuration = next.reduce((s, x) => s + x.duration, 0);
+    /*
+      La durata è quella dei trattamenti in fila. Quelli con l'ora scritta a
+      mano stanno per conto loro: se li contassi qui, mettere la pedicure due
+      ore dopo allungherebbe l'appuntamento fino a lì, occupando anche il tempo
+      in mezzo che invece è libero.
+    */
+    const inFila = durataInFila(next);
+    const totalDuration = inFila > 0 ? inFila : next.reduce((s, x) => s + x.duration, 0);
     // Lo sconto concordato resta valido anche se si aggiunge o si toglie un
     // trattamento: `price` è sempre il prezzo finale, listino meno sconto.
     const sconto = appointment.discountAmount || 0;
@@ -3074,6 +3106,21 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
    * trattamenti sono già elencati uno per uno — non si capiva come.
    * Vuoto = la fa l'operatrice dell'appuntamento.
    */
+  /**
+   * L'ora di un singolo trattamento.
+   *
+   * Vuoto = di seguito agli altri, come è sempre stato. Con un'ora dentro, quel
+   * trattamento si mette lì e basta: serve quando la collega lo fa insieme
+   * (mani e piedi nello stesso momento) o quando può solo più tardi. Prima si
+   * poteva solo accodare, e in agenda compariva un orario inventato.
+   */
+  const cambiaOrarioServizio = (i: number, orario: string) => {
+    saveServices(services.map((s, idx) => idx === i ? {
+      ...s,
+      startTime: orario || undefined,
+    } : s));
+  };
+
   const cambiaOperatriceServizio = (i: number, operatorId: string) => {
     const op = operators.find(o => o.id === operatorId);
     saveServices(services.map((s, idx) => idx === i ? {
@@ -3534,16 +3581,39 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                         capita di continuo che una delle tre cose la faccia la
                         collega, e prima bisognava entrare in modifica. */}
                     {!s.productId && appointment.status !== 'completed' && (
-                      <select value={s.operatorId || ''} disabled={busySvc}
-                        onChange={e => cambiaOperatriceServizio(i, e.target.value)}
-                        title="Chi esegue questo trattamento"
-                        className="mt-1.5 w-full max-w-[190px] px-2 py-1 rounded-lg bg-bg-secondary border border-border
-                          text-[11px] text-text-secondary focus:outline-none focus:border-accent/50 disabled:opacity-50">
-                        <option value="">Lo fa {appointment.operatorName}</option>
-                        {operators.filter(o => !o.isResource && o.id !== appointment.operatorId).map(o => (
-                          <option key={o.id} value={o.id}>Lo fa {o.firstName} {o.lastName}</option>
-                        ))}
-                      </select>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <select value={s.operatorId || ''} disabled={busySvc}
+                          onChange={e => cambiaOperatriceServizio(i, e.target.value)}
+                          title="Chi esegue questo trattamento"
+                          className="flex-1 min-w-[150px] max-w-[190px] px-2 py-1 rounded-lg bg-bg-secondary border border-border
+                            text-[11px] text-text-secondary focus:outline-none focus:border-accent/50 disabled:opacity-50">
+                          <option value="">Lo fa {appointment.operatorName}</option>
+                          {operators.filter(o => !o.isResource && o.id !== appointment.operatorId).map(o => (
+                            <option key={o.id} value={o.id}>Lo fa {o.firstName} {o.lastName}</option>
+                          ))}
+                        </select>
+                        {/* L'ora di questo trattamento. Vuota vuol dire "di
+                            seguito agli altri": è il caso normale e resta il
+                            comportamento di prima. Si riempie quando la collega
+                            lo fa insieme o a un'altra ora. */}
+                        <input type="time" step={300} value={s.startTime || ''} disabled={busySvc}
+                          onChange={e => cambiaOrarioServizio(i, e.target.value)}
+                          title="A che ora si fa questo trattamento. Vuoto = di seguito agli altri"
+                          className={`px-2 py-1 rounded-lg border text-[11px] focus:outline-none focus:border-accent/50 disabled:opacity-50
+                            ${s.startTime ? 'bg-accent/10 border-accent/40 text-accent font-semibold' : 'bg-bg-secondary border-border text-text-muted'}`} />
+                        {s.startTime && (
+                          <button onClick={() => cambiaOrarioServizio(i, '')} disabled={busySvc}
+                            title="Rimettilo di seguito agli altri"
+                            className="px-1.5 py-1 rounded-lg text-[11px] text-text-muted hover:text-text-primary">
+                            di seguito
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {!s.productId && s.startTime && (
+                      <p className="text-[10px] text-accent mt-1">
+                        Alle {s.startTime}{s.operatorName ? ` con ${s.operatorName}` : ''} — non di seguito agli altri
+                      </p>
                     )}
                     {s.productId === undefined && s.operatorId && s.operatorId !== appointment.operatorId && appointment.status === 'completed' && (
                       <p className="text-xs text-accent">{s.operatorName || 'altra operatrice'}</p>

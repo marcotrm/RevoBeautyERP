@@ -6,10 +6,18 @@
  * e la pedicure a Veronica. In agenda serve però che ognuna veda occupato il
  * proprio tempo, altrimenti sopra ci finisce un'altra prenotazione.
  *
- * Qui si taglia l'appuntamento in "fette": una per operatrice coinvolta, con
- * l'orario dei soli trattamenti che fa lei. I trattamenti si considerano in
- * fila, nell'ordine in cui sono stati aggiunti — è lo stesso criterio con cui
- * si calcola la durata totale.
+ * Qui si taglia l'appuntamento in "fette": una per ogni pezzo di tempo di una
+ * operatrice, con i soli trattamenti che fa lei.
+ *
+ * Gli orari si calcolano così:
+ *  - i trattamenti senza orario proprio vanno in fila, nell'ordine in cui sono
+ *    stati aggiunti, a partire dall'inizio dell'appuntamento — è lo stesso
+ *    criterio con cui si calcola la durata totale;
+ *  - un trattamento con `startTime` sta all'ora scritta e basta: non entra
+ *    nella fila e non sposta gli altri. Serve quando la collega lavora insieme
+ *    alla prima (mani e piedi nello stesso momento) o quando può solo più
+ *    tardi. Prima si poteva solo accodare, e l'agenda mostrava un orario che
+ *    non c'entrava niente con la realtà.
  */
 
 import type { Appointment, AppointmentService } from '@/types';
@@ -34,6 +42,10 @@ export interface SplitAppointment extends Appointment {
    */
   inizioReale?: string;
   durataReale?: number;
+  /** Chiave per React quando la stessa operatrice ha più pezzi nello stesso giorno. */
+  fettaId?: string;
+  /** Vero se questo pezzo ha un orario messo a mano: non si trascina. */
+  oraFissata?: boolean;
 }
 
 /** I trattamenti dell'appuntamento, anche per i vecchi che ne hanno uno solo. */
@@ -59,52 +71,95 @@ export function hasMultipleOperators(a: Appointment): boolean {
   return ids.size > 1;
 }
 
+/** Un trattamento con il suo posto nella giornata. */
+interface Pezzo { s: AppointmentService; from: number; to: number; fissato: boolean }
+
 /**
- * La fetta di un appuntamento che riguarda una certa operatrice, con orari
- * ricalcolati. Torna null se quell'operatrice non c'entra niente.
+ * Dove cade ogni trattamento dell'appuntamento.
+ * Quelli senza orario proprio in fila, gli altri all'ora scritta.
  */
-export function sliceForOperator(a: Appointment, operatorId: string): SplitAppointment | null {
+export function pezziDi(a: Appointment): Pezzo[] {
   const services = servicesOf(a);
-  const start = timeToMinutes(a.startTime);
+  let cursore = timeToMinutes(a.startTime);
+  return services.map(s => {
+    const durata = s.duration || 0;
+    if (s.startTime) {
+      const from = timeToMinutes(s.startTime);
+      return { s, from, to: from + durata, fissato: true };
+    }
+    const from = cursore;
+    cursore = from + durata;
+    return { s, from, to: cursore, fissato: false };
+  });
+}
 
-  let cursor = start;
-  const mie: { s: AppointmentService; from: number; to: number }[] = [];
-  for (const s of services) {
-    const from = cursor;
-    const to = cursor + (s.duration || 0);
-    if (serviceOperatorId(s, a) === operatorId) mie.push({ s, from, to });
-    cursor = to;
+/**
+ * La durata dell'appuntamento "vero e proprio": solo i trattamenti in fila.
+ *
+ * Quelli con l'ora a mano stanno per conto loro e non allungano il blocco
+ * principale — se no un trattamento spostato di due ore farebbe diventare
+ * l'appuntamento un lenzuolo che copre anche il tempo in mezzo, libero.
+ */
+export function durataInFila(services: AppointmentService[]): number {
+  return services.filter(s => !s.startTime).reduce((somma, s) => somma + (s.duration || 0), 0);
+}
+
+/**
+ * Le fette di un appuntamento che occupano il tempo di una certa operatrice.
+ * Una per ogni pezzo di tempo separato: se fa una cosa alle 9 e una alle 11,
+ * in agenda si vedono due blocchi e non uno lungo due ore.
+ */
+export function slicesForOperator(a: Appointment, operatorId: string): SplitAppointment[] {
+  const services = servicesOf(a);
+  const pezzi = pezziDi(a);
+  const miei = pezzi.filter(p => serviceOperatorId(p.s, a) === operatorId);
+  if (miei.length === 0) return [];
+
+  const tuttiSuoi = miei.length === services.length;
+  const nessunOrarioAMano = pezzi.every(p => !p.fissato);
+  // Caso normale, quello di sempre: un'operatrice sola e nessun orario a mano.
+  if (tuttiSuoi && nessunOrarioAMano) return [{ ...a }];
+
+  // Pezzi attaccati fra loro = un blocco solo.
+  const ordinati = [...miei].sort((x, y) => x.from - y.from);
+  const gruppi: Pezzo[][] = [];
+  for (const p of ordinati) {
+    const ultimo = gruppi[gruppi.length - 1];
+    if (ultimo && p.from <= ultimo[ultimo.length - 1].to) ultimo.push(p);
+    else gruppi.push([p]);
   }
-  if (mie.length === 0) return null;
 
-  const parziale = mie.length !== services.length;
-  if (!parziale) return { ...a };
+  const totale = services.reduce((somma, s) => somma + (s.price || 0), 0);
+  return gruppi.map((gruppo, i) => {
+    const from = Math.min(...gruppo.map(p => p.from));
+    const to = Math.max(...gruppo.map(p => p.to));
+    const svc = gruppo.map(p => p.s);
+    return {
+      ...a,
+      parziale: !tuttiSuoi || gruppi.length > 1,
+      totaleAppuntamento: totale,
+      inizioReale: a.startTime,
+      durataReale: a.duration,
+      fettaId: `${a.id}#${operatorId}#${i}`,
+      oraFissata: gruppo.some(p => p.fissato),
+      startTime: minutesToTime(from),
+      endTime: minutesToTime(to),
+      duration: to - from,
+      services: svc,
+      treatmentName: svc.map(s => s.treatmentName).join(' + '),
+      price: svc.reduce((somma, s) => somma + (s.price || 0), 0),
+    };
+  });
+}
 
-  const from = Math.min(...mie.map(x => x.from));
-  const to = Math.max(...mie.map(x => x.to));
-  const svc = mie.map(x => x.s);
-
-  return {
-    ...a,
-    parziale: true,
-    totaleAppuntamento: services.reduce((sum, s) => sum + (s.price || 0), 0),
-    inizioReale: a.startTime,
-    durataReale: a.duration,
-    startTime: minutesToTime(from),
-    endTime: minutesToTime(to),
-    duration: to - from,
-    services: svc,
-    treatmentName: svc.map(s => s.treatmentName).join(' + '),
-    price: svc.reduce((sum, s) => sum + (s.price || 0), 0),
-  };
+/** Compatibilità: la prima fetta di quell'operatrice, o null. */
+export function sliceForOperator(a: Appointment, operatorId: string): SplitAppointment | null {
+  return slicesForOperator(a, operatorId)[0] ?? null;
 }
 
 /** Tutti gli appuntamenti che occupano il tempo di una operatrice, già tagliati. */
 export function appointmentsForOperator(appointments: Appointment[], operatorId: string): SplitAppointment[] {
   const out: SplitAppointment[] = [];
-  for (const a of appointments) {
-    const slice = sliceForOperator(a, operatorId);
-    if (slice) out.push(slice);
-  }
+  for (const a of appointments) out.push(...slicesForOperator(a, operatorId));
   return out;
 }

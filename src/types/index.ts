@@ -222,6 +222,15 @@ export interface AppointmentService {
   operatorId?: string;
   operatorName?: string;
   /**
+   * A che ora si fa QUESTO trattamento, quando non va di seguito agli altri.
+   *
+   * Senza, i trattamenti si mettono in fila dall'inizio dell'appuntamento: se
+   * la pedicure la fa la collega, finisce dopo il semipermanente anche quando
+   * in realtà le due lavorano insieme, o quando la collega può solo un'ora
+   * dopo. Vuoto = di seguito, come prima. "HH:mm".
+   */
+  startTime?: string;
+  /**
    * Upsell: trattamento aggiunto quando la cliente era GIÀ in cabina — cioè
    * venduto dall'estetista durante la seduta, non prenotato. È la base della
    * classifica upsell in Statistiche.
