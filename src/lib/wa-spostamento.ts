@@ -232,14 +232,65 @@ async function chiediGiorno(phone: string, s: Sessione): Promise<void> {
   await say(phone, 'In che giorno ti farebbe comodo?\n\n' + elenco(opzioni) + '\n\nRispondi con il numero.');
 }
 
-async function chiediOrario(phone: string, s: Sessione, data: string, treatmentId: string, origin: string): Promise<void> {
-  const res = await fetch(`${origin}/api/booking/availability?date=${data}&treatmentId=${treatmentId}`)
-    .then(r => r.json()).catch(() => null);
-  const liberi: Orario[] = res?.slots || [];
+/**
+ * Gli orari liberi per QUESTO appuntamento, non per il trattamento a listino.
+ *
+ * Due passaggi, e servono tutti e due:
+ *
+ *  1. si chiede la disponibilità con i trattamenti veri della seduta (una
+ *     cliente con due laser occupa 45 minuti, non i 20 del primo);
+ *  2. si tengono solo gli orari in cui ci sta la durata REALE già scritta in
+ *     agenda. Serve perché quella durata può essere stata allungata a mano —
+ *     40 minuti su un trattamento da 30 — e il listino non lo sa.
+ *
+ * Senza il secondo passaggio succedeva questo: il bot proponeva le 14:00,
+ * la cliente confermava, e al momento di scrivere l'appuntamento scopriva di
+ * accavallarsi con quella dopo. Le rispondeva "quell'orario è appena stato
+ * preso", che non era vero, e le riproponeva lo stesso orario all'infinito.
+ */
+async function orariCheCiStanno(
+  data: string,
+  appt: { id: string; treatmentId: string; duration: number; services?: unknown },
+  origin: string,
+): Promise<Orario[]> {
+  /*
+    I trattamenti sì, l'operatrice no.
+
+    Serve la somma delle durate (due laser fanno 45 minuti, non 20), ma NON si
+    vincola chi lo fa: se si passa anche l'operatrice, la disponibilità viene
+    calcolata solo su di lei e nei giorni in cui è piena la risposta è "nessun
+    orario libero" — quando invece una collega libera c'è. Chi lo farà si legge
+    accanto a ogni orario proposto.
+  */
+  const servizi = Array.isArray(appt.services)
+    ? (appt.services as { treatmentId?: string }[])
+        .filter(x => x?.treatmentId)
+        .map(x => ({ treatmentId: x.treatmentId, operatorId: null }))
+    : [];
+
+  const qs = servizi.length
+    ? `date=${data}&services=${encodeURIComponent(JSON.stringify(servizi))}`
+    : `date=${data}&treatmentId=${appt.treatmentId}`;
+
+  const res = await fetch(`${origin}/api/booking/availability?${qs}`).then(r => r.json()).catch(() => null);
+  const proposti: Orario[] = res?.slots || [];
+  if (!proposti.length) return [];
+
+  // Il filtro vero: ci sta la durata che l'appuntamento ha davvero?
+  const tenuti: Orario[] = [];
+  for (const o of proposti) {
+    const fine = orario(minuti(o.time) + appt.duration);
+    if (!(await postoOccupato(o.operatorId, data, o.time, fine, appt.id))) tenuti.push(o);
+  }
+  return tenuti;
+}
+
+async function chiediOrario(phone: string, s: Sessione, data: string, appt: { id: string; treatmentId: string; duration: number; services?: unknown }, origin: string): Promise<void> {
+  const liberi = await orariCheCiStanno(data, appt, origin);
 
   if (!liberi.length) {
     await salvaSessione(phone, { ...s, passo: 'giorno', nuovaData: undefined });
-    await say(phone, `Mi dispiace, ${humanDate(data)} non ho orari liberi.\nScegli un altro giorno rispondendo con il numero.`);
+    await say(phone, `Mi dispiace, ${humanDate(data)} non ho orari liberi per il tuo trattamento.\nScegli un altro giorno rispondendo con il numero.`);
     return;
   }
 
@@ -321,7 +372,7 @@ async function esegui(phone: string, s: Sessione, origin: string): Promise<void>
   // preso quell'orario. Meglio riproporre che sovrapporre due clienti.
   if (await postoOccupato(s.nuovoOrario!.operatorId, s.nuovaData!, nuovoInizio, nuovaFine, appt.id)) {
     await say(phone, 'Quell\'orario è appena stato preso, mi dispiace. Ti rimando quelli ancora liberi.');
-    await chiediOrario(phone, s, s.nuovaData!, appt.treatmentId, origin);
+    await chiediOrario(phone, s, s.nuovaData!, appt, origin);
     return;
   }
 
@@ -444,7 +495,7 @@ export async function handleSpostamentoMessage(params: {
           await say(phone, `Rispondi con un numero da 1 a ${s.opzioni.length}, oppure scrivi "lascia stare".`);
           return { handled: true, passo: 'giorno' };
         }
-        await chiediOrario(phone, s, s.opzioni[i].id, appt.treatmentId, origin);
+        await chiediOrario(phone, s, s.opzioni[i].id, appt, origin);
         return { handled: true, passo: 'orario' };
       }
 
