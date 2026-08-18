@@ -27,7 +27,11 @@ export default function LoginPage() {
     setTimeout(async () => {
       const success = await login(email, password);
       if (success) {
-        router.push('/dashboard');
+        // Da telefono si entra dalla versione per il telefono (vedi src/app/page.tsx).
+        const telefono = typeof window !== 'undefined'
+          && window.matchMedia('(pointer: coarse)').matches
+          && Math.min(window.innerWidth, window.innerHeight) < 820;
+        router.push(telefono ? '/m' : '/dashboard');
       } else {
         setError('Email o password errati');
         setLoading(false);

@@ -9,11 +9,23 @@ export default function HomePage() {
   const { isAuthenticated } = useAuthStore();
   
   useEffect(() => {
-    if (isAuthenticated) {
-      router.replace('/dashboard');
-    } else {
-      router.replace('/login');
-    }
+    if (!isAuthenticated) { router.replace('/login'); return; }
+    /*
+      Da telefono si entra dalla porta del telefono.
+
+      Non è una scelta estetica: l'agenda del gestionale è fatta di colonne per
+      operatrice e su uno schermo da 375px non si legge. Chi vuole comunque
+      quella ha il link "Apri il gestionale completo" dentro /m, e da lì il
+      browser si ricorda dove stava.
+
+      Il controllo è sul puntatore, non sulla larghezza: un portatile con la
+      finestra stretta resta un computer, un telefono girato in orizzontale
+      resta un telefono.
+    */
+    const telefono = typeof window !== 'undefined'
+      && window.matchMedia('(pointer: coarse)').matches
+      && Math.min(window.innerWidth, window.innerHeight) < 820;
+    router.replace(telefono ? '/m' : '/dashboard');
   }, [isAuthenticated, router]);
 
   return (

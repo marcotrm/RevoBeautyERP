@@ -9,6 +9,14 @@ export const metadata: Metadata = {
   // Niente `icons` a mano: ci pensano i file in questa cartella
   // (favicon.ico, icon.svg, apple-icon.png). Dichiararlo qui teneva solo
   // l'.ico e buttava via la versione vettoriale, quella nitida nella linguetta.
+
+  // Perché sul telefono si possa mettere in home e aprirlo a schermo intero.
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    title: 'Revobeauty',
+    statusBarStyle: 'black-translucent',
+  },
 };
 
 export const viewport: Viewport = {
