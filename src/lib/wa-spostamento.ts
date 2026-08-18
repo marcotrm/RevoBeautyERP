@@ -30,6 +30,7 @@ import { sendWhatsApp } from '@/lib/whatsapp';
 import { sendTelegram } from '@/lib/telegram';
 import { getWaAutomationsConfig } from '@/lib/wa-automations';
 import { lanciaCopriBuchi } from '@/app/actions/copriBuchi';
+import { cercaSlot } from '@/lib/bookingEngine';
 
 /** Le risposte dell'agente sono etichettate, così in archivio si riconoscono. */
 const say = (phone: string, text: string) => sendWhatsApp(phone, text, 'booking');
@@ -222,81 +223,129 @@ async function chiediCosaFare(phone: string, appt: { id: string; date: string; s
   );
 }
 
-async function chiediGiorno(phone: string, s: Sessione): Promise<void> {
+type ApptPerRicerca = { id: string; treatmentId: string; duration: number; services?: unknown };
+
+/*
+  Si mostrano SOLO i giorni in cui c'è posto davvero.
+
+  Prima l'elenco erano i prossimi quattordici giorni a prescindere: la cliente
+  ne sceglieva uno e si sentiva rispondere "quel giorno non ho orari liberi".
+  Farle scegliere fra cose che non esistono è farle perdere tempo due volte, e
+  a ogni no la voglia di spostare cala.
+*/
+async function chiediGiorno(phone: string, s: Sessione, appt: ApptPerRicerca): Promise<void> {
+  const disponibili = await giorniConPosto(appt);
   const oggi = todayRome();
-  const opzioni = Array.from({ length: GIORNI_AVANTI }, (_, i) => shiftDate(oggi, i)).map(d => ({
-    id: d,
-    label: d === oggi ? `Oggi — ${humanDate(d)}` : d === shiftDate(oggi, 1) ? `Domani — ${humanDate(d)}` : humanDate(d).replace(/^./, c => c.toUpperCase()),
-  }));
-  await salvaSessione(phone, { ...s, passo: 'giorno', azione: 'sposta', opzioni });
-  await say(phone, 'In che giorno ti farebbe comodo?\n\n' + elenco(opzioni) + '\n\nRispondi con il numero.');
-}
 
-/**
- * Gli orari liberi per QUESTO appuntamento, non per il trattamento a listino.
- *
- * Due passaggi, e servono tutti e due:
- *
- *  1. si chiede la disponibilità con i trattamenti veri della seduta (una
- *     cliente con due laser occupa 45 minuti, non i 20 del primo);
- *  2. si tengono solo gli orari in cui ci sta la durata REALE già scritta in
- *     agenda. Serve perché quella durata può essere stata allungata a mano —
- *     40 minuti su un trattamento da 30 — e il listino non lo sa.
- *
- * Senza il secondo passaggio succedeva questo: il bot proponeva le 14:00,
- * la cliente confermava, e al momento di scrivere l'appuntamento scopriva di
- * accavallarsi con quella dopo. Le rispondeva "quell'orario è appena stato
- * preso", che non era vero, e le riproponeva lo stesso orario all'infinito.
- */
-async function orariCheCiStanno(
-  data: string,
-  appt: { id: string; treatmentId: string; duration: number; services?: unknown },
-  origin: string,
-): Promise<Orario[]> {
-  /*
-    I trattamenti sì, l'operatrice no.
-
-    Serve la somma delle durate (due laser fanno 45 minuti, non 20), ma NON si
-    vincola chi lo fa: se si passa anche l'operatrice, la disponibilità viene
-    calcolata solo su di lei e nei giorni in cui è piena la risposta è "nessun
-    orario libero" — quando invece una collega libera c'è. Chi lo farà si legge
-    accanto a ogni orario proposto.
-  */
-  const servizi = Array.isArray(appt.services)
-    ? (appt.services as { treatmentId?: string }[])
-        .filter(x => x?.treatmentId)
-        .map(x => ({ treatmentId: x.treatmentId, operatorId: null }))
-    : [];
-
-  const qs = servizi.length
-    ? `date=${data}&services=${encodeURIComponent(JSON.stringify(servizi))}`
-    : `date=${data}&treatmentId=${appt.treatmentId}`;
-
-  const res = await fetch(`${origin}/api/booking/availability?${qs}`).then(r => r.json()).catch(() => null);
-  const proposti: Orario[] = res?.slots || [];
-  if (!proposti.length) return [];
-
-  // Il filtro vero: ci sta la durata che l'appuntamento ha davvero?
-  const tenuti: Orario[] = [];
-  for (const o of proposti) {
-    const fine = orario(minuti(o.time) + appt.duration);
-    if (!(await postoOccupato(o.operatorId, data, o.time, fine, appt.id))) tenuti.push(o);
-  }
-  return tenuti;
-}
-
-async function chiediOrario(phone: string, s: Sessione, data: string, appt: { id: string; treatmentId: string; duration: number; services?: unknown }, origin: string): Promise<void> {
-  const liberi = await orariCheCiStanno(data, appt, origin);
-
-  if (!liberi.length) {
-    await salvaSessione(phone, { ...s, passo: 'giorno', nuovaData: undefined });
-    await say(phone, `Mi dispiace, ${humanDate(data)} non ho orari liberi per il tuo trattamento.\nScegli un altro giorno rispondendo con il numero.`);
+  if (!disponibili.length) {
+    await chiudiSessione(phone);
+    await say(phone,
+      'Ho guardato le prossime due settimane e non trovo un posto libero per il tuo trattamento. ' +
+      'Ti facciamo richiamare da una di noi per sistemarlo insieme.'
+    );
+    await sendTelegram(
+      `⚠️ <b>Spostamento senza posti</b>\nUna cliente ha chiesto di spostare, ma nei prossimi ` +
+      `${GIORNI_AVANTI} giorni non c'è disponibilità per il suo trattamento: va richiamata.`
+    ).catch(() => {});
     return;
   }
 
-  const opzioni = liberi.slice(0, MAX_ORARI).map(o => ({ id: o.time, label: `ore ${o.time} con ${o.operatorName.split(' ')[0]}`, extra: o }));
+  const opzioni = disponibili.map(g => ({
+    id: g.date,
+    // Accanto al giorno la prima ora libera: si sceglie molto più in fretta
+    // sapendo già se quel giorno è mattina o pomeriggio.
+    label: `${g.date === oggi ? `Oggi — ${humanDate(g.date)}`
+      : g.date === shiftDate(oggi, 1) ? `Domani — ${humanDate(g.date)}`
+      : humanDate(g.date).replace(/^./, c => c.toUpperCase())} — dalle ${g.orari[0].time}`,
+  }));
+
+  await salvaSessione(phone, { ...s, passo: 'giorno', azione: 'sposta', opzioni });
+  await say(phone,
+    'In che giorno ti farebbe comodo?\n\n' + elenco(opzioni) +
+    '\n\nRispondi con il numero: ci sono solo i giorni in cui ho posto per te.'
+  );
+}
+
+async function chiediOrario(phone: string, s: Sessione, data: string, appt: ApptPerRicerca): Promise<void> {
+  const giorni = await giorniConPosto(appt);
+  const g = giorni.find(x => x.date === data);
+
+  // Se quel giorno si è riempito mentre lei sceglieva, si torna all'elenco
+  // aggiornato invece di rispondere "niente liberi" e lasciarla lì.
+  if (!g) { await chiediGiorno(phone, s, appt); return; }
+
+  const opzioni = g.orari.slice(0, MAX_ORARI).map(o => ({
+    id: o.time, label: `ore ${o.time} con ${o.operatorName.split(' ')[0]}`, extra: o,
+  }));
   await salvaSessione(phone, { ...s, passo: 'orario', nuovaData: data, opzioni });
   await say(phone, `${humanDate(data)} ho questi orari liberi:\n\n` + elenco(opzioni) + '\n\nRispondi con il numero.');
+}
+
+/**
+ * I giorni in cui questa seduta ci sta davvero, con i loro orari.
+ *
+ * Due passaggi, e servono tutti e due:
+ *
+ *  1. il motore della prenotazione guarda i prossimi giorni in una sola
+ *     lettura e scarta subito quelli senza posto (turni, pause, riposi,
+ *     competenze). I trattamenti si passano tutti — due laser fanno 45
+ *     minuti, non 20 — ma NON l'operatrice: vincolandola, nei giorni in cui è
+ *     piena la risposta sarebbe "niente disponibile" mentre una collega libera
+ *     c'è. Chi lo farà si legge accanto a ogni orario.
+ *
+ *  2. si tengono solo gli orari in cui entra la durata REALE già scritta in
+ *     agenda, che può essere stata allungata a mano (40 minuti su un
+ *     trattamento da 30) e il listino non lo sa.
+ *
+ * Senza il secondo passaggio il bot proponeva le 14:00, la cliente confermava,
+ * e al salvataggio scopriva l'accavallamento: rispondeva "quell'orario è
+ * appena stato preso" — che non era vero — e riproponeva lo stesso orario.
+ */
+async function giorniConPosto(appt: {
+  id: string; duration: number; services?: unknown; treatmentId: string;
+}): Promise<{ date: string; orari: Orario[] }[]> {
+  const servizi = Array.isArray(appt.services) && appt.services.length
+    ? (appt.services as { treatmentId?: string }[])
+        .filter(x => x?.treatmentId)
+        .map(x => ({ treatmentId: String(x.treatmentId), operatorId: null }))
+    : [{ treatmentId: appt.treatmentId, operatorId: null }];
+
+  const sesso = Array.isArray(appt.services)
+    ? ((appt.services as { gender?: string }[])[0]?.gender === 'male' ? 'male' : 'female')
+    : 'female';
+
+  const oggi = todayRome();
+  const trovati = await cercaSlot({
+    dateFrom: oggi, giorni: GIORNI_AVANTI, services: servizi,
+    gender: sesso, maxPerGiorno: 40,
+  }).catch(() => ({ giorni: [] as { date: string; slots: { time: string; assegnazioni?: { operatorId: string; operatorName: string }[] }[] }[] }));
+
+  if (!trovati.giorni.length) return [];
+
+  // Gli appuntamenti del periodo si leggono UNA volta sola: un controllo per
+  // ogni orario proposto sarebbe una raffica di interrogazioni al database.
+  const ultimo = trovati.giorni[trovati.giorni.length - 1].date;
+  const occupati = await prisma.appointment.findMany({
+    where: { date: { gte: trovati.giorni[0].date, lte: ultimo }, status: { in: APERTI }, id: { not: appt.id } },
+    select: { date: true, operatorId: true, startTime: true, endTime: true },
+  });
+
+  const risultato: { date: string; orari: Orario[] }[] = [];
+  for (const g of trovati.giorni) {
+    const delGiorno = occupati.filter(o => o.date === g.date);
+    const orari: Orario[] = [];
+    for (const sl of g.slots) {
+      const prima = (sl as { assegnazioni?: { operatorId: string; operatorName: string }[] }).assegnazioni?.[0];
+      if (!prima) continue;
+      const da = minuti(sl.time), a = da + appt.duration;
+      const scontro = delGiorno.some(o =>
+        o.operatorId === prima.operatorId && minuti(o.startTime) < a && da < minuti(o.endTime)
+      );
+      if (!scontro) orari.push({ time: sl.time, operatorId: prima.operatorId, operatorName: prima.operatorName });
+    }
+    if (orari.length) risultato.push({ date: g.date, orari });
+  }
+  return risultato;
 }
 
 async function chiediConferma(phone: string, s: Sessione, appt: { treatmentName: string; date: string; startTime: string }): Promise<void> {
@@ -372,7 +421,7 @@ async function esegui(phone: string, s: Sessione, origin: string): Promise<void>
   // preso quell'orario. Meglio riproporre che sovrapporre due clienti.
   if (await postoOccupato(s.nuovoOrario!.operatorId, s.nuovaData!, nuovoInizio, nuovaFine, appt.id)) {
     await say(phone, 'Quell\'orario è appena stato preso, mi dispiace. Ti rimando quelli ancora liberi.');
-    await chiediOrario(phone, s, s.nuovaData!, appt, origin);
+    await chiediOrario(phone, s, s.nuovaData!, appt);
     return;
   }
 
@@ -482,7 +531,7 @@ export async function handleSpostamentoMessage(params: {
           return { handled: true, passo: 'conferma' };
         }
         if (vuoleSpostare) {
-          await chiediGiorno(phone, s);
+          await chiediGiorno(phone, s, appt);
           return { handled: true, passo: 'giorno' };
         }
         await say(phone, 'Non ho capito. Rispondi 1 per scegliere un altro giorno, 2 per disdire.');
@@ -495,7 +544,7 @@ export async function handleSpostamentoMessage(params: {
           await say(phone, `Rispondi con un numero da 1 a ${s.opzioni.length}, oppure scrivi "lascia stare".`);
           return { handled: true, passo: 'giorno' };
         }
-        await chiediOrario(phone, s, s.opzioni[i].id, appt, origin);
+        await chiediOrario(phone, s, s.opzioni[i].id, appt);
         return { handled: true, passo: 'orario' };
       }
 
