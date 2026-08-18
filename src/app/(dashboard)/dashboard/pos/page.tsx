@@ -9,7 +9,7 @@ import { Suspense } from 'react';
 import {
   CreditCard, Receipt, Calculator,
   Banknote, ArrowRight, Plus, X, CheckCircle,
-  Trash2, Search, Smartphone, Lock, Vault, ArrowDownToLine, Printer, Gift,
+  Trash2, Search, Smartphone, Lock, Vault, ArrowDownToLine, Printer, Gift, AlertCircle,
 } from 'lucide-react';
 import { getCassaforte, closeCassa, withdrawCassa, CassaMovementRecord } from '@/app/actions/cassaforte';
 import { getTransactionsByRange } from '@/app/actions/pos';
@@ -578,6 +578,30 @@ function POSPageInner() {
   const autoOpenedRef = useRef(false);
   const todayTotal = transactions.reduce((s, t) => s + t.total, 0);
 
+  /*
+    Gli incassi sospetti: stessa cliente, stesso importo, a meno di dieci minuti
+    di distanza. Non li tocco e non li nascondo — dico solo che ci sono, perché
+    a volte una persona paga davvero due cose uguali di fila, e a deciderlo deve
+    essere chi era al banco.
+  */
+  const doppioni = useMemo(() => {
+    const minuti = (ora: string) => {
+      const [h, m] = (ora || '').split(':').map(Number);
+      return (h || 0) * 60 + (m || 0);
+    };
+    const sospetti: typeof transactions = [];
+    const ordinate = [...transactions].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    for (let i = 1; i < ordinate.length; i++) {
+      const prima = ordinate[i - 1], adesso = ordinate[i];
+      if (adesso.total <= 0) continue;
+      if (prima.client !== adesso.client) continue;
+      if (Math.abs(prima.total - adesso.total) > 0.001) continue;
+      if (Math.abs(minuti(adesso.time) - minuti(prima.time)) > 10) continue;
+      sospetti.push(adesso);
+    }
+    return sospetti;
+  }, [transactions]);
+
   // Cassaforte
   const [safeBalance, setSafeBalance] = useState(0);
   const [safeMovements, setSafeMovements] = useState<CassaMovementRecord[]>([]);
@@ -740,6 +764,29 @@ function POSPageInner() {
           );
         })}
       </div>
+
+      {/* Due incassi identici a pochi minuti l'uno dall'altro sono quasi sempre
+          lo stesso incasso battuto due volte: la giornata chiude più alta di
+          quello che c'è nel cassetto e ci si accorge dell'errore giorni dopo,
+          quando non si ricorda più com'è andata. */}
+      {doppioni.length > 0 && (
+        <div className="rounded-2xl bg-warning/10 border border-warning/30 p-4">
+          <p className="text-sm font-semibold text-text-primary flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-warning" />
+            {doppioni.length === 1 ? 'Un incasso sembra battuto due volte' : `${doppioni.length} incassi sembrano battuti due volte`}
+          </p>
+          <div className="mt-2 space-y-1">
+            {doppioni.map(d => (
+              <p key={d.id} className="text-xs text-text-secondary">
+                <strong className="text-text-primary">{d.client}</strong> · {formatCurrency(d.total)} alle {d.time} — stesso importo e stessa cliente di un altro incasso di oggi.
+              </p>
+            ))}
+          </div>
+          <p className="text-[11px] text-text-muted mt-2">
+            Se è un errore, cancella quello di troppo dall&apos;elenco qui sotto. Se invece ha pagato davvero due volte, va bene così.
+          </p>
+        </div>
+      )}
 
       {/* Today Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

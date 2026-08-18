@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp, TrendingDown, Calendar, Users, Euro,
@@ -21,6 +21,7 @@ import {
 } from '@/lib/helpers';
 import Link from 'next/link';
 import { usePosStore } from '@/stores/usePosStore';
+import { getIncomeSummary, type IncomeSummary } from '@/app/actions/pos';
 import { coperturaPacchetto } from '@/lib/coperturaPacchetto';
 
 const container = {
@@ -120,6 +121,25 @@ export default function DashboardPage() {
 
   const today = todayStr();
 
+  /*
+    I soldi si leggono dalla cassa, non dagli appuntamenti.
+
+    Prima questa pagina sommava i prezzi degli appuntamenti segnati completati
+    più i pagamenti dei pacchetti: un numero che somiglia all'incasso ma non lo
+    è, e infatti diceva 280 € mentre in cassa ce n'erano 330. Quello che è
+    entrato davvero lo sa una tabella sola — le transazioni — ed è la stessa
+    che legge Punto Cassa. Due schermate, un numero.
+  */
+  const [incassi, setIncassi] = useState<IncomeSummary | null>(null);
+  useEffect(() => {
+    const giorni = lastNDays(7);
+    getIncomeSummary(giorni[0], giorni[giorni.length - 1]).then(setIncassi).catch(() => {});
+  }, []);
+  const incassoDi = useCallback(
+    (giorno: string) => incassi?.days.find(d => d.date === giorno)?.totale ?? 0,
+    [incassi],
+  );
+
   // =================== LIVE KPIs ===================
   const kpi = useMemo(() => {
     const todayAppts = appointments.filter(a => a.date === today);
@@ -132,7 +152,9 @@ export default function DashboardPage() {
       return sum + todays.reduce((s, p) => s + p.amount, 0);
     }, 0);
     
-    const revenueToday = apptsRevenue + pkgPaymentsToday;
+    // Tenuti per il resto della pagina, ma non sono l'incasso: vedi sopra.
+    void apptsRevenue; void pkgPaymentsToday;
+    const revenueToday = incassoDi(today);
     const appointmentsToday = todayAppts.length;
 
     // New clients created today (or in last 24h)
@@ -148,7 +170,7 @@ export default function DashboardPage() {
     const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().split('T')[0];
     const yesterdayAppts = appointments.filter(a => a.date === yesterdayStr);
-    const revenueYesterday = yesterdayAppts.filter(a => a.status === 'completed').reduce((s, a) => s + a.price, 0);
+    const revenueYesterday = incassoDi(yesterdayStr);
     const revenueTrend = revenueYesterday > 0 ? Math.round(((revenueToday - revenueYesterday) / revenueYesterday) * 100) : (revenueToday > 0 ? 100 : 0);
     const appointmentsTrend = yesterdayAppts.length > 0 ? Math.round(((appointmentsToday - yesterdayAppts.length) / yesterdayAppts.length) * 100) : (appointmentsToday > 0 ? 100 : 0);
 
@@ -167,30 +189,25 @@ export default function DashboardPage() {
       revenueToday, revenueTrend, appointmentsToday, appointmentsTrend,
       newClientsToday, occupancyRate, noShowRate, avgTicket,
     };
-  }, [appointments, clients, clientPackages, today]);
+  }, [appointments, clients, clientPackages, today, incassoDi]);
 
   // =================== REVENUE CHART (last 7 days) ===================
   const revenueChartData = useMemo(() => {
-    const days = lastNDays(7);
-    return days.map((d, i) => {
-      const dayAppts = appointments.filter(a => a.date === d && a.status === 'completed');
-      const apptsRev = dayAppts.reduce((s, a) => s + a.price, 0);
-      
-      const pkgRev = clientPackages.reduce((sum, cp) => {
-        const dayPayments = cp.payments.filter(p => p.date === d);
-        return sum + dayPayments.reduce((s, p) => s + p.amount, 0);
-      }, 0);
-
-      const revenue = apptsRev + pkgRev;
-      const dayDate = new Date(d);
-      const isToday = d === today;
+    /*
+      Anche il grafico viene dalla cassa. La seconda linea erano i "servizi",
+      calcolati come l'80% del totale: un numero inventato disegnato accanto a
+      uno vero. Ora è il contante, che è un dato e serve — dice quanto c'è da
+      contare nel cassetto a fine giornata.
+    */
+    return lastNDays(7).map(d => {
+      const giorno = incassi?.days.find(x => x.date === d);
       return {
-        label: isToday ? 'Oggi' : dayLabels[dayDate.getDay()],
-        revenue,
-        services: Math.round(revenue * 0.8),
+        label: d === today ? 'Oggi' : dayLabels[new Date(d).getDay()],
+        revenue: giorno?.totale ?? 0,
+        services: giorno?.contanti ?? 0,
       };
     });
-  }, [appointments, clientPackages, today]);
+  }, [incassi, today]);
 
   // =================== LIVE ACTIVITIES ===================
   const liveActivities = useMemo(() => {
@@ -317,7 +334,7 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <KPICard title="Fatturato Oggi" value={kpi.revenueToday} trend={kpi.revenueTrend} icon={Euro} isCurrency />
+        <KPICard title="Incassato Oggi" value={kpi.revenueToday} trend={kpi.revenueTrend} icon={Euro} isCurrency />
         <KPICard title="Appuntamenti Oggi" value={kpi.appointmentsToday} trend={kpi.appointmentsTrend} icon={Calendar} />
         <KPICard title="Nuovi Clienti" value={kpi.newClientsToday} trend={kpi.newClientsToday > 0 ? 100 : 0} icon={Users} />
         <KPICard title="Occupazione" value={`${kpi.occupancyRate}%`} trend={kpi.occupancyRate > 70 ? 5 : -10} icon={Activity} />
@@ -329,7 +346,7 @@ export default function DashboardPage() {
         <motion.div variants={item} className="xl:col-span-2 bg-bg-secondary border border-border rounded-2xl p-5">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-lg font-display font-semibold text-text-primary">Andamento Fatturato</h3>
+              <h3 className="text-lg font-display font-semibold text-text-primary">Andamento incassi</h3>
               <p className="text-sm text-text-secondary">Ultima settimana</p>
             </div>
             <div className="flex items-center gap-4 text-xs">
@@ -339,7 +356,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-accent-secondary" />
-                <span className="text-text-secondary">Servizi</span>
+                <span className="text-text-secondary">Contanti</span>
               </div>
             </div>
           </div>

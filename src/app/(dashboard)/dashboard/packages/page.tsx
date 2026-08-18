@@ -5,9 +5,11 @@ import { usePackageStore, PackageItem, ClientPackage, PackagePayment } from '@/s
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package, Plus, CheckCircle, AlertCircle,
-  X, Trash2, Minus, Search, User, Users, Calendar, Clock, History, Euro, Pencil, ShoppingBag, Gift,
+  X, Trash2, Minus, Search, User, Users, Calendar, Clock, History, Euro, Pencil, ShoppingBag, Gift, Printer,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
+import { foglioPacchetti, type PacchettoDaStampare } from '@/lib/foglioPacchetti';
+import { CENTRO } from '@/lib/centro';
 import { useClientStore } from '@/stores/useClientStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { TreatmentsSection } from './TreatmentsSection';
@@ -856,6 +858,62 @@ export default function PackagesPage() {
   // L'elenco dei pacchetti clienti si apre in una finestra: la pagina resta pulita
   const [showClientPkgs, setShowClientPkgs] = useState(false);
 
+  /*
+    Il foglio da dare alla cliente.
+
+    Si spuntano i pacchetti di cui le si è parlato — al massimo quattro, che è
+    quanto ne sta su un A4 senza diventare un volantino — e si stampa. Il nome
+    della cliente è facoltativo: scritto sopra, il foglio smette di essere un
+    listino e diventa una proposta.
+  */
+  const MAX_STAMPA = 4;
+  const [scelti, setScelti] = useState<string[]>([]);
+  const [perChi, setPerChi] = useState('');
+  const trattamenti = useTreatmentStore(s => s.treatments);
+
+  const spunta = (id: string) => {
+    setScelti(prima => prima.includes(id)
+      ? prima.filter(x => x !== id)
+      : prima.length >= MAX_STAMPA ? prima : [...prima, id]);
+  };
+
+  /**
+   * Il prezzo della singola seduta a listino, per poter scrivere il risparmio.
+   *
+   * Si cerca prima il trattamento collegato al pacchetto; se manca, si prova col
+   * nome del pacchetto senza il numero davanti ("10 Slimsphere corpo 30 min" →
+   * "Slimsphere corpo 30 min"). Se non si trova, il risparmio non si scrive:
+   * meglio niente che un numero inventato su un foglio che va in mano a una
+   * cliente.
+   */
+  const prezzoSingolo = (pkg: PackageItem): number | undefined => {
+    const pulisci = (x: string) => x.trim().toLowerCase().replace(/\s+/g, ' ');
+    const senzaNumero = pulisci(pkg.name).replace(/^\d+\s*/, '');
+    const t = trattamenti.find(x => pkg.treatmentName && pulisci(x.name) === pulisci(pkg.treatmentName))
+      || trattamenti.find(x => pulisci(x.name) === senzaNumero);
+    const prezzo = t?.priceFemale ?? t?.price;
+    return prezzo && prezzo > 0 ? prezzo : undefined;
+  };
+
+  const stampaScelti = () => {
+    const daStampare: PacchettoDaStampare[] = scelti
+      .map(id => packages.find(p => p.id === id))
+      .filter((p): p is PackageItem => Boolean(p))
+      .map(p => ({
+        nome: p.name,
+        prezzo: p.price,
+        sedute: p.totalSessions,
+        descrizione: p.description || undefined,
+        prezzoSingolo: prezzoSingolo(p),
+      }));
+    if (daStampare.length === 0) return;
+
+    const finestra = window.open('', '_blank', 'width=900,height=1100');
+    if (!finestra) { alert('Il browser ha bloccato la finestra di stampa: consenti le finestre pop-up per questo sito.'); return; }
+    finestra.document.write(foglioPacchetti({ pacchetti: daStampare, centro: CENTRO, cliente: perChi.trim() || undefined }));
+    finestra.document.close();
+  };
+
   const filteredClientPkgs = useMemo(() => {
     let list = [...clientPkgs];
     if (filter !== 'all') list = list.filter(cp => cp.status === filter);
@@ -908,12 +966,25 @@ export default function PackagesPage() {
         <h3 className="text-base font-display font-semibold text-text-primary mb-3">Catalogo Pacchetti</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           {packages.map(pkg => (
-            <div key={pkg.id} className="bg-bg-secondary border border-border rounded-2xl p-5 hover:border-border-light transition-all group relative">
+            <div key={pkg.id}
+              className={`bg-bg-secondary border rounded-2xl p-5 transition-all group relative ${
+                scelti.includes(pkg.id) ? 'border-accent ring-1 ring-accent/40' : 'border-border hover:border-border-light'}`}>
+              {/* La spunta sta sempre in vista, non solo al passaggio del mouse:
+                  se compare solo quando ci passi sopra, nessuno sa che esiste. */}
+              <label className="absolute top-3 left-3 flex items-center gap-1.5 cursor-pointer select-none z-[1]"
+                title={scelti.length >= MAX_STAMPA && !scelti.includes(pkg.id)
+                  ? `Su un foglio A4 ne stanno ${MAX_STAMPA}`
+                  : 'Mettilo nel foglio da stampare'}>
+                <input type="checkbox" checked={scelti.includes(pkg.id)}
+                  disabled={scelti.length >= MAX_STAMPA && !scelti.includes(pkg.id)}
+                  onChange={() => spunta(pkg.id)}
+                  className="w-4 h-4 rounded border-border accent-accent cursor-pointer disabled:opacity-30" />
+              </label>
               <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                 <button onClick={() => setEditingPkg(pkg)} title="Modifica pacchetto" className="p-1.5 rounded-lg hover:bg-accent/10 text-text-muted hover:text-accent transition-all"><Pencil className="w-3.5 h-3.5" /></button>
                 <button onClick={() => setConfirmDeletePkgId(pkg.id)} title="Elimina pacchetto" className="p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
-              <div className="p-2.5 rounded-xl w-fit mb-3" style={{ backgroundColor: `${pkg.color}15`, color: pkg.color }}><Package className="w-5 h-5" /></div>
+              <div className="p-2.5 rounded-xl w-fit mb-3 mt-5" style={{ backgroundColor: `${pkg.color}15`, color: pkg.color }}><Package className="w-5 h-5" /></div>
               <h4 className="text-sm font-semibold text-text-primary mb-1 line-clamp-2">{pkg.name}</h4>
               <div className="flex items-baseline gap-1 mb-1">
                 <span className="text-lg font-display font-bold text-text-primary">{formatCurrency(pkg.price)}</span>
@@ -944,6 +1015,32 @@ export default function PackagesPage() {
           </button>
         </div>
       </div>
+
+      {/* Il foglio da dare alla cliente: la barra compare solo quando serve. */}
+      <AnimatePresence>
+        {scelti.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex flex-wrap items-center gap-3 px-4 py-3
+              rounded-2xl bg-bg-secondary border border-border shadow-2xl max-w-[92vw]">
+            <span className="text-sm font-semibold text-text-primary whitespace-nowrap">
+              {scelti.length} {scelti.length === 1 ? 'pacchetto' : 'pacchetti'} nel foglio
+            </span>
+            <input type="text" value={perChi} onChange={e => setPerChi(e.target.value)} {...NO_AUTOFILL}
+              onKeyDown={e => { if (e.key === 'Enter') stampaScelti(); }}
+              placeholder="Per chi è? (facoltativo)"
+              className="px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted
+                focus:outline-none focus:border-accent/50 w-[190px]" />
+            <button onClick={stampaScelti}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity">
+              <Printer className="w-4 h-4" /> Stampa il foglio
+            </button>
+            <button onClick={() => { setScelti([]); setPerChi(''); }}
+              className="px-3 py-2 rounded-xl border border-border text-sm text-text-secondary hover:bg-bg-hover transition-colors">
+              Annulla
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Pacchetti Clienti: solo il riepilogo, l'elenco si apre in una finestra */}
       <div className="bg-bg-secondary border border-border rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
