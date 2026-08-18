@@ -49,6 +49,8 @@ import WaitlistModal from '@/components/WaitlistModal';
 import WaitlistPanel from '@/components/WaitlistPanel';
 import AddClientModal from '@/components/AddClientModal';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
+import SegniCliente from '@/components/SegniCliente';
+import AvvisoCliente from '@/components/AvvisoCliente';
 
 /** Mostra in chiaro il rifiuto del server (es. cliente doppione). */
 function avvisaErroreCliente(e: unknown) {
@@ -1313,7 +1315,12 @@ function CercaCliente({ clients, appointments, onApriAppuntamento, onVaiAlGiorno
                 {suggerimenti.map(c => (
                   <button key={c.id} onClick={() => setScelto(c)}
                     className="w-full text-left px-4 py-2.5 hover:bg-bg-hover transition-colors">
-                    <p className="text-sm font-medium text-text-primary">{c.firstName} {c.lastName}</p>
+                    {/* I segni si vedono già qui: si decide se darle il posto
+                        mentre si cerca, non dopo aver aperto la scheda. */}
+                    <p className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+                      {c.firstName} {c.lastName}
+                      <SegniCliente clientId={c.id} nome={`${c.firstName} ${c.lastName}`} />
+                    </p>
                     {c.phone && <p className="text-[11px] text-text-muted font-mono">{c.phone}</p>}
                   </button>
                 ))}
@@ -1323,7 +1330,10 @@ function CercaCliente({ clients, appointments, onApriAppuntamento, onVaiAlGiorno
             <div>
               <div className="px-4 py-3 border-b border-border flex items-center gap-2">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-text-primary truncate">{scelto.firstName} {scelto.lastName}</p>
+                  <p className="text-sm font-semibold text-text-primary truncate flex items-center gap-1.5">
+                    {scelto.firstName} {scelto.lastName}
+                    <SegniCliente clientId={scelto.id} nome={`${scelto.firstName} ${scelto.lastName}`} taglia="md" />
+                  </p>
                   {scelto.phone && <p className="text-[11px] text-text-muted font-mono">{scelto.phone}</p>}
                 </div>
                 <button onClick={() => setScelto(null)} className="text-[11px] text-accent font-medium">Cambia</button>
@@ -2555,7 +2565,10 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
               {selectedClientId ? (
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-bg-tertiary border border-border">
                   <UserCircle className="w-5 h-5 text-accent" />
-                  <span className="text-sm font-medium text-text-primary flex-1">{selectedClientName}</span>
+                  <span className="text-sm font-medium text-text-primary flex-1 flex items-center gap-1.5">
+                    {selectedClientName}
+                    <SegniCliente clientId={selectedClientId} nome={selectedClientName} taglia="md" />
+                  </span>
                   <button onClick={() => { setSelectedClientId(''); setSelectedClientName(''); setClientSearch(''); }} className="text-text-muted hover:text-text-primary"><X className="w-4 h-4" /></button>
                 </div>
               ) : (
@@ -2581,7 +2594,13 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                         <button key={client.id} onClick={() => { setSelectedClientId(client.id); setSelectedClientName(`${client.firstName} ${client.lastName}`); setShowClientDropdown(false); setClientSearch(''); }}
                           className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-bg-hover transition-colors text-left">
                           <div className="w-7 h-7 rounded-full bg-accent/20 text-accent flex items-center justify-center text-xs font-bold flex-shrink-0">{getInitials(client.firstName, client.lastName)}</div>
-                          <div className="min-w-0"><p className="text-sm font-medium text-text-primary">{client.firstName} {client.lastName}</p><p className="text-xs text-text-muted">{client.phone}</p></div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+                              {client.firstName} {client.lastName}
+                              <SegniCliente clientId={client.id} nome={`${client.firstName} ${client.lastName}`} />
+                            </p>
+                            <p className="text-xs text-text-muted">{client.phone}</p>
+                          </div>
                         </button>
                       ))}
                       {filteredClients.length === 0 && <p className="px-3 py-3 text-sm text-text-muted text-center">Nessun cliente trovato</p>}
@@ -2590,6 +2609,11 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                 </>
               )}
             </div>
+
+            {/* Chi salta gli appuntamenti o è stata segnalata: qui in chiaro.
+                Le iconcine vanno bene per riconoscere, ma nel momento in cui si
+                sta dando un posto serve una frase, non un simbolo. */}
+            {selectedClientId && <AvvisoCliente clientId={selectedClientId} nome={selectedClientName} />}
 
             {/* === PACCHETTI ATTIVI DEL CLIENTE === */}
             {selectedClientName && clientActivePkgs.length > 0 && (

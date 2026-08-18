@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import SegniCliente from '@/components/SegniCliente';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Phone, MessageCircle, CalendarPlus, Clock, CheckCircle, Ban, MessageSquare } from 'lucide-react';
 import { useWaitlistStore, WaitlistEntry } from '@/stores/useWaitlistStore';
@@ -122,7 +123,10 @@ export default function WaitlistPanel({ onClose, onOpenNew }: { onClose: () => v
                     
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <h3 className="font-semibold text-text-primary">{entry.clientName}</h3>
+                        <h3 className="font-semibold text-text-primary flex items-center gap-1.5">
+                          {entry.clientName}
+                          <SegniCliente nome={entry.clientName} />
+                        </h3>
                         <p className="text-xs text-text-secondary">{entry.treatmentName} ({entry.duration} min)</p>
                       </div>
                       {isFree && (

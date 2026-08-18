@@ -20,6 +20,8 @@ const KIND = 'cliente:difficile';
 
 export interface ClienteDifficile {
   clientId: string;
+  /** Serve dove l'id non c'è: in WhatsApp una conversazione ha nome e numero. */
+  nome: string;
   motivo: string;
   segnalataDa?: string;
   quando: string;
@@ -27,10 +29,19 @@ export interface ClienteDifficile {
 
 export async function clientiDifficili(): Promise<ClienteDifficile[]> {
   const righe = await prisma.adminEntry.findMany({ where: { kind: KIND } });
+  if (righe.length === 0) return [];
+
+  const schede = await prisma.client.findMany({
+    where: { id: { in: righe.map(r => r.entityId) } },
+    select: { id: true, firstName: true, lastName: true },
+  });
+  const nomi = new Map(schede.map(c => [c.id, `${c.firstName} ${c.lastName}`.trim()]));
+
   return righe.map(r => {
     const d = (r.data || {}) as { motivo?: string; segnalataDa?: string };
     return {
       clientId: r.entityId,
+      nome: nomi.get(r.entityId) || '',
       motivo: d.motivo || '',
       segnalataDa: d.segnalataDa || undefined,
       quando: r.createdAt,

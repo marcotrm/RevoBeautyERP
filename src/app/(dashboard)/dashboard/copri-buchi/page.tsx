@@ -10,6 +10,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
+import SegniCliente from '@/components/SegniCliente';
 import { motion } from 'framer-motion';
 import {
   Megaphone, Loader2, CheckCircle2, XCircle, Clock, Users, Euro, StopCircle, AlertTriangle, Send,
@@ -190,6 +191,7 @@ export default function CopriBuchiPage() {
                           r.risposta === 'si' ? 'bg-success/10 text-success' : 'bg-bg-tertiary text-text-muted'}`}>
                         {r.risposta === 'si' ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
                         {r.nome}
+                        <SegniCliente clientId={r.clientId} nome={r.nome} className="ml-1.5 align-middle" />
                       </span>
                     ))}
                   </div>

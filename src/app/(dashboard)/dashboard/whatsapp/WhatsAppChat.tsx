@@ -14,6 +14,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageSquare, Send, Loader2, Trash2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X, Search, Smile } from 'lucide-react';
 import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione, eliminaConversazione, segnaConversazioneGestita } from '@/app/actions/whatsapp';
+import SegniCliente from '@/components/SegniCliente';
 import {
   listaTemplate, clientiPerCampagna, creaTemplateApertura,
   type TemplateRemoto, type DestinatarioCampagna,
@@ -788,6 +789,9 @@ export default function WhatsAppChat() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-text-primary truncate flex-1">{c.name || c.phone}</span>
+                  {/* Qui la cliente si riconosce dal nome dell'anagrafica: i
+                      segni servono prima di rispondere, non dopo. */}
+                  <SegniCliente nome={c.name} />
                   {c.unread > 0 && (
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-success text-white flex-shrink-0">{c.unread}</span>
                   )}
@@ -871,7 +875,10 @@ export default function WhatsAppChat() {
               <Faccia nome={clientName || conversations?.find(c => c.phone === active)?.name}
                 phone={active} avatar={clientAvatar} size={36} />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-text-primary truncate">{clientName || conversations?.find(c => c.phone === active)?.name || active}</p>
+                <p className="text-sm font-medium text-text-primary truncate flex items-center gap-1.5">
+                  {clientName || conversations?.find(c => c.phone === active)?.name || active}
+                  <SegniCliente nome={clientName || conversations?.find(c => c.phone === active)?.name} taglia="md" />
+                </p>
                 <p className="text-[11px] text-text-muted font-mono">+{active}</p>
               </div>
               {/* Rimette la chat fra le non lette: chiude il thread, altrimenti

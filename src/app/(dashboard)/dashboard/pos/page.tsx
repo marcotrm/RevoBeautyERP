@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import SegniCliente from '@/components/SegniCliente';
 import { usePosStore, TransactionRecord } from '@/stores/usePosStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -252,7 +253,10 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                         <div className="absolute left-0 right-0 top-full mt-1 bg-bg-secondary border border-border rounded-xl shadow-xl z-10 overflow-hidden">
                           {filteredClients.map(c => (
                             <button key={c.id} onClick={() => { setSelectedClient(`${c.firstName} ${c.lastName}`); setClientSearch(''); }}
-                              className="w-full text-left px-4 py-2.5 hover:bg-bg-hover text-sm text-text-primary transition-colors">{c.firstName} {c.lastName} <span className="text-text-muted">• {c.phone}</span></button>
+                              className="w-full text-left px-4 py-2.5 hover:bg-bg-hover text-sm text-text-primary transition-colors flex items-center gap-1.5">
+                                {c.firstName} {c.lastName}
+                                <SegniCliente clientId={c.id} nome={`${c.firstName} ${c.lastName}`} />
+                                <span className="text-text-muted">• {c.phone}</span></button>
                           ))}
                         </div>
                       )}
