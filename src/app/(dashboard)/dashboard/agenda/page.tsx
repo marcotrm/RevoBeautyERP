@@ -18,7 +18,7 @@ import { Appointment, AppointmentService, AgendaBlock, Operator, Treatment, Prod
 import {
   ChevronLeft, ChevronRight, ChevronDown, CalendarDays, Plus,
   Clock, CheckCircle, Check, CalendarCheck, AlertCircle, Play, XCircle, Ban, ListTodo,
-  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone, Sun, MessageSquare, Users
+  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone, Sun, MessageSquare, Users, Crown
 , Loader2 } from 'lucide-react';
 import {
   formatDateLong, timeToMinutes, minutesToTime, getStatusLabel,
@@ -32,6 +32,8 @@ import { resolveDaySchedule, mondayISO } from '@/lib/weekSchedule';
 import { isWalkIn, oraDiAdesso } from '@/lib/walkIn';
 import { schedaCompleta, campiMancanti } from '@/lib/schedaCliente';
 import { todayRome } from '@/lib/date';
+import { clientiTop } from '@/app/actions/clientiTop';
+import { chiaveNome, riassunto, type ClienteTop } from '@/lib/clientiTop';
 import { sedutaIncassata } from '@/app/actions/daIncassare';
 import { useCabinStore } from '@/stores/useCabinStore';
 import { useProductStore } from '@/stores/useProductStore';
@@ -173,7 +175,7 @@ const trascinamento = {
   inizioFetta: '', inizioIntero: '', durataIntera: 60,
 };
 
-function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, color }: { appointment: SplitAppointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties; color?: string }) {
+function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, color, coccolare }: { appointment: SplitAppointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties; color?: string; /** Fra le clienti che spendono di più: va trattata col guanto. */ coccolare?: { speso: number; visite: number; posizione: number } }) {
   const pacchettiCliente = usePackageStore(s => s.clientPackages);
   const blockColor = color || appointment.color;
   const startMin = timeToMinutes(appointment.startTime) - START_HOUR * 60;
@@ -241,6 +243,13 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
         <div className="flex items-center gap-1 min-w-0">
           <span style={{ color: getStatusColor(appointment.status) }}>{statusIcons[appointment.status]}</span>
           <span className={`font-semibold text-text-primary truncate ${isSmall ? 'text-[10px]' : 'text-xs'}`}>{appointment.clientName}</span>
+          {/* La corona è per chi tiene in piedi il centro: chi sta in cabina
+              deve saperlo prima di iniziare, non scoprirlo dopo. */}
+          {coccolare && (
+            <Crown className="w-3 h-3 text-warning flex-shrink-0"
+              // Il titolo dice il perché: una corona senza numeri è un vezzo.
+              aria-label="Cliente da coccolare" />
+          )}
           {appointment.parziale && (
             <Users className="w-3 h-3 text-text-muted flex-shrink-0" />
           )}
@@ -521,7 +530,9 @@ function buchiDellaGiornata(
   return buchi;
 }
 
-function DayView({ appointments, blocks, operators, selectedDate, onAppointmentClick, onWaitlistAdd, onSlotClick, onGapClick, onOffriBuco, onSlotBlock, onRemoveBlock, onDropAppointment }: {
+function DayView({ appointments, blocks, operators, selectedDate, coccole, onAppointmentClick, onWaitlistAdd, onSlotClick, onGapClick, onOffriBuco, onSlotBlock, onRemoveBlock, onDropAppointment }: {
+  /** Chi spende di più, per nome: sul blocco diventa una corona. */
+  coccole?: Map<string, { speso: number; visite: number; posizione: number }>;
   appointments: Appointment[]; blocks: AgendaBlock[]; operators: Operator[]; selectedDate: Date;
   onAppointmentClick: (a: Appointment) => void;
   onWaitlistAdd?: (a: Appointment) => void;
@@ -940,6 +951,7 @@ function DayView({ appointments, blocks, operators, selectedDate, onAppointmentC
                         onWaitlistAdd={onWaitlistAdd}
                         overlapStyle={overlapStyle}
                         color={operator.color}
+                        coccolare={coccole?.get(apt.clientName.trim().toLowerCase().replace(/\s+/g, ' '))}
                       />
                     );
                   });
@@ -3096,6 +3108,20 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     finché non lo sappiamo resta `null` e non si scrive niente — dire "non
     pagata" per mezzo secondo su una seduta pagata sarebbe peggio del problema.
   */
+  /** Se questa cliente è fra quelle che spendono di più, e quanto. */
+  const [coccolaQuesta, setCoccolaQuesta] = useState<ClienteTop | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    clientiTop()
+      .then(lista => {
+        if (!vivo) return;
+        const k = chiaveNome(appointment.clientName);
+        setCoccolaQuesta(lista.find(c => chiaveNome(c.nome) === k) || null);
+      })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [appointment.clientName]);
+
   const [incassata, setIncassata] = useState<boolean | null>(null);
   useEffect(() => {
     let vivo = true;
@@ -3564,6 +3590,23 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
               <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Prezzo</p><p className="text-sm font-medium text-text-primary">{formatCurrency(appointment.price)}</p></div>
             </div>
             <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Operatrice</p><p className="text-sm font-medium text-text-primary">{appointment.operatorName}</p></div>
+
+            {/* Perché la corona: senza i numeri sarebbe un vezzo, e chi entra
+                in cabina deve sapere quanto vale la persona che ha davanti. */}
+            {coccolaQuesta && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-warning/10 border border-warning/30">
+                <Crown className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-text-primary">
+                    Fra le clienti che spendono di più {coccolaQuesta.posizione <= 3 ? `— è la n° ${coccolaQuesta.posizione}` : ''}
+                  </p>
+                  <p className="text-xs text-text-secondary">
+                    {riassunto(coccolaQuesta)} negli ultimi 12 mesi. Trattala col guanto: offrile il caffè,
+                    chiedile come è andata l&apos;ultima volta, non farla aspettare.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {(appointment.checkInAt || appointment.checkOutAt) && (
               <div className="p-3 rounded-xl bg-pink-500/5 border border-pink-500/15">
@@ -4372,6 +4415,20 @@ export default function AgendaPage() {
   const [showRevenuePanel, setShowRevenuePanel] = useState(false);
   /** L'anagrafica, per la ricerca cliente nella barra. */
   const clientiInAnagrafica = useClientStore(s => s.clients);
+
+  /*
+    Le clienti che tengono in piedi il centro.
+
+    Si calcola dagli incassi veri (il campo `totalSpent` in anagrafica è a zero
+    per tutte, non lo aggiorna nessuno) e si legge una volta sola all'apertura:
+    è un numero che si muove di giorno in giorno, non di minuto in minuto.
+  */
+  const [coccole, setCoccole] = useState<Map<string, { speso: number; visite: number; posizione: number }>>(new Map());
+  useEffect(() => {
+    clientiTop()
+      .then(lista => setCoccole(new Map(lista.map(c => [chiaveNome(c.nome), { speso: c.speso, visite: c.visite, posizione: c.posizione }]))))
+      .catch(() => {});
+  }, []);
   const [customRevenuePeriod, setCustomRevenuePeriod] = useState<RevenuePeriod | null>(null);
   const revenuePeriod = useMemo(
     () => customRevenuePeriod ?? periodFor(view, selectedDate),
@@ -4551,7 +4608,7 @@ export default function AgendaPage() {
 
       {/* Views */}
       {view === 'day' && (
-        <DayView appointments={todayAppointments} blocks={todayBlocks} operators={visibleOperators} selectedDate={selectedDate} onAppointmentClick={handleAppointmentClick} onWaitlistAdd={handleWaitlistAdd}
+        <DayView appointments={todayAppointments} blocks={todayBlocks} operators={visibleOperators} selectedDate={selectedDate} coccole={coccole} onAppointmentClick={handleAppointmentClick} onWaitlistAdd={handleWaitlistAdd}
           onSlotBlock={handleSlotBlock} onRemoveBlock={handleRemoveBlock}
           onSlotClick={(operatorId, hour) => {
             // Parte dal primo orario libero all'interno/dopo la fascia cliccata
