@@ -1066,3 +1066,26 @@ model DeviceToken {
   @@index([clientId])
   @@map("device_tokens")
 }
+
+// ============================================================
+// PROMEMORIA SULLA CLIENTE
+// ============================================================
+/// Cose da chiedere o da dire alla cliente QUANDO È QUI.
+///
+/// Non è una nota in scheda: quella si legge solo se qualcuno apre la scheda.
+/// Questo salta fuori da solo al check-in, che è l'unico momento in cui la
+/// persona è davanti a te e la domanda si può fare davvero.
+model ClientReminder {
+  id        String  @id @default(cuid())
+  clientId  String
+  testo     String
+  /// Chi l'ha scritto, per sapere a chi chiedere spiegazioni.
+  creatoDa  String?
+  createdAt String
+  /// Valorizzati quando qualcuno lo segna fatto: da lì non compare più.
+  fattoIl   String?
+  fattoDa   String?
+
+  @@index([clientId])
+  @@map("client_reminders")
+}
