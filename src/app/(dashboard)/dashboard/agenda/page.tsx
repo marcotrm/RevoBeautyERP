@@ -349,6 +349,20 @@ function eurCorto(n: number): string {
   return `${Math.round(n).toLocaleString('it-IT')} €`;
 }
 
+/**
+ * L'importo dentro alla casella di un calendario: pochi millimetri, niente
+ * decimali e niente simbolo. Sopra il migliaio si accorcia ("1,2k"), se no
+ * "1.245" sfonda la casella e diventa illeggibile proprio nei giorni pieni.
+ */
+function euroFitto(n: number): string {
+  const v = Math.round(n);
+  if (v >= 1000) {
+    const k = v / 1000;
+    return `${k.toFixed(k >= 10 ? 0 : 1).replace('.', ',')}k`;
+  }
+  return String(v);
+}
+
 function OperatorColumnHeader({ operator, off, incasso }: {
   operator: Operator;
   off?: boolean;
@@ -1833,19 +1847,28 @@ function RevenuePanel({ appointments, period, isFollowingAgenda, onChange, onFol
             const ds = fmtDate(d);
             const inPeriod = ds >= period.start && ds <= period.end;
             const isEdge = ds === period.start || ds === period.end;
-            const hasMoney = (monthTotals.get(ds) ?? 0) > 0;
+            const soldi = monthTotals.get(ds) ?? 0;
+            const hasMoney = soldi > 0;
             return (
               <button key={i} onClick={() => pickDay(d)}
-                title={hasMoney ? `${formatDateLong(ds)} · ${eur(monthTotals.get(ds) ?? 0)}` : formatDateLong(ds)}
-                className={`h-9 rounded-lg text-xs font-medium transition-all relative ${
+                title={hasMoney ? `${formatDateLong(ds)} · ${eur(soldi)}` : formatDateLong(ds)}
+                className={`h-11 rounded-lg text-xs font-medium transition-all flex flex-col items-center justify-center leading-none gap-0.5 ${
                   isEdge ? 'bg-accent text-white font-bold'
                     : inPeriod ? 'bg-accent/15 text-accent'
                     : ds === todayStr ? 'bg-accent/5 text-accent ring-1 ring-accent/30'
                     : 'text-text-primary hover:bg-bg-hover'
                 }`}>
-                {d.getDate()}
+                <span>{d.getDate()}</span>
+                {/* L'incasso previsto sotto al giorno: il pallino diceva solo
+                    "qui c'è qualcosa", e per sapere quanto bisognava passarci
+                    sopra col mouse un giorno per volta. Senza decimali, perché
+                    a colpo d'occhio servono le centinaia, non i centesimi. */}
                 {hasMoney && (
-                  <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${isEdge ? 'bg-white' : 'bg-accent'}`} />
+                  <span className={`text-[9px] font-semibold tabular-nums ${
+                    isEdge ? 'text-white/90' : inPeriod ? 'text-accent/80' : 'text-text-muted'
+                  }`}>
+                    {euroFitto(soldi)}
+                  </span>
                 )}
               </button>
             );
