@@ -13,7 +13,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageSquare, Send, Loader2, Trash2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X, Search, Smile } from 'lucide-react';
-import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione, eliminaConversazione } from '@/app/actions/whatsapp';
+import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione, eliminaConversazione, segnaConversazioneGestita } from '@/app/actions/whatsapp';
 import {
   listaTemplate, clientiPerCampagna, creaTemplateApertura,
   type TemplateRemoto, type DestinatarioCampagna,
@@ -631,6 +631,19 @@ export default function WhatsAppChat() {
   };
 
   const [eliminando, setEliminando] = useState(false);
+  const [segnando, setSegnando] = useState(false);
+
+  /** "L'ho gestita io": via il segno DA RISPONDERE, finché non riscrivono. */
+  const segnaLetta = async (phone: string) => {
+    setSegnando(true);
+    try {
+      await segnaConversazioneGestita(phone);
+      await refreshList();
+      await loadThread(phone);
+    } finally {
+      setSegnando(false);
+    }
+  };
 
   /**
    * Toglie la conversazione dall'archivio del gestionale.
@@ -866,6 +879,14 @@ export default function WhatsAppChat() {
               <button onClick={() => segnaDaLeggere(active)} title="Rimetti fra i messaggi da leggere"
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-[11px] font-medium text-text-secondary hover:bg-bg-hover hover:text-accent transition-colors flex-shrink-0">
                 <MailQuestion className="w-3.5 h-3.5" /> Da leggere
+              </button>
+              {/* Chiude il "da rispondere" senza scrivere: la cliente è stata
+                  richiamata al telefono, o il messaggio non chiedeva niente.
+                  Vale fino a adesso — se lei riscrive, torna in lista. */}
+              <button onClick={() => segnaLetta(active)} disabled={segnando}
+                title="Tolgo il segno DA RISPONDERE: l'ho gestita io"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-[11px] font-medium text-text-secondary hover:bg-success/10 hover:text-success hover:border-success/30 transition-colors flex-shrink-0 disabled:opacity-50">
+                {segnando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Ho letto
               </button>
               {/* Numeri sbagliati, spam, prove: restavano in elenco marchiati
                   DA RISPONDERE e sporcavano l'unica lista che deve stare

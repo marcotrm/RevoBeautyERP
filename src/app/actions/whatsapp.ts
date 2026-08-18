@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { waProvider, whatsappMissingVars, sendWhatsApp, sendWhatsAppTemplate, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
 import {
-  listConversations, listMessages, markConversationRead, markConversationUnread, cancellaConversazione, conversationWindow, listUnreadChats,
+  listConversations, listMessages, markConversationRead, markConversationUnread, cancellaConversazione, segnaGestita, conversationWindow, listUnreadChats,
   clientNameForPhone, logOutbound,
   type WaConversation, type WaMessageRow, type WaUnreadChat,
 } from '@/lib/wa-conversations';
@@ -418,4 +418,16 @@ export async function checkTemplates(): Promise<{
 export async function eliminaConversazione(phone: string): Promise<{ ok: boolean; eliminati: number }> {
   const res = await cancellaConversazione(phone);
   return { ok: true, eliminati: res.eliminati };
+}
+
+/**
+ * "Ho letto": toglie la conversazione dai da rispondere senza scrivere.
+ *
+ * Serve quando la cliente è stata richiamata al telefono o quando il messaggio
+ * non chiedeva niente. Vale fino a adesso: se lei riscrive, la chat torna in
+ * lista.
+ */
+export async function segnaConversazioneGestita(phone: string): Promise<{ ok: boolean }> {
+  await segnaGestita(normalizePhone(phone));
+  return { ok: true };
 }

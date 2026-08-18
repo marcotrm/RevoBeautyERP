@@ -392,6 +392,39 @@ async function readMarks(): Promise<Map<string, string>> {
   return map;
 }
 
+const GESTITA_ROW = (phone: string) => `wa:gestita:${phone}`;
+
+/**
+ * "Ho letto": la chiudo io, senza rispondere qui.
+ *
+ * La regola dell'ultimo messaggio nostro è giusta, ma non copre tutto: a volte
+ * la cliente la si è richiamata al telefono, a volte il messaggio non chiede
+ * niente. Senza una via d'uscita quella chat resterebbe rossa per sempre, e
+ * una lista che segna cose già sistemate smette di essere creduta.
+ *
+ * Non è un "letto" qualunque: vale fino a QUEL momento. Se dopo arriva un
+ * altro messaggio, la conversazione torna da rispondere — che è esattamente
+ * quello che deve succedere.
+ */
+export async function segnaGestita(phone: string): Promise<void> {
+  const now = new Date().toISOString();
+  await prisma.adminEntry.upsert({
+    where: { rowId: GESTITA_ROW(phone) },
+    update: { data: { phone, gestitaAl: now } },
+    create: { rowId: GESTITA_ROW(phone), kind: 'wa_gestita', entityId: phone, data: { phone, gestitaAl: now }, createdAt: now },
+  });
+}
+
+async function gestiteMarks(): Promise<Map<string, string>> {
+  const rows = await prisma.adminEntry.findMany({ where: { kind: 'wa_gestita' }, take: 500 });
+  const map = new Map<string, string>();
+  for (const r of rows) {
+    const d = (r.data || {}) as { phone?: string; gestitaAl?: string };
+    if (d.phone && d.gestitaAl) map.set(d.phone, d.gestitaAl);
+  }
+  return map;
+}
+
 /** Segna come letta una conversazione (azzera il contatore dei non letti). */
 export async function markConversationRead(phone: string): Promise<void> {
   const now = new Date().toISOString();
@@ -434,6 +467,7 @@ export async function cancellaConversazione(phone: string): Promise<{ eliminati:
     where: {
       OR: [
         { rowId: READ_ROW(tel) },
+        { rowId: GESTITA_ROW(tel) },
         { rowId: `wa:window:${tel}` },
         { rowId: `wa:booking:${tel}` },
         { rowId: `wa:spostamento:${tel}` },
@@ -470,8 +504,8 @@ export async function phonesWithInbound(): Promise<Set<string>> {
 }
 
 export async function listConversations(limit = 300): Promise<WaConversation[]> {
-  const [messages, windows, reads, clientNames] = await Promise.all([
-    recentMessages(FINESTRA_ELENCO), lastInboundMap(), readMarks(), clientNamesByPhone(),
+  const [messages, windows, reads, clientNames, gestite] = await Promise.all([
+    recentMessages(FINESTRA_ELENCO), lastInboundMap(), readMarks(), clientNamesByPhone(), gestiteMarks(),
   ]);
 
   const byPhone = new Map<string, WaMessageRow[]>();
@@ -496,14 +530,32 @@ export async function listConversations(limit = 300): Promise<WaConversation[]> 
     */
     let senzaRisposta = 0;
     let primoSenzaRisposta: string | undefined;
+    let ultimoSenzaRisposta: string | undefined;
     for (const m of msgs) {
       if (m.direction === 'out') break;
       if (eReazione(m) || eConfermaSecca(m)) continue;
       senzaRisposta++;
+      // `msgs` va dal più recente al più vecchio: il primo che si incontra è
+      // l'ultimo scritto, l'ultimo che si incontra è quello da cui aspetta.
+      if (!ultimoSenzaRisposta) ultimoSenzaRisposta = m.at;
       primoSenzaRisposta = m.at;
     }
     const attesaMinuti = primoSenzaRisposta ? minutiDa(primoSenzaRisposta) : undefined;
-    const inAttesa = senzaRisposta > 0 && (attesaMinuti ?? 0) >= ATTESA_RISPOSTA_MIN;
+    // Se qualcuno ha premuto "Ho letto" DOPO l'ultimo messaggio rimasto senza
+    // risposta, quella conversazione è sistemata: torna in lista solo se la
+    // cliente scrive di nuovo.
+    /*
+      Il confronto è con l'ULTIMO messaggio della cliente, non col primo.
+
+      Col primo bastava un "Ho letto" per zittire anche tutto quello che
+      sarebbe arrivato dopo: lei riscriveva e la chat restava sistemata,
+      perché il messaggio da cui si contava l'attesa era comunque più vecchio
+      del segno. Provato e visto: è il modo esatto in cui si perde una cliente
+      convinti di avere la lista in ordine.
+    */
+    const gestitaAl = gestite.get(phone);
+    const giaGestita = Boolean(gestitaAl && ultimoSenzaRisposta && gestitaAl >= ultimoSenzaRisposta);
+    const inAttesa = senzaRisposta > 0 && (attesaMinuti ?? 0) >= ATTESA_RISPOSTA_MIN && !giaGestita;
 
     conversations.push({
       phone,
