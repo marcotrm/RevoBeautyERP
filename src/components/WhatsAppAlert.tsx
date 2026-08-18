@@ -111,9 +111,15 @@ export default function WhatsAppAlert() {
     }
   }, [total, chats]);
 
-  // Chat in attesa da più di 10 minuti: sono quelle che fanno scattare l'avviso.
+  /*
+    L'avviso a schermo è per chi ASPETTA, non per chi ha appena scritto.
+
+    Nell'elenco adesso ci sono anche le chat con un messaggio appena arrivato
+    (servono al numerino sul menu): se finissero qui dentro, chi risponde entro
+    due minuti si vedrebbe sbattere in faccia un modale a ogni messaggio.
+  */
   const overdue = useMemo(
-    () => chats.filter(c => now - new Date(c.oldestUnreadAt).getTime() >= ALERT_AFTER_MS),
+    () => chats.filter(c => c.daRispondere && now - new Date(c.oldestUnreadAt).getTime() >= ALERT_AFTER_MS),
     [chats, now]
   );
 

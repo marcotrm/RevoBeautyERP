@@ -58,6 +58,9 @@ export default function Sidebar() {
   // aprire, non i messaggi dentro (scelta di Dino: una cliente che scrive
   // tre volte è comunque UNA chat da leggere).
   const waUnread = useWaInboxStore(s => s.chats.length);
+  // Il lampeggio è l'escalation, non l'arrivo: si accende solo quando qualcuno
+  // aspetta da più di un quarto d'ora. Il numerino invece compare subito.
+  const waInAttesa = useWaInboxStore(s => s.inAttesa);
 
   // Mostra solo le voci per cui il ruolo dell'utente ha il permesso
   const visibleMenuItems = menuItems.filter(item =>
@@ -176,7 +179,7 @@ export default function Sidebar() {
             const isActive = activeItem?.id === item.id || (item.href === '/dashboard' && pathname === '/dashboard');
             const Icon = item.icon;
             // WhatsApp lampeggia finché c'è un messaggio del cliente da leggere
-            const blinking = item.id === 'whatsapp' && waUnread > 0;
+            const blinking = item.id === 'whatsapp' && waInAttesa > 0;
             const badgeCount = item.id === 'whatsapp' ? waUnread : (item.badge ?? 0);
             return (
               <Link

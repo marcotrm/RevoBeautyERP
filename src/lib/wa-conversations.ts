@@ -187,6 +187,15 @@ export interface WaUnreadChat {
   phone: string;
   name?: string;
   unread: number;
+  /**
+   * Vero se aspetta una risposta da più di 15 minuti.
+   *
+   * È la differenza fra "è arrivato un messaggio" e "qualcuno sta aspettando":
+   * il numerino sul menu si accende subito col primo, il lampeggio solo col
+   * secondo. Sono due informazioni diverse e servivano tutte e due — averle
+   * fuse in una sola aveva tolto il numerino dei messaggi appena arrivati.
+   */
+  daRispondere: boolean;
   lastText: string;
   /** Da quanto il cliente aspetta una risposta. */
   oldestUnreadAt: string;
@@ -620,10 +629,26 @@ export async function listUnreadChats(): Promise<WaUnreadChat[]> {
     aspettando.
   */
   return conversations
-    .filter((c): c is WaConversation & { senzaRispostaDa: string } => c.daRispondere && !!c.senzaRispostaDa)
+    /*
+      Due motivi per comparire qui, e non vanno confusi:
+
+       - `unread`: è arrivato qualcosa che non abbiamo ancora aperto. È il
+         numerino sul menu, e deve accendersi SUBITO — serve a sapere che c'è
+         posta, non che qualcuno è in attesa;
+       - `daRispondere`: sono passati più di quindici minuti e la risposta non
+         c'è. È il lampeggio e l'avviso a schermo.
+
+      Averli fusi in uno solo aveva tolto il numerino dei messaggi appena
+      arrivati: la chat compariva solo dopo un quarto d'ora, e nel frattempo
+      sembrava che non fosse arrivato niente.
+    */
+    .filter(c => c.unread > 0 || c.daRispondere)
     .map(c => ({
-      phone: c.phone, name: c.name, unread: c.senzaRisposta,
-      lastText: c.lastText, oldestUnreadAt: c.senzaRispostaDa,
+      phone: c.phone, name: c.name,
+      unread: Math.max(c.unread, c.senzaRisposta),
+      daRispondere: c.daRispondere,
+      lastText: c.lastText,
+      oldestUnreadAt: c.senzaRispostaDa || c.oldestUnreadAt || c.lastAt,
     }))
     .sort((a, b) => a.oldestUnreadAt.localeCompare(b.oldestUnreadAt));
 }

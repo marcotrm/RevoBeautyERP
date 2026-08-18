@@ -11,7 +11,10 @@ import type { WaUnreadChat } from '@/lib/wa-conversations';
  */
 interface WaInboxState {
   chats: WaUnreadChat[];
+  /** Messaggi nuovi in totale: è il numerino sul menu. */
   total: number;
+  /** Quante conversazioni aspettano da più di 15 minuti: è il lampeggio. */
+  inAttesa: number;
   loaded: boolean;
   fetchUnread: () => Promise<void>;
 }
@@ -19,11 +22,17 @@ interface WaInboxState {
 export const useWaInboxStore = create<WaInboxState>()((set) => ({
   chats: [],
   total: 0,
+  inAttesa: 0,
   loaded: false,
   fetchUnread: async () => {
     try {
       const chats = await loadWaUnread();
-      set({ chats, total: chats.reduce((s, c) => s + c.unread, 0), loaded: true });
+      set({
+        chats,
+        total: chats.reduce((s, c) => s + c.unread, 0),
+        inAttesa: chats.filter(c => c.daRispondere).length,
+        loaded: true,
+      });
     } catch {
       // Rete o DB giù: si riprova al giro dopo, senza svuotare quello che già mostriamo.
     }
