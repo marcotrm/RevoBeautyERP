@@ -9,6 +9,7 @@ import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { mockOperators } from '@/lib/mock-data';
 import { getInitials } from '@/lib/helpers';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
+import SegniCliente from '@/components/SegniCliente';
 
 export default function WaitlistModal({
   onClose,
@@ -92,7 +93,10 @@ export default function WaitlistModal({
               {selectedClientName ? (
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-bg-tertiary border border-border">
                   <UserCircle className="w-5 h-5 text-warning" />
-                  <span className="text-sm font-medium text-text-primary flex-1">{selectedClientName}</span>
+                  <span className="text-sm font-medium text-text-primary flex-1 flex items-center gap-1.5">
+                    {selectedClientName}
+                    <SegniCliente clientId={selectedClientId} nome={selectedClientName} />
+                  </span>
                   <button onClick={() => { setSelectedClientId(''); setSelectedClientName(''); setClientSearch(''); setPhone(''); }} className="text-text-muted hover:text-text-primary"><X className="w-4 h-4" /></button>
                 </div>
               ) : (
@@ -112,7 +116,13 @@ export default function WaitlistModal({
                         <button key={client.id} onClick={() => { setSelectedClientId(client.id); setSelectedClientName(`${client.firstName} ${client.lastName}`); setShowClientDropdown(false); setClientSearch(''); }}
                           className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-bg-hover transition-colors text-left">
                           <div className="w-7 h-7 rounded-full bg-warning/20 text-warning flex items-center justify-center text-xs font-bold">{getInitials(client.firstName, client.lastName)}</div>
-                          <div className="min-w-0"><p className="text-sm font-medium text-text-primary">{client.firstName} {client.lastName}</p><p className="text-xs text-text-muted">{client.phone}</p></div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+                              {client.firstName} {client.lastName}
+                              <SegniCliente clientId={client.id} nome={`${client.firstName} ${client.lastName}`} />
+                            </p>
+                            <p className="text-xs text-text-muted">{client.phone}</p>
+                          </div>
                         </button>
                       ))}
                     </div>

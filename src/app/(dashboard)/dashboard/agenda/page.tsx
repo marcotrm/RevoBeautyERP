@@ -1082,7 +1082,10 @@ function WeekView({ selectedDate, allAppointments, operatorColorById, onAppointm
                       className="absolute left-1 right-1 rounded-md px-1.5 py-0.5 cursor-pointer overflow-hidden hover:brightness-110 transition-all border-l-2"
                       style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${c}20`, borderLeftColor: c }}
                     >
-                      <p className="text-[10px] font-semibold text-text-primary truncate">{apt.clientName}</p>
+                      <p className="text-[10px] font-semibold text-text-primary truncate flex items-center gap-1">
+                        <span className="truncate">{apt.clientName}</span>
+                        <SegniCliente clientId={apt.clientId} nome={apt.clientName} className="[&_svg]:w-2.5 [&_svg]:h-2.5" />
+                      </p>
                       {height > 24 && <p className="text-[9px] text-text-muted truncate">{apt.startTime}</p>}
                     </div>
                   );
@@ -1175,6 +1178,9 @@ function MonthView({ selectedDate, allAppointments, operatorColorById, onAppoint
                       >
                         <span className="font-medium">{apt.startTime}</span>
                         <span className="truncate text-text-secondary">{apt.clientName}</span>
+                        {/* Nel mese lo spazio è quello che è: icone più piccole,
+                            ma esserci conta più della misura. */}
+                        <SegniCliente clientId={apt.clientId} nome={apt.clientName} className="[&_svg]:w-2.5 [&_svg]:h-2.5" />
                       </div>
                       );
                     })}
