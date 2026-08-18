@@ -84,6 +84,8 @@ interface Sessione {
   azione?: 'sposta' | 'disdice';
   /** Quante volte di fila non abbiamo capito: al terzo giro passa una persona. */
   incompresi?: number;
+  /** Vero quando la sua operatrice era piena e stiamo proponendo le colleghe. */
+  conAltre?: boolean;
   nuovaData?: string;
   nuovoOrario?: Orario;
 }
@@ -234,7 +236,12 @@ async function chiediCosaFare(phone: string, appt: { id: string; date: string; s
   );
 }
 
-type ApptPerRicerca = { id: string; treatmentId: string; duration: number; services?: unknown };
+type ApptPerRicerca = { id: string; treatmentId: string; duration: number; services?: unknown; operatorId: string; operatorName?: string };
+
+/** Solo il nome di battesimo dell'operatrice: in chat "Michela" basta e avanza. */
+function nomeOperatrice(appt: { operatorName?: string }): string {
+  return (appt.operatorName || 'La tua operatrice').split(' ')[0];
+}
 
 /*
   Si mostrano SOLO i giorni in cui c'è posto davvero.
@@ -245,7 +252,12 @@ type ApptPerRicerca = { id: string; treatmentId: string; duration: number; servi
   a ogni no la voglia di spostare cala.
 */
 async function chiediGiorno(phone: string, s: Sessione, appt: ApptPerRicerca): Promise<void> {
-  const disponibili = await giorniConPosto(appt);
+  let disponibili = await giorniConPosto(appt, 'la sua');
+  let conAltre = false;
+  if (!disponibili.length) {
+    disponibili = await giorniConPosto(appt, 'chiunque');
+    conAltre = disponibili.length > 0;
+  }
   const oggi = todayRome();
 
   if (!disponibili.length) {
@@ -270,15 +282,18 @@ async function chiediGiorno(phone: string, s: Sessione, appt: ApptPerRicerca): P
       : humanDate(g.date).replace(/^./, c => c.toUpperCase())} — dalle ${g.orari[0].time}`,
   }));
 
-  await salvaSessione(phone, { ...s, passo: 'giorno', azione: 'sposta', opzioni });
+  await salvaSessione(phone, { ...s, passo: 'giorno', azione: 'sposta', opzioni, conAltre, incompresi: 0 });
   await say(phone,
+    (conAltre
+      ? `${nomeOperatrice(appt)} non ha posto nelle prossime due settimane, ma le sue colleghe sì.\n\n`
+      : '') +
     'In che giorno ti farebbe comodo?\n\n' + elenco(opzioni) +
     '\n\nRispondi con il numero: ci sono solo i giorni in cui ho posto per te.'
   );
 }
 
 async function chiediOrario(phone: string, s: Sessione, data: string, appt: ApptPerRicerca): Promise<void> {
-  const giorni = await giorniConPosto(appt);
+  const giorni = await giorniConPosto(appt, s.conAltre ? 'chiunque' : 'la sua');
   const g = giorni.find(x => x.date === data);
 
   // Se quel giorno si è riempito mentre lei sceglieva, si torna all'elenco
@@ -313,13 +328,28 @@ async function chiediOrario(phone: string, s: Sessione, data: string, appt: Appt
  * appena stato preso" — che non era vero — e riproponeva lo stesso orario.
  */
 async function giorniConPosto(appt: {
-  id: string; duration: number; services?: unknown; treatmentId: string;
-}): Promise<{ date: string; orari: Orario[] }[]> {
+  id: string; duration: number; services?: unknown; treatmentId: string; operatorId: string;
+}, con: 'la sua' | 'chiunque' = 'la sua'): Promise<{ date: string; orari: Orario[] }[]> {
+  /*
+    Chi sposta resta con la sua operatrice.
+
+    Non è un dettaglio: una cliente prenota con Michela perché vuole Michela, e
+    spostarla di nascosto da un'altra è il modo migliore per perderla. Uno
+    spostamento è una copia dello stesso appuntamento con una data diversa —
+    trattamenti, durata e mani restano quelle.
+
+    Solo se nelle prossime due settimane la sua operatrice non ha proprio
+    niente si guardano le colleghe, e in quel caso glielo si dice.
+  */
+  const fissa = con === 'la sua';
   const servizi = Array.isArray(appt.services) && appt.services.length
-    ? (appt.services as { treatmentId?: string }[])
+    ? (appt.services as { treatmentId?: string; operatorId?: string }[])
         .filter(x => x?.treatmentId)
-        .map(x => ({ treatmentId: String(x.treatmentId), operatorId: null }))
-    : [{ treatmentId: appt.treatmentId, operatorId: null }];
+        .map(x => ({
+          treatmentId: String(x.treatmentId),
+          operatorId: fissa ? (x.operatorId || appt.operatorId || null) : null,
+        }))
+    : [{ treatmentId: appt.treatmentId, operatorId: fissa ? (appt.operatorId || null) : null }];
 
   const sesso = Array.isArray(appt.services)
     ? ((appt.services as { gender?: string }[])[0]?.gender === 'male' ? 'male' : 'female')

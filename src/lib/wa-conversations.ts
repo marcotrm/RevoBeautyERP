@@ -410,6 +410,40 @@ export async function markConversationRead(phone: string): Promise<void> {
  * senza risposta. Serve quando si apre una chat di corsa e si vuole
  * ritrovarla dopo, senza affidarsi alla memoria.
  */
+/**
+ * Cancella una conversazione dall'archivio del gestionale.
+ *
+ * Serve per la roba che non è una cliente: numeri sbagliati, spam, prove. Se
+ * restano in elenco si portano dietro il segno DA RISPONDERE e riempiono di
+ * rumore l'unica lista che deve restare pulita — e una lista sporca è una
+ * lista che si smette di guardare.
+ *
+ * Cosa sparisce: i messaggi archiviati qui, il segno di lettura, la finestra
+ * 24h e le eventuali conversazioni aperte dai bot. Cosa NON sparisce: la chat
+ * sul telefono della persona, che è roba di WhatsApp e non nostra, e la scheda
+ * cliente se esiste. Non si torna indietro.
+ */
+export async function cancellaConversazione(phone: string): Promise<{ eliminati: number }> {
+  const tel = normalizePhone(phone);
+  if (!tel) return { eliminati: 0 };
+
+  const messaggi = await prisma.adminEntry.deleteMany({
+    where: { kind: { in: [MSG_KIND, LEGACY_INBOX_KIND] }, entityId: tel },
+  });
+  await prisma.adminEntry.deleteMany({
+    where: {
+      OR: [
+        { rowId: READ_ROW(tel) },
+        { rowId: `wa:window:${tel}` },
+        { rowId: `wa:booking:${tel}` },
+        { rowId: `wa:spostamento:${tel}` },
+        { rowId: `wa:assistant:${tel}` },
+      ],
+    },
+  });
+  return { eliminati: messaggi.count };
+}
+
 export async function markConversationUnread(phone: string): Promise<void> {
   await prisma.adminEntry.deleteMany({ where: { rowId: READ_ROW(phone) } });
 }

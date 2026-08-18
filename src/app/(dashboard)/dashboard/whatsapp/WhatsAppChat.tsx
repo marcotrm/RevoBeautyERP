@@ -12,8 +12,8 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, Loader2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X, Search, Smile } from 'lucide-react';
-import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione } from '@/app/actions/whatsapp';
+import { MessageSquare, Send, Loader2, Trash2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X, Search, Smile } from 'lucide-react';
+import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione, eliminaConversazione } from '@/app/actions/whatsapp';
 import {
   listaTemplate, clientiPerCampagna, creaTemplateApertura,
   type TemplateRemoto, type DestinatarioCampagna,
@@ -630,6 +630,37 @@ export default function WhatsAppChat() {
     if (el) el.scrollTop = el.scrollHeight;
   };
 
+  const [eliminando, setEliminando] = useState(false);
+
+  /**
+   * Toglie la conversazione dall'archivio del gestionale.
+   *
+   * Si chiede conferma perché non si torna indietro, e nella domanda si dice
+   * cosa NON succede: la chat sul telefono della persona resta, e la sua
+   * scheda cliente pure. Qui sparisce solo quello che vediamo noi.
+   */
+  const eliminaChat = async (phone: string) => {
+    const chi = clientName || conversations?.find(c => c.phone === phone)?.name || `+${phone}`;
+    if (!window.confirm(
+      `Eliminare la conversazione con ${chi}?\n\n` +
+      'Spariscono i messaggi archiviati qui dentro. La chat sul telefono della persona e la sua ' +
+      'scheda cliente restano come sono.\n\nNon si torna indietro.'
+    )) return;
+
+    setEliminando(true);
+    try {
+      // Prima si chiude la chat, poi si cancella: restando aperta, il
+      // ricaricamento automatico ogni 20 secondi la segnerebbe di nuovo come
+      // letta e lascerebbe dietro una riga orfana.
+      setActive(null);
+      setThread([]);
+      await eliminaConversazione(phone);
+      await refreshList();
+    } finally {
+      setEliminando(false);
+    }
+  };
+
   /**
    * Lo scorrimento in fondo si fa SOLO se ci si era già.
    *
@@ -835,6 +866,15 @@ export default function WhatsAppChat() {
               <button onClick={() => segnaDaLeggere(active)} title="Rimetti fra i messaggi da leggere"
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-[11px] font-medium text-text-secondary hover:bg-bg-hover hover:text-accent transition-colors flex-shrink-0">
                 <MailQuestion className="w-3.5 h-3.5" /> Da leggere
+              </button>
+              {/* Numeri sbagliati, spam, prove: restavano in elenco marchiati
+                  DA RISPONDERE e sporcavano l'unica lista che deve stare
+                  pulita. Sta accanto al "Da leggere" perché è il gesto
+                  gemello: uno la rimette in lista, l'altro la toglie. */}
+              <button onClick={() => eliminaChat(active)} disabled={eliminando}
+                title="Elimina questa conversazione dall'archivio"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-[11px] font-medium text-text-secondary hover:bg-error/10 hover:text-error hover:border-error/30 transition-colors flex-shrink-0 disabled:opacity-50">
+                {eliminando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />} Elimina
               </button>
             </div>
 

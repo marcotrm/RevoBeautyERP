@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { waProvider, whatsappMissingVars, sendWhatsApp, sendWhatsAppTemplate, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
 import {
-  listConversations, listMessages, markConversationRead, markConversationUnread, conversationWindow, listUnreadChats,
+  listConversations, listMessages, markConversationRead, markConversationUnread, cancellaConversazione, conversationWindow, listUnreadChats,
   clientNameForPhone, logOutbound,
   type WaConversation, type WaMessageRow, type WaUnreadChat,
 } from '@/lib/wa-conversations';
@@ -405,4 +405,17 @@ export async function checkTemplates(): Promise<{
     }));
 
   return { ok: true, checks, extra };
+}
+
+/**
+ * Toglie una conversazione dall'archivio del gestionale.
+ *
+ * Non è una funzione di pulizia estetica: i numeri sbagliati e lo spam
+ * restavano in elenco marchiati DA RISPONDERE, e sporcavano l'unica lista che
+ * deve restare pulita. Non tocca la chat sul telefono della persona né la sua
+ * scheda cliente, e non si torna indietro.
+ */
+export async function eliminaConversazione(phone: string): Promise<{ ok: boolean; eliminati: number }> {
+  const res = await cancellaConversazione(phone);
+  return { ok: true, eliminati: res.eliminati };
 }
