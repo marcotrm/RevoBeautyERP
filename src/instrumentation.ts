@@ -82,9 +82,38 @@ export async function register() {
     }
   };
 
+  /**
+   * Riepilogo mensile agli affiliati: il primo del mese, dalle 10 in poi.
+   *
+   * Non si aspetta il minuto esatto ma si guarda una scadenza: "è il primo del
+   * mese, sono passate le 10, e questo mese non l'ho ancora fatto". Con
+   * l'uguaglianza sull'orario, un deploy o un riavvio proprio in quel minuto
+   * farebbe saltare l'intero mese, e nessuno se ne accorgerebbe fino alla
+   * telefonata dell'affiliato.
+   *
+   * La difesa contro il doppio invio non sta qui ma nel database: dentro
+   * riepilogoMensileAffiliati ogni affiliato ha una riga per mese creata in
+   * modo atomico. Anche con due processi accesi insieme — i secondi di
+   * sovrapposizione di un deploy — il secondo trova la riga e si ferma.
+   */
+  const affiliatiTick = async () => {
+    const { date, hhmm } = nowRome();
+    if (!date.endsWith('-01') || hhmm < '10:00') return;
+    try {
+      const { riepilogoMensileAffiliati } = await import('@/lib/affiliazione');
+      const esito = await riepilogoMensileAffiliati();
+      if (esito.mandati > 0 || esito.saltati.length > 0) {
+        console.log(`[affiliati] riepilogo mensile: ${esito.mandati} mandati`, esito.saltati);
+      }
+    } catch (err) {
+      console.error('[affiliati] riepilogo mensile fallito', err);
+    }
+  };
+
   // Controlla ogni minuto
-  setInterval(() => { void tick(); void waTick(); void buchiTick(); }, 60 * 1000);
+  setInterval(() => { void tick(); void waTick(); void buchiTick(); void affiliatiTick(); }, 60 * 1000);
   console.log('[reports] Scheduler report Telegram attivo (invio alle 20:00 Europe/Rome)');
   console.log('[wa] Scheduler automazioni WhatsApp attivo');
   console.log('[copri-buchi] Scheduler copri buchi attivo');
+  console.log('[affiliati] Riepilogo mensile attivo (il 1° del mese dalle 10:00)');
 }

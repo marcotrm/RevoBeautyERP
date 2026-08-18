@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { MessageSquare, ChevronDown, Loader2, CheckCircle2, AlertTriangle, Clock, Heart, Gift, Star, CalendarPlus, Bot } from 'lucide-react';
+import { MessageSquare, ChevronDown, Loader2, CheckCircle2, AlertTriangle, Clock, Heart, Gift, Star, CalendarPlus, Bot, Zap } from 'lucide-react';
 import {
   loadWaConfig, saveWaConfig, loadWaStatus, previewAutomation, runAutomationNow, checkTemplates, loadWaInbox,
   creaTemplateRecensione, inviaTemplateDiProva,
@@ -399,6 +399,55 @@ export default function WhatsAppAutomationsConfig() {
                 tu dalla striscia verde.
               </p>
             )}
+          </div>
+
+          {/* Affiliati: avviso a ogni incasso di chi hanno portato */}
+          <div className="p-3 rounded-xl bg-bg-secondary border border-border/50">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex items-start gap-2">
+                <Zap className="w-4 h-4 text-text-muted flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-text-primary">Avvisa l&apos;affiliato a ogni incasso</span>
+                  <span className="ml-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-error/15 text-error align-middle">SPENDE</span>
+                  <p className="text-[11px] text-text-muted">
+                    Quando una persona portata da un affiliato paga, lui riceve su WhatsApp quanto ha speso e
+                    quanto guadagna. Senza il nome della cliente.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => save({ affiliatoIncasso: !cfg.affiliatoIncasso })} disabled={saving}
+                className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${cfg.affiliatoIncasso ? 'bg-success' : 'bg-bg-hover'}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${cfg.affiliatoIncasso ? 'left-6' : 'left-1'}`} />
+              </button>
+            </div>
+            <p className="text-[10px] text-text-muted/70 mt-2 leading-relaxed">
+              Un messaggio per ogni vendita: con un affiliato che porta molta gente diventa un flusso continuo.
+              Richiede il template <code className="text-warning">affiliato_incasso</code> approvato e il numero
+              dell&apos;affiliato in scheda.
+            </p>
+          </div>
+
+          {/* Affiliati: il conto del mese */}
+          <div className="p-3 rounded-xl bg-bg-secondary border border-border/50">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex items-start gap-2">
+                <Clock className="w-4 h-4 text-text-muted flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-text-primary">Riepilogo mensile agli affiliati</span>
+                  <p className="text-[11px] text-text-muted">
+                    Il 1° del mese, dalle 10:00: quanto hanno guadagnato nel mese appena chiuso e con quante persone.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => save({ affiliatoMese: !cfg.affiliatoMese })} disabled={saving}
+                className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${cfg.affiliatoMese ? 'bg-success' : 'bg-bg-hover'}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${cfg.affiliatoMese ? 'left-6' : 'left-1'}`} />
+              </button>
+            </div>
+            <p className="text-[10px] text-text-muted/70 mt-2 leading-relaxed">
+              Un mese a zero non viene mandato: dire &quot;hai guadagnato 0 €&quot; non informa, ricorda solo che non è
+              venuto nessuno. Richiede <code className="text-warning">affiliato_mese</code> approvato.
+            </p>
           </div>
 
           {/* Assistente AI */}

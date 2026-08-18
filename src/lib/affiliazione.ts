@@ -258,3 +258,186 @@ export async function statsPerQrIds(qrIds: string[], commissionPercent: number):
     commissioni: Math.round(fatturato * commissionPercent) / 100,
   };
 }
+
+// ============================================================
+// Avvisi all'affiliato
+// ============================================================
+
+/**
+ * L'affiliato viene pagato in percentuale, ma se non vede muoversi niente
+ * smette di mandare gente.
+ *
+ * Finora l'unico modo per sapere quanto aveva guadagnato era aprire il portale
+ * col link che gli avevamo passato a mano — cosa che nessuno fa. Qui l'avviso
+ * parte da solo quando una persona che ha portato lui spende davvero.
+ *
+ * Regole che questo pezzo deve rispettare, tutte imparate leggendo la cassa:
+ *  - non deve MAI far fallire un incasso: gira dentro al suo try/catch e non
+ *    viene atteso da nessuno;
+ *  - non deve mandare due volte lo stesso avviso, nemmeno se qualcuno fa due
+ *    volte lo stesso incasso o il server ritenta: la riga di prenotazione si
+ *    crea in modo atomico PRIMA di spendere il messaggio;
+ *  - non dice mai chi è la cliente: l'affiliato ha diritto alla sua
+ *    percentuale, non alla scheda di chi entra.
+ */
+export async function avvisaAffiliatoIncasso(params: {
+  clientId: string;
+  importo: number;
+  /** Id della vendita: rende l'avviso ripetibile una volta sola. */
+  sourceId: string;
+}): Promise<{ inviato: boolean; motivo?: string }> {
+  const { clientId, importo, sourceId } = params;
+  if (!clientId || !(importo > 0)) return { inviato: false, motivo: 'niente da segnalare' };
+
+  const { getWaAutomationsConfig } = await import('@/lib/wa-automations');
+  const cfg = await getWaAutomationsConfig();
+  if (!cfg.affiliatoIncasso) return { inviato: false, motivo: 'avviso spento' };
+
+  // Il legame vero è qui: AffiliateLead.clientId. Il campo `referredBy` sul
+  // cliente è solo il nome scritto a parole e non serve a pagare nessuno.
+  const lead = await prisma.affiliateLead.findFirst({
+    where: { clientId, status: 'verified' },
+    include: { affiliate: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (!lead?.affiliate) return { inviato: false, motivo: 'cliente non portato da un affiliato' };
+
+  const aff = lead.affiliate;
+  if (!aff.isActive) return { inviato: false, motivo: 'affiliato non attivo' };
+
+  const { normalizePhone, isSendablePhone, sendWhatsAppTemplate } = await import('@/lib/whatsapp');
+  if (!isSendablePhone(aff.phone || '')) return { inviato: false, motivo: 'numero affiliato mancante o non valido' };
+
+  const provvigione = Math.round(importo * aff.commissionPercent) / 100;
+  if (provvigione <= 0) return { inviato: false, motivo: 'provvigione a zero' };
+
+  // Prenotazione atomica: chi perde la corsa non manda niente.
+  const rowId = `wa:affiliato:incasso:${sourceId}`;
+  try {
+    await prisma.adminEntry.create({
+      data: {
+        rowId, kind: 'wa_log', entityId: aff.id,
+        data: { affiliateId: aff.id, clientId, importo, provvigione, ok: false, at: new Date().toISOString() },
+        createdAt: new Date().toISOString(),
+      },
+    });
+  } catch {
+    return { inviato: false, motivo: 'avviso già mandato per questo incasso' };
+  }
+
+  const { sanitizeParam } = await import('@/lib/wa-templates');
+  const eur = (n: number) => `${n.toFixed(2).replace('.', ',')} €`;
+  const res = await sendWhatsAppTemplate(normalizePhone(aff.phone as string), 'affiliatoIncasso', {
+    bodyParams: [
+      sanitizeParam(aff.contactName || aff.businessName),
+      sanitizeParam(eur(importo)),
+      sanitizeParam(eur(provvigione)),
+    ],
+    source: 'automation',
+  });
+
+  await prisma.adminEntry.update({
+    where: { rowId },
+    data: { data: { affiliateId: aff.id, clientId, importo, provvigione, ok: res.ok, error: res.error, at: new Date().toISOString() } },
+  }).catch(() => {});
+
+  return { inviato: res.ok, motivo: res.error };
+}
+
+/** Il mese appena chiuso, in numeri: "2026-07". */
+function meseScorso(oggi = new Date()): { chiave: string; nome: string; dal: string; al: string } {
+  const d = new Date(Date.UTC(oggi.getUTCFullYear(), oggi.getUTCMonth(), 1));
+  d.setUTCMonth(d.getUTCMonth() - 1);
+  const anno = d.getUTCFullYear();
+  const mese = d.getUTCMonth();
+  const ultimo = new Date(Date.UTC(anno, mese + 1, 0)).getUTCDate();
+  const due = (n: number) => String(n).padStart(2, '0');
+  return {
+    chiave: `${anno}-${due(mese + 1)}`,
+    nome: new Intl.DateTimeFormat('it-IT', { month: 'long', timeZone: 'UTC' }).format(d),
+    dal: `${anno}-${due(mese + 1)}-01`,
+    al: `${anno}-${due(mese + 1)}-${due(ultimo)}`,
+  };
+}
+
+/**
+ * Il riepilogo del mese a tutti gli affiliati attivi.
+ *
+ * Gli avvisi singoli fanno vedere il movimento, questo fa vedere il totale — ed
+ * è il numero su cui si discute, se non lo mandi tu per primo.
+ *
+ * Il fatturato si conta come nel portale (incassi dei clienti portati, dal
+ * giorno in cui sono stati registrati in poi), ma ristretto al mese chiuso.
+ */
+export async function riepilogoMensileAffiliati(quando = new Date()): Promise<{ mandati: number; saltati: string[] }> {
+  const { getWaAutomationsConfig } = await import('@/lib/wa-automations');
+  const cfg = await getWaAutomationsConfig();
+  if (!cfg.affiliatoMese) return { mandati: 0, saltati: ['riepilogo spento'] };
+
+  const mese = meseScorso(quando);
+  const affiliati = await prisma.affiliate.findMany({ where: { isActive: true }, include: { leads: true } });
+  const { normalizePhone, isSendablePhone, sendWhatsAppTemplate } = await import('@/lib/whatsapp');
+  const { sanitizeParam } = await import('@/lib/wa-templates');
+
+  let mandati = 0;
+  const saltati: string[] = [];
+
+  for (const aff of affiliati) {
+    if (!isSendablePhone(aff.phone || '')) { saltati.push(`${aff.businessName}: numero mancante`); continue; }
+
+    const clientIds = aff.leads.filter(l => l.clientId && l.status === 'verified').map(l => l.clientId as string);
+    if (!clientIds.length) { saltati.push(`${aff.businessName}: nessun cliente portato`); continue; }
+
+    const clienti = await prisma.client.findMany({ where: { id: { in: clientIds } }, select: { firstName: true, lastName: true } });
+    const nomi = new Set(clienti.map(c => `${c.firstName} ${c.lastName}`.trim().toLowerCase()));
+
+    const incassi = await prisma.posTransaction.findMany({
+      where: { date: { gte: mese.dal, lte: mese.al }, isRefund: false, total: { gt: 0 } },
+      select: { clientName: true, total: true },
+    });
+    let fatturato = 0;
+    const teste = new Set<string>();
+    for (const t of incassi) {
+      const k = (t.clientName || '').trim().toLowerCase();
+      if (!nomi.has(k)) continue;
+      fatturato += t.total;
+      teste.add(k);
+    }
+
+    // Un mese a zero non si manda: un messaggio che dice "hai guadagnato 0 €"
+    // non informa, ricorda soltanto che non è arrivato nessuno.
+    if (fatturato <= 0) { saltati.push(`${aff.businessName}: mese a zero`); continue; }
+
+    const rowId = `wa:affiliato:mese:${aff.id}:${mese.chiave}`;
+    try {
+      await prisma.adminEntry.create({
+        data: { rowId, kind: 'wa_log', entityId: aff.id, data: { mese: mese.chiave, fatturato, ok: false }, createdAt: new Date().toISOString() },
+      });
+    } catch {
+      saltati.push(`${aff.businessName}: già mandato per ${mese.chiave}`);
+      continue;
+    }
+
+    const guadagno = Math.round(fatturato * aff.commissionPercent) / 100;
+    const persone = teste.size === 1 ? 'una persona' : `${teste.size} persone`;
+    const res = await sendWhatsAppTemplate(normalizePhone(aff.phone as string), 'affiliatoMese', {
+      bodyParams: [
+        sanitizeParam(aff.contactName || aff.businessName),
+        sanitizeParam(mese.nome),
+        sanitizeParam(`${guadagno.toFixed(2).replace('.', ',')} €`),
+        sanitizeParam(persone),
+      ],
+      source: 'automation',
+    });
+
+    await prisma.adminEntry.update({
+      where: { rowId },
+      data: { data: { mese: mese.chiave, fatturato, guadagno, persone: teste.size, ok: res.ok, error: res.error } },
+    }).catch(() => {});
+
+    if (res.ok) mandati++;
+    else saltati.push(`${aff.businessName}: ${res.error || 'invio fallito'}`);
+  }
+
+  return { mandati, saltati };
+}

@@ -102,6 +102,24 @@ export async function maturaDaIncasso(params: {
     esito.referralMaturato = await maturaReferral(cliente.id, cliente.phone);
   }
 
+  /*
+    ---- Affiliati: chi ha portato questa cliente ha appena guadagnato ----
+
+    Sta qui e non in cassa per un motivo preciso: a questo punto il cliente è
+    già stato riconosciuto e `cliente.id` è la chiave che collega l'incasso
+    all'affiliato. In cassa ci sarebbe solo il nome scritto a mano, cioè la
+    parte più fragile del sistema.
+
+    Il try/catch è suo: i passi qui dentro sono in fila e senza rete, e un
+    errore su un avviso non deve mangiarsi le sfide che vengono dopo.
+  */
+  try {
+    const { avvisaAffiliatoIncasso } = await import('@/lib/affiliazione');
+    await avvisaAffiliatoIncasso({ clientId: cliente.id, importo: params.importo, sourceId: params.sourceId });
+  } catch (e) {
+    console.error('[affiliati] avviso non mandato:', e);
+  }
+
   // ---- Challenge basate sulla spesa ----
   if (config.funzioni.challenge) {
     await avanzaSfide(cliente.id, 'spend', params.importo);

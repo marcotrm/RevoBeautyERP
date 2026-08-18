@@ -274,6 +274,8 @@ const ESEMPI_PARAMETRI: Record<TemplateKey, string[]> = {
   copriBuchi: ['Maria', 'Refill unghie', 'oggi alle 16:30'],
   copriBuchiPreso: ['Maria'],
   reviewV2: ['Maria', 'pulizia viso'],
+  affiliatoIncasso: ['Raffaele', '50,00 €', '5,00 €'],
+  affiliatoMese: ['Raffaele', 'luglio', '48,50 €', '4 persone'],
   review: ['Maria', 'pulizia viso'],
   omaggio: ['Maria', 'pressoterapia'],
   codiceApp: ['123456'],
@@ -430,4 +432,36 @@ export async function eliminaConversazione(phone: string): Promise<{ ok: boolean
 export async function segnaConversazioneGestita(phone: string): Promise<{ ok: boolean }> {
   await segnaGestita(normalizePhone(phone));
   return { ok: true };
+}
+
+/**
+ * Manda in approvazione i due messaggi per gli affiliati.
+ *
+ * Come per la recensione: finché Meta non li approva non parte niente, e un
+ * template già esistente non si modifica da qui — in quel caso si dice cosa
+ * c'è e a che punto sta, invece di fallire in silenzio.
+ */
+export async function creaTemplateAffiliati(): Promise<{ nome: string; stato: string; nota?: string }[]> {
+  const chiavi = ['affiliatoIncasso', 'affiliatoMese'] as const;
+  const remote = await listD360Templates();
+  const esistenti = remote.ok ? remote.templates : [];
+
+  const esiti: { nome: string; stato: string; nota?: string }[] = [];
+  for (const k of chiavi) {
+    const tpl = WA_TEMPLATES[k];
+    const gia = esistenti.find(t => t.name === tpl.name && t.language === tpl.language);
+    if (gia) {
+      esiti.push({ nome: tpl.name, stato: gia.status, nota: gia.status === 'APPROVED' ? 'pronto' : 'in attesa di Meta' });
+      continue;
+    }
+    // Un esempio per ogni {{n}}: senza, Meta rifiuta il template.
+    const esempi = tpl.params.map((_, i) => (i === 0 ? 'Raffaele' : i === 1 ? '50,00 €' : '5,00 €'));
+    const res = await createD360Template({
+      name: tpl.name, category: tpl.category, language: tpl.language, body: tpl.body, example: esempi,
+    });
+    esiti.push(res.ok
+      ? { nome: tpl.name, stato: res.status || 'PENDING', nota: 'mandato a Meta' }
+      : { nome: tpl.name, stato: 'ERRORE', nota: res.error });
+  }
+  return esiti;
 }

@@ -75,6 +75,16 @@ export interface WaAutomationsConfig {
    * disdetta arriva di domenica sera.
    */
   copriBuchiAuto: boolean;
+  /**
+   * Avviso all'affiliato a ogni incasso di una persona che ha portato lui.
+   *
+   * Spento di default perché manda un messaggio a pagamento per ogni vendita:
+   * su un affiliato che porta molta gente diventa un flusso continuo, ed è una
+   * scelta commerciale, non tecnica.
+   */
+  affiliatoIncasso: boolean;
+  /** Riepilogo mensile agli affiliati, il primo del mese sul mese chiuso. */
+  affiliatoMese: boolean;
 }
 
 export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
@@ -92,6 +102,8 @@ export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
   assistant: false,
   spostamenti: false,
   copriBuchiAuto: false,
+  affiliatoIncasso: false,
+  affiliatoMese: false,
 };
 
 export async function getWaAutomationsConfig(): Promise<WaAutomationsConfig> {

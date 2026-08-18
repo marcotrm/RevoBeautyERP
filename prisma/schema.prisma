@@ -673,6 +673,9 @@ model AffiliateLead {
   @@index([phone])
   @@index([affiliateId])
   @@map("affiliate_leads")
+  // Si cerca a ogni incasso per sapere se quella cliente è di un affiliato:
+  // senza indice sarebbe una scansione della tabella dentro alla cassa.
+  @@index([clientId])
 }
 
 // ============================================================

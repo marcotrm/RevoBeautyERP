@@ -212,6 +212,53 @@ export const WA_TEMPLATES = {
       'nome non si può riusare per 30 giorni dopo la cancellazione.',
   },
 
+  /**
+   * L'affiliato scopre di aver guadagnato mentre succede.
+   *
+   * Finora l'unico modo per saperlo era aprire il portale col link che gli
+   * avevamo mandato a mano: nessuno lo fa, e un affiliato che non vede
+   * arrivare niente smette di mandare gente nel giro di un mese.
+   *
+   * Non si dice CHI è la cliente né cosa ha fatto: l'affiliato ha diritto ai
+   * suoi soldi, non alla scheda della persona. È anche l'unico modo per non
+   * trasformare un accordo commerciale in una fuga di dati.
+   */
+  affiliatoIncasso: {
+    name: 'affiliato_incasso',
+    category: 'UTILITY',
+    language: 'it',
+    params: ['nome referente', 'quanto ha speso', 'quanto guadagna lui'],
+    body:
+      'Ciao {{1}}, una persona che ci hai mandato tu oggi ha speso {{2}} da RevoBeauty.\n' +
+      'La tua parte è {{3}}. Grazie!',
+    note:
+      'Avviso al partner del programma affiliazione, non al cliente finale. È UTILITY perché ' +
+      'riguarda un accordo commerciale in corso, non una promozione. Niente nome della cliente: ' +
+      'l\'affiliato ha diritto alla sua percentuale, non ai dati di chi entra.',
+  },
+
+  /**
+   * Il conto del mese, il primo del mese.
+   *
+   * Serve a chiudere il cerchio: gli avvisi singoli fanno vedere il movimento,
+   * questo fa vedere il totale — ed è il numero su cui si litiga se non lo
+   * mandi tu per primo.
+   */
+  affiliatoMese: {
+    name: 'affiliato_mese',
+    category: 'UTILITY',
+    language: 'it',
+    params: ['nome referente', 'mese appena chiuso', 'quanto ha guadagnato', 'quante persone'],
+    body:
+      'Ciao {{1}}, ecco il riepilogo di {{2}}.\n' +
+      'Hai guadagnato {{3}} grazie a {{4}} che sono venute da noi.\n' +
+      'Grazie di cuore, a presto!',
+    note:
+      'Riepilogo mensile al partner: parte il primo del mese sul mese appena chiuso. Il quarto ' +
+      'parametro è già scritto per esteso ("3 persone" / "una persona"), così il messaggio regge ' +
+      'anche al singolare senza dover approvare due template.',
+  },
+
   codiceApp: {
     name: 'codice_accesso_app',
     category: 'UTILITY',
