@@ -18,7 +18,7 @@ import { Appointment, AppointmentService, AgendaBlock, Operator, Treatment, Prod
 import {
   ChevronLeft, ChevronRight, ChevronDown, CalendarDays, Plus,
   Clock, CheckCircle, Check, CalendarCheck, AlertCircle, Play, XCircle, Ban, ListTodo,
-  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone, Sun, MessageSquare, Users, Crown, Bell
+  Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone, Sun, MessageSquare, Users, Crown, Bell, CalendarX, Frown
 , Loader2 } from 'lucide-react';
 import {
   formatDateLong, timeToMinutes, minutesToTime, getStatusLabel,
@@ -33,9 +33,12 @@ import { isWalkIn, oraDiAdesso } from '@/lib/walkIn';
 import { schedaCompleta, campiMancanti } from '@/lib/schedaCliente';
 import { todayRome } from '@/lib/date';
 import { clientiTop } from '@/app/actions/clientiTop';
+import { clientiARischio, type ClienteARischio } from '@/app/actions/affidabilita';
+import { clientiDifficili, segnalaCliente, togliSegnalazione, type ClienteDifficile } from '@/app/actions/clientiDifficili';
 import { promemoriaAperti, segnaPromemoriaFatto, type Promemoria } from '@/app/actions/promemoria';
 import PromemoriaCliente from '@/components/PromemoriaCliente';
 import { chiaveNome, riassunto, type ClienteTop } from '@/lib/clientiTop';
+import { riassuntoAffidabilita, consiglioAffidabilita } from '@/lib/affidabilita';
 import { sedutaIncassata } from '@/app/actions/daIncassare';
 import { useCabinStore } from '@/stores/useCabinStore';
 import { useProductStore } from '@/stores/useProductStore';
@@ -177,7 +180,7 @@ const trascinamento = {
   inizioFetta: '', inizioIntero: '', durataIntera: 60,
 };
 
-function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, color, coccolare }: { appointment: SplitAppointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties; color?: string; /** Fra le clienti che spendono di più: va trattata col guanto. */ coccolare?: { speso: number; visite: number; posizione: number } }) {
+function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, color, coccolare, rischio, segnalata }: { appointment: SplitAppointment; onClick: (a: Appointment) => void; onWaitlistAdd?: (a: Appointment) => void; overlapStyle?: React.CSSProperties; color?: string; /** Fra le clienti che spendono di più: va trattata col guanto. */ coccolare?: { speso: number; visite: number; posizione: number }; /** Salta gli appuntamenti: prima di confermarle il posto, si sa. */ rischio?: ClienteARischio; /** Segnalata a mano dalle ragazze: il carattere non lo misura nessun campo. */ segnalata?: ClienteDifficile }) {
   const pacchettiCliente = usePackageStore(s => s.clientPackages);
   const blockColor = color || appointment.color;
   const startMin = timeToMinutes(appointment.startTime) - START_HOUR * 60;
@@ -246,11 +249,30 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
           <span style={{ color: getStatusColor(appointment.status) }}>{statusIcons[appointment.status]}</span>
           <span className={`font-semibold text-text-primary truncate ${isSmall ? 'text-[10px]' : 'text-xs'}`}>{appointment.clientName}</span>
           {/* La corona è per chi tiene in piedi il centro: chi sta in cabina
-              deve saperlo prima di iniziare, non scoprirlo dopo. */}
+              deve saperlo prima di iniziare, non scoprirlo dopo. Il titolo dice
+              il perché: una corona senza numeri sarebbe un vezzo. */}
           {coccolare && (
-            <Crown className="w-3 h-3 text-warning flex-shrink-0"
-              // Il titolo dice il perché: una corona senza numeri è un vezzo.
-              aria-label="Cliente da coccolare" />
+            <span className="flex-shrink-0" aria-label="Cliente da coccolare"
+              title={`Fra le clienti che spendono di più: ${Math.round(coccolare.speso).toLocaleString('it-IT')} € in ${coccolare.visite} visite (n° ${coccolare.posizione})`}>
+              <Crown className="w-3 h-3 text-warning" />
+            </span>
+          )}
+          {/* L'altra faccia: chi il posto lo brucia. Rosso quando è un'abitudine,
+              giallo quando ha appena cominciato — così il segno resta raro e
+              chi lo vede lo guarda davvero. */}
+          {rischio && (
+            <span className="flex-shrink-0" aria-label="Cliente che salta gli appuntamenti"
+              title={`${riassuntoAffidabilita(rischio)}. ${consiglioAffidabilita(rischio)}`}>
+              <CalendarX className={`w-3 h-3 ${rischio.livello === 'rischio' ? 'text-error' : 'text-warning'}`} />
+            </span>
+          )}
+          {/* La faccina la mettono le ragazze a mano: chi arriva sempre tardi o
+              tratta male in cabina non lascia traccia in nessun campo. */}
+          {segnalata && (
+            <span className="flex-shrink-0" aria-label="Cliente segnalata"
+              title={`Segnalata${segnalata.segnalataDa ? ` da ${segnalata.segnalataDa}` : ''}: ${segnalata.motivo}`}>
+              <Frown className="w-3 h-3 text-error" />
+            </span>
           )}
           {appointment.parziale && (
             <Users className="w-3 h-3 text-text-muted flex-shrink-0" />
@@ -532,9 +554,13 @@ function buchiDellaGiornata(
   return buchi;
 }
 
-function DayView({ appointments, blocks, operators, selectedDate, coccole, onAppointmentClick, onWaitlistAdd, onSlotClick, onGapClick, onOffriBuco, onSlotBlock, onRemoveBlock, onDropAppointment }: {
+function DayView({ appointments, blocks, operators, selectedDate, coccole, rischi, segnalate, onAppointmentClick, onWaitlistAdd, onSlotClick, onGapClick, onOffriBuco, onSlotBlock, onRemoveBlock, onDropAppointment }: {
   /** Chi spende di più, per nome: sul blocco diventa una corona. */
   coccole?: Map<string, { speso: number; visite: number; posizione: number }>;
+  /** Chi salta gli appuntamenti, per id cliente: sul blocco diventa un calendario rosso. */
+  rischi?: Map<string, ClienteARischio>;
+  /** Le segnalate a mano, per id cliente: sul blocco diventa una faccina. */
+  segnalate?: Map<string, ClienteDifficile>;
   appointments: Appointment[]; blocks: AgendaBlock[]; operators: Operator[]; selectedDate: Date;
   onAppointmentClick: (a: Appointment) => void;
   onWaitlistAdd?: (a: Appointment) => void;
@@ -954,6 +980,8 @@ function DayView({ appointments, blocks, operators, selectedDate, coccole, onApp
                         overlapStyle={overlapStyle}
                         color={operator.color}
                         coccolare={coccole?.get(apt.clientName.trim().toLowerCase().replace(/\s+/g, ' '))}
+                        rischio={rischi?.get(apt.clientId)}
+                        segnalata={segnalate?.get(apt.clientId)}
                       />
                     );
                   });
@@ -2910,8 +2938,10 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   );
 }
 /* ========== DETAIL PANEL ========== */
-function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusChange, onCancelWithReason, onDelete }: {
+function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusChange, onCancelWithReason, onDelete, onSegnalazioneCambiata }: {
   appointment: Appointment; onClose: () => void; onEdit: (a: Appointment) => void;
+  /** Chiamata quando si segnala (o si toglie) una cliente: l'agenda ricarica le faccine. */
+  onSegnalazioneCambiata?: () => void;
   onStatusChange: (id: string, status: Appointment['status'], extra?: Partial<Appointment>) => void;
   onCancelWithReason: (id: string, reason: string) => void;
   onDelete: (id: string) => void;
@@ -3113,6 +3143,54 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   /* Cambia quando i promemoria vengono toccati dal modale del check-in: serve
      solo a far ricaricare la lista dentro il pannello (che si ricarica da sé). */
   const [promemoriaVersione, setPromemoriaVersione] = useState(0);
+
+  /*
+    L'altra faccia: se questa persona salta gli appuntamenti, e se qualcuno
+    l'ha segnalata a mano. Si chiedono insieme all'apertura del pannello, che è
+    il momento in cui si sta decidendo se darle un altro posto.
+  */
+  const [rischioQuesta, setRischioQuesta] = useState<ClienteARischio | null>(null);
+  const [segnalataQuesta, setSegnalataQuesta] = useState<ClienteDifficile | null>(null);
+  const [motivoSegnalazione, setMotivoSegnalazione] = useState('');
+  const [apriSegnalazione, setApriSegnalazione] = useState(false);
+  const [salvandoSegnalazione, setSalvandoSegnalazione] = useState(false);
+
+  const ricaricaGiudizi = useCallback(async () => {
+    const id = appointment.clientId;
+    if (!id) { setRischioQuesta(null); setSegnalataQuesta(null); return; }
+    const [rischi, difficili] = await Promise.all([
+      clientiARischio().catch(() => []),
+      clientiDifficili().catch(() => []),
+    ]);
+    setRischioQuesta(rischi.find(c => c.clientId === id) || null);
+    setSegnalataQuesta(difficili.find(c => c.clientId === id) || null);
+  }, [appointment.clientId]);
+
+  useEffect(() => { void ricaricaGiudizi(); }, [ricaricaGiudizi]);
+
+  const salvaSegnalazione = async () => {
+    if (!appointment.clientId || !motivoSegnalazione.trim()) return;
+    setSalvandoSegnalazione(true);
+    try {
+      const io = useAuthStore.getState().user;
+      await segnalaCliente({
+        clientId: appointment.clientId,
+        motivo: motivoSegnalazione,
+        segnalataDa: [io?.firstName, io?.lastName].filter(Boolean).join(' ').trim() || undefined,
+      });
+      setMotivoSegnalazione('');
+      setApriSegnalazione(false);
+      await ricaricaGiudizi();
+      onSegnalazioneCambiata?.();
+    } finally { setSalvandoSegnalazione(false); }
+  };
+
+  const rimuoviSegnalazione = async () => {
+    if (!appointment.clientId) return;
+    await togliSegnalazione(appointment.clientId);
+    await ricaricaGiudizi();
+    onSegnalazioneCambiata?.();
+  };
 
   /** Se questa cliente è fra quelle che spendono di più, e quanto. */
   const [coccolaQuesta, setCoccolaQuesta] = useState<ClienteTop | null>(null);
@@ -3638,6 +3716,74 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 </div>
               </div>
             )}
+
+            {/* Chi salta i posti. Il numero è quello vero degli ultimi 12 mesi:
+                "ha disdetto tre volte" detto senza il totale non vuol dire
+                niente, tre su trenta e tre su cinque sono due persone diverse. */}
+            {rischioQuesta && (
+              <div className={`flex items-start gap-2.5 p-3 rounded-xl ${rischioQuesta.livello === 'rischio' ? 'bg-error/10 border border-error/30' : 'bg-warning/10 border border-warning/30'}`}>
+                <CalendarX className={`w-4 h-4 flex-shrink-0 mt-0.5 ${rischioQuesta.livello === 'rischio' ? 'text-error' : 'text-warning'}`} />
+                <div>
+                  <p className="text-sm font-semibold text-text-primary">
+                    {rischioQuesta.livello === 'rischio' ? 'Salta spesso gli appuntamenti' : 'Ha cominciato a saltare gli appuntamenti'}
+                  </p>
+                  <p className="text-xs text-text-secondary">
+                    {riassuntoAffidabilita(rischioQuesta)}. {consiglioAffidabilita(rischioQuesta)}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* La segnalazione a mano: quello che i numeri non vedono. Il testo
+                lo scrive chi c'era, e resta scritto chi l'ha messa — una nota
+                del genere senza firma diventa un pettegolezzo. */}
+            {segnalataQuesta ? (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-error/10 border border-error/30">
+                <Frown className="w-4 h-4 text-error flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-text-primary">Cliente segnalata</p>
+                  <p className="text-xs text-text-secondary">{segnalataQuesta.motivo}</p>
+                  <p className="text-[10px] text-text-muted mt-0.5">
+                    {segnalataQuesta.segnalataDa ? `Segnalata da ${segnalataQuesta.segnalataDa}` : 'Segnalata'} il {segnalataQuesta.quando.slice(8, 10)}/{segnalataQuesta.quando.slice(5, 7)}
+                  </p>
+                  <button onClick={rimuoviSegnalazione}
+                    className="mt-2 text-[11px] font-semibold text-text-muted hover:text-text-primary underline">
+                    Togli la segnalazione
+                  </button>
+                </div>
+              </div>
+            ) : appointment.clientId ? (
+              apriSegnalazione ? (
+                <div className="p-3 rounded-xl bg-bg-tertiary/50 border border-border space-y-2">
+                  <p className="text-xs text-text-muted flex items-center gap-1.5">
+                    <Frown className="w-3.5 h-3.5" /> Perché la stai segnalando?
+                  </p>
+                  <input type="text" value={motivoSegnalazione} {...NO_AUTOFILL} autoFocus
+                    onChange={e => setMotivoSegnalazione(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') void salvaSegnalazione(); }}
+                    placeholder="Es. arriva sempre tardi e tratta male le ragazze"
+                    className="w-full px-3 py-2 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary placeholder-text-muted" />
+                  <div className="flex gap-2">
+                    <button onClick={salvaSegnalazione} disabled={salvandoSegnalazione || !motivoSegnalazione.trim()}
+                      className="flex-1 py-2 rounded-xl bg-error text-white text-xs font-bold disabled:opacity-40">
+                      {salvandoSegnalazione ? '…' : 'Segnala'}
+                    </button>
+                    <button onClick={() => { setApriSegnalazione(false); setMotivoSegnalazione(''); }}
+                      className="px-3 py-2 rounded-xl bg-bg-secondary border border-border text-xs font-semibold text-text-secondary">
+                      Annulla
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-text-muted/70">
+                    Lo vedono solo le ragazze, sul blocco in agenda e qui dentro. La cliente non lo sa.
+                  </p>
+                </div>
+              ) : (
+                <button onClick={() => setApriSegnalazione(true)}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-bg-tertiary/50 border border-border text-xs font-semibold text-text-secondary hover:text-error hover:border-error/40 transition-colors">
+                  <Frown className="w-3.5 h-3.5" /> Segnala cliente difficile
+                </button>
+              )
+            ) : null}
 
             {(appointment.checkInAt || appointment.checkOutAt) && (
               <div className="p-3 rounded-xl bg-pink-500/5 border border-pink-500/15">
@@ -4511,6 +4657,30 @@ export default function AgendaPage() {
       .then(lista => setCoccole(new Map(lista.map(c => [chiaveNome(c.nome), { speso: c.speso, visite: c.visite, posizione: c.posizione }]))))
       .catch(() => {});
   }, []);
+  /*
+    L'altra faccia della corona: chi disdice e chi non si presenta.
+
+    Stessa logica di caricamento — una volta all'apertura, vale per la giornata
+    — ma chiavata sull'id cliente e non sul nome: gli appuntamenti l'id ce
+    l'hanno, e due "Maria Russo" diverse non si confondono.
+  */
+  const [rischi, setRischi] = useState<Map<string, ClienteARischio>>(new Map());
+  useEffect(() => {
+    clientiARischio()
+      .then(lista => setRischi(new Map(lista.map(c => [c.clientId, c]))))
+      .catch(() => {});
+  }, []);
+
+  /* Le segnalate a mano. Si ricaricano anche quando il pannello ne aggiunge o
+     ne toglie una, se no la faccina sul blocco resta indietro fino al refresh. */
+  const [segnalate, setSegnalate] = useState<Map<string, ClienteDifficile>>(new Map());
+  const ricaricaSegnalate = useCallback(() => {
+    clientiDifficili()
+      .then(lista => setSegnalate(new Map(lista.map(c => [c.clientId, c]))))
+      .catch(() => {});
+  }, []);
+  useEffect(() => { ricaricaSegnalate(); }, [ricaricaSegnalate]);
+
   const [customRevenuePeriod, setCustomRevenuePeriod] = useState<RevenuePeriod | null>(null);
   const revenuePeriod = useMemo(
     () => customRevenuePeriod ?? periodFor(view, selectedDate),
@@ -4690,7 +4860,7 @@ export default function AgendaPage() {
 
       {/* Views */}
       {view === 'day' && (
-        <DayView appointments={todayAppointments} blocks={todayBlocks} operators={visibleOperators} selectedDate={selectedDate} coccole={coccole} onAppointmentClick={handleAppointmentClick} onWaitlistAdd={handleWaitlistAdd}
+        <DayView appointments={todayAppointments} blocks={todayBlocks} operators={visibleOperators} selectedDate={selectedDate} coccole={coccole} rischi={rischi} segnalate={segnalate} onAppointmentClick={handleAppointmentClick} onWaitlistAdd={handleWaitlistAdd}
           onSlotBlock={handleSlotBlock} onRemoveBlock={handleRemoveBlock}
           onSlotClick={(operatorId, hour) => {
             // Parte dal primo orario libero all'interno/dopo la fascia cliccata
@@ -4733,7 +4903,8 @@ export default function AgendaPage() {
         {selectedApt && <DetailPanel appointment={selectedApt} onClose={() => setSelectedApt(null)} onEdit={handleEdit}
           onStatusChange={(id, status, extra) => updateAppointment(id, { status, ...extra })}
           onCancelWithReason={(id, reason) => updateAppointment(id, { status: 'cancelled', cancelReason: reason, cancelledAt: new Date().toISOString() })}
-          onDelete={(id) => deleteAppointment(id)} />}
+          onDelete={(id) => deleteAppointment(id)}
+          onSegnalazioneCambiata={ricaricaSegnalate} />}
       </AnimatePresence>
 
       {/* Appointment Modal */}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import { useClientStore } from '@/stores/useClientStore';
@@ -12,13 +12,15 @@ import {
   Heart, Star, Crown, Gift, CreditCard,
   FileText, Clock, TrendingUp,
   Edit, MoreHorizontal, Shield, AlertTriangle,
-  CheckCircle, User, Cake, Tag, Settings, Plus, Trash2, Bell,
+  CheckCircle, User, Cake, Tag, Settings, Plus, Trash2, Bell, Frown,
 } from 'lucide-react';
 import { formatCurrency, getInitials, formatDate, getStatusLabel, getStatusColor, getCategoryLabel, generateId } from '@/lib/helpers';
 import Link from 'next/link';
 import AddClientModal from '@/components/AddClientModal';
 import ClientRecordTab from './ClientRecordTab';
 import PromemoriaCliente from '@/components/PromemoriaCliente';
+import { valutaAffidabilita, dalQuando, MESI_AFFIDABILITA } from '@/lib/affidabilita';
+import { clientiDifficili, togliSegnalazione, type ClienteDifficile } from '@/app/actions/clientiDifficili';
 import { getClientValue, type ClientValue } from '@/app/actions/businessStats';
 
 const tabs = [
@@ -89,15 +91,32 @@ export default function ClientDetailPage() {
   }, [clientAppointments]);
 
   // Statistiche disdette / no-show per classificare il cliente
+  /*
+    Affidabilità: stessa regola dell'agenda (src/lib/affidabilita.ts), se no la
+    scheda e il blocco appuntamento direbbero due cose diverse sulla stessa
+    persona. Si guardano gli ultimi 12 mesi e solo gli appuntamenti conclusi:
+    contare anche quelli già fissati per il mese prossimo abbasserebbe la
+    percentuale di chi prenota molto, cioè il contrario di quel che serve.
+  */
+  const dalAffidabilita = useMemo(() => dalQuando(), []);
   const cancelStats = useMemo(() => {
-    const cancelled = clientAppointments.filter(a => a.status === 'cancelled');
-    const noShow = clientAppointments.filter(a => a.status === 'no_show');
-    const completed = clientAppointments.filter(a => a.status === 'completed').length;
-    const total = clientAppointments.length;
-    const badCount = cancelled.length + noShow.length;
-    const rate = total > 0 ? Math.round((badCount / total) * 100) : 0;
-    return { cancelled, noShow, completed, total, badCount, rate };
-  }, [clientAppointments]);
+    const recenti = clientAppointments.filter(a => a.date >= dalAffidabilita);
+    return {
+      // La lista serve solo per i motivi qui sotto: i conteggi li dà la regola.
+      disdetteLista: recenti.filter(a => a.status === 'cancelled'),
+      ...valutaAffidabilita(clientAppointments, dalAffidabilita),
+    };
+  }, [clientAppointments, dalAffidabilita]);
+
+  /** La segnalazione scritta a mano dalle ragazze in agenda. */
+  const [segnalata, setSegnalata] = useState<ClienteDifficile | null>(null);
+  const ricaricaSegnalazione = useCallback(async () => {
+    const id = String(params.id || '');
+    if (!id) return;
+    const lista = await clientiDifficili().catch(() => []);
+    setSegnalata(lista.find(c => c.clientId === id) || null);
+  }, [params.id]);
+  useEffect(() => { void ricaricaSegnalazione(); }, [ricaricaSegnalazione]);
 
   if (!client) {
     return (
@@ -211,9 +230,14 @@ export default function ClientDetailPage() {
                     <Crown className="w-3.5 h-3.5" /> VIP {client.vipLevel === 3 ? 'Gold' : 'Silver'}
                   </span>
                 )}
-                {cancelStats.badCount >= 3 && (
-                  <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-error/10 border border-error/25 text-error text-xs font-bold shadow-sm" title="Cliente che disdice/non si presenta spesso">
+                {cancelStats.livello === 'rischio' && (
+                  <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-error/10 border border-error/25 text-error text-xs font-bold shadow-sm" title={`${cancelStats.mancati} appuntamenti saltati su ${cancelStats.conclusi} negli ultimi ${MESI_AFFIDABILITA} mesi`}>
                     <AlertTriangle className="w-3.5 h-3.5" /> Disdette frequenti
+                  </span>
+                )}
+                {segnalata && (
+                  <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-error/10 border border-error/25 text-error text-xs font-bold shadow-sm" title={`${segnalata.motivo}${segnalata.segnalataDa ? ` — segnalata da ${segnalata.segnalataDa}` : ''}`}>
+                    <Frown className="w-3.5 h-3.5" /> Segnalata
                   </span>
                 )}
               </div>
@@ -305,44 +329,61 @@ export default function ClientDetailPage() {
       </motion.div>
 
       {/* Affidabilità appuntamenti (disdette / no-show) */}
-      {cancelStats.total > 0 && (
+      {cancelStats.conclusi > 0 && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-          className={`rounded-2xl border p-5 ${cancelStats.badCount >= 3 ? 'bg-error/5 border-error/25' : cancelStats.badCount > 0 ? 'bg-warning/5 border-warning/25' : 'bg-bg-secondary border-border'}`}>
+          className={`rounded-2xl border p-5 ${cancelStats.livello === 'rischio' ? 'bg-error/5 border-error/25' : cancelStats.livello === 'attenzione' ? 'bg-warning/5 border-warning/25' : 'bg-bg-secondary border-border'}`}>
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-2">
-              <AlertTriangle className={`w-4 h-4 ${cancelStats.badCount >= 3 ? 'text-error' : cancelStats.badCount > 0 ? 'text-warning' : 'text-text-muted'}`} />
+              <AlertTriangle className={`w-4 h-4 ${cancelStats.livello === 'rischio' ? 'text-error' : cancelStats.livello === 'attenzione' ? 'text-warning' : 'text-text-muted'}`} />
               <h3 className="text-base font-display font-semibold text-text-primary">Affidabilità appuntamenti</h3>
+              <span className="text-[11px] text-text-muted">· ultimi {MESI_AFFIDABILITA} mesi</span>
             </div>
-            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${cancelStats.badCount >= 3 ? 'bg-error/15 text-error' : cancelStats.badCount > 0 ? 'bg-warning/15 text-warning' : 'bg-success/15 text-success'}`}>
-              {cancelStats.badCount === 0 ? 'Cliente affidabile' : `${cancelStats.rate}% mancati`}
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${cancelStats.livello === 'rischio' ? 'bg-error/15 text-error' : cancelStats.livello === 'attenzione' ? 'bg-warning/15 text-warning' : 'bg-success/15 text-success'}`}>
+              {cancelStats.mancati === 0 ? 'Cliente affidabile' : `${cancelStats.percentuale}% mancati`}
             </span>
           </div>
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-4">
             <div className="text-center bg-bg-tertiary/40 rounded-xl p-3">
-              <p className="text-lg font-display font-bold text-text-primary">{cancelStats.total}</p>
-              <p className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Totali</p>
+              <p className="text-lg font-display font-bold text-text-primary">{cancelStats.conclusi}</p>
+              <p className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Conclusi</p>
             </div>
             <div className="text-center bg-bg-tertiary/40 rounded-xl p-3">
-              <p className="text-lg font-display font-bold text-success">{cancelStats.completed}</p>
+              <p className="text-lg font-display font-bold text-success">{cancelStats.completati}</p>
               <p className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Completati</p>
             </div>
             <div className="text-center bg-bg-tertiary/40 rounded-xl p-3">
-              <p className="text-lg font-display font-bold text-error">{cancelStats.cancelled.length}</p>
+              <p className="text-lg font-display font-bold text-error">{cancelStats.disdette}</p>
               <p className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">Disdette</p>
             </div>
             <div className="text-center bg-bg-tertiary/40 rounded-xl p-3">
-              <p className="text-lg font-display font-bold text-error">{cancelStats.noShow.length}</p>
+              <p className="text-lg font-display font-bold text-error">{cancelStats.noShow}</p>
               <p className="text-[10px] uppercase tracking-wider text-text-muted font-semibold">No-Show</p>
             </div>
           </div>
-          {cancelStats.badCount >= 3 && (
-            <p className="text-xs text-error mt-3">⚠️ Questo cliente ha disdetto o non si è presentato {cancelStats.badCount} volte. Valuta di chiedere un acconto alla prenotazione.</p>
+          {cancelStats.livello === 'rischio' && (
+            <p className="text-xs text-error mt-3">⚠️ Ha disdetto o non si è presentato {cancelStats.mancati} volte su {cancelStats.conclusi} appuntamenti. Valuta di chiedere un acconto alla prenotazione.</p>
           )}
-          {cancelStats.cancelled.some(a => a.cancelReason) && (
+          {segnalata && (
+            <div className="mt-3 pt-3 border-t border-border/50 flex items-start gap-2">
+              <Frown className="w-4 h-4 text-error flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-text-primary">Segnalata dalle ragazze</p>
+                <p className="text-xs text-text-secondary">{segnalata.motivo}</p>
+                <p className="text-[10px] text-text-muted mt-0.5">
+                  {segnalata.segnalataDa ? `Segnalata da ${segnalata.segnalataDa}` : 'Segnalata'} il {segnalata.quando.slice(8, 10)}/{segnalata.quando.slice(5, 7)}
+                </p>
+              </div>
+              <button onClick={async () => { await togliSegnalazione(String(params.id || '')); await ricaricaSegnalazione(); }}
+                className="text-[11px] font-semibold text-text-muted hover:text-text-primary underline flex-shrink-0">
+                Togli
+              </button>
+            </div>
+          )}
+          {cancelStats.disdetteLista.some(a => a.cancelReason) && (
             <div className="mt-3 pt-3 border-t border-border/50">
               <p className="text-xs font-semibold text-text-secondary mb-1.5">Motivi disdette recenti</p>
               <div className="space-y-1">
-                {cancelStats.cancelled.filter(a => a.cancelReason).slice(-5).reverse().map(a => (
+                {cancelStats.disdetteLista.filter(a => a.cancelReason).slice(-5).reverse().map(a => (
                   <div key={a.id} className="flex items-center gap-2 text-xs text-text-muted">
                     <span className="text-text-secondary font-medium">{formatDate(a.date)}</span>
                     <span>·</span>
