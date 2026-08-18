@@ -33,7 +33,8 @@ import { isWalkIn, oraDiAdesso } from '@/lib/walkIn';
 import { schedaCompleta, campiMancanti } from '@/lib/schedaCliente';
 import { todayRome } from '@/lib/date';
 import { clientiTop } from '@/app/actions/clientiTop';
-import { promemoriaAperti, aggiungiPromemoria, segnaPromemoriaFatto, type Promemoria } from '@/app/actions/promemoria';
+import { promemoriaAperti, segnaPromemoriaFatto, type Promemoria } from '@/app/actions/promemoria';
+import PromemoriaCliente from '@/components/PromemoriaCliente';
 import { chiaveNome, riassunto, type ClienteTop } from '@/lib/clientiTop';
 import { sedutaIncassata } from '@/app/actions/daIncassare';
 import { useCabinStore } from '@/stores/useCabinStore';
@@ -3109,39 +3110,9 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     finché non lo sappiamo resta `null` e non si scrive niente — dire "non
     pagata" per mezzo secondo su una seduta pagata sarebbe peggio del problema.
   */
-  /*
-    Promemoria sulla cliente.
-
-    Si caricano appena si apre il pannello, perché è lì che si scrivono ("il 18
-    devo chiedere una cosa") ed è lì che si rileggono. Al check-in poi tornano
-    da soli in mezzo allo schermo.
-  */
-  const [promemoria, setPromemoria] = useState<Promemoria[]>([]);
-  const [nuovoPromemoria, setNuovoPromemoria] = useState('');
-  const [salvandoPromemoria, setSalvandoPromemoria] = useState(false);
-
-  const ricaricaPromemoria = useCallback(async (id?: string) => {
-    const cid = id || clientData?.id;
-    if (!cid) { setPromemoria([]); return; }
-    setPromemoria(await promemoriaAperti(cid).catch(() => []));
-  }, [clientData?.id]);
-
-  useEffect(() => { void ricaricaPromemoria(); }, [ricaricaPromemoria]);
-
-  const salvaPromemoria = async () => {
-    if (!clientData?.id || !nuovoPromemoria.trim()) return;
-    setSalvandoPromemoria(true);
-    try {
-      const io = useAuthStore.getState().user;
-      await aggiungiPromemoria({
-        clientId: clientData.id,
-        testo: nuovoPromemoria,
-        creatoDa: [io?.firstName, io?.lastName].filter(Boolean).join(' ').trim() || undefined,
-      });
-      setNuovoPromemoria('');
-      await ricaricaPromemoria();
-    } finally { setSalvandoPromemoria(false); }
-  };
+  /* Cambia quando i promemoria vengono toccati dal modale del check-in: serve
+     solo a far ricaricare la lista dentro il pannello (che si ricarica da sé). */
+  const [promemoriaVersione, setPromemoriaVersione] = useState(0);
 
   /** Se questa cliente è fra quelle che spendono di più, e quanto. */
   const [coccolaQuesta, setCoccolaQuesta] = useState<ClienteTop | null>(null);
@@ -3643,47 +3614,13 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
             <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Operatrice</p><p className="text-sm font-medium text-text-primary">{appointment.operatorName}</p></div>
 
             {/* Promemoria: le cose da chiederle quando è qui. Sta accanto ai
-                trattamenti e non in fondo, perché va letto PRIMA di iniziare. */}
-            <div className="p-3 rounded-xl bg-bg-tertiary/50 space-y-2">
-              <p className="text-xs text-text-muted flex items-center gap-1.5">
-                <Bell className="w-3.5 h-3.5" /> Da chiedere quando è qui
-              </p>
-              {promemoria.map(pm => (
-                <div key={pm.id} className="flex items-start gap-2 p-2 rounded-lg bg-warning/10 border border-warning/30">
-                  <p className="flex-1 text-sm text-text-primary leading-snug">
-                    {pm.testo}
-                    <span className="block text-[10px] text-text-muted mt-0.5">
-                      scritto {pm.createdAt.slice(8, 10)}/{pm.createdAt.slice(5, 7)}{pm.creatoDa ? ` da ${pm.creatoDa}` : ''}
-                    </span>
-                  </p>
-                  <button
-                    onClick={async () => {
-                      const io = useAuthStore.getState().user;
-                      await segnaPromemoriaFatto(pm.id, [io?.firstName, io?.lastName].filter(Boolean).join(' ').trim());
-                      await ricaricaPromemoria();
-                    }}
-                    className="px-2 py-1 rounded-lg bg-success/15 text-success text-[11px] font-semibold hover:bg-success/25 flex-shrink-0">
-                    Fatto
-                  </button>
-                </div>
-              ))}
-              <div className="flex gap-2">
-                <input type="text" value={nuovoPromemoria} {...NO_AUTOFILL}
-                  onChange={e => setNuovoPromemoria(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') void salvaPromemoria(); }}
-                  placeholder="Es. chiedile se il rossore è passato"
-                  className="flex-1 px-3 py-2 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary placeholder-text-muted" />
-                <button onClick={salvaPromemoria} disabled={salvandoPromemoria || !nuovoPromemoria.trim()}
-                  className="px-3 py-2 rounded-xl bg-accent text-white text-xs font-bold disabled:opacity-40 flex-shrink-0">
-                  {salvandoPromemoria ? '…' : 'Aggiungi'}
-                </button>
+                trattamenti e non in fondo, perché va letto PRIMA di iniziare.
+                Stesso componente della scheda cliente: una lista sola. */}
+            {clientData?.id && (
+              <div className="p-3 rounded-xl bg-bg-tertiary/50">
+                <PromemoriaCliente key={`${clientData.id}:${promemoriaVersione}`} clientId={clientData.id} />
               </div>
-              {promemoria.length === 0 && (
-                <p className="text-[11px] text-text-muted/70">
-                  Quello che scrivi qui ricompare da solo al check-in, finché non lo segni fatto.
-                </p>
-              )}
-            </div>
+            )}
 
             {/* Perché la corona: senza i numeri sarebbe un vezzo, e chi entra
                 in cabina deve sapere quanto vale la persona che ha davanti. */}
@@ -4214,7 +4151,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                       await segnaPromemoriaFatto(pm.id, [io?.firstName, io?.lastName].filter(Boolean).join(' ').trim());
                       const restano = promemoriaDaMostrare.filter(x => x.id !== pm.id);
                       setPromemoriaDaMostrare(restano.length ? restano : null);
-                      await ricaricaPromemoria();
+                      setPromemoriaVersione(v => v + 1);
                       if (!restano.length) proseguiCheckIn();
                     }}
                     className="px-2.5 py-1.5 rounded-lg bg-success/15 text-success text-[11px] font-bold hover:bg-success/25 flex-shrink-0">

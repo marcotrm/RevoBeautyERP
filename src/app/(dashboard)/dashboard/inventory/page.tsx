@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -416,6 +418,8 @@ function StockMovementModal({ product, onClose, onDone }: {
 /* ========== STORICO MOVIMENTI ========== */
 function StockHistoryModal({ product, onClose }: { product?: Product | null; onClose: () => void }) {
   const [rows, setRows] = useState<StockMovementData[] | null>(null);
+  /** Riga di vendita aperta: si vede chi ha comprato e con quale scontrino. */
+  const [dettaglio, setDettaglio] = useState<string | null>(null);
   useEffect(() => { getStockMovements(product?.id).then(setRows).catch(() => setRows([])); }, [product]);
 
   return (
@@ -441,25 +445,47 @@ function StockHistoryModal({ product, onClose }: { product?: Product | null; onC
               </div>
             ) : (
               <div className="divide-y divide-border/30">
-                {rows.map(m => (
-                  <div key={m.id} className="flex items-center gap-3 px-5 py-3">
+                {rows.map(m => {
+                  // Le righe che vengono da una vendita si aprono: dietro c'è
+                  // uno scontrino con nome, importo e numero del documento.
+                  const apribile = Boolean(m.vendita);
+                  const aperta = dettaglio === m.id;
+                  return (
+                  <div key={m.id}
+                    onClick={apribile ? () => setDettaglio(aperta ? null : m.id) : undefined}
+                    className={`flex items-center gap-3 px-5 py-3 ${apribile ? 'cursor-pointer hover:bg-bg-hover transition-colors' : ''}`}>
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${m.kind === 'out' ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}`}>
                       {m.kind === 'out' ? <ArrowDownCircle className="w-4 h-4" /> : <ArrowUpCircle className="w-4 h-4" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       {!product && <p className="text-sm font-medium text-text-primary truncate">{m.productName}</p>}
                       <p className={`text-sm ${product ? 'font-medium text-text-primary' : 'text-text-secondary'}`}>
-                        {reasonLabel(m.reason)}{m.note ? ` — ${m.note}` : ''}
+                        {m.vendita ? (m.kind === 'in' ? 'Reso in cassa' : 'Venduto in cassa') : reasonLabel(m.reason)}{m.note ? ` — ${m.note}` : ''}
                       </p>
                       <p className="text-[11px] text-text-muted">
-                        {m.date}{m.operator ? ` · ${m.operator}` : ''} · giacenza {m.stockAfter}
+                        {m.date}{m.operator ? ` · ${m.operator}` : ''}
+                        {m.stockAfter >= 0 ? ` · giacenza ${m.stockAfter}` : ''}
+                        {apribile && !aperta ? ' · tocca per vedere la vendita' : ''}
                       </p>
+                      {aperta && m.vendita && (
+                        <div className="mt-2 p-2.5 rounded-xl bg-bg-tertiary/60 border border-border text-[11px] text-text-secondary space-y-0.5">
+                          <p className="text-sm font-semibold text-text-primary">{m.vendita.cliente}</p>
+                          <p>Venduto alle {m.vendita.ora} · conto della vendita {formatCurrency(m.vendita.totale)}</p>
+                          <p>{m.vendita.documento ? `Scontrino ${m.vendita.documento}` : 'Nessuno scontrino fiscale su questa vendita'}</p>
+                          <Link href={`/dashboard/scontrini?cerca=${encodeURIComponent(m.vendita.documento || m.vendita.cliente)}`}
+                            onClick={e => e.stopPropagation()}
+                            className="inline-block mt-1 text-accent font-semibold hover:underline">
+                            Apri negli scontrini
+                          </Link>
+                        </div>
+                      )}
                     </div>
                     <span className={`text-sm font-bold flex-shrink-0 ${m.kind === 'out' ? 'text-error' : 'text-success'}`}>
                       {m.kind === 'out' ? '−' : '+'}{m.quantity}
                     </span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

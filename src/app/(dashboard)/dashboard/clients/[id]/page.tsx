@@ -12,12 +12,13 @@ import {
   Heart, Star, Crown, Gift, CreditCard,
   FileText, Clock, TrendingUp,
   Edit, MoreHorizontal, Shield, AlertTriangle,
-  CheckCircle, User, Cake, Tag, Settings, Plus, Trash2,
+  CheckCircle, User, Cake, Tag, Settings, Plus, Trash2, Bell,
 } from 'lucide-react';
 import { formatCurrency, getInitials, formatDate, getStatusLabel, getStatusColor, getCategoryLabel, generateId } from '@/lib/helpers';
 import Link from 'next/link';
 import AddClientModal from '@/components/AddClientModal';
 import ClientRecordTab from './ClientRecordTab';
+import PromemoriaCliente from '@/components/PromemoriaCliente';
 import { getClientValue, type ClientValue } from '@/app/actions/businessStats';
 
 const tabs = [
@@ -421,6 +422,16 @@ export default function ClientDetailPage() {
 
             {/* Notes & Preferences */}
             <div className="space-y-4">
+              {/* Promemoria: si scrivono qui, giorni prima, e ricompaiono da
+                  soli al check-in quando la cliente è davvero al banco. */}
+              <div className="bg-bg-secondary border border-border rounded-2xl p-5">
+                <h3 className="text-base font-display font-semibold text-text-primary mb-1 flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-warning" /> Da chiedere quando è qui
+                </h3>
+                <p className="text-[11px] text-text-muted mb-3">Salta fuori al check-in del prossimo appuntamento.</p>
+                <PromemoriaCliente clientId={client.id} conStorico senzaTitolo />
+              </div>
+
               <div className="bg-bg-secondary border border-border rounded-2xl p-5">
                 <h3 className="text-base font-display font-semibold text-text-primary mb-3">Note</h3>
                 <p className="text-sm text-text-secondary">{client.notes || 'Nessuna nota'}</p>

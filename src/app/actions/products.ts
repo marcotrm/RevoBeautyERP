@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { Product } from '@/types';
 import { notifyIncasso } from '@/lib/telegram';
 
@@ -159,6 +160,17 @@ export interface StockMovementData {
   stockAfter: number;
   date: string;
   createdAt: string;
+  /**
+   * Se il movimento è una vendita, i dati per andarci sopra e capire chi l'ha
+   * comprata. Non esiste sulle righe scritte a mano (uso interno, scaduto…).
+   */
+  vendita?: {
+    transactionId: string;
+    cliente: string;
+    totale: number;
+    ora: string;
+    documento?: string;
+  };
 }
 
 /** Scarico o carico di magazzino con motivo: aggiorna lo stock e registra il movimento. */
@@ -202,10 +214,72 @@ export async function recordStockMovement(params: {
 
 /** Storico movimenti: tutti, o solo di un prodotto se passato productId. */
 export async function getStockMovements(productId?: string): Promise<StockMovementData[]> {
-  const rows = await prisma.stockMovement.findMany({
-    where: productId ? { productId } : undefined,
-    orderBy: { createdAt: 'desc' },
-    take: 300,
-  });
-  return rows as unknown as StockMovementData[];
+  /*
+    Nello storico mancava metà della storia: le VENDITE.
+
+    La cassa scala la giacenza direttamente (`product.update` con decrement) e
+    non scrive nessun movimento, quindi qui dentro comparivano solo le righe
+    fatte a mano — uso interno, scaduto, correzione. Apri lo storico di una
+    crema, vedi "-1 uso interno" e non trovi le tre che hai venduto: sembra un
+    ammanco, ed è solo un buco nel racconto.
+
+    Invece di duplicare i dati (movimento + scontrino, che poi divergono), le
+    righe di vendita si ricostruiscono da quello che è già scritto sulle
+    transazioni: sono la stessa cosa, viste da un'altra parte. Ogni riga si
+    porta dietro l'id della vendita, così ci si può cliccare sopra.
+  */
+  const [righe, vendite] = await Promise.all([
+    prisma.stockMovement.findMany({
+      where: productId ? { productId } : undefined,
+      orderBy: { createdAt: 'desc' },
+      take: 300,
+    }),
+    prisma.posTransaction.findMany({
+      where: { productLines: { not: Prisma.DbNull } },
+      orderBy: [{ date: 'desc' }, { time: 'desc' }],
+      take: 400,
+      select: { id: true, date: true, time: true, clientName: true, total: true, productLines: true, c95Progressivo: true, isRefund: true },
+    }),
+  ]);
+
+  const daVendite: StockMovementData[] = [];
+  const nomi = new Map<string, string>();
+  for (const v of vendite) {
+    const linee = Array.isArray(v.productLines) ? (v.productLines as { productId?: string; qty?: number }[]) : [];
+    for (const l of linee) {
+      if (!l?.productId || !l.qty) continue;
+      if (productId && l.productId !== productId) continue;
+      if (!nomi.has(l.productId)) {
+        const p = await prisma.product.findUnique({ where: { id: l.productId }, select: { name: true } });
+        nomi.set(l.productId, p?.name || 'Prodotto eliminato');
+      }
+      daVendite.push({
+        id: `vendita:${v.id}:${l.productId}`,
+        productId: l.productId,
+        productName: nomi.get(l.productId) as string,
+        // Un reso rimette il prodotto dentro: è un carico, non uno scarico.
+        kind: v.isRefund ? 'in' : 'out',
+        quantity: Math.abs(l.qty),
+        reason: v.isRefund ? 'reso' : 'vendita',
+        note: v.clientName || 'Cliente occasionale',
+        operator: '',
+        // La giacenza dopo non si può ricostruire all'indietro senza inventare
+        // numeri: si lascia a -1 e la schermata non la mostra.
+        stockAfter: -1,
+        date: v.date,
+        createdAt: `${v.date}T${v.time || '00:00'}:00`,
+        vendita: {
+          transactionId: v.id,
+          cliente: v.clientName || 'Cliente occasionale',
+          totale: v.total,
+          ora: v.time,
+          documento: v.c95Progressivo || undefined,
+        },
+      });
+    }
+  }
+
+  return [...(righe as unknown as StockMovementData[]), ...daVendite]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 300);
 }
