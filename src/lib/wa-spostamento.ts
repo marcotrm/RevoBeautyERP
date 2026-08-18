@@ -60,6 +60,15 @@ const APERTI = ['confirmed', 'pending', 'scheduled', 'booked'];
  * disdire.
  */
 const ESCI = /\b(lascia stare|lasciamo stare|niente|non importa|esci|basta cos[iì])\b/i;
+/**
+ * "Devo spostare" scritto a metà conversazione vuol dire ricomincia.
+ *
+ * Prima veniva letto come una risposta sbagliata al menù ("rispondi con un
+ * numero da 1 a 14"), e chi non capiva restava chiuso dentro finché la
+ * sessione non scadeva da sola dopo mezz'ora. Chi ripete la richiesta di
+ * partenza sta dicendo che si è perso: si riparte da capo.
+ */
+const RIPARTI = /\b(devo spostare|vorrei spostare|posso spostare|spostare l'appuntamento|ricomincia|da capo)\b/i;
 const DISDETTA = /\b(disdi\w*|annull\w*|cancell\w*|non vengo|non verr[òo]|non posso pi[uù])\b/i;
 const CONFERMA = /^\s*(s[iì]|si'|ok|okay|va bene|confermo|conferma|perfetto|d'accordo|👍|✅)\b/i;
 
@@ -73,6 +82,8 @@ interface Sessione {
   appointmentId: string;
   opzioni: Array<{ id: string; label: string; extra?: Orario }>;
   azione?: 'sposta' | 'disdice';
+  /** Quante volte di fila non abbiamo capito: al terzo giro passa una persona. */
+  incompresi?: number;
   nuovaData?: string;
   nuovoOrario?: Orario;
 }
@@ -348,6 +359,33 @@ async function giorniConPosto(appt: {
   return risultato;
 }
 
+
+/**
+ * Quando non si capisce: si rimostra cosa si può rispondere, non si ripete
+ * "rispondi con un numero". Alla terza volta di fila la conversazione passa a
+ * una persona: insistere con un menù a chi non lo sta leggendo è il modo più
+ * veloce per far scrivere "ma siete un robot?".
+ */
+async function nonHoCapito(phone: string, s: Sessione, testo: string): Promise<void> {
+  const quante = (s.incompresi || 0) + 1;
+
+  if (quante >= 3) {
+    await chiudiSessione(phone);
+    await say(phone,
+      'Scusami, non riesco a seguirti bene da qui. Ti faccio richiamare da una di noi, ' +
+      'così sistemiamo l\'appuntamento insieme.'
+    );
+    await sendTelegram(
+      `🙋 <b>Spostamento da riprendere a mano</b>\nIl bot non ha capito tre volte di fila.\n` +
+      `Numero: ${phone}\nUltimo messaggio: "${testo.slice(0, 80)}"`
+    ).catch(() => {});
+    return;
+  }
+
+  await salvaSessione(phone, { ...s, incompresi: quante });
+  await say(phone, `${testo.trim() ? 'Non ho capito. ' : ''}${s.opzioni.length ? 'Scegli una di queste:\n\n' + elenco(s.opzioni) + '\n\nRispondi con il numero' : 'Rispondi'}, oppure scrivi "lascia stare" per non cambiare niente.`);
+}
+
 async function chiediConferma(phone: string, s: Sessione, appt: { treatmentName: string; date: string; startTime: string }): Promise<void> {
   await salvaSessione(phone, { ...s, passo: 'conferma', opzioni: [] });
   if (s.azione === 'disdice') {
@@ -507,6 +545,15 @@ export async function handleSpostamentoMessage(params: {
     const s = await leggiSessione(phone);
     if (!s) return { handled: false };
 
+    // Ripete la richiesta di partenza: si riparte, non la si corregge.
+    if (RIPARTI.test(text) && s.passo !== 'cosa') {
+      const ap = await prisma.appointment.findUnique({ where: { id: s.appointmentId } });
+      if (ap && APERTI.includes(ap.status)) {
+        await chiediCosaFare(phone, ap);
+        return { handled: true, passo: 'cosa' };
+      }
+    }
+
     if (ESCI.test(text)) {
       await chiudiSessione(phone);
       await say(phone, 'Va bene, non ho cambiato niente: l\'appuntamento resta com\'era. A presto!');
@@ -534,14 +581,14 @@ export async function handleSpostamentoMessage(params: {
           await chiediGiorno(phone, s, appt);
           return { handled: true, passo: 'giorno' };
         }
-        await say(phone, 'Non ho capito. Rispondi 1 per scegliere un altro giorno, 2 per disdire.');
+        await nonHoCapito(phone, s, text);
         return { handled: true, passo: 'cosa' };
       }
 
       case 'giorno': {
         const i = scelta(text, s.opzioni.length);
         if (i === null) {
-          await say(phone, `Rispondi con un numero da 1 a ${s.opzioni.length}, oppure scrivi "lascia stare".`);
+          await nonHoCapito(phone, s, text);
           return { handled: true, passo: 'giorno' };
         }
         await chiediOrario(phone, s, s.opzioni[i].id, appt);
@@ -551,7 +598,7 @@ export async function handleSpostamentoMessage(params: {
       case 'orario': {
         const i = scelta(text, s.opzioni.length);
         if (i === null) {
-          await say(phone, `Rispondi con un numero da 1 a ${s.opzioni.length}, oppure scrivi "lascia stare".`);
+          await nonHoCapito(phone, s, text);
           return { handled: true, passo: 'orario' };
         }
         const scelto = s.opzioni[i].extra as Orario;
@@ -564,7 +611,7 @@ export async function handleSpostamentoMessage(params: {
           await esegui(phone, s, origin);
           return { handled: true };
         }
-        await say(phone, 'Rispondi *SI* per confermare, oppure "lascia stare" per non cambiare niente.');
+        await nonHoCapito(phone, s, text);
         return { handled: true, passo: 'conferma' };
       }
     }
