@@ -16,6 +16,7 @@ import { todayRome } from '@/lib/date';
 import { sendWhatsAppTemplate, normalizePhone, isSendablePhone, waProvider } from '@/lib/whatsapp';
 import { WA_TEMPLATES, sanitizeParam, isMarketing, templateButtonLabels, type TemplateKey } from '@/lib/wa-templates';
 import { listD360Templates } from '@/lib/whatsapp360';
+import { scegliRecensione } from '@/lib/sceltaRecensione';
 import { GIFT_OPTIONS } from '@/lib/giftOptions';
 import { phonesWithInbound } from '@/lib/wa-conversations';
 
@@ -465,28 +466,14 @@ export async function runBirthdays(cfg: WaAutomationsConfig, dryRun: boolean): P
  */
 export async function chiaveRichiestaRecensione(): Promise<{ chiave: TemplateKey; marketing: boolean }> {
   const remote = await listD360Templates();
-  // Elenco illeggibile: si prova comunque con quella col link, che è il punto.
+  // Elenco illeggibile: si prova comunque, meglio un tentativo che il silenzio.
   if (!remote.ok) return { chiave: 'reviewV2', marketing: false };
 
-  const trova = (nome: string) => remote.templates.find(
-    t => t.name === nome && t.language.startsWith('it') && t.status === 'APPROVED',
-  );
-  const v2 = trova(WA_TEMPLATES.reviewV2.name);
-  const v1 = trova(WA_TEMPLATES.review.name);
+  const scelta = scegliRecensione(remote.templates, [WA_TEMPLATES.review.name, WA_TEMPLATES.reviewV2.name]);
+  if (!scelta.nome) return { chiave: 'reviewV2', marketing: false };
 
-  /*
-    La categoria che conta è quella che ha messo Meta, non quella che abbiamo
-    chiesto noi. `richiesta_recensione_link` è stato approvato come MARKETING:
-    va quindi solo a chi ha dato il consenso, come qualunque promozione. Fidarsi
-    del nostro catalogo (dove è scritto UTILITY) vorrebbe dire mandare
-    promozioni a chi non le ha volute.
-  */
-  if (v2) return { chiave: 'reviewV2', marketing: v2.category.startsWith('MARKETING') };
-  if (v1) {
-    console.warn('[wa-automations] recensione: parte la versione senza bottone, quella col link non è approvata');
-    return { chiave: 'review', marketing: v1.category.startsWith('MARKETING') };
-  }
-  return { chiave: 'reviewV2', marketing: false };
+  const chiave: TemplateKey = scelta.nome === WA_TEMPLATES.reviewV2.name ? 'reviewV2' : 'review';
+  return { chiave, marketing: scelta.promozionale };
 }
 
 // ---- Richiesta recensione (giorno dopo la visita) -----------

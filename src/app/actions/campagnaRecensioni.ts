@@ -23,6 +23,7 @@ import { isInterno } from '@/lib/clientiInterni';
 import { idClientiSegnalati } from '@/lib/segnalate';
 import { todayRome } from '@/lib/date';
 import { leggiStato } from '@/lib/recensioni';
+import { scegliRecensione } from '@/lib/sceltaRecensione';
 import { getWaAutomationsConfig } from '@/lib/wa-automations';
 import {
   GIORNI_FINESTRA, GIORNI_RICHIESTA, costoStimato, giorniTra, rigaRichiesta, sipuoChiedere,
@@ -170,33 +171,24 @@ export async function statoTemplateRecensione(): Promise<StatoTemplateRecensione
   // qui dicessimo "non c'è nessun messaggio" si andrebbe a crearne uno doppio.
   if (!remote.ok) return { ...base, problema: `Non riesco a leggere i messaggi approvati su WhatsApp: ${remote.error}` };
 
-  // La lingua a volte arriva come "it", a volte come "it_IT": basta che cominci per it.
-  const trova = (nome: string) => remote.templates.find(t => t.name === nome && t.language.startsWith('it'));
-  const v2 = trova(conBottone.name);
-  const v1 = trova(vecchio.name);
-  const haUrl = (t?: { buttons?: { type: string; url?: string }[] }) =>
-    Boolean(t?.buttons?.some(b => b.type.toUpperCase() === 'URL' && b.url));
-
+  const v2 = remote.templates.find(t => t.name === conBottone.name && t.language.toLowerCase().startsWith('it'));
   if (v2) base.statoConLink = v2.status;
 
-  // Prima scelta: la versione col bottone, se Meta l'ha approvata.
-  if (v2?.status === 'APPROVED') {
-    return { ...base, nome: v2.name, stato: v2.status, conLink: haUrl(v2), promozionale: v2.category.startsWith('MARKETING') };
-  }
-  // Ripiego: la vecchia. Parte lo stesso, ma senza link — e lo diciamo.
-  if (v1?.status === 'APPROVED') {
-    return {
-      ...base,
-      nome: v1.name,
-      stato: v1.status,
-      conLink: haUrl(v1),
-      promozionale: v1.category.startsWith('MARKETING'),
-      problema: haUrl(v1)
-        ? undefined
-        : 'Il messaggio approvato non ha il bottone col link: la cliente legge la richiesta ma non ha dove andare.',
-    };
-  }
-  return { ...base, problema: 'Nessun messaggio di richiesta recensione approvato su WhatsApp.' };
+  // Stessa identica scelta che fa l'automazione (src/lib/sceltaRecensione.ts):
+  // se qui si dicesse una cosa e partisse l'altra, non ci si fiderebbe più.
+  const scelta = scegliRecensione(remote.templates, [vecchio.name, conBottone.name]);
+  const stato = scelta.nome
+    ? remote.templates.find(t => t.name === scelta.nome)?.status
+    : undefined;
+
+  return {
+    ...base,
+    nome: scelta.nome,
+    stato,
+    conLink: scelta.conLink,
+    promozionale: scelta.promozionale,
+    problema: scelta.problema,
+  };
 }
 
 export interface EsitoRecensioni {
