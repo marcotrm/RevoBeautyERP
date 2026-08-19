@@ -281,13 +281,33 @@ export default function WhatsAppAutomationsConfig() {
                                     ? <span className="text-success"> · col bottone che apre Google</span>
                                     : <span className="text-error"> · senza bottone: la cliente non sa dove andare</span>}
                                   {statoRec.promozionale && (
-                                    <span className="text-warning"> · Meta l&apos;ha classificato promozionale: parte solo a chi ha dato il consenso marketing</span>
+                                    <span className="text-warning">
+                                      {' '}· Meta l&apos;ha classificato promozionale
+                                      {cfg?.recensioneSenzaConsenso ? ': lo mandiamo comunque a tutte' : ': parte solo a chi ha dato il consenso marketing'}
+                                    </span>
                                   )}
                                 </>
                               ) : (
                                 <span className="text-error">{statoRec.problema}</span>
                               )}
                             </p>
+                          )}
+
+                          {/* L'interruttore per mandarla comunque a tutte. Sta qui
+                              e non nelle impostazioni nascoste perché è una scelta
+                              con conseguenze, e va presa guardandole in faccia. */}
+                          {statoRec?.promozionale && cfg && (
+                            <label className="flex items-start gap-2 mt-1 cursor-pointer">
+                              <input type="checkbox" checked={cfg.recensioneSenzaConsenso}
+                                onChange={e => save({ recensioneSenzaConsenso: e.target.checked })}
+                                className="w-3.5 h-3.5 mt-0.5 rounded border-border accent-accent flex-shrink-0" />
+                              <span className="text-[10px] text-text-muted leading-relaxed">
+                                <strong className="text-text-secondary">Mandala anche a chi non ha dato il consenso marketing.</strong>{' '}
+                                Il messaggio parla di una visita appena fatta, ma per Meta resta una promozione: mandarla
+                                a chi non l&apos;ha voluta può far scendere la qualità del numero del centro, fino al blocco.
+                                La soluzione definitiva è farsi riclassificare il template come &laquo;Utility&raquo; da Meta.
+                              </span>
+                            </label>
                           )}
 
                           {/* La regola che non si vede: alle segnalate non parte. */}

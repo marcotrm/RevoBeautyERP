@@ -23,6 +23,7 @@ import { isInterno } from '@/lib/clientiInterni';
 import { idClientiSegnalati } from '@/lib/segnalate';
 import { todayRome } from '@/lib/date';
 import { leggiStato } from '@/lib/recensioni';
+import { getWaAutomationsConfig } from '@/lib/wa-automations';
 import {
   GIORNI_FINESTRA, GIORNI_RICHIESTA, costoStimato, giorniTra, rigaRichiesta, sipuoChiedere,
   type CandidataRecensione,
@@ -71,7 +72,7 @@ export async function candidateRecensioni(giorni: number = GIORNI_FINESTRA): Pro
   if (ultima.size === 0) return { candidate: [], scartati: [], finestra: giorni };
 
   const ids = [...ultima.keys()];
-  const [clienti, righe, segnalate, tpl] = await Promise.all([
+  const [clienti, righe, segnalate, tpl, cfg] = await Promise.all([
     prisma.client.findMany({
       where: { id: { in: ids } },
       select: { id: true, firstName: true, lastName: true, phone: true, tags: true, marketingConsent: true },
@@ -79,6 +80,7 @@ export async function candidateRecensioni(giorni: number = GIORNI_FINESTRA): Pro
     prisma.adminEntry.findMany({ where: { rowId: { in: ids.map(rigaRichiesta) } } }),
     idClientiSegnalati(),
     statoTemplateRecensione(),
+    getWaAutomationsConfig(),
   ]);
 
   const quandoChiesto = new Map<string, string>();
@@ -97,8 +99,12 @@ export async function candidateRecensioni(giorni: number = GIORNI_FINESTRA): Pro
     if (isInterno(c)) continue; // schede di casa: non si contano nemmeno fra gli scarti
     // Alle segnalate non si chiede: sarebbe andare a cercarsi la stella storta.
     if (segnalate.has(c.id)) { scartati.push({ nome, motivo: 'segnalata: non le chiediamo la recensione' }); continue; }
-    // Meta ha classificato promozionale il messaggio: vale il consenso marketing.
-    if (tpl.promozionale && !c.marketingConsent) { scartati.push({ nome, motivo: 'senza consenso marketing (il messaggio è promozionale)' }); continue; }
+    // Meta ha classificato promozionale il messaggio: vale il consenso marketing,
+    // salvo quando il centro ha acceso "manda a tutte" nelle Automazioni.
+    if (tpl.promozionale && !cfg.recensioneSenzaConsenso && !c.marketingConsent) {
+      scartati.push({ nome, motivo: 'senza consenso marketing (il messaggio è promozionale)' });
+      continue;
+    }
     if (!isSendablePhone(c.phone)) { scartati.push({ nome, motivo: 'numero non valido' }); continue; }
     const gia = quandoChiesto.get(c.id);
     if (!sipuoChiedere(oggi, gia)) {

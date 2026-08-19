@@ -87,6 +87,20 @@ export interface WaAutomationsConfig {
   affiliatoIncasso: boolean;
   /** Riepilogo mensile agli affiliati, il primo del mese sul mese chiuso. */
   affiliatoMese: boolean;
+  /**
+   * Manda la richiesta di recensione anche a chi non ha dato il consenso
+   * marketing.
+   *
+   * Serve perché Meta ha approvato `richiesta_recensione_link` come
+   * PROMOZIONALE, e di suo il gestionale tratta i promozionali come tali: solo
+   * a chi ha acconsentito. Con questo acceso si manda a tutti.
+   *
+   * Spento di default, e la scelta è di chi gestisce il centro: il messaggio
+   * parla di una visita appena fatta, ma per Meta resta una promozione, e le
+   * promozioni a chi non le ha volute possono far scendere la qualità del
+   * numero (fino al blocco) oltre a essere un problema col Garante.
+   */
+  recensioneSenzaConsenso: boolean;
 }
 
 export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
@@ -106,6 +120,7 @@ export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
   copriBuchiAuto: false,
   affiliatoIncasso: false,
   affiliatoMese: false,
+  recensioneSenzaConsenso: false,
 };
 
 export async function getWaAutomationsConfig(): Promise<WaAutomationsConfig> {
@@ -478,7 +493,7 @@ export async function chiaveRichiestaRecensione(): Promise<{ chiave: TemplateKey
 
 export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
   const target = shiftDate(todayRome(), -1);
-  const scelta = await chiaveRichiestaRecensione();
+  const [scelta, cfg] = await Promise.all([chiaveRichiestaRecensione(), getWaAutomationsConfig()]);
   const [appts, segnalate] = await Promise.all([
     prisma.appointment.findMany({
       where: { date: target, status: 'completed' },
@@ -516,8 +531,9 @@ export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
     */
     if (segnalate.has(clientId)) continue;
 
-    // Se Meta l'ha classificato promozionale, vale la regola delle promozioni.
-    if (scelta.marketing && !a.client?.marketingConsent) continue;
+    // Se Meta l'ha classificato promozionale vale la regola delle promozioni,
+    // a meno che il centro abbia deciso di mandarla comunque a tutte.
+    if (scelta.marketing && !cfg.recensioneSenzaConsenso && !a.client?.marketingConsent) continue;
 
     const rowId = `wa:review:${clientId}:${target}`;
     // Un solo controllo, e vale per sempre: `lastSentAt` guarda TUTTI i lock
