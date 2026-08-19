@@ -54,10 +54,20 @@ export async function notifyIncasso(params: {
   if (!cfg.enabled) return;
   const now = new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' });
   const euro = params.amount.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
+  /*
+    Le righe della seduta, una sotto l'altra quando sono più di due: cinque
+    trattamenti scritti di fila su una riga sola diventano un serpentone che
+    sul telefono si legge a metà.
+  */
+  const voci = (params.items || '').split(',').map(v => v.trim()).filter(Boolean);
+  const elenco = voci.length > 2
+    ? `🧾 ${voci.length} trattamenti\n${voci.map(v => `   • ${v}`).join('\n')}`
+    : voci.length > 0 ? `🧾 ${voci.join(', ')}` : '';
+
   const lines = [
     `💰 <b>Nuovo incasso: ${euro}</b>`,
     params.client ? `👤 ${params.client}` : '',
-    params.items ? `🧾 ${params.items}` : '',
+    elenco,
     params.method ? `💳 ${params.method}` : '',
     params.operator ? `💇‍♀️ ${params.operator}` : '',
     params.cabinMinutes && params.cabinMinutes > 0 ? `⏱️ Tempo in cabina: ${params.cabinMinutes} min` : '',
