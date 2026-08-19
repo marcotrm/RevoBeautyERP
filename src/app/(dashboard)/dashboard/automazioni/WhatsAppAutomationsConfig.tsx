@@ -11,6 +11,7 @@ import {
 import type { WaAutomationsConfig, RunResult } from '@/lib/wa-automations';
 import { GOOGLE_REVIEW_URL } from '@/lib/links';
 import { clientiDifficili, type ClienteDifficile } from '@/app/actions/clientiDifficili';
+import { statoTemplateRecensione, type StatoTemplateRecensione } from '@/app/actions/campagnaRecensioni';
 
 type Key = 'reminder' | 'recall' | 'birthday' | 'review';
 
@@ -51,12 +52,15 @@ export default function WhatsAppAutomationsConfig() {
     lavora non esiste.
   */
   const [segnalate, setSegnalate] = useState<ClienteDifficile[] | null>(null);
+  /** Quale delle due richieste recensione parte davvero. */
+  const [statoRec, setStatoRec] = useState<StatoTemplateRecensione | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     loadWaConfig().then(setCfg).catch(() => undefined);
     loadWaStatus().then(setStatus).catch(() => undefined);
     clientiDifficili().then(setSegnalate).catch(() => undefined);
+    statoTemplateRecensione().then(setStatoRec).catch(() => undefined);
   }, []);
 
   const flash = (ok: boolean, text: string) => {
@@ -255,6 +259,24 @@ export default function WhatsAppAutomationsConfig() {
                               {busy === 'tpl:review' ? 'invio a Meta…' : 'ricrea template'}
                             </button>
                           </div>
+                          {/* Quale dei due messaggi parte: senza questo si può
+                              solo indovinare, e i due si somigliano nel nome. */}
+                          {statoRec && (
+                            <p className="text-[10px] leading-relaxed">
+                              {statoRec.nome ? (
+                                <>
+                                  <span className="text-text-secondary font-semibold">Parte </span>
+                                  <code className="text-text-primary">{statoRec.nome}</code>
+                                  {statoRec.conLink
+                                    ? <span className="text-success"> · col bottone che apre Google</span>
+                                    : <span className="text-error"> · senza bottone: la cliente non sa dove andare</span>}
+                                </>
+                              ) : (
+                                <span className="text-error">{statoRec.problema}</span>
+                              )}
+                            </p>
+                          )}
+
                           {/* La regola che non si vede: alle segnalate non parte. */}
                           <p className="text-[10px] text-text-muted/70 leading-relaxed">
                             <strong className="text-text-secondary">Non parte alle clienti segnalate.</strong>{' '}

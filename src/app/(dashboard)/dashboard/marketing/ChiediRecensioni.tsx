@@ -268,7 +268,9 @@ export default function ChiediRecensioni() {
                 {inviando ? 'Sto mandando…' : `Manda a ${quanti} client${quanti === 1 ? 'e' : 'i'}`}
               </button>
               <span className="text-xs text-text-muted">
-                Costo stimato {costoStimato(quanti).toFixed(2)} € · template <code>richiesta_recensione</code>
+                {/* Il nome scritto a mano diceva sempre il template vecchio, anche
+                    quando partiva quello col bottone: qui si dice quello vero. */}
+                Costo stimato {costoStimato(quanti).toFixed(2)} € · messaggio <code>{tpl?.nome || '—'}</code>
               </span>
               <a href="/r/recensione" target="_blank" rel="noreferrer"
                 className="text-xs text-accent font-medium hover:underline flex items-center gap-1 ml-auto">

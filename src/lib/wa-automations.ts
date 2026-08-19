@@ -15,6 +15,7 @@ import { idClientiSegnalati } from '@/lib/segnalate';
 import { todayRome } from '@/lib/date';
 import { sendWhatsAppTemplate, normalizePhone, isSendablePhone, waProvider } from '@/lib/whatsapp';
 import { WA_TEMPLATES, sanitizeParam, isMarketing, templateButtonLabels, type TemplateKey } from '@/lib/wa-templates';
+import { listD360Templates } from '@/lib/whatsapp360';
 import { GIFT_OPTIONS } from '@/lib/giftOptions';
 import { phonesWithInbound } from '@/lib/wa-conversations';
 
@@ -270,15 +271,22 @@ function renderPreview(key: TemplateKey, params: string[]): string {
   return labels.length ? `${body}\n\n${labels.map(b => `[ ${b} ]`).join('\n')}` : body;
 }
 
-async function runJobs(key: TemplateKey, jobs: Job[], dryRun: boolean): Promise<RunResult> {
+/**
+ * `key` è l'automazione (serve per i lucchetti e per l'archivio), `chiaveInvio`
+ * è il messaggio che parte davvero. Quasi sempre coincidono; per la richiesta
+ * recensione no, perché il testo giusto è quello col bottone e i lucchetti
+ * devono restare quelli di sempre — se cambiassero, chi la recensione l'ha già
+ * ricevuta se la vedrebbe arrivare una seconda volta.
+ */
+async function runJobs(key: TemplateKey, jobs: Job[], dryRun: boolean, chiaveInvio: TemplateKey = key): Promise<RunResult> {
   const result: RunResult = { automation: key, dryRun, candidates: jobs.length, sent: 0, failed: 0, details: [] };
 
   for (const job of jobs.slice(0, MAX_PER_RUN)) {
     // Due testi diversi, apposta: `preview` è per gli occhi (corpo + bottoni),
     // `body` è il testo vero e proprio. Mettere i bottoni nel fallback
     // significherebbe mandarli scritti dentro al messaggio.
-    const preview = renderPreview(key, job.params);
-    const body = renderBody(key, job.params);
+    const preview = renderPreview(chiaveInvio, job.params);
+    const body = renderBody(chiaveInvio, job.params);
 
     if (dryRun) {
       result.details.push({ to: job.phone, name: job.name, ok: true, preview });
@@ -298,7 +306,7 @@ async function runJobs(key: TemplateKey, jobs: Job[], dryRun: boolean): Promise<
       continue;
     }
 
-    const res = await sendWhatsAppTemplate(job.phone, key, {
+    const res = await sendWhatsAppTemplate(job.phone, chiaveInvio, {
       bodyParams: job.params,
       fallbackText: body,
     });
@@ -428,6 +436,32 @@ export async function runBirthdays(cfg: WaAutomationsConfig, dryRun: boolean): P
   return runJobs('birthday', jobs, dryRun);
 }
 
+/**
+ * Quale richiesta recensione parte: quella col bottone.
+ *
+ * Il primo template (`richiesta_recensione`) è stato approvato senza bottone:
+ * alla cliente arriva "ci lasci una recensione?" e nient'altro — nessun link,
+ * nessuna indicazione di dove andare, e chi ci prova finisce sulla scheda
+ * sbagliata o lascia perdere. La versione col bottone (`richiesta_recensione_link`)
+ * apre la pagina giusta con un tocco.
+ *
+ * Si ripiega sulla vecchia solo se Meta non ha (ancora) approvato quella nuova:
+ * meglio un messaggio monco che nessun messaggio.
+ */
+async function chiaveRichiestaRecensione(): Promise<TemplateKey> {
+  const remote = await listD360Templates();
+  // Elenco illeggibile: si prova comunque con quella col link, che è il punto.
+  if (!remote.ok) return 'reviewV2';
+  const approvato = (nome: string) =>
+    remote.templates.some(t => t.name === nome && t.language === 'it' && t.status === 'APPROVED');
+  if (approvato(WA_TEMPLATES.reviewV2.name)) return 'reviewV2';
+  if (approvato(WA_TEMPLATES.review.name)) {
+    console.warn('[wa-automations] recensione: parte la versione senza bottone, quella col link non è approvata');
+    return 'review';
+  }
+  return 'reviewV2';
+}
+
 // ---- Richiesta recensione (giorno dopo la visita) -----------
 
 export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
@@ -487,7 +521,9 @@ export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
       ],
     });
   }
-  return runJobs('review', jobs, dryRun);
+  // Il lucchetto resta 'review' (una recensione si chiede una volta nella
+  // vita), ma il messaggio che parte è quello col bottone.
+  return runJobs('review', jobs, dryRun, await chiaveRichiestaRecensione());
 }
 
 // ---- Campagna omaggio inaugurazione -------------------------
