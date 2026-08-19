@@ -18,7 +18,15 @@ interface AgendaStore {
   selectedAppointment: Appointment | null;
   isAppointmentModalOpen: boolean;
   editingAppointment: Appointment | null;
-  slotInfo: { operatorId: string; time: string } | null;
+  /*
+    Il posto da cui nasce il nuovo appuntamento.
+
+    Cliccando una fascia in agenda bastano operatrice e ora (il giorno è quello
+    che si sta guardando). Arrivando da "Cerca buchi" servono anche il giorno e
+    i trattamenti già scelti, se no si dovrebbe riscrivere tutto a mano proprio
+    dopo averglielo detto.
+  */
+  slotInfo: { operatorId: string; time: string; date?: string; treatmentIds?: string[] } | null;
   isLoading: boolean;
 
   fetchAppointments: () => Promise<void>;
@@ -34,7 +42,7 @@ interface AgendaStore {
   setSelectedOperatorIds: (ids: string[]) => void;
 
   selectAppointment: (appointment: Appointment | null) => void;
-  openAppointmentModal: (appointment?: Appointment | null, slotInfo?: { operatorId: string; time: string } | null) => void;
+  openAppointmentModal: (appointment?: Appointment | null, slotInfo?: { operatorId: string; time: string; date?: string; treatmentIds?: string[] } | null) => void;
   closeAppointmentModal: () => void;
 
   addAppointment: (appointment: Omit<Appointment, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>) => Promise<void>;

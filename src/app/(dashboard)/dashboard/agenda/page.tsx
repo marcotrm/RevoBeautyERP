@@ -47,6 +47,7 @@ import { useWeekShiftsStore } from '@/stores/useWeekShiftsStore';
 import CabinCountdown from '@/components/CabinCountdown';
 import WaitlistModal from '@/components/WaitlistModal';
 import WaitlistPanel from '@/components/WaitlistPanel';
+import CercaBuchiModal from '@/components/CercaBuchiModal';
 import AddClientModal from '@/components/AddClientModal';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 import SegniCliente from '@/components/SegniCliente';
@@ -2064,11 +2065,35 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       } else if (slotInfo) {
         setPresaDa('');
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
-        setSelectedServices([]); setTreatmentQuery('');
+        setTreatmentQuery('');
         setSelectedOperatorId(slotInfo.operatorId);
         setStartTime(slotInfo.time);
-        setApptDate(fmtDate(selectedDate));
+        // Da "Cerca buchi" arriva anche il giorno: l'agenda può stare su un altro.
+        setApptDate(slotInfo.date || fmtDate(selectedDate));
         setNotes('');
+        /*
+          I trattamenti già scelti nella ricerca: si rimettono qui con i prezzi
+          e le durate di listino. Senza, dopo aver detto alla cliente "giovedì
+          alle 15" bisognerebbe riscriverli tutti a mano.
+        */
+        if (slotInfo.treatmentIds?.length) {
+          const op = operators.find(o => o.id === slotInfo.operatorId);
+          setSelectedServices(slotInfo.treatmentIds
+            .map(id => treatments.find(t => t.id === id))
+            .filter((t): t is Treatment => Boolean(t))
+            .map(t => ({
+              treatmentId: t.id,
+              treatmentName: t.name,
+              treatmentCategory: t.category,
+              duration: t.durationFemale ?? t.duration,
+              price: t.priceFemale ?? t.price,
+              gender: 'female' as const,
+              operatorId: slotInfo.operatorId || undefined,
+              operatorName: op ? `${op.firstName} ${op.lastName}`.trim() : undefined,
+            })));
+        } else {
+          setSelectedServices([]);
+        }
       } else {
         setPresaDa('');
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
@@ -4650,6 +4675,8 @@ export default function AgendaPage() {
   // Waitlist state
   const { entries: waitlistEntries, updateStatus: updateWaitlistStatus, addEntry: addWaitlistEntry } = useWaitlistStore();
   const [showWaitlistPanel, setShowWaitlistPanel] = useState(false);
+  /** "Quando posso metterla?": la ricerca del primo posto libero. */
+  const [showCercaBuchi, setShowCercaBuchi] = useState(false);
   const [showWaitlistModal, setShowWaitlistModal] = useState(false);
   const [waitlistPreFill, setWaitlistPreFill] = useState<Partial<WaitlistEntry>>({});
 
@@ -4964,6 +4991,15 @@ export default function AgendaPage() {
             <UserPlus className="w-4 h-4" />
           </button>
 
+          {/* "Quando posso metterla?" è la domanda del telefono: il tasto tiene
+              il nome per esteso dove c'è spazio, perché nessuno indovinerebbe
+              una lente magica. */}
+          <button onClick={() => setShowCercaBuchi(true)} title="Cerca buchi: trova il primo posto libero"
+            className={`${BTN} border bg-accent/10 border-accent/30 text-accent hover:bg-accent/20`}>
+            <Sparkles className="w-4 h-4" />
+            <span className="hidden lg:inline">Cerca buchi</span>
+          </button>
+
           <a href="/agenda-mobile" target="_blank" rel="noopener noreferrer"
             className={`${ICONA} border bg-sky-500/10 border-sky-500/30 text-sky-500 hover:bg-sky-500/20`}
             title="Apri la versione da cellulare">
@@ -5030,6 +5066,27 @@ export default function AgendaPage() {
           onCancelWithReason={(id, reason) => updateAppointment(id, { status: 'cancelled', cancelReason: reason, cancelledAt: new Date().toISOString() })}
           onDelete={(id) => deleteAppointment(id)}
           onSegnalazioneCambiata={ricaricaSegnalate} />}
+      </AnimatePresence>
+
+      {/* Cerca buchi: due domande, i primi posti liberi, e si prenota da lì. */}
+      <AnimatePresence>
+        {showCercaBuchi && (
+          <CercaBuchiModal
+            onClose={() => setShowCercaBuchi(false)}
+            onPrenota={(b, treatmentIds) => {
+              setShowCercaBuchi(false);
+              // L'agenda si sposta sul giorno trovato: se no si prenota "al
+              // buio" su una giornata che non si sta guardando.
+              setSelectedDate(new Date(`${b.date}T12:00:00`));
+              openAppointmentModal(null, {
+                operatorId: b.chiFaCosa[0]?.operatorId || '',
+                time: b.time,
+                date: b.date,
+                treatmentIds,
+              });
+            }}
+          />
+        )}
       </AnimatePresence>
 
       {/* Appointment Modal */}
