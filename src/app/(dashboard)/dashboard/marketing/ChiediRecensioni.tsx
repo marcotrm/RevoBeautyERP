@@ -11,7 +11,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Star, Send, Loader2, RefreshCw, ExternalLink, Info, CheckCircle, AlertTriangle, Link2 } from 'lucide-react';
+import { Star, Send, Loader2, RefreshCw, ExternalLink, Info, CheckCircle, AlertTriangle, Link2, Frown } from 'lucide-react';
 import {
   candidateRecensioni, mandaRichiesteRecensione, statoCampagnaRecensioni, statoTemplateRecensione,
   type StatoCampagnaRecensioni, type StatoTemplateRecensione,
@@ -276,6 +276,20 @@ export default function ChiediRecensioni() {
               </a>
             </div>
           </>
+        )}
+
+        {/* La regola scritta, non solo applicata: le segnalate non sono in
+            elenco, e chi guarda deve poterlo sapere senza aprire il dettaglio. */}
+        {scartati.some(s => s.motivo.startsWith('segnalata')) && (
+          <p className="text-[11px] text-text-muted flex items-start gap-1.5">
+            <Frown className="w-3.5 h-3.5 text-error flex-shrink-0 mt-px" />
+            <span>
+              {scartati.filter(s => s.motivo.startsWith('segnalata')).length} client
+              {scartati.filter(s => s.motivo.startsWith('segnalata')).length === 1 ? 'e è' : 'i sono'} fuori
+              perché segnalat{scartati.filter(s => s.motivo.startsWith('segnalata')).length === 1 ? 'a' : 'e'}:
+              a chi ha avuto da ridire non chiediamo la recensione.
+            </span>
+          </p>
         )}
 
         {/* Chi è rimasto fuori, e perché: senza questo sembra che il gestionale si dimentichi delle clienti */}

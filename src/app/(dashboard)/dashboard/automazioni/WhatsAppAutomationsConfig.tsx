@@ -10,6 +10,7 @@ import {
 } from '@/app/actions/whatsapp';
 import type { WaAutomationsConfig, RunResult } from '@/lib/wa-automations';
 import { GOOGLE_REVIEW_URL } from '@/lib/links';
+import { clientiDifficili, type ClienteDifficile } from '@/app/actions/clientiDifficili';
 
 type Key = 'reminder' | 'recall' | 'birthday' | 'review';
 
@@ -41,11 +42,21 @@ export default function WhatsAppAutomationsConfig() {
   /** Nome del template di cui si sta leggendo il testo per esteso. */
   const [tplAperto, setTplAperto] = useState<string | null>(null);
   const [inbox, setInbox] = useState<WaInboxMessage[] | null>(null);
+  /*
+    Chi resta fuori dalla richiesta di recensione.
+
+    È una regola che non si può accendere o spegnere da qui, e proprio per
+    questo va scritta dove si guardano le automazioni: una cosa che il
+    gestionale fa in silenzio, se non è scritta da nessuna parte, per chi
+    lavora non esiste.
+  */
+  const [segnalate, setSegnalate] = useState<ClienteDifficile[] | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     loadWaConfig().then(setCfg).catch(() => undefined);
     loadWaStatus().then(setStatus).catch(() => undefined);
+    clientiDifficili().then(setSegnalate).catch(() => undefined);
   }, []);
 
   const flash = (ok: boolean, text: string) => {
@@ -244,6 +255,17 @@ export default function WhatsAppAutomationsConfig() {
                               {busy === 'tpl:review' ? 'invio a Meta…' : 'ricrea template'}
                             </button>
                           </div>
+                          {/* La regola che non si vede: alle segnalate non parte. */}
+                          <p className="text-[10px] text-text-muted/70 leading-relaxed">
+                            <strong className="text-text-secondary">Non parte alle clienti segnalate.</strong>{' '}
+                            Chi ha avuto da ridire non deve ricevere da noi l&apos;invito a scriverlo su Google.
+                            {segnalate && segnalate.length > 0
+                              ? ` In questo momento sono ${segnalate.length}: ${segnalate.map(c => c.nome).filter(Boolean).join(', ')}.`
+                              : segnalate
+                                ? ' In questo momento non ce n\'è nessuna.'
+                                : ''}
+                            {' '}Si segnala una cliente dal suo appuntamento in agenda.
+                          </p>
                           {esitoTemplate && <p className="text-[10px] text-text-secondary leading-relaxed">{esitoTemplate}</p>}
                         </div>
                       )}
