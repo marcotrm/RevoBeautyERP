@@ -71,13 +71,14 @@ export async function candidateRecensioni(giorni: number = GIORNI_FINESTRA): Pro
   if (ultima.size === 0) return { candidate: [], scartati: [], finestra: giorni };
 
   const ids = [...ultima.keys()];
-  const [clienti, righe, segnalate] = await Promise.all([
+  const [clienti, righe, segnalate, tpl] = await Promise.all([
     prisma.client.findMany({
       where: { id: { in: ids } },
-      select: { id: true, firstName: true, lastName: true, phone: true, tags: true },
+      select: { id: true, firstName: true, lastName: true, phone: true, tags: true, marketingConsent: true },
     }),
     prisma.adminEntry.findMany({ where: { rowId: { in: ids.map(rigaRichiesta) } } }),
     idClientiSegnalati(),
+    statoTemplateRecensione(),
   ]);
 
   const quandoChiesto = new Map<string, string>();
@@ -96,6 +97,8 @@ export async function candidateRecensioni(giorni: number = GIORNI_FINESTRA): Pro
     if (isInterno(c)) continue; // schede di casa: non si contano nemmeno fra gli scarti
     // Alle segnalate non si chiede: sarebbe andare a cercarsi la stella storta.
     if (segnalate.has(c.id)) { scartati.push({ nome, motivo: 'segnalata: non le chiediamo la recensione' }); continue; }
+    // Meta ha classificato promozionale il messaggio: vale il consenso marketing.
+    if (tpl.promozionale && !c.marketingConsent) { scartati.push({ nome, motivo: 'senza consenso marketing (il messaggio è promozionale)' }); continue; }
     if (!isSendablePhone(c.phone)) { scartati.push({ nome, motivo: 'numero non valido' }); continue; }
     const gia = quandoChiesto.get(c.id);
     if (!sipuoChiedere(oggi, gia)) {
@@ -131,6 +134,14 @@ export interface StatoTemplateRecensione {
   statoConLink: string;
   /** Perché non si può mandare, quando non si può. */
   problema?: string;
+  /**
+   * Vero se Meta ha classificato promozionale il messaggio che parte.
+   *
+   * Non è un dettaglio burocratico: un promozionale va solo a chi ha dato il
+   * consenso marketing, e costa la tariffa marketing invece di quella di
+   * servizio.
+   */
+  promozionale?: boolean;
 }
 
 /**
@@ -153,7 +164,8 @@ export async function statoTemplateRecensione(): Promise<StatoTemplateRecensione
   // qui dicessimo "non c'è nessun messaggio" si andrebbe a crearne uno doppio.
   if (!remote.ok) return { ...base, problema: `Non riesco a leggere i messaggi approvati su WhatsApp: ${remote.error}` };
 
-  const trova = (nome: string) => remote.templates.find(t => t.name === nome && t.language === 'it');
+  // La lingua a volte arriva come "it", a volte come "it_IT": basta che cominci per it.
+  const trova = (nome: string) => remote.templates.find(t => t.name === nome && t.language.startsWith('it'));
   const v2 = trova(conBottone.name);
   const v1 = trova(vecchio.name);
   const haUrl = (t?: { buttons?: { type: string; url?: string }[] }) =>
@@ -163,7 +175,7 @@ export async function statoTemplateRecensione(): Promise<StatoTemplateRecensione
 
   // Prima scelta: la versione col bottone, se Meta l'ha approvata.
   if (v2?.status === 'APPROVED') {
-    return { ...base, nome: v2.name, stato: v2.status, conLink: haUrl(v2) };
+    return { ...base, nome: v2.name, stato: v2.status, conLink: haUrl(v2), promozionale: v2.category.startsWith('MARKETING') };
   }
   // Ripiego: la vecchia. Parte lo stesso, ma senza link — e lo diciamo.
   if (v1?.status === 'APPROVED') {
@@ -172,6 +184,7 @@ export async function statoTemplateRecensione(): Promise<StatoTemplateRecensione
       nome: v1.name,
       stato: v1.status,
       conLink: haUrl(v1),
+      promozionale: v1.category.startsWith('MARKETING'),
       problema: haUrl(v1)
         ? undefined
         : 'Il messaggio approvato non ha il bottone col link: la cliente legge la richiesta ma non ha dove andare.',

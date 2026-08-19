@@ -284,9 +284,16 @@ export async function listD360Templates(): Promise<
 
       return {
         name: t.name || '',
-        status: t.status || 'UNKNOWN',
-        category: t.category || '',
-        language: t.language || '',
+        /*
+          Lo stato arriva minuscolo ("approved") e mezzo gestionale lo
+          confrontava con "APPROVED": chi si ricordava di fare il maiuscolo
+          vedeva i template approvati, chi no diceva "nessun messaggio
+          approvato" davanti a template approvatissimi. Si normalizza qui, una
+          volta, invece di ricordarselo in dieci posti.
+        */
+        status: (t.status || 'UNKNOWN').toUpperCase(),
+        category: (t.category || '').toUpperCase(),
+        language: (t.language || '').toLowerCase(),
         // Id interno di 360dialog (non quello numerico di Meta). Serve solo a
         // riconoscere un template già presente: modificarlo da qui non si può,
         // vedi la nota in creaTemplateRecensione.

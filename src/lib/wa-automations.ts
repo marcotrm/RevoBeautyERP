@@ -448,24 +448,37 @@ export async function runBirthdays(cfg: WaAutomationsConfig, dryRun: boolean): P
  * Si ripiega sulla vecchia solo se Meta non ha (ancora) approvato quella nuova:
  * meglio un messaggio monco che nessun messaggio.
  */
-export async function chiaveRichiestaRecensione(): Promise<TemplateKey> {
+export async function chiaveRichiestaRecensione(): Promise<{ chiave: TemplateKey; marketing: boolean }> {
   const remote = await listD360Templates();
   // Elenco illeggibile: si prova comunque con quella col link, che è il punto.
-  if (!remote.ok) return 'reviewV2';
-  const approvato = (nome: string) =>
-    remote.templates.some(t => t.name === nome && t.language === 'it' && t.status === 'APPROVED');
-  if (approvato(WA_TEMPLATES.reviewV2.name)) return 'reviewV2';
-  if (approvato(WA_TEMPLATES.review.name)) {
+  if (!remote.ok) return { chiave: 'reviewV2', marketing: false };
+
+  const trova = (nome: string) => remote.templates.find(
+    t => t.name === nome && t.language.startsWith('it') && t.status === 'APPROVED',
+  );
+  const v2 = trova(WA_TEMPLATES.reviewV2.name);
+  const v1 = trova(WA_TEMPLATES.review.name);
+
+  /*
+    La categoria che conta è quella che ha messo Meta, non quella che abbiamo
+    chiesto noi. `richiesta_recensione_link` è stato approvato come MARKETING:
+    va quindi solo a chi ha dato il consenso, come qualunque promozione. Fidarsi
+    del nostro catalogo (dove è scritto UTILITY) vorrebbe dire mandare
+    promozioni a chi non le ha volute.
+  */
+  if (v2) return { chiave: 'reviewV2', marketing: v2.category.startsWith('MARKETING') };
+  if (v1) {
     console.warn('[wa-automations] recensione: parte la versione senza bottone, quella col link non è approvata');
-    return 'review';
+    return { chiave: 'review', marketing: v1.category.startsWith('MARKETING') };
   }
-  return 'reviewV2';
+  return { chiave: 'reviewV2', marketing: false };
 }
 
 // ---- Richiesta recensione (giorno dopo la visita) -----------
 
 export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
   const target = shiftDate(todayRome(), -1);
+  const scelta = await chiaveRichiestaRecensione();
   const [appts, segnalate] = await Promise.all([
     prisma.appointment.findMany({
       where: { date: target, status: 'completed' },
@@ -503,6 +516,9 @@ export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
     */
     if (segnalate.has(clientId)) continue;
 
+    // Se Meta l'ha classificato promozionale, vale la regola delle promozioni.
+    if (scelta.marketing && !a.client?.marketingConsent) continue;
+
     const rowId = `wa:review:${clientId}:${target}`;
     // Un solo controllo, e vale per sempre: `lastSentAt` guarda TUTTI i lock
     // di questo cliente, in qualunque formato siano stati scritti (per data o
@@ -523,7 +539,7 @@ export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
   }
   // Il lucchetto resta 'review' (una recensione si chiede una volta nella
   // vita), ma il messaggio che parte è quello col bottone.
-  return runJobs('review', jobs, dryRun, await chiaveRichiestaRecensione());
+  return runJobs('review', jobs, dryRun, scelta.chiave);
 }
 
 // ---- Campagna omaggio inaugurazione -------------------------

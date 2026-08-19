@@ -270,6 +270,9 @@ export default function WhatsAppAutomationsConfig() {
                                   {statoRec.conLink
                                     ? <span className="text-success"> · col bottone che apre Google</span>
                                     : <span className="text-error"> · senza bottone: la cliente non sa dove andare</span>}
+                                  {statoRec.promozionale && (
+                                    <span className="text-warning"> · Meta l&apos;ha classificato promozionale: parte solo a chi ha dato il consenso marketing</span>
+                                  )}
                                 </>
                               ) : (
                                 <span className="text-error">{statoRec.problema}</span>

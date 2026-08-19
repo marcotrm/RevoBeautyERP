@@ -302,7 +302,7 @@ export async function inviaTemplateDiProva(
     diversa da quella che parte davvero, che è il modo migliore per credere
     che vada tutto bene.
   */
-  if (key === 'review') key = await chiaveRichiestaRecensione();
+  if (key === 'review') key = (await chiaveRichiestaRecensione()).chiave;
 
   const tpl = WA_TEMPLATES[key];
   const params = ESEMPI_PARAMETRI[key];
