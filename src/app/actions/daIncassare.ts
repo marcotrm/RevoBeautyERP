@@ -25,6 +25,31 @@
 import { prisma } from '@/lib/prisma';
 import { todayRome } from '@/lib/date';
 
+/**
+ * Quanto resta da incassare su una seduta: i trattamenti a pagamento, meno lo
+ * sconto concordato. Quelli a 0 € sono coperti dal pacchetto.
+ */
+interface RigaSeduta { treatmentId?: string; treatmentName?: string; price: number; productId?: string }
+
+/** Le righe della seduta, anche per gli appuntamenti vecchi con un trattamento solo. */
+function righeDi(a: { services?: unknown; treatmentId?: string; treatmentName?: string; price: number }): RigaSeduta[] {
+  const righe = Array.isArray(a.services) ? (a.services as RigaSeduta[]) : [];
+  if (righe.length > 0) return righe.map(r => ({ ...r, price: Number(r.price) || 0 }));
+  return [{ treatmentId: a.treatmentId, treatmentName: a.treatmentName, price: a.price }];
+}
+
+function daPagare(a: {
+  price: number;
+  services?: unknown;
+  discountAmount?: number | null;
+}): number {
+  const righe = Array.isArray(a.services) ? (a.services as { price?: number }[]) : [];
+  const somma = righe.length > 0
+    ? righe.reduce((t, s) => t + (Number(s.price) || 0), 0)
+    : a.price;
+  return Math.round(Math.max(0, somma - (a.discountAmount || 0)) * 100) / 100;
+}
+
 export interface SedutaDaIncassare {
   id: string;
   date: string;
@@ -35,6 +60,12 @@ export interface SedutaDaIncassare {
   prezzo: number;
   /** Quando è stata chiusa senza incassare. */
   chiusaAlle?: string;
+  /** Le righe da battere in cassa: una per trattamento, col suo prezzo. */
+  servizi: { id: string; name: string; price: number; qty: number }[];
+  /** I prodotti del carrello della seduta: scaricano la giacenza. */
+  prodotti: { id: string; name: string; price: number; qty: number }[];
+  /** Lo sconto concordato sulla seduta, da riportare come sconto in cassa. */
+  sconto: number;
 }
 
 /**
@@ -51,8 +82,9 @@ export async function seduteDaIncassare(giorni = 30): Promise<SedutaDaIncassare[
     prisma.appointment.findMany({
       where: { status: 'completed', date: { gte: dal, lte: oggi }, price: { gt: 0 } },
       select: {
-        id: true, date: true, startTime: true, clientName: true,
+        id: true, date: true, startTime: true, clientName: true, treatmentId: true,
         treatmentName: true, operatorName: true, price: true, checkOutAt: true, notes: true,
+        services: true, discountAmount: true,
       },
       orderBy: [{ date: 'desc' }, { startTime: 'desc' }],
     }),
@@ -71,15 +103,27 @@ export async function seduteDaIncassare(giorni = 30): Promise<SedutaDaIncassare[
     .filter(a => {
       if (pagatiPerId.has(a.id)) return false;
       if (pagatiPerGiorno.has(`${a.date}|${(a.clientName || '').trim().toLowerCase()}`)) return false;
-      // La seduta scalata da un pacchetto è già stata pagata quando il
-      // pacchetto è stato venduto: non deve risultare da incassare.
-      if (/📦 Seduta da pacchetto/.test(a.notes || '')) return false;
+      /*
+        La seduta scalata da un pacchetto è già pagata quando il pacchetto è
+        stato venduto — ma solo per la parte del pacchetto.
+        
+        Prima bastava la nota "Seduta da pacchetto" per considerare pagato
+        tutto: Ilaria Fusco aveva la pressoterapia dal pacchetto (0 €) e tre
+        cerette da 41,70 €, e quei 41,70 € sparivano da questo elenco. Ora si
+        guarda quanto c'è davvero da incassare.
+      */
+      if (daPagare(a) <= 0) return false;
       return true;
     })
     .map(a => ({
       id: a.id, date: a.date, startTime: a.startTime, clientName: a.clientName,
       treatmentName: a.treatmentName, operatorName: a.operatorName,
-      prezzo: a.price, chiusaAlle: a.checkOutAt || undefined,
+      prezzo: daPagare(a), chiusaAlle: a.checkOutAt || undefined,
+      servizi: righeDi(a).filter(r => !r.productId && r.price > 0)
+        .map(r => ({ id: r.treatmentId || '', name: r.treatmentName || '', price: r.price, qty: 1 })),
+      prodotti: righeDi(a).filter(r => r.productId && r.price > 0)
+        .map(r => ({ id: r.productId as string, name: r.treatmentName || '', price: r.price, qty: 1 })),
+      sconto: a.discountAmount || 0,
     }));
 }
 

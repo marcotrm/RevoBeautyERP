@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import SegniCliente from '@/components/SegniCliente';
+import { seduteDaIncassare, type SedutaDaIncassare } from '@/app/actions/daIncassare';
 import { usePosStore, TransactionRecord } from '@/stores/usePosStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -604,6 +605,20 @@ function POSPageInner() {
   const fetchClients = useClientStore(s => s.fetchClients);
   const fetchTreatments = useTreatmentStore(s => s.fetchTreatments);
   const [showSaleModal, setShowSaleModal] = useState(false);
+  /*
+    Le sedute chiuse senza incassare.
+
+    Il check-out chiude l'appuntamento e POI manda in cassa: se in mezzo entra
+    qualcuno, squilla il telefono o si chiude la pagina, la seduta resta
+    "completata" e i soldi non li prende nessuno. Finora ci si accorgeva solo
+    aprendo quell'appuntamento per caso; qui sono in fila, con quanto manca.
+  */
+  const [daIncassare, setDaIncassare] = useState<SedutaDaIncassare[]>([]);
+  const ricaricaDaIncassare = useCallback(() => {
+    seduteDaIncassare(30).then(setDaIncassare).catch(() => {});
+  }, []);
+  useEffect(() => { ricaricaDaIncassare(); }, [ricaricaDaIncassare]);
+
   const [saleInitialData, setSaleInitialData] = useState<{
     client: string; treatmentName: string; treatmentId: string; price: number; operator: string;
     debtPkgId?: string; cabinMinutes?: number; appointmentId?: string;
@@ -807,6 +822,54 @@ function POSPageInner() {
         })}
       </div>
 
+      {daIncassare.length > 0 && (
+        <div className="rounded-2xl bg-error/10 border border-error/30 p-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <AlertCircle className="w-4 h-4 text-error flex-shrink-0" />
+            <p className="text-sm font-semibold text-text-primary">
+              {daIncassare.length} {daIncassare.length === 1 ? 'seduta chiusa e mai incassata' : 'sedute chiuse e mai incassate'}
+            </p>
+            <span className="text-sm font-bold text-error ml-auto">
+              {formatCurrency(daIncassare.reduce((s, x) => s + x.prezzo, 0))} da prendere
+            </span>
+          </div>
+          <div className="mt-3 space-y-1.5 max-h-64 overflow-y-auto">
+            {daIncassare.map(s => (
+              <div key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-bg-secondary/70 border border-border/50">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-text-primary truncate">
+                    {s.clientName} <span className="text-text-muted font-normal">· {s.date.slice(8, 10)}/{s.date.slice(5, 7)} {s.startTime}</span>
+                  </p>
+                  <p className="text-[11px] text-text-muted truncate">{s.treatmentName}{s.operatorName ? ` · ${s.operatorName}` : ''}</p>
+                </div>
+                <span className="text-sm font-bold text-text-primary flex-shrink-0">{formatCurrency(s.prezzo)}</span>
+                <button onClick={() => {
+                  setSaleInitialData({
+                    client: s.clientName,
+                    treatmentName: s.servizi.map(v => v.name).join(' + ') || s.treatmentName,
+                    treatmentId: '',
+                    price: s.prezzo,
+                    operator: s.operatorName || 'Staff',
+                    appointmentId: s.id,
+                    servizi: s.servizi,
+                    products: s.prodotti,
+                    sconto: s.sconto || undefined,
+                  });
+                  setShowSaleModal(true);
+                }}
+                  className="px-3 py-1.5 rounded-lg bg-error text-white text-xs font-bold hover:opacity-90 flex-shrink-0">
+                  Incassa
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-text-muted mt-2">
+            Sono sedute già fatte: il trattamento risulta completato ma in cassa non è mai entrato niente,
+            e senza incasso non c&apos;è nemmeno lo scontrino.
+          </p>
+        </div>
+      )}
+
       {/* Due incassi identici a pochi minuti l'uno dall'altro sono quasi sempre
           lo stesso incasso battuto due volte: la giornata chiude più alta di
           quello che c'è nel cassetto e ci si accorge dell'errore giorni dopo,
@@ -949,7 +1012,9 @@ function POSPageInner() {
           onDone={async () => { await refreshSafe(); setShowWithdraw(false); }} />
       )}</AnimatePresence>
 
-      <AnimatePresence>{showSaleModal && <NewSaleModal onClose={() => { setShowSaleModal(false); setSaleInitialData(null); }} onComplete={handleNewSale} initialData={saleInitialData} />}</AnimatePresence>
+      <AnimatePresence>{showSaleModal && <NewSaleModal
+        onClose={() => { setShowSaleModal(false); setSaleInitialData(null); ricaricaDaIncassare(); }}
+        onComplete={handleNewSale} initialData={saleInitialData} />}</AnimatePresence>
 
       {/* Chiudi Cassa Modal */}
       <AnimatePresence>{showCloseCassa && (
