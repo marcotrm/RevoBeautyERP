@@ -54,7 +54,8 @@ export function TreatmentsSection() {
    * e devono poter comparire nell'elenco come tutte le altre.
    */
   const staff = useMemo(
-    () => [...operatori].sort((a, b) => (a.isResource ? 1 : 0) - (b.isResource ? 1 : 0)),
+    // "Chi lo fa" riguarda il lavoro futuro: chi se n'è andata non compare più.
+    () => operatori.filter(o => o.isActive !== false).sort((a, b) => (a.isResource ? 1 : 0) - (b.isResource ? 1 : 0)),
     [operatori],
   );
 

@@ -50,7 +50,9 @@ export default function AgendaMobilePage() {
 
   useEffect(() => {
     Promise.all([getAppointments(), getBlocks(), getOperators()])
-      .then(([a, b, o]) => { setAppointments(a); setBlocks(b); setOperators(o); })
+      // Chi non lavora più qui resta fuori dal filtro, ma i suoi appuntamenti
+      // passati continuano a vedersi: sono nella lista, non nelle colonne.
+      .then(([a, b, o]) => { setAppointments(a); setBlocks(b); setOperators(o.filter(x => x.isActive !== false)); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

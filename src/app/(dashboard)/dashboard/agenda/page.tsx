@@ -2073,7 +2073,8 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
         setPresaDa('');
         setClientSearch(''); setSelectedClientId(''); setSelectedClientName('');
         setSelectedServices([]); setTreatmentQuery('');
-        const firstWorking = operators.find(o => !o.isResource && operatorWorksOn(o, selectedDate, apptWeekMap)) || operators.find(o => !o.isResource) || operators[0];
+        const inServizio = operators.filter(o => !o.isResource && o.isActive !== false);
+        const firstWorking = inServizio.find(o => operatorWorksOn(o, selectedDate, apptWeekMap)) || inServizio[0] || operators[0];
         setSelectedOperatorId(firstWorking?.id || '');
         /*
           Aprendo "Nuovo appuntamento" senza aver cliccato una fascia, quasi
@@ -2105,8 +2106,8 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   // default — ma tocca solo questo campo, non azzera quello che si è già scritto.
   useEffect(() => {
     if (!isAppointmentModalOpen || editingAppointment || selectedOperatorId) return;
-    const firstWorking = operators.find(o => !o.isResource && operatorWorksOn(o, selectedDate, apptWeekMap))
-      || operators.find(o => !o.isResource) || operators[0];
+    const inServizio = operators.filter(o => !o.isResource && o.isActive !== false);
+    const firstWorking = inServizio.find(o => operatorWorksOn(o, selectedDate, apptWeekMap)) || inServizio[0] || operators[0];
     if (firstWorking) setSelectedOperatorId(firstWorking.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAppointmentModalOpen, editingAppointment, selectedOperatorId, operators]);
@@ -2720,7 +2721,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                         <option value="">Chi lo fa? *</option>
                         {/* Solo chi quel trattamento lo sa fare. Se a listino
                             non è spuntato nessuno, ci sono tutte. */}
-                        {operators.filter(o => !o.isResource).filter(o => {
+                        {operators.filter(o => !o.isResource && o.isActive !== false).filter(o => {
                           const abili = chiSaFare(s.treatmentId);
                           return abili.length === 0 || abili.includes(o.id);
                         }).map(o => {
@@ -2814,7 +2815,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1.5">Chi ha preso l&apos;appuntamento</label>
               <div className="grid grid-cols-5 gap-2">
-                {operators.filter(o => !o.isResource).map(op => (
+                {operators.filter(o => !o.isResource && o.isActive !== false).map(op => (
                   <button key={op.id} type="button"
                     onClick={() => setPresaDa(presaDa === op.id ? '' : op.id)}
                     className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all ${
@@ -3618,7 +3619,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                           className="flex-1 min-w-[150px] max-w-[190px] px-2 py-1 rounded-lg bg-bg-secondary border border-border
                             text-[11px] text-text-secondary focus:outline-none focus:border-accent/50 disabled:opacity-50">
                           <option value="">Lo fa {appointment.operatorName}</option>
-                          {operators.filter(o => !o.isResource && o.id !== appointment.operatorId).map(o => (
+                          {operators.filter(o => !o.isResource && o.isActive !== false && o.id !== appointment.operatorId).map(o => (
                             <option key={o.id} value={o.id}>Lo fa {o.firstName} {o.lastName}</option>
                           ))}
                         </select>
@@ -4673,14 +4674,6 @@ export default function AgendaPage() {
     setShowWaitlistModal(true);
   };
 
-  const visibleOperators = useMemo(
-    () => operators
-      .filter(op => selectedOperatorIds.includes(op.id))
-      // le cabine/risorse vanno sempre in fondo, dopo le operatrici
-      .sort((a, b) => (a.isResource ? 1 : 0) - (b.isResource ? 1 : 0)),
-    [selectedOperatorIds, operators]
-  );
-
   const operatorColorById = useMemo(() => {
     const map: Record<string, string> = {};
     operators.forEach(op => { map[op.id] = op.color; });
@@ -4688,6 +4681,22 @@ export default function AgendaPage() {
   }, [operators]);
 
   const dateStr = fmtDate(selectedDate);
+
+  const visibleOperators = useMemo(
+    () => operators
+      .filter(op => selectedOperatorIds.includes(op.id))
+      /*
+        Chi non lavora più qui non ha una colonna — ma solo nei giorni in cui
+        non ha niente. Toglierla anche dai giorni passati farebbe sparire dalla
+        vista mesi di appuntamenti veri (i dati restano, ma nessuno li vedrebbe
+        più), e sarebbe il modo migliore per far credere che si sono persi.
+      */
+      .filter(op => op.isActive !== false || appointments.some(a => a.operatorId === op.id && a.date === dateStr))
+      // le cabine/risorse vanno sempre in fondo, dopo le operatrici
+      .sort((a, b) => (a.isResource ? 1 : 0) - (b.isResource ? 1 : 0)),
+    [selectedOperatorIds, operators, appointments, dateStr]
+  );
+
 
   // Gli appuntamenti annullati spariscono dal calendario: lo slot torna libero.
   // Restano comunque salvati nel database per lo storico e le statistiche.

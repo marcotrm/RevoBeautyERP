@@ -9,7 +9,8 @@ import { useOperatorStore } from '@/stores/useOperatorStore';
 
 export default function KioskPage() {
   const { operators: allOps, fetchOperators } = useOperatorStore();
-  const MOCK_STAFF = allOps.filter(o => !o.isResource); // le cabine non timbrano
+  // Le cabine non timbrano, e chi non lavora più qui nemmeno.
+  const MOCK_STAFF = allOps.filter(o => !o.isResource && o.isActive !== false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedStaff, setSelectedStaff] = useState<typeof MOCK_STAFF[0] | null>(null);
   const [showSuccess, setShowSuccess] = useState<string | null>(null);

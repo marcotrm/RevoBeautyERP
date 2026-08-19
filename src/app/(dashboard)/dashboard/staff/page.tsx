@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Clock, Plus, Euro, X, CheckCircle, Trash2, ChevronLeft, ChevronRight, Smartphone,
-  Sparkles, Wand2, AlertTriangle, Sun, Pencil,
+  Sparkles, Wand2, AlertTriangle, Sun, Pencil, UserMinus, RotateCcw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTimeClockStore } from '@/stores/useTimeClockStore';
@@ -14,6 +14,7 @@ import { Operator, TreatmentCategory } from '@/types';
 import { generateShifts, type AgentConfig, type ShiftEntry, type WeekShifts } from '@/lib/shiftAgent';
 import { getWeekShifts, saveWeekShift, saveWeekShiftsBulk, type WeekScheduleMap } from '@/app/actions/weekShifts';
 import { mondayISO } from '@/lib/weekSchedule';
+import { mettiInServizio, type AppuntamentoInSospeso } from '@/app/actions/operators';
 import { maiuscoleNome } from '@/lib/nomiPropri';
 
 const SPECIALIZATIONS: { value: TreatmentCategory; label: string }[] = [
@@ -927,6 +928,10 @@ export default function StaffPage() {
   const { operators: staffList, addOperator, updateOperator, deleteOperator, fetchOperators } = useOperatorStore();
   const [activeTab, setActiveTab] = useState<'overview' | 'shifts'>('overview');
   const { punches } = useTimeClockStore();
+  /** Chi si sta mettendo fuori servizio, e gli appuntamenti che glielo impediscono. */
+  const [uscita, setUscita] = useState<{ op: Operator; inSospeso?: AppuntamentoInSospeso[] } | null>(null);
+  const [salvandoUscita, setSalvandoUscita] = useState(false);
+
   const [newResourceName, setNewResourceName] = useState('');
   const [editingResourceId, setEditingResourceId] = useState<string | null>(null);
   const [editingResourceName, setEditingResourceName] = useState('');
@@ -936,7 +941,15 @@ export default function StaffPage() {
   }, [fetchOperators]);
 
   // Le cabine/risorse (isResource) non sono persone: fuori da staff, turni e commissioni.
-  const people = staffList.filter(o => !o.isResource);
+  const people = staffList.filter(o => !o.isResource && o.isActive !== false);
+  /*
+    Chi non lavora più qui.
+
+    Non si cancella: i suoi appuntamenti e i suoi incassi sono mesi di storia
+    attaccati a lei, e cancellarla li porterebbe via. Sparisce dall'agenda e
+    dalle tendine, resta nei report e in fondo a questa pagina.
+  */
+  const archiviate = staffList.filter(o => !o.isResource && o.isActive === false);
   const resources = staffList.filter(o => o.isResource);
 
   const RESOURCE_COLORS = ['#F59E0B', '#14B8A6', '#6366F1', '#EC4899', '#22C55E', '#EF4444'];
@@ -997,12 +1010,11 @@ export default function StaffPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {people.map(op => (
               <div key={op.id} onClick={() => setDetailOpId(op.id)} className="bg-bg-secondary border border-border rounded-2xl p-5 hover:border-accent/40 hover:shadow-lg transition-all cursor-pointer group text-center relative">
-                <button onClick={(e) => {
-                  e.stopPropagation();
-                  if (window.confirm('Sei sicuro di voler eliminare questo collaboratore?')) {
-                    deleteOperator(op.id);
-                  }
-                }} className="absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-error/10 text-text-muted hover:text-error transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
+                {/* Non c'è più il cestino: chi se ne va si mette fuori
+                    servizio, e quello che ha fatto resta dov'è. */}
+                <button onClick={(e) => { e.stopPropagation(); setUscita({ op }); }}
+                  title="Non lavora più qui"
+                  className="absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-warning/10 text-text-muted hover:text-warning transition-all"><UserMinus className="w-3.5 h-3.5" /></button>
                 <div className="w-14 h-14 rounded-full overflow-hidden flex items-center justify-center text-white text-lg font-bold mx-auto mb-3" style={{ backgroundColor: op.color }}>
                   {op.avatar
                     // eslint-disable-next-line @next/next/no-img-element
@@ -1027,6 +1039,35 @@ export default function StaffPage() {
               </div>
             ))}
           </div>
+
+          {archiviate.length > 0 && (
+            <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+                <UserMinus className="w-4 h-4 text-text-muted" />
+                <h3 className="text-base font-display font-semibold text-text-primary">Non lavorano più qui</h3>
+                <span className="text-xs text-text-muted ml-auto">
+                  Fuori da agenda e turni. Restano nei report e negli appuntamenti passati.
+                </span>
+              </div>
+              <div className="divide-y divide-border/40">
+                {archiviate.map(op => (
+                  <div key={op.id} className="flex items-center gap-3 px-5 py-3">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 opacity-60"
+                      style={{ backgroundColor: op.color }}>
+                      {getInitials(op.firstName, op.lastName)}
+                    </div>
+                    <p className="text-sm font-medium text-text-secondary flex-1 min-w-0 truncate">
+                      {op.firstName} {op.lastName}
+                    </p>
+                    <button onClick={async () => { await mettiInServizio(op.id, true); fetchOperators(); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-text-secondary hover:bg-bg-hover transition-colors">
+                      <RotateCcw className="w-3.5 h-3.5" /> Rimettila in servizio
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Cabine e Risorse (prenotabili in agenda senza operatrice) */}
           <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
@@ -1173,6 +1214,86 @@ export default function StaffPage() {
             />
           );
         })()}
+      </AnimatePresence>
+
+      {/* Chi se ne va. Non si cancella: si mette fuori servizio, e prima si
+          controlla che non abbia clienti già prenotate — nasconderle
+          significherebbe farle arrivare davanti a una porta chiusa. */}
+      <AnimatePresence>
+        {uscita && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm" onClick={() => setUscita(null)} />
+            <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
+              className="fixed inset-0 z-[71] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && setUscita(null)}>
+              <div className="w-full max-w-md bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+                  <UserMinus className="w-4 h-4 text-warning" />
+                  <h3 className="text-base font-display font-semibold text-text-primary">
+                    {uscita.op.firstName} {uscita.op.lastName} non lavora più qui
+                  </h3>
+                </div>
+
+                <div className="p-5 space-y-3">
+                  {!uscita.inSospeso && (
+                    <>
+                      <p className="text-sm text-text-secondary">
+                        Sparisce dall&apos;agenda, dai turni e dalle tendine di chi fa cosa.
+                        Restano tutti i suoi appuntamenti passati, gli incassi e le statistiche: non si perde niente,
+                        e volendo la rimetti in servizio con un clic.
+                      </p>
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={() => setUscita(null)}
+                          className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover">
+                          Annulla
+                        </button>
+                        <button disabled={salvandoUscita}
+                          onClick={async () => {
+                            setSalvandoUscita(true);
+                            try {
+                              const esito = await mettiInServizio(uscita.op.id, false);
+                              if (esito.ok) { await fetchOperators(); setUscita(null); }
+                              else setUscita({ op: uscita.op, inSospeso: esito.inSospeso || [] });
+                            } finally { setSalvandoUscita(false); }
+                          }}
+                          className="flex-1 py-2.5 rounded-xl bg-warning text-white text-sm font-bold hover:opacity-90 disabled:opacity-50">
+                          {salvandoUscita ? '…' : 'Mettila fuori servizio'}
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {uscita.inSospeso && uscita.inSospeso.length > 0 && (
+                    <>
+                      <div className="flex items-start gap-2 p-3 rounded-xl bg-error/10 border border-error/30">
+                        <AlertTriangle className="w-4 h-4 text-error flex-shrink-0 mt-0.5" />
+                        <p className="text-sm text-text-primary">
+                          Ha ancora {uscita.inSospeso.length} appuntament{uscita.inSospeso.length === 1 ? 'o' : 'i'} in agenda.
+                          Spostali su un&apos;altra ragazza o disdicili, poi rifai questa operazione:
+                          se la togliessi adesso, quelle clienti si presenterebbero e in agenda non ci sarebbe più nessuna colonna a dirlo.
+                        </p>
+                      </div>
+                      <div className="space-y-1 max-h-52 overflow-y-auto">
+                        {uscita.inSospeso.map(a => (
+                          <div key={a.id} className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-bg-tertiary/60">
+                            <span className="font-semibold text-text-primary">
+                              {a.data.slice(8, 10)}/{a.data.slice(5, 7)} · {a.ora}
+                            </span>
+                            <span className="text-text-secondary truncate">{a.cliente}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={() => setUscita(null)}
+                        className="w-full py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover">
+                        Ho capito
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
       </AnimatePresence>
     </motion.div>
   );

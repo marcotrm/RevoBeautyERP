@@ -23,7 +23,12 @@ export async function getAnalytics() {
     prisma.posTransaction.findMany(),
     prisma.appointment.findMany(),
     prisma.client.findMany(),
-    prisma.operator.findMany({ where: { isActive: true } }),
+    /*
+      Anche chi non lavora più qui: i suoi mesi di appuntamenti sono storia del
+      centro, e sparire dai report vorrebbe dire che i confronti con l'anno
+      scorso perdono pezzi senza dirlo a nessuno.
+    */
+    prisma.operator.findMany(),
     prisma.clientPackage.findMany(),
   ]);
 
@@ -62,7 +67,10 @@ export async function getAnalytics() {
   const completionRate = totalApts > 0 ? Math.round((completed / totalApts) * 100) : 0;
 
   // ---------- STAFF (da appuntamenti completati) ----------
-  const staff = operators.map(op => {
+  // Chi se n'è andata compare solo se ha davvero lavorato: se no resterebbe in
+  // classifica a zero per sempre.
+  const staffStorico = operators.filter(op => op.isActive || appointments.some(a => a.operatorId === op.id));
+  const staff = staffStorico.map(op => {
     const opApts = appointments.filter(a => a.operatorId === op.id);
     const opCompleted = opApts.filter(a => a.status === 'completed');
     const revenue = Math.round(opCompleted.reduce((s, a) => s + a.price, 0));
@@ -71,7 +79,7 @@ export async function getAnalytics() {
   }).sort((a, b) => b.revenue - a.revenue);
 
   // Ore lavorate (completate) vs ore da contratto
-  const staffHours = operators.map(op => {
+  const staffHours = staffStorico.map(op => {
     const workedMin = appointments
       .filter(a => a.operatorId === op.id && a.status === 'completed')
       .reduce((s, a) => s + (a.duration || 0), 0);
