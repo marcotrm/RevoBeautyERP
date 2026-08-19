@@ -371,6 +371,7 @@ export default function ClientDetailPage() {
                 <p className="text-xs text-text-secondary">{segnalata.motivo}</p>
                 <p className="text-[10px] text-text-muted mt-0.5">
                   {segnalata.segnalataDa ? `Segnalata da ${segnalata.segnalataDa}` : 'Segnalata'} il {segnalata.quando.slice(8, 10)}/{segnalata.quando.slice(5, 7)}
+                  {' · '}non riceve la richiesta di recensione su Google
                 </p>
               </div>
               <button onClick={async () => { await togliSegnalazione(String(params.id || '')); await ricaricaSegnalazione(); }}

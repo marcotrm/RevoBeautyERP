@@ -15,8 +15,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
-
-const KIND = 'cliente:difficile';
+import { KIND_SEGNALATA as KIND } from '@/lib/segnalate';
 
 export interface ClienteDifficile {
   clientId: string;

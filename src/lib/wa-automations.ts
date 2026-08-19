@@ -11,6 +11,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { idClientiSegnalati } from '@/lib/segnalate';
 import { todayRome } from '@/lib/date';
 import { sendWhatsAppTemplate, normalizePhone, isSendablePhone, waProvider } from '@/lib/whatsapp';
 import { WA_TEMPLATES, sanitizeParam, isMarketing, templateButtonLabels, type TemplateKey } from '@/lib/wa-templates';
@@ -431,10 +432,13 @@ export async function runBirthdays(cfg: WaAutomationsConfig, dryRun: boolean): P
 
 export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
   const target = shiftDate(todayRome(), -1);
-  const appts = await prisma.appointment.findMany({
-    where: { date: target, status: 'completed' },
-    include: { client: true },
-  });
+  const [appts, segnalate] = await Promise.all([
+    prisma.appointment.findMany({
+      where: { date: target, status: 'completed' },
+      include: { client: true },
+    }),
+    idClientiSegnalati(),
+  ]);
 
   // La recensione si chiede UNA VOLTA SOLA nella vita del cliente.
   //
@@ -454,6 +458,16 @@ export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
     const a = visite[0];
     const phone = a.client?.phone;
     if (!isSendablePhone(phone)) continue;
+
+    /*
+      Alle segnalate non si chiede la recensione.
+
+      Se una cliente ha avuto da ridire — ed è per quello che qualcuno l'ha
+      segnalata — il nostro messaggio non le fa cambiare idea: le ricorda che
+      può scriverlo su Google. Chi voleva lasciare una stella la lascia
+      comunque; chi non ci aveva pensato non deve sentirselo suggerire da noi.
+    */
+    if (segnalate.has(clientId)) continue;
 
     const rowId = `wa:review:${clientId}:${target}`;
     // Un solo controllo, e vale per sempre: `lastSentAt` guarda TUTTI i lock

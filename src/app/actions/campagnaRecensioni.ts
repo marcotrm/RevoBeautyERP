@@ -20,6 +20,7 @@ import { normalizePhone, isSendablePhone, waProvider } from '@/lib/whatsapp';
 import { logOutbound } from '@/lib/wa-conversations';
 import { sanitizeParam, WA_TEMPLATES } from '@/lib/wa-templates';
 import { isInterno } from '@/lib/clientiInterni';
+import { idClientiSegnalati } from '@/lib/segnalate';
 import { todayRome } from '@/lib/date';
 import { leggiStato } from '@/lib/recensioni';
 import {
@@ -70,12 +71,13 @@ export async function candidateRecensioni(giorni: number = GIORNI_FINESTRA): Pro
   if (ultima.size === 0) return { candidate: [], scartati: [], finestra: giorni };
 
   const ids = [...ultima.keys()];
-  const [clienti, righe] = await Promise.all([
+  const [clienti, righe, segnalate] = await Promise.all([
     prisma.client.findMany({
       where: { id: { in: ids } },
       select: { id: true, firstName: true, lastName: true, phone: true, tags: true },
     }),
     prisma.adminEntry.findMany({ where: { rowId: { in: ids.map(rigaRichiesta) } } }),
+    idClientiSegnalati(),
   ]);
 
   const quandoChiesto = new Map<string, string>();
@@ -92,6 +94,8 @@ export async function candidateRecensioni(giorni: number = GIORNI_FINESTRA): Pro
     const nome = `${c.firstName} ${c.lastName}`.trim();
 
     if (isInterno(c)) continue; // schede di casa: non si contano nemmeno fra gli scarti
+    // Alle segnalate non si chiede: sarebbe andare a cercarsi la stella storta.
+    if (segnalate.has(c.id)) { scartati.push({ nome, motivo: 'segnalata: non le chiediamo la recensione' }); continue; }
     if (!isSendablePhone(c.phone)) { scartati.push({ nome, motivo: 'numero non valido' }); continue; }
     const gia = quandoChiesto.get(c.id);
     if (!sipuoChiedere(oggi, gia)) {

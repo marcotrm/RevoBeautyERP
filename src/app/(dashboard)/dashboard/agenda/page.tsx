@@ -3845,6 +3845,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                   <p className="text-xs text-text-secondary">{segnalataQuesta.motivo}</p>
                   <p className="text-[10px] text-text-muted mt-0.5">
                     {segnalataQuesta.segnalataDa ? `Segnalata da ${segnalataQuesta.segnalataDa}` : 'Segnalata'} il {segnalataQuesta.quando.slice(8, 10)}/{segnalataQuesta.quando.slice(5, 7)}
+                    {' · '}niente richiesta di recensione
                   </p>
                   <button onClick={rimuoviSegnalazione}
                     className="mt-2 text-[11px] font-semibold text-text-muted hover:text-text-primary underline">
@@ -3874,7 +3875,8 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                     </button>
                   </div>
                   <p className="text-[10px] text-text-muted/70">
-                    Lo vedono solo le ragazze, sul blocco in agenda e qui dentro. La cliente non lo sa.
+                    Lo vedono solo le ragazze, sul blocco in agenda e qui dentro: la cliente non lo sa.
+                    Da qui in poi però non le arriverà la richiesta di recensione su Google.
                   </p>
                 </div>
               ) : (
