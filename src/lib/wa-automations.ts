@@ -448,7 +448,7 @@ export async function runBirthdays(cfg: WaAutomationsConfig, dryRun: boolean): P
  * Si ripiega sulla vecchia solo se Meta non ha (ancora) approvato quella nuova:
  * meglio un messaggio monco che nessun messaggio.
  */
-async function chiaveRichiestaRecensione(): Promise<TemplateKey> {
+export async function chiaveRichiestaRecensione(): Promise<TemplateKey> {
   const remote = await listD360Templates();
   // Elenco illeggibile: si prova comunque con quella col link, che è il punto.
   if (!remote.ok) return 'reviewV2';

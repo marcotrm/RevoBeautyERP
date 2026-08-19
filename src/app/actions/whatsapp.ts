@@ -10,6 +10,7 @@ import {
 import { listD360Templates, createD360Template, sendD360Template } from '@/lib/whatsapp360';
 import { reviewRedirectUrl } from '@/lib/links';
 import { WA_TEMPLATES, templateButtonLabels, type TemplateKey } from '@/lib/wa-templates';
+import { chiaveRichiestaRecensione } from '@/lib/wa-automations';
 import {
   getWaAutomationsConfig, saveWaAutomationsConfig, runWaAutomations,
   type WaAutomationsConfig, type RunResult,
@@ -293,6 +294,15 @@ export async function inviaTemplateDiProva(
   key: TemplateKey
 ): Promise<{ ok: boolean; error?: string }> {
   if (!isSendablePhone(phone)) return { ok: false, error: 'Numero non valido' };
+
+  /*
+    La prova deve far arrivare lo stesso messaggio che ricevono le clienti.
+    Per la recensione ce ne sono due — quello vecchio senza bottone e quello
+    col link — e la prova mandava sempre il vecchio: si controllava una cosa
+    diversa da quella che parte davvero, che è il modo migliore per credere
+    che vada tutto bene.
+  */
+  if (key === 'review') key = await chiaveRichiestaRecensione();
 
   const tpl = WA_TEMPLATES[key];
   const params = ESEMPI_PARAMETRI[key];
