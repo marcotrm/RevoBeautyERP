@@ -63,7 +63,7 @@ function ClientRow({ client, checked, onToggle, onEdit, onDelete }: { client: Cl
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium text-text-primary truncate">{client.firstName} {client.lastName}</p>
-            <SegniCliente clientId={client.id} nome={`${client.firstName} ${client.lastName}`} />
+            <SegniCliente clientId={client.id} nome={`${client.firstName} ${client.lastName}`} conMotivo />
             <VIPBadge level={client.vipLevel} />
             {incomplete && (
               <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/20 whitespace-nowrap">

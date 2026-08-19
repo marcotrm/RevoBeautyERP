@@ -23,10 +23,25 @@ interface Props {
   nome?: string;
   /** Piccolo per le righe fitte (tendine, elenchi), normale per le intestazioni. */
   taglia?: 'sm' | 'md';
+  /**
+   * Scrive fra parentesi il motivo della segnalazione, accanto alla faccina.
+   *
+   * Si accende dove c'è spazio — elenchi, tendine di ricerca, intestazioni —
+   * perché la faccina da sola costringe ad aprire la scheda per sapere cos'era
+   * successo, e nessuno lo fa mentre ha la cliente al telefono. Nei blocchi
+   * dell'agenda resta spento: lì una riga di testo in più coprirebbe l'orario.
+   */
+  conMotivo?: boolean;
   className?: string;
 }
 
-export default function SegniCliente({ clientId, nome, taglia = 'sm', className = '' }: Props) {
+/** Il motivo per esteso sta nel tooltip: qui ci sta una frase corta. */
+function accorcia(testo: string, max = 42): string {
+  const t = (testo || '').trim();
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
+}
+
+export default function SegniCliente({ clientId, nome, taglia = 'sm', conMotivo = false, className = '' }: Props) {
   const carica = useSegniStore(s => s.carica);
   // Il valore si rilegge quando il magazzino dei segni cambia: senza questa
   // dipendenza le icone comparirebbero solo al render successivo.
@@ -43,7 +58,7 @@ export default function SegniCliente({ clientId, nome, taglia = 'sm', className 
   const misura = taglia === 'md' ? 'w-4 h-4' : 'w-3.5 h-3.5';
 
   return (
-    <span className={`inline-flex items-center gap-1 flex-shrink-0 ${className}`}>
+    <span className={`inline-flex items-center gap-1 ${conMotivo ? 'min-w-0' : 'flex-shrink-0'} ${className}`}>
       {corona && (
         <span title={`Fra le clienti che spendono di più: ${riassunto(corona)} negli ultimi 12 mesi`}
           aria-label="Cliente da coccolare">
@@ -57,9 +72,15 @@ export default function SegniCliente({ clientId, nome, taglia = 'sm', className 
         </span>
       )}
       {segnalata && (
-        <span title={`Segnalata${segnalata.segnalataDa ? ` da ${segnalata.segnalataDa}` : ''}: ${segnalata.motivo}`}
+        <span className="inline-flex items-center gap-1 min-w-0"
+          title={`Segnalata${segnalata.segnalataDa ? ` da ${segnalata.segnalataDa}` : ''}: ${segnalata.motivo}`}
           aria-label="Cliente segnalata">
-          <Frown className={`${misura} text-error`} />
+          <Frown className={`${misura} text-error flex-shrink-0`} />
+          {conMotivo && segnalata.motivo && (
+            <span className={`text-error/90 font-normal truncate ${taglia === 'md' ? 'text-[11px]' : 'text-[10px]'}`}>
+              ({accorcia(segnalata.motivo)})
+            </span>
+          )}
         </span>
       )}
     </span>

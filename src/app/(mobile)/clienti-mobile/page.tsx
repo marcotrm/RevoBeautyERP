@@ -227,6 +227,9 @@ export default function ClientiMobilePage() {
                   {corona && <Crown className="w-3.5 h-3.5 text-warning flex-shrink-0" />}
                   {rischio && <CalendarX className={`w-3.5 h-3.5 flex-shrink-0 ${rischio.livello === 'rischio' ? 'text-error' : 'text-warning'}`} />}
                   {segnalata && <Frown className="w-3.5 h-3.5 text-error flex-shrink-0" />}
+                  {segnalata?.motivo && (
+                    <span className="text-[10px] text-error/90 font-normal truncate">({segnalata.motivo})</span>
+                  )}
                 </p>
                 <p className="text-[11px] text-text-muted">{c.phone || 'nessun numero'}</p>
               </div>

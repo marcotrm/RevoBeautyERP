@@ -1325,7 +1325,7 @@ function CercaCliente({ clients, appointments, onApriAppuntamento, onVaiAlGiorno
                         mentre si cerca, non dopo aver aperto la scheda. */}
                     <p className="text-sm font-medium text-text-primary flex items-center gap-1.5">
                       {c.firstName} {c.lastName}
-                      <SegniCliente clientId={c.id} nome={`${c.firstName} ${c.lastName}`} />
+                      <SegniCliente clientId={c.id} nome={`${c.firstName} ${c.lastName}`} conMotivo />
                     </p>
                     {c.phone && <p className="text-[11px] text-text-muted font-mono">{c.phone}</p>}
                   </button>
@@ -1338,7 +1338,7 @@ function CercaCliente({ clients, appointments, onApriAppuntamento, onVaiAlGiorno
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-text-primary truncate flex items-center gap-1.5">
                     {scelto.firstName} {scelto.lastName}
-                    <SegniCliente clientId={scelto.id} nome={`${scelto.firstName} ${scelto.lastName}`} taglia="md" />
+                    <SegniCliente clientId={scelto.id} nome={`${scelto.firstName} ${scelto.lastName}`} taglia="md" conMotivo />
                   </p>
                   {scelto.phone && <p className="text-[11px] text-text-muted font-mono">{scelto.phone}</p>}
                 </div>
@@ -2573,7 +2573,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                   <UserCircle className="w-5 h-5 text-accent" />
                   <span className="text-sm font-medium text-text-primary flex-1 flex items-center gap-1.5">
                     {selectedClientName}
-                    <SegniCliente clientId={selectedClientId} nome={selectedClientName} taglia="md" />
+                    <SegniCliente clientId={selectedClientId} nome={selectedClientName} taglia="md" conMotivo />
                   </span>
                   <button onClick={() => { setSelectedClientId(''); setSelectedClientName(''); setClientSearch(''); }} className="text-text-muted hover:text-text-primary"><X className="w-4 h-4" /></button>
                 </div>
@@ -2603,7 +2603,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-text-primary flex items-center gap-1.5">
                               {client.firstName} {client.lastName}
-                              <SegniCliente clientId={client.id} nome={`${client.firstName} ${client.lastName}`} />
+                              <SegniCliente clientId={client.id} nome={`${client.firstName} ${client.lastName}`} conMotivo />
                             </p>
                             <p className="text-xs text-text-muted">{client.phone}</p>
                           </div>

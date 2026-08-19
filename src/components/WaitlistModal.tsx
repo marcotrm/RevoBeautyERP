@@ -119,7 +119,7 @@ export default function WaitlistModal({
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-text-primary flex items-center gap-1.5">
                               {client.firstName} {client.lastName}
-                              <SegniCliente clientId={client.id} nome={`${client.firstName} ${client.lastName}`} />
+                              <SegniCliente clientId={client.id} nome={`${client.firstName} ${client.lastName}`} conMotivo />
                             </p>
                             <p className="text-xs text-text-muted">{client.phone}</p>
                           </div>

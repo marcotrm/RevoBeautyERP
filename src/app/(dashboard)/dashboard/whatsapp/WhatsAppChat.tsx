@@ -877,7 +877,7 @@ export default function WhatsAppChat() {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-text-primary truncate flex items-center gap-1.5">
                   {clientName || conversations?.find(c => c.phone === active)?.name || active}
-                  <SegniCliente nome={clientName || conversations?.find(c => c.phone === active)?.name} taglia="md" />
+                  <SegniCliente nome={clientName || conversations?.find(c => c.phone === active)?.name} taglia="md" conMotivo />
                 </p>
                 <p className="text-[11px] text-text-muted font-mono">+{active}</p>
               </div>

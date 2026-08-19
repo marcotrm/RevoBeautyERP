@@ -255,7 +255,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                             <button key={c.id} onClick={() => { setSelectedClient(`${c.firstName} ${c.lastName}`); setClientSearch(''); }}
                               className="w-full text-left px-4 py-2.5 hover:bg-bg-hover text-sm text-text-primary transition-colors flex items-center gap-1.5">
                                 {c.firstName} {c.lastName}
-                                <SegniCliente clientId={c.id} nome={`${c.firstName} ${c.lastName}`} />
+                                <SegniCliente clientId={c.id} nome={`${c.firstName} ${c.lastName}`} conMotivo />
                                 <span className="text-text-muted">• {c.phone}</span></button>
                           ))}
                         </div>
