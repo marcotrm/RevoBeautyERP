@@ -292,8 +292,14 @@ const ESEMPI_PARAMETRI: Record<TemplateKey, string[]> = {
 export async function inviaTemplateDiProva(
   phone: string,
   key: TemplateKey
-): Promise<{ ok: boolean; error?: string }> {
-  if (!isSendablePhone(phone)) return { ok: false, error: 'Numero non valido' };
+): Promise<{ ok: boolean; error?: string; nome?: string }> {
+  if (!isSendablePhone(phone)) {
+    console.warn(`[prova] numero scartato prima di partire: "${phone}"`);
+    return { ok: false, error: `Numero non valido: "${phone}"` };
+  }
+  if (!waProvider()) {
+    return { ok: false, error: `WhatsApp non configurato: mancano ${whatsappMissingVars().join(', ')}` };
+  }
 
   /*
     La prova deve far arrivare lo stesso messaggio che ricevono le clienti.
@@ -307,13 +313,29 @@ export async function inviaTemplateDiProva(
   const tpl = WA_TEMPLATES[key];
   const params = ESEMPI_PARAMETRI[key];
   const testo = tpl.body.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1] ?? `{{${i}}}`);
+  const numero = normalizePhone(phone);
 
-  const res = await sendWhatsAppTemplate(normalizePhone(phone), key, {
-    bodyParams: params,
-    fallbackText: testo,
-    source: 'manual',
-  });
-  return res.ok ? { ok: true } : { ok: false, error: res.error || 'Invio fallito' };
+  /*
+    La prova che "non parte e non dice niente" è il caso peggiore: non si sa se
+    è colpa del numero, del template o di Meta. Qui si scrive nei log del server
+    cosa si è provato a mandare e cosa ha risposto WhatsApp, e l'errore vero
+    torna su fino alla schermata invece di finire in un `ok: false` muto.
+  */
+  try {
+    const res = await sendWhatsAppTemplate(numero, key, {
+      bodyParams: params,
+      fallbackText: testo,
+      source: 'manual',
+    });
+    console.log(`[prova] ${tpl.name} → ${numero}: ${res.ok ? 'accettato da WhatsApp' : `RIFIUTATO — ${res.error}`}`);
+    return res.ok
+      ? { ok: true, nome: tpl.name }
+      : { ok: false, nome: tpl.name, error: res.error || 'Invio fallito' };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`[prova] ${tpl.name} → ${numero}: eccezione — ${msg}`);
+    return { ok: false, nome: tpl.name, error: msg };
+  }
 }
 
 export interface TemplateCheck {

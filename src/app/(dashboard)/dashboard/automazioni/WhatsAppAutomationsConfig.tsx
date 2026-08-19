@@ -91,11 +91,21 @@ export default function WhatsAppAutomationsConfig() {
   const provaTemplate = async (key: Key) => {
     setBusy(`prova:${key}`);
     setEsitoTemplate(null);
-    const r = await inviaTemplateDiProva(numeroProva, key);
-    setBusy(null);
-    setEsitoTemplate(r.ok
-      ? `Mandato a ${numeroProva}. Se non arriva entro un minuto, controlla lo stato del template.`
-      : `Non partito: ${r.error}`);
+    /*
+      Il try/catch non è prudenza generica: senza, se la chiamata al server
+      andava male il tasto restava a "invio…" per sempre e sullo schermo non
+      compariva niente — cioè esattamente "non funziona" senza sapere perché.
+    */
+    try {
+      const r = await inviaTemplateDiProva(numeroProva, key);
+      setEsitoTemplate(r.ok
+        ? `✅ ${r.nome || 'Messaggio'} accettato da WhatsApp e mandato a ${numeroProva}. Se non arriva entro un minuto è Meta che non l'ha consegnato.`
+        : `❌ Non è partito${r.nome ? ` (${r.nome})` : ''}: ${r.error}`);
+    } catch (e) {
+      setEsitoTemplate(`❌ Errore del server: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(null);
+    }
   };
 
   /**
@@ -291,7 +301,11 @@ export default function WhatsAppAutomationsConfig() {
                                 : ''}
                             {' '}Si segnala una cliente dal suo appuntamento in agenda.
                           </p>
-                          {esitoTemplate && <p className="text-[10px] text-text-secondary leading-relaxed">{esitoTemplate}</p>}
+                          {esitoTemplate && (
+                            <p className={`text-[11px] leading-relaxed font-medium ${esitoTemplate.startsWith('❌') ? 'text-error' : 'text-success'}`}>
+                              {esitoTemplate}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
