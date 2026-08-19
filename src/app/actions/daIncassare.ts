@@ -131,11 +131,19 @@ export async function seduteDaIncassare(giorni = 30): Promise<SedutaDaIncassare[
 export async function sedutaIncassata(appointmentId: string): Promise<boolean> {
   const appt = await prisma.appointment.findUnique({
     where: { id: appointmentId },
-    select: { date: true, clientName: true, price: true, notes: true },
+    select: { date: true, clientName: true, price: true, notes: true, services: true, discountAmount: true, treatmentId: true, treatmentName: true },
   });
   if (!appt) return true;
-  if (appt.price <= 0) return true;
-  if (/📦 Seduta da pacchetto/.test(appt.notes || '')) return true;
+  /*
+    Quanto c'è davvero da incassare, riga per riga.
+
+    Prima bastava la nota "Seduta da pacchetto" per dire "pagata" e chiudere
+    lì: Ilaria Fusco aveva la pressoterapia dal pacchetto (0 €) e tre cerette
+    da 41,70 €, e il pannello dell'appuntamento le segnava tutte come pagate.
+    Non c'era nessun avviso, nessun tasto per incassare, e quei soldi non si
+    potevano più prendere da nessuna parte.
+  */
+  if (daPagare(appt) <= 0) return true;
 
   const diretto = await prisma.posTransaction.count({ where: { appointmentId, isRefund: false } });
   if (diretto > 0) return true;
