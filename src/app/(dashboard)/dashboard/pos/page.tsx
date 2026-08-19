@@ -43,13 +43,45 @@ const PAYMENT_METHODS = [
 
 function NewSaleModal({ onClose, onComplete, initialData }: {
   onClose: () => void; onComplete: (tx: Omit<TransactionRecord, 'id'>, debtPkgId?: string) => Promise<TransactionRecord | undefined>;
-  initialData?: { client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string; cabinMinutes?: number; appointmentId?: string; products?: { id: string; name: string; price: number; qty: number }[] } | null;
+  initialData?: {
+    client: string; treatmentName: string; treatmentId: string; price: number; operator: string;
+    debtPkgId?: string; cabinMinutes?: number; appointmentId?: string;
+    products?: { id: string; name: string; price: number; qty: number }[];
+    /** Le righe vere della seduta: una per trattamento, col suo prezzo. */
+    servizi?: { id: string; name: string; price: number; qty: number }[];
+    /** Lo sconto già concordato in agenda, da mostrare come sconto e non nascosto nei prezzi. */
+    sconto?: number;
+  } | null;
 }) {
   const treatments = useTreatmentStore(s => s.treatments);
   const products = useProductStore(s => s.products);
   const [cart, setCart] = useState<CartItem[]>(() => {
     if (!initialData) return [];
     const base: CartItem[] = [];
+
+    /*
+      Dall'agenda arriva una riga per trattamento. Prima arrivava un nome solo
+      col totale dentro: la cliente che aveva fatto ceretta, manicure e altre
+      tre cose risultava con "Ceretta Gamba Intera 90 €", e quella riga finiva
+      sullo scontrino e nell'avviso su Telegram.
+    */
+    if (initialData.servizi?.length) {
+      for (const sv of initialData.servizi) {
+        if (!sv?.name) continue;
+        base.push({
+          id: sv.id || `agenda-${sv.name}`,
+          name: sv.name,
+          price: Number(sv.price) || 0,
+          qty: Number(sv.qty) || 1,
+          type: 'service',
+        });
+      }
+      for (const p of initialData.products || []) {
+        if (p?.id) base.push({ id: p.id, name: `🧴 ${p.name}`, price: Number(p.price) || 0, qty: Number(p.qty) || 1, type: 'product' });
+      }
+      return base;
+    }
+
     // Try find by ID first
     const t = (initialData.treatmentId && treatments.find(x => x.id === initialData.treatmentId))
       || (initialData.treatmentName && treatments.find(x => x.name === initialData.treatmentName))
@@ -70,8 +102,8 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(initialData?.client || '');
   const [serviceSearch, setServiceSearch] = useState('');
-  const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
-  const [discount, setDiscount] = useState('');
+  const [discountType, setDiscountType] = useState<'percent' | 'fixed'>(initialData?.sconto ? 'fixed' : 'percent');
+  const [discount, setDiscount] = useState(initialData?.sconto ? String(initialData.sconto) : '');
   const [paymentMethod, setPaymentMethod] = useState('carta');
   const [splitCash, setSplitCash] = useState('');
   const [splitCard, setSplitCard] = useState('');
@@ -141,7 +173,9 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discountValue = Number(discount) || 0;
   const discountAmount = discountType === 'percent' ? (subtotal * discountValue) / 100 : discountValue;
-  const rawTotal = Math.max(0, subtotal - discountAmount);
+  // Arrotondato ai centesimi: sommando prezzi con la virgola viene fuori
+  // 89,99999999999999, che poi si legge così anche nei riepiloghi.
+  const rawTotal = Math.round(Math.max(0, subtotal - discountAmount) * 100) / 100;
   // Sempre per eccesso se c'è sconto percentuale, altrimenti preciso
   const total = (discountType === 'percent' && discountValue > 0) ? Math.ceil(rawTotal) : rawTotal;
   
@@ -570,7 +604,13 @@ function POSPageInner() {
   const fetchClients = useClientStore(s => s.fetchClients);
   const fetchTreatments = useTreatmentStore(s => s.fetchTreatments);
   const [showSaleModal, setShowSaleModal] = useState(false);
-  const [saleInitialData, setSaleInitialData] = useState<{ client: string; treatmentName: string; treatmentId: string; price: number; operator: string; debtPkgId?: string; cabinMinutes?: number; appointmentId?: string; products?: { id: string; name: string; price: number; qty: number }[] } | null>(null);
+  const [saleInitialData, setSaleInitialData] = useState<{
+    client: string; treatmentName: string; treatmentId: string; price: number; operator: string;
+    debtPkgId?: string; cabinMinutes?: number; appointmentId?: string;
+    products?: { id: string; name: string; price: number; qty: number }[];
+    servizi?: { id: string; name: string; price: number; qty: number }[];
+    sconto?: number;
+  } | null>(null);
   const [showCloseCassa, setShowCloseCassa] = useState(false);
   const [showLastReceipt, setShowLastReceipt] = useState(false);
   const [showRefund, setShowRefund] = useState(false);
@@ -684,6 +724,8 @@ function POSPageInner() {
           setSaleInitialData({
             client: d.client, treatmentName: d.treatment, treatmentId: d.treatmentId || '',
             price: Number(d.price) || 0, operator: d.operator || 'Staff',
+            servizi: Array.isArray(d?.servizi) ? d.servizi : undefined,
+            sconto: Number(d?.sconto) || undefined,
             debtPkgId: d.debtPkgId || undefined,
             cabinMinutes: d.cabinMinutes ? Number(d.cabinMinutes) : undefined,
             appointmentId: d.appointmentId || undefined,

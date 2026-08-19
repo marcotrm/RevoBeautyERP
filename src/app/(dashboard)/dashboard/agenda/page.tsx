@@ -3347,9 +3347,20 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
       sessionStorage.setItem('revo_pos_autosale', JSON.stringify({
         appointmentId: appointment.id,
         client: appointment.clientName,
+        /*
+          Ogni trattamento va in cassa come riga sua.
+
+          Prima si mandava un nome solo con dentro il totale della seduta: in
+          cassa arrivava "Ceretta Gamba Intera 90 €" anche quando la cliente
+          aveva fatto cinque cose, e da lì quel nome finiva sullo scontrino,
+          nello storico e nell'avviso su Telegram. Il totale era giusto, il
+          conto raccontava una bugia.
+        */
+        servizi: trattamenti.map(s => ({ id: s.treatmentId, name: s.treatmentName, price: s.price, qty: 1 })),
         treatment: trattamenti.map(s => s.treatmentName).join(' + ') || appointment.treatmentName,
         treatmentId: trattamenti.length > 0 ? appointment.treatmentId : '',
         price: trattamenti.reduce((sum, s) => sum + s.price, 0) || appointment.price,
+        sconto: appointment.discountAmount || 0,
         products: daPagare.filter(s => s.productId).map(s => ({ id: s.productId, name: s.treatmentName, price: s.price, qty: 1 })),
         operator: appointment.operatorName,
       }));
@@ -3420,10 +3431,13 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
         sessionStorage.setItem('revo_pos_autosale', JSON.stringify({
           appointmentId: appointment.id,
           client: appointment.clientName,
-          // Con più trattamenti il conto è unico: nome e totale di tutta la seduta
+          // Una riga per trattamento: lo sconto della seduta viaggia a parte,
+          // così in cassa si vede il conto vero e sotto quanto è stato tolto.
+          servizi: trattamentiPagati.map(s => ({ id: s.treatmentId, name: s.treatmentName, price: s.price, qty: 1 })),
           treatment: trattamentiPagati.map(s => s.treatmentName).join(' + '),
           treatmentId: trattamentiPagati.length > 0 ? appointment.treatmentId : '',
           price: totaleTrattamenti,
+          sconto: appointment.discountAmount || 0,
           products: prodottiInCarrello.map(s => ({ id: s.productId, name: s.treatmentName, price: s.price, qty: 1 })),
           operator: appointment.operatorName,
           cabinMinutes,
