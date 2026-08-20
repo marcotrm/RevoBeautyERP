@@ -15,6 +15,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Lock, Loader2 } from 'lucide-react';
 import MobileTabs from '@/components/MobileTabs';
+import VersioneNuova from '@/components/VersioneNuova';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRolesStore } from '@/stores/useRolesStore';
 import { permissionForPath, roleHasPermission } from '@/lib/permissions';
@@ -67,6 +68,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
           <p className="text-sm text-text-secondary mt-1">Questa parte non è prevista per il tuo profilo.</p>
         </div>
       )}
+      <VersioneNuova />
       <MobileTabs />
     </div>
   );
