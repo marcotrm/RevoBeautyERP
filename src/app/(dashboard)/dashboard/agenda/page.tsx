@@ -2077,20 +2077,27 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
           alle 15" bisognerebbe riscriverli tutti a mano.
         */
         if (slotInfo.treatmentIds?.length) {
-          const op = operators.find(o => o.id === slotInfo.operatorId);
           setSelectedServices(slotInfo.treatmentIds
             .map(id => treatments.find(t => t.id === id))
             .filter((t): t is Treatment => Boolean(t))
-            .map(t => ({
-              treatmentId: t.id,
-              treatmentName: t.name,
-              treatmentCategory: t.category,
-              duration: t.durationFemale ?? t.duration,
-              price: t.priceFemale ?? t.price,
-              gender: 'female' as const,
-              operatorId: slotInfo.operatorId || undefined,
-              operatorName: op ? `${op.firstName} ${op.lastName}`.trim() : undefined,
-            })));
+            .map(t => {
+              // Ogni trattamento con la sua operatrice, come l'ha incastrato la
+              // ricerca; se non c'è, resta quella dell'appuntamento.
+              const suo = slotInfo.assegnazioni?.find(a => a.treatmentId === t.id)?.operatorId
+                || slotInfo.operatorId;
+              const op = operators.find(o => o.id === suo);
+              return {
+                treatmentId: t.id,
+                treatmentName: t.name,
+                treatmentCategory: t.category,
+                // Il posto in agenda: durata più preparazione, come ovunque.
+                duration: (t.durationFemale ?? t.duration) + (t.preparazione || 0),
+                price: t.priceFemale ?? t.price,
+                gender: 'female' as const,
+                operatorId: suo || undefined,
+                operatorName: op ? `${op.firstName} ${op.lastName}`.trim() : undefined,
+              };
+            }));
         } else {
           setSelectedServices([]);
         }
@@ -5103,6 +5110,9 @@ export default function AgendaPage() {
                 time: b.time,
                 date: b.date,
                 treatmentIds,
+                // Chi fa cosa: con due operatrici in staffetta, ognuna deve
+                // ritrovarsi il suo trattamento e non tutti addosso alla prima.
+                assegnazioni: b.chiFaCosa.map(c => ({ treatmentId: c.treatmentId, operatorId: c.operatorId })),
               });
             }}
           />

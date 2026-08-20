@@ -35,11 +35,23 @@ export interface EsitoCercaBuchi {
   giorniGuardati: number;
 }
 
-export async function cercaBuchi(params: {
-  /** I trattamenti da incastrare, nell'ordine in cui si faranno. */
-  treatmentIds: string[];
-  /** Chi li deve fare. Vuoto = chiunque sia libera. */
+export interface RichiestaBuco {
+  treatmentId: string;
+  /** Chi lo deve fare. Vuoto = chiunque sia libera. */
   operatorId?: string | null;
+}
+
+export async function cercaBuchi(params: {
+  /*
+    I trattamenti da incastrare, nell'ordine in cui si faranno, ognuno con la
+    sua operatrice.
+
+    Il punto è proprio questo: il refill lo fa Michela e subito dopo il
+    massaggio lo fa Rosaria. Il motore cerca due orari attaccati — il secondo
+    comincia quando finisce il primo — e propone solo i giorni in cui il
+    passaggio di mano sta in piedi davvero.
+  */
+  richieste: RichiestaBuco[];
   /** Da quale giorno cercare. Vuoto = da oggi. */
   dal?: string;
   giorni?: number;
@@ -50,8 +62,8 @@ export async function cercaBuchi(params: {
   /** Quanti orari mostrare in tutto. */
   quanti?: number;
 }): Promise<EsitoCercaBuchi> {
-  const treatmentIds = (params.treatmentIds || []).filter(Boolean);
-  if (treatmentIds.length === 0) return { buchi: [], durataTotale: 0, prezzoTotale: 0, giorniGuardati: 0 };
+  const richieste = (params.richieste || []).filter(r => r?.treatmentId);
+  if (richieste.length === 0) return { buchi: [], durataTotale: 0, prezzoTotale: 0, giorniGuardati: 0 };
 
   const dal = params.dal || todayRome();
   const giorni = Math.min(Math.max(1, params.giorni || 21), 60);
@@ -59,7 +71,7 @@ export async function cercaBuchi(params: {
   const esito = await cercaSlot({
     dateFrom: dal,
     giorni,
-    services: treatmentIds.map(id => ({ treatmentId: id, operatorId: params.operatorId || null })),
+    services: richieste.map(r => ({ treatmentId: r.treatmentId, operatorId: r.operatorId || null })),
     gender: params.gender || 'female',
     oraDa: params.oraDa || null,
     oraA: params.oraA || null,

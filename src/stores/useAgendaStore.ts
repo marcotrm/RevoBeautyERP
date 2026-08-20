@@ -26,7 +26,11 @@ interface AgendaStore {
     i trattamenti già scelti, se no si dovrebbe riscrivere tutto a mano proprio
     dopo averglielo detto.
   */
-  slotInfo: { operatorId: string; time: string; date?: string; treatmentIds?: string[] } | null;
+  slotInfo: {
+    operatorId: string; time: string; date?: string; treatmentIds?: string[];
+    /** Da "Cerca buchi": chi prende in mano quale trattamento. */
+    assegnazioni?: { treatmentId: string; operatorId: string }[];
+  } | null;
   isLoading: boolean;
 
   fetchAppointments: () => Promise<void>;
@@ -42,7 +46,13 @@ interface AgendaStore {
   setSelectedOperatorIds: (ids: string[]) => void;
 
   selectAppointment: (appointment: Appointment | null) => void;
-  openAppointmentModal: (appointment?: Appointment | null, slotInfo?: { operatorId: string; time: string; date?: string; treatmentIds?: string[] } | null) => void;
+  openAppointmentModal: (
+    appointment?: Appointment | null,
+    slotInfo?: {
+      operatorId: string; time: string; date?: string; treatmentIds?: string[];
+      assegnazioni?: { treatmentId: string; operatorId: string }[];
+    } | null,
+  ) => void;
   closeAppointmentModal: () => void;
 
   addAppointment: (appointment: Omit<Appointment, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>) => Promise<void>;
