@@ -19,7 +19,8 @@ import { todayRome } from '@/lib/date';
 import { isWalkIn } from '@/lib/walkIn';
 import { sendTelegram } from '@/lib/telegram';
 import { sendWhatsAppTemplate, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
-import { sanitizeParam, WA_TEMPLATES } from '@/lib/wa-templates';
+import { sanitizeParam, WA_TEMPLATES, type TemplateKey } from '@/lib/wa-templates';
+import { listD360Templates } from '@/lib/whatsapp360';
 import { getWaAutomationsConfig } from '@/lib/wa-automations';
 import { avviaSpostamento } from '@/lib/wa-spostamento';
 
@@ -218,6 +219,96 @@ export async function sendAppointmentConfirmation(appointmentId: string): Promis
     return { sent: res.ok, reason: res.error };
   } catch (err) {
     console.error('[wa-appointments] errore invio conferma', err);
+    return { sent: false, reason: err instanceof Error ? err.message : 'errore' };
+  }
+}
+
+
+/**
+ * L'appuntamento è stato spostato: la cliente deve saperlo.
+ *
+ * Prima, cambiando ora dal gestionale, non partiva niente: in mano alla
+ * cliente restava la conferma vecchia, e si presentava all'ora vecchia. Qui si
+ * manda il nuovo orario, una volta per ogni spostamento.
+ *
+ * Non parte quando è la cliente stessa a spostarlo da WhatsApp: quel percorso
+ * (lib/wa-spostamento.ts) scrive in agenda per conto suo e le conferma il
+ * nuovo orario nella chat, quindi da qui non passa e non arriva un doppione.
+ */
+export async function sendAppointmentMoved(appointmentId: string): Promise<{ sent: boolean; reason?: string }> {
+  try {
+    const cfg = await getWaAutomationsConfig();
+    // Stesso interruttore della conferma: chi non vuole i messaggi
+    // dell'appuntamento non vuole nemmeno questo.
+    if (!cfg.confirm) return { sent: false, reason: 'conferma spenta' };
+
+    const appt = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: { client: true },
+    });
+    if (!appt) return { sent: false, reason: 'appuntamento non trovato' };
+    if (!OPEN_STATUSES.includes(appt.status)) return { sent: false, reason: `stato ${appt.status}` };
+    // Spostato a un'ora già passata (o a "adesso"): avvisare non serve più.
+    if (isWalkIn(appt.date, appt.startTime)) return { sent: false, reason: 'orario già in corso' };
+
+    const phone = appt.client?.phone;
+    if (!isSendablePhone(phone)) return { sent: false, reason: 'numero non valido' };
+
+    /*
+      Un messaggio per ogni orario nuovo: si può spostare due volte lo stesso
+      appuntamento e la cliente li riceve entrambi, ma salvare due volte la
+      stessa modifica non le manda niente.
+    */
+    const rowId = `wa:spostato:${appt.id}:${appt.date}:${appt.startTime}`;
+    const existing = await prisma.adminEntry.findUnique({ where: { rowId } });
+    if ((existing?.data as { ok?: boolean } | null)?.ok) return { sent: false, reason: 'già inviato' };
+
+    const params = [
+      sanitizeParam(appt.client?.firstName || appt.clientName.split(' ')[0]),
+      sanitizeParam(appt.treatmentName, 'il tuo trattamento'),
+      sanitizeParam(humanDate(appt.date)),
+      sanitizeParam(appt.startTime),
+    ];
+
+    /*
+      Quale messaggio parte. Quello dedicato dice "abbiamo spostato" ed è il
+      testo giusto; finché Meta non l'ha approvato si ripiega sulla conferma,
+      che è approvata e porta comunque l'orario nuovo. Meglio una conferma con
+      l'ora giusta che il silenzio.
+    */
+    const remote = await listD360Templates();
+    const approvato = (nome: string) => remote.ok && remote.templates.some(
+      t => t.name === nome && t.language.toLowerCase().startsWith('it') && t.status.toUpperCase() === 'APPROVED',
+    );
+    const chiave: TemplateKey = approvato(WA_TEMPLATES.spostato.name) ? 'spostato' : 'confirm';
+    const preview = WA_TEMPLATES[chiave].body.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1] ?? '');
+
+    if (cfg.dryRun) {
+      console.log(`[wa-appointments] SIMULAZIONE spostamento a ${normalizePhone(phone as string)}: ${preview}`);
+      return { sent: false, reason: 'simulazione attiva' };
+    }
+
+    const res = await sendWhatsAppTemplate(normalizePhone(phone as string), chiave, {
+      bodyParams: params,
+      fallbackText: preview,
+      source: 'automation',
+    });
+
+    const now = new Date().toISOString();
+    const dati = {
+      automation: 'spostato', clientId: appt.clientId, phone: normalizePhone(phone as string),
+      messageId: res.messageId, ok: res.ok, error: res.error, sentAt: now,
+    };
+    await prisma.adminEntry.upsert({
+      where: { rowId },
+      update: { data: dati },
+      create: { rowId, kind: CONFIRM_LOG_KIND, entityId: rowId, data: dati, createdAt: now },
+    });
+
+    if (!res.ok) console.error(`[wa-appointments] spostamento non comunicato a ${appt.clientName}: ${res.error}`);
+    return { sent: res.ok, reason: res.error };
+  } catch (err) {
+    console.error('[wa-appointments] errore avviso spostamento', err);
     return { sent: false, reason: err instanceof Error ? err.message : 'errore' };
   }
 }

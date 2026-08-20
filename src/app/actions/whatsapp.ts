@@ -269,6 +269,7 @@ export async function creaTemplateRecensione(): Promise<{ ok: boolean; status?: 
  */
 const ESEMPI_PARAMETRI: Record<TemplateKey, string[]> = {
   confirm: ['Maria', 'pulizia viso', 'domani', '15:30'],
+  spostato: ['Maria', 'pulizia viso', 'domani', '15:45'],
   reminder: ['Maria', 'pulizia viso', 'domani', '15:30'],
   recall: ['Maria'],
   birthday: ['Maria', 'il 20%', '31/12'],
@@ -473,6 +474,29 @@ export async function segnaConversazioneGestita(phone: string): Promise<{ ok: bo
  * template già esistente non si modifica da qui — in quel caso si dice cosa
  * c'è e a che punto sta, invece di fallire in silenzio.
  */
+/**
+ * Manda in approvazione il messaggio dello spostamento.
+ *
+ * Finché Meta non l'ha approvato non si perde niente: al suo posto parte la
+ * conferma, che l'orario nuovo ce l'ha comunque. Con questo approvato, però,
+ * la cliente legge "abbiamo spostato" e capisce al primo colpo.
+ */
+export async function creaTemplateSpostamento(): Promise<{ ok: boolean; stato?: string; nota?: string; error?: string }> {
+  const tpl = WA_TEMPLATES.spostato;
+  const remote = await listD360Templates();
+  if (remote.ok) {
+    const gia = remote.templates.find(t => t.name === tpl.name && t.language.toLowerCase().startsWith('it'));
+    if (gia) return { ok: true, stato: gia.status, nota: gia.status === 'APPROVED' ? 'pronto' : 'in attesa di Meta' };
+  }
+  const esempi = ['Maria', 'pulizia viso', 'giovedì 21 agosto', '15:45'];
+  const res = await createD360Template({
+    name: tpl.name, category: tpl.category, language: tpl.language, body: tpl.body, example: esempi,
+  });
+  return res.ok
+    ? { ok: true, stato: res.status || 'PENDING', nota: 'mandato a Meta' }
+    : { ok: false, error: res.error };
+}
+
 export async function creaTemplateAffiliati(): Promise<{ nome: string; stato: string; nota?: string }[]> {
   const chiavi = ['affiliatoIncasso', 'affiliatoMese'] as const;
   const remote = await listD360Templates();

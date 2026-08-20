@@ -79,6 +79,31 @@ export const WA_TEMPLATES = {
       'scritto e la finestra 24h non è aperta.',
   },
 
+  /**
+   * L'orario è cambiato.
+   *
+   * Prima, spostando un appuntamento dal gestionale, alla cliente non arrivava
+   * niente: le restava in mano la conferma vecchia con l'ora vecchia, e si
+   * presentava a quell'ora. La conferma iniziale non si può rimandare come se
+   * niente fosse — dice "è confermato" e non "è cambiato" — quindi il testo
+   * dice subito la cosa che conta: l'ora nuova.
+   */
+  spostato: {
+    name: 'appuntamento_spostato',
+    category: 'UTILITY',
+    language: 'it',
+    params: ['nome cliente', 'trattamento', 'data', 'ora'],
+    body:
+      'Ciao {{1}}, abbiamo spostato il tuo appuntamento da RevoBeauty per {{2}}: ' +
+      'ora è {{3}} alle {{4}}.\n' +
+      'Ti aspettiamo in Via Caudina 30, Maddaloni. Se questo orario non ti va bene, rispondi a questo messaggio.',
+    note:
+      'Parte quando dal gestionale si cambia giorno o ora di un appuntamento già preso, non a orario ' +
+      'fisso. È UTILITY perché parla di un appuntamento suo: niente consenso marketing.\n' +
+      'Quando è la cliente stessa a spostarlo da WhatsApp non parte: ci pensa già l\'agente degli ' +
+      'spostamenti a confermarle il nuovo orario nella chat.',
+  },
+
   reminder: {
     name: 'promemoria_appuntamento',
     category: 'UTILITY',

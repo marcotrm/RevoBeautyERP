@@ -5,7 +5,7 @@ import { avanzaSfide } from '@/lib/challenge';
 import { Appointment } from '@/types';
 import { mockOperators, mockTreatments, mockClients } from '@/lib/mock-data';
 import { notifyCancellazione, notifyNuovoAppuntamento, sendTelegram } from '@/lib/telegram';
-import { sendAppointmentConfirmation } from '@/lib/wa-appointments';
+import { sendAppointmentConfirmation, sendAppointmentMoved } from '@/lib/wa-appointments';
 
 export async function getAppointments() {
   const appointments = await prisma.appointment.findMany({
@@ -101,12 +101,15 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
   // l'appuntamento viene completato (un check-out ripetuto non vale due passi).
   // Lo sconto entra qui perché il prezzo diverso dal listino va segnalato una
   // volta sola, quando viene deciso: rileggerlo dopo servirebbe a poco.
+  // Lo spostamento si riconosce solo confrontando con com'era prima: se
+  // cambia il giorno o l'ora, alla cliente va detto il nuovo orario.
   const guardaPrima = updates.status === 'cancelled' || updates.status === 'completed'
-    || updates.discountAmount !== undefined;
+    || updates.discountAmount !== undefined
+    || updates.date !== undefined || updates.startTime !== undefined;
   const prev = guardaPrima
     ? await prisma.appointment.findUnique({
         where: { id },
-        select: { status: true, clientId: true, discountAmount: true, price: true },
+        select: { status: true, clientId: true, discountAmount: true, price: true, date: true, startTime: true },
       })
     : null;
   const appointment = await prisma.appointment.update({
@@ -117,6 +120,20 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
       updatedAt: new Date().toISOString()
     }
   });
+  /*
+    Orario cambiato: si avvisa la cliente.
+
+    Prima non partiva niente e a lei restava in mano la conferma vecchia: si
+    presentava all'ora vecchia, e chi aveva spostato l'appuntamento era
+    convinto che lo sapesse. Vale per lo spostamento fatto dal gestionale
+    (trascinando il blocco o modificando l'appuntamento); quando è la cliente a
+    spostarlo da WhatsApp passa da un'altra strada, che le risponde già in chat.
+  */
+  if (prev && ((updates.date !== undefined && updates.date !== prev.date)
+    || (updates.startTime !== undefined && updates.startTime !== prev.startTime))) {
+    sendAppointmentMoved(appointment.id).catch(() => {});
+  }
+
   /*
     Prezzo diverso dal listino: avviso su Telegram.
 
