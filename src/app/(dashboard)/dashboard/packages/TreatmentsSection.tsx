@@ -279,12 +279,15 @@ export function TreatmentsSection() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={closeModal} />
             <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && closeModal()}>
-              <div className="w-full max-w-md bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              {/* Alta al massimo quanto lo schermo, e con il corpo che scorre:
+                  aggiungendo campi la scheda superava il video e i tasti Salva
+                  e Annulla restavano sotto il bordo, irraggiungibili. */}
+              <div className="w-full max-w-md max-h-[90vh] bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
                   <h3 className="text-lg font-display font-semibold text-text-primary">{editing ? 'Modifica Trattamento' : 'Nuovo Trattamento'}</h3>
                   <button onClick={closeModal} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
                 </div>
-                <div className="px-6 py-5 space-y-4">
+                <div className="px-6 py-5 space-y-4 flex-1 overflow-y-auto">
                   <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Nome *</label>
                     <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Es. Pulizia Viso Profonda..."
                       className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
@@ -392,7 +395,7 @@ export function TreatmentsSection() {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-bg-tertiary/30">
+                <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-bg-tertiary/30 flex-shrink-0">
                   <button onClick={closeModal} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">Annulla</button>
                   <button onClick={handleSave} disabled={!name.trim() || !wPrice || saving}
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${name.trim() && wPrice && !saving ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
