@@ -11,6 +11,7 @@ import { formatCurrency } from '@/lib/helpers';
 import { foglioPacchetti, type PacchettoDaStampare } from '@/lib/foglioPacchetti';
 import { CENTRO } from '@/lib/centro';
 import { useClientStore } from '@/stores/useClientStore';
+import SegniCliente from '@/components/SegniCliente';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { TreatmentsSection } from './TreatmentsSection';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
@@ -869,6 +870,21 @@ export default function PackagesPage() {
   const MAX_STAMPA = 4;
   const [scelti, setScelti] = useState<string[]>([]);
   const [perChi, setPerChi] = useState('');
+  const [suggerimentiAperti, setSuggerimentiAperti] = useState(false);
+  const clientiInAnagrafica = useClientStore(s => s.clients);
+  const fetchClientiAnagrafica = useClientStore(s => s.fetchClients);
+  useEffect(() => { fetchClientiAnagrafica(); }, [fetchClientiAnagrafica]);
+
+  /** Le clienti che somigliano a quello che si sta scrivendo, dall'anagrafica. */
+  const clientiTrovati = useMemo(() => {
+    const q = perChi.trim().toLowerCase();
+    if (q.length < 2) return [];
+    const cifre = q.replace(/\D/g, '');
+    return clientiInAnagrafica
+      .filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q)
+        || (cifre.length >= 3 && (c.phone || '').includes(cifre)))
+      .slice(0, 6);
+  }, [perChi, clientiInAnagrafica]);
   const trattamenti = useTreatmentStore(s => s.treatments);
 
   const spunta = (id: string) => {
@@ -1025,11 +1041,40 @@ export default function PackagesPage() {
             <span className="text-sm font-semibold text-text-primary whitespace-nowrap">
               {scelti.length} {scelti.length === 1 ? 'pacchetto' : 'pacchetti'} nel foglio
             </span>
-            <input type="text" value={perChi} onChange={e => setPerChi(e.target.value)} {...NO_AUTOFILL}
-              onKeyDown={e => { if (e.key === 'Enter') stampaScelti(); }}
-              placeholder="Per chi è? (facoltativo)"
-              className="px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted
-                focus:outline-none focus:border-accent/50 w-[190px]" />
+            {/* Per chi è il foglio: si pesca dall'anagrafica, ma si può anche
+                scrivere a mano — chi è entrata adesso e chiede un preventivo
+                una scheda non ce l'ha ancora, e non è il momento di aprirla. */}
+            <div className="relative">
+              <input type="text" value={perChi}
+                onChange={e => { setPerChi(e.target.value); setSuggerimentiAperti(true); }}
+                onFocus={() => setSuggerimentiAperti(true)}
+                onBlur={() => setTimeout(() => setSuggerimentiAperti(false), 150)}
+                {...NO_AUTOFILL}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { setSuggerimentiAperti(false); stampaScelti(); }
+                  if (e.key === 'Escape') setSuggerimentiAperti(false);
+                }}
+                placeholder="Per chi è? (facoltativo)"
+                className="px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted
+                  focus:outline-none focus:border-accent/50 w-[220px]" />
+              {suggerimentiAperti && clientiTrovati.length > 0 && (
+                <div className="absolute bottom-full left-0 mb-1.5 w-[260px] max-h-56 overflow-y-auto rounded-xl border border-border
+                  bg-bg-secondary shadow-2xl divide-y divide-border/30 z-10">
+                  {clientiTrovati.map(c => (
+                    <button key={c.id}
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => { setPerChi(`${c.firstName} ${c.lastName}`.trim()); setSuggerimentiAperti(false); }}
+                      className="w-full text-left px-3 py-2 hover:bg-bg-hover transition-colors">
+                      <p className="text-sm text-text-primary flex items-center gap-1.5">
+                        {c.firstName} {c.lastName}
+                        <SegniCliente clientId={c.id} nome={`${c.firstName} ${c.lastName}`} />
+                      </p>
+                      {c.phone && <p className="text-[11px] text-text-muted font-mono">{c.phone}</p>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button onClick={stampaScelti}
               className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity">
               <Printer className="w-4 h-4" /> Stampa il foglio
