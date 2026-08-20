@@ -108,6 +108,15 @@ export interface Treatment {
   requiresEquipment?: string;
   bufferBefore: number; // minutes
   bufferAfter: number; // minutes
+  /**
+   * Minuti di preparazione, oltre alla durata.
+   *
+   * "30 minuti" è quello che si dice alla cliente; in cabina però ci sono i
+   * dieci minuti per stendere il prodotto o scaldare il macchinario, e se
+   * l'agenda non li conta la giornata slitta di un quarto d'ora alla volta.
+   * Il prezzo non cambia: cambia solo il posto occupato.
+   */
+  preparazione?: number;
   color: string;
   isActive: boolean;
   /**

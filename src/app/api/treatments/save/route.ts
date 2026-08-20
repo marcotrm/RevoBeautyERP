@@ -13,6 +13,11 @@ export async function POST(request: Request) {
   const priceMale = body.priceMale != null && body.priceMale !== '' ? Number(body.priceMale) : null;
   const durationFemale = body.durationFemale != null && body.durationFemale !== '' ? Math.round(Number(body.durationFemale)) : null;
   const durationMale = body.durationMale != null && body.durationMale !== '' ? Math.round(Number(body.durationMale)) : null;
+  // I minuti di preparazione: si sommano alla durata solo in agenda, mai nel
+  // prezzo e mai in quello che si dice alla cliente.
+  const preparazione = body.preparazione != null && body.preparazione !== ''
+    ? Math.max(0, Math.round(Number(body.preparazione)))
+    : 0;
 
   /**
    * Chi lo fa e con che tempi.
@@ -40,6 +45,7 @@ export async function POST(request: Request) {
     priceMale,
     durationFemale,
     durationMale,
+    preparazione,
     // valori di default usati dal resto dell'app (preferisci donna, poi uomo)
     price: priceFemale ?? priceMale ?? 0,
     duration: durationFemale ?? durationMale ?? 30,

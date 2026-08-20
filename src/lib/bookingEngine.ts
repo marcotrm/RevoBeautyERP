@@ -281,7 +281,13 @@ async function preparaPassi(services: ServizioRichiesto[], gender: 'male' | 'fem
       treatmentName: t.name,
       category: t.category,
       operatorId: s.operatorId || null,
-      duration: Math.max(5, durataDi(t, gender)),
+      /*
+        Il posto da riservare è durata + preparazione. Se il bot proponesse
+        mezz'ora dove in cabina ne servono quaranta minuti, prenoterebbe sopra
+        il trattamento seguente — e a scoprirlo sarebbe la ragazza al banco,
+        con le due clienti già lì.
+      */
+      duration: Math.max(5, durataDi(t, gender) + (t.preparazione || 0)),
       price: prezzoDi(t, gender),
     };
   });

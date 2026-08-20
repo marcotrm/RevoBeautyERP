@@ -2185,7 +2185,21 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
 
   // Prezzo/durata in base al sesso selezionato (fallback all'altro se mancante)
   const genderPrice = (t: Treatment) => gender === 'male' ? (t.priceMale ?? t.priceFemale ?? t.price) : (t.priceFemale ?? t.price);
+  /*
+    La durata che si promette alla cliente. La preparazione NON è qui dentro:
+    si aggiunge dopo, quando si prende il posto in agenda.
+  */
   const genderDuration = (t: Treatment) => gender === 'male' ? (t.durationMale ?? t.durationFemale ?? t.duration) : (t.durationFemale ?? t.duration);
+
+  /**
+   * Il posto che il trattamento occupa davvero: durata più preparazione.
+   *
+   * Alla cliente si dice mezz'ora, ma se prima bisogna stendere il prodotto o
+   * scaldare il macchinario quei minuti li mangia comunque — e se l'agenda non
+   * li conta, la giornata slitta di un quarto d'ora alla volta e a fine
+   * pomeriggio si è accumulata un'ora di ritardo.
+   */
+  const conPreparazione = (t: Treatment, minuti: number) => minuti + (t.preparazione || 0);
 
   // Aggiunge un trattamento alla lista (con prezzo/durata del sesso corrente,
   // rispettando eventuali trattamenti personalizzati del cliente)
@@ -2207,7 +2221,10 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
       treatmentId: t.id,
       treatmentName: t.name,
       treatmentCategory: t.category,
-      duration: custom ? custom.duration : suoTempo,
+      // Il tempo personalizzato della cliente è già "quanto ci mettiamo con
+      // lei": la preparazione si aggiunge lo stesso, perché la cabina va
+      // preparata per chiunque.
+      duration: conPreparazione(t, custom ? custom.duration : suoTempo),
       price: priceOverride != null ? priceOverride : (custom ? custom.price : genderPrice(t)),
       gender,
       // Se si è cliccato su una colonna, il trattamento nasce già assegnato a
@@ -3120,7 +3137,10 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
 
   const addTreatmentToAppointment = (t: Treatment) => {
     const gender = services[0]?.gender ?? 'female';
-    const duration = gender === 'male' ? (t.durationMale ?? t.durationFemale ?? t.duration) : (t.durationFemale ?? t.duration);
+    // Anche qui il posto in agenda è durata + preparazione: un trattamento
+    // aggiunto a seduta iniziata occupa la cabina come tutti gli altri.
+    const duration = (gender === 'male' ? (t.durationMale ?? t.durationFemale ?? t.duration) : (t.durationFemale ?? t.duration))
+      + (t.preparazione || 0);
     const price = gender === 'male' ? (t.priceMale ?? t.priceFemale ?? t.price) : (t.priceFemale ?? t.price);
     // Cliente già in cabina = trattamento VENDUTO dall'estetista durante la
     // seduta, non prenotato: è un upsell e finisce nella sua classifica.

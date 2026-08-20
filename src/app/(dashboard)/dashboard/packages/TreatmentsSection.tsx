@@ -35,6 +35,7 @@ export function TreatmentsSection() {
   const [mPrice, setMPrice] = useState(''); // prezzo uomo
   const [wDur, setWDur] = useState('30');   // durata donna
   const [mDur, setMDur] = useState('');     // durata uomo
+  const [prep, setPrep] = useState('');     // minuti di preparazione (solo agenda)
   const [color, setColor] = useState('#A855F7');
   const [saving, setSaving] = useState(false);
   /**
@@ -59,13 +60,14 @@ export function TreatmentsSection() {
     [operatori],
   );
 
-  const openAdd = () => { setEditing(null); setName(''); setCategory('facial'); setWPrice(''); setMPrice(''); setWDur('30'); setMDur(''); setColor('#A855F7'); setSkills([]); setShowModal(true); };
+  const openAdd = () => { setEditing(null); setName(''); setCategory('facial'); setWPrice(''); setMPrice(''); setWDur('30'); setMDur(''); setPrep(''); setColor('#A855F7'); setSkills([]); setShowModal(true); };
   const openEdit = (t: Treatment) => {
     setEditing(t); setName(t.name); setCategory(t.category);
     setWPrice(String(t.priceFemale ?? t.price ?? ''));
     setMPrice(t.priceMale != null ? String(t.priceMale) : '');
     setWDur(String(t.durationFemale ?? t.duration ?? 30));
     setMDur(t.durationMale != null ? String(t.durationMale) : '');
+    setPrep(t.preparazione ? String(t.preparazione) : '');
     setColor(t.color); setSkills(t.operatorSkills || []); setShowModal(true);
   };
 
@@ -91,7 +93,7 @@ export function TreatmentsSection() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editing?.id, name: name.trim(), category,
-          priceFemale: wPrice, priceMale: mPrice, durationFemale: wDur, durationMale: mDur, color,
+          priceFemale: wPrice, priceMale: mPrice, durationFemale: wDur, durationMale: mDur, preparazione: prep, color,
           operatorSkills: skills,
         }),
       });
@@ -240,6 +242,13 @@ export function TreatmentsSection() {
                   <td className="px-5 py-3 hidden sm:table-cell"><span className="text-xs text-text-secondary">{getCategoryLabel(t.category)}</span></td>
                   <td className="px-5 py-3 text-center">
                     <span className="text-sm text-text-secondary">♀ {durF(t)}′{durM(t) != null ? <span className="text-text-muted"> · ♂ {durM(t)}′</span> : null}</span>
+                    {/* Con la preparazione i minuti veri sono altri: si vedono
+                        qui, se no si scopre solo quando l'agenda slitta. */}
+                    {t.preparazione ? (
+                      <span className="block text-[11px] text-accent" title="Durata più preparazione: è il posto che occupa in agenda">
+                        +{t.preparazione}′ prep · in agenda {durF(t) + t.preparazione}′
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-5 py-3 text-right">
                     <span className="text-sm font-semibold text-text-primary">♀ {formatCurrency(priceF(t))}</span>
@@ -299,6 +308,22 @@ export function TreatmentsSection() {
                     <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Durata Uomo (min)</label>
                       <input type="number" value={mDur} onChange={e => setMDur(e.target.value)} placeholder="—"
                         className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
+                  </div>
+
+                  {/* La preparazione: quello che il trattamento si porta dietro
+                      e che alla cliente non si dice. Sta sotto le durate perché
+                      è la stessa cosa vista dall'altra parte — quanto tempo
+                      togliere all'agenda, non quanto prometterne. */}
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">Preparazione (min)</label>
+                    <input type="number" min={0} value={prep} onChange={e => setPrep(e.target.value)} placeholder="0"
+                      className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
+                    <p className="text-[11px] text-text-muted mt-1.5">
+                      Cabina da allestire, prodotto da stendere, macchinario da scaldare.
+                      {Number(prep) > 0
+                        ? ` Alla cliente dici ${wDur || 30} minuti, in agenda il posto occupato è ${Number(wDur || 30) + Number(prep)}.`
+                        : ' Alla cliente si dice la durata qui sopra; in agenda si occupa la somma delle due.'}
+                    </p>
                   </div>
                   {/* Chi lo fa e quanto ci mette. La riga della durata compare
                       solo per chi è spuntata: si scrive solo dove il tempo è

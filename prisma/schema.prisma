@@ -250,6 +250,10 @@ model Treatment {
   requiresEquipment String?
   bufferBefore      Int     @default(0)
   bufferAfter       Int     @default(0)
+  /// Minuti di preparazione che il trattamento si porta dietro (cabina da
+  /// allestire, prodotto da stendere, macchinario da scaldare). Alla cliente
+  /// si dice la durata qui sopra; in agenda il posto occupato è la somma.
+  preparazione      Int     @default(0)
   color             String
   isActive          Boolean @default(true)
   /// Chi lo esegue e con che tempi: [{ operatorId, duration, price? }].
