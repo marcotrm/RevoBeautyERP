@@ -52,6 +52,11 @@ export interface SlotProposto {
   prezzoTotale: number;
   /** Chi fa cosa e quando: è quello che poi si salva sull'appuntamento. */
   assegnazioni: AssegnazioneServizio[];
+  /**
+   * Vero se comincia esattamente quando l'operatrice si libera (o all'inizio
+   * del suo turno): è il posto che non lascia buchi in agenda.
+   */
+  attaccato?: boolean;
 }
 
 interface Turno {
@@ -317,7 +322,28 @@ function slotDelGiorno(
   const slots: SlotProposto[] = [];
   const passo = Math.max(5, ctx.regole.passoMinuti);
 
-  for (let inizio = dalle; inizio + durataTotale <= alle; inizio += passo) {
+  /*
+    Dove far cominciare la seduta.
+
+    La griglia da un quarto d'ora, da sola, lascia i buchi: se un'operatrice si
+    libera alle 12:25 il primo orario proposto è 12:30 e quei cinque minuti non
+    li recupera più nessuno — ripetuto tre volte al giorno diventa mezz'ora di
+    cabina vuota. Quindi ai soliti orari tondi si aggiungono i momenti in cui
+    qualcuno si libera davvero: la fine di ogni appuntamento e l'inizio di ogni
+    turno. Sono quelli che attaccano il nuovo appuntamento al precedente.
+  */
+  const attacchi = new Set<number>();
+  for (const [, fasce] of lavoro) for (const f of fasce) attacchi.add(f.from);
+  for (const [, fasce] of occupato) for (const f of fasce) attacchi.add(f.to);
+
+  const inizi: number[] = [];
+  for (let t = dalle; t + durataTotale <= alle; t += passo) inizi.push(t);
+  for (const t of attacchi) {
+    if (t >= dalle && t + durataTotale <= alle && !inizi.includes(t)) inizi.push(t);
+  }
+  inizi.sort((a, b) => a - b);
+
+  for (const inizio of inizi) {
     const assegnate: AssegnazioneServizio[] = [];
 
     const prova = (i: number, cursore: number): boolean => {
@@ -353,6 +379,7 @@ function slotDelGiorno(
 
     if (prova(0, inizio)) {
       slots.push({
+        attaccato: attacchi.has(inizio),
         time: toHHMM(inizio),
         endTime: toHHMM(inizio + durataTotale),
         durataTotale,

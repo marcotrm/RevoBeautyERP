@@ -265,8 +265,16 @@ export default function CercaBuchiModal({ onClose, onPrenota }: Props) {
                     <button key={`${b.date}-${b.time}-${i}`} onClick={() => onPrenota(b, scelti.map(x => x.t.id))}
                       className="w-full flex items-start gap-3 p-3 rounded-xl bg-bg-tertiary/60 border border-border hover:border-accent/50 hover:bg-bg-hover transition-all text-left group">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-text-primary first-letter:uppercase">
+                        <p className="text-sm font-semibold text-text-primary first-letter:uppercase flex items-center gap-2 flex-wrap">
                           {giornoInParole(b.date, oggi)} alle {b.time}
+                          {/* Il posto che si incastra senza lasciare cabina vuota:
+                              è quello che conviene dare, e va detto. */}
+                          {b.attaccato && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-success/15 text-success"
+                              title="Comincia appena si libera l'operatrice: non lascia buchi in agenda">
+                              SENZA BUCHI
+                            </span>
+                          )}
                         </p>
                         {staffetta ? (
                           <div className="mt-1 space-y-0.5">

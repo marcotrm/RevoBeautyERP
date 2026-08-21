@@ -50,6 +50,7 @@ import WaitlistPanel from '@/components/WaitlistPanel';
 import CercaBuchiModal from '@/components/CercaBuchiModal';
 import AddClientModal from '@/components/AddClientModal';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
+import { senzaOmaggioInaugurazione } from '@/lib/omaggioInaugurazione';
 import SegniCliente from '@/components/SegniCliente';
 import AvvisoCliente from '@/components/AvvisoCliente';
 
@@ -2165,17 +2166,28 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   // L'abbinamento è sulla scheda cliente quando il pacchetto ce l'ha salvata;
   // i pacchetti vecchi hanno solo il nome scritto a mano, quindi si confronta
   // anche quello ignorando maiuscole e ordine di nome/cognome.
+  /*
+    L'inaugurazione è finita.
+
+    L'omaggio serviva a far entrare gente che non ci conosceva. Chi nel
+    frattempo ha comprato un pacchetto vero è già cliente: continuare a
+    mostrarle la seduta gratis in ogni appuntamento è solo confusione al banco
+    — e un invito a regalare una seduta a chi ormai paga.
+
+    L'omaggio non si cancella e resta nella sua scheda: sparisce solo da qui.
+  */
   const clientActivePkgs = useMemo(() => {
     if (!selectedClientName) return [];
     const normalize = (n: string) => n.toLowerCase().trim().split(/\s+/).sort().join(' ');
     const target = normalize(selectedClientName);
-    return allPkgData.filter(cp => {
+    const suoi = allPkgData.filter(cp => {
       const stessoCliente = (selectedClientId && cp.clientId === selectedClientId) ||
         normalize(cp.clientName) === target ||
         cp.clientName.toLowerCase().includes(selectedClientName.toLowerCase()) ||
         selectedClientName.toLowerCase().includes(cp.clientName.toLowerCase());
       return stessoCliente && (cp.status === 'active' || cp.status === 'expiring');
     });
+    return senzaOmaggioInaugurazione(suoi);
   }, [selectedClientName, selectedClientId, allPkgData]);
 
   const selectedClient = useMemo(() => allClients.find(c => c.id === selectedClientId), [selectedClientId, allClients]);
@@ -3253,12 +3265,12 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     (c.firstName + ' ' + c.lastName).toLowerCase().includes(appointment.clientName.toLowerCase()) ||
     appointment.clientName.toLowerCase().includes((c.firstName + ' ' + c.lastName).toLowerCase())
   );
-  const clientPkgs = allClientPkgs.filter(
+  const clientPkgs = senzaOmaggioInaugurazione(allClientPkgs.filter(
     cp => (normalize(cp.clientName) === targetName ||
            cp.clientName.toLowerCase().includes(appointment.clientName.toLowerCase()) ||
            appointment.clientName.toLowerCase().includes(cp.clientName.toLowerCase())) &&
           (cp.status === 'active' || cp.status === 'expiring')
-  );
+  ));
 
   const packagesWithDebt = clientPkgs.filter(cp => cp.remainingBalance > 0);
   const totalPkgDebt = packagesWithDebt.reduce((s, cp) => s + (cp.remainingBalance || 0), 0);
@@ -3980,7 +3992,12 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
 
             {appointment.notes && <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Note Appuntamento</p><p className="text-sm text-text-primary">{appointment.notes}</p></div>}
             
-            {clientData?.notes && (
+            {/* La nota della cliente, tranne il residuo dell'inaugurazione
+                ("Da inaugurazione — interessata a…") su chi nel frattempo ha
+                comprato: era buona per il primo contatto, in cabina non dice
+                più niente e prende il posto delle note vere. */}
+            {clientData?.notes
+              && !(/inaugurazione/i.test(clientData.notes) && clientPkgs.length > 0) && (
               <div className="p-3 rounded-xl bg-warning/10 border border-warning/20">
                 <p className="text-xs text-warning/80 mb-1">Note Cliente</p>
                 <p className="text-sm font-medium text-warning">{clientData.notes}</p>

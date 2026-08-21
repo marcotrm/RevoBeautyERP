@@ -23,6 +23,8 @@ export interface BucoTrovato {
   endTime: string;
   durata: number;
   prezzo: number;
+  /** Comincia esattamente quando l'operatrice si libera: non lascia buchi. */
+  attaccato: boolean;
   /** Chi fa cosa, in ordine: è quello che finisce sull'appuntamento. */
   chiFaCosa: { treatmentId: string; treatmentName: string; operatorId: string; operatorName: string; startTime: string }[];
 }
@@ -97,15 +99,28 @@ export async function cercaBuchi(params: {
     return (h || 0) * 60 + (m || 0);
   };
 
+  /*
+    Prima quelli che non lasciano buchi.
+
+    Fra le 12:25 (quando l'operatrice si libera) e le 12:45 (il primo orario
+    tondo) la differenza sono venti minuti di cabina vuota che non tornano
+    più. Quindi si propongono per primi i posti attaccati a quello di prima, e
+    solo dopo si riempie con gli orari tondi — sempre distanti fra loro, se no
+    tre proposte diventano tre modi di dire la stessa cosa.
+  */
   for (const g of esito.giorni) {
     const scelti: number[] = [];
-    const slotDiradati = g.slots.filter(s => {
+    const prendi = (s: (typeof g.slots)[number], distanza: number) => {
       if (scelti.length >= 3) return false;
       const t = minuti(s.time);
-      if (scelti.some(x => Math.abs(x - t) < DISTANZA_MIN)) return false;
+      if (scelti.some(x => Math.abs(x - t) < distanza)) return false;
       scelti.push(t);
       return true;
-    });
+    };
+    // Gli attaccati stanno più vicini fra loro: sono posti veri, non varianti.
+    const attaccati = g.slots.filter(s => s.attaccato && prendi(s, 45));
+    const altri = g.slots.filter(s => !s.attaccato && prendi(s, DISTANZA_MIN));
+    const slotDiradati = [...attaccati, ...altri].sort((a, b) => minuti(a.time) - minuti(b.time));
     for (const s of slotDiradati) {
       buchi.push({
         date: g.date,
@@ -113,6 +128,7 @@ export async function cercaBuchi(params: {
         endTime: s.endTime,
         durata: s.durataTotale,
         prezzo: s.prezzoTotale,
+        attaccato: Boolean(s.attaccato),
         chiFaCosa: s.assegnazioni.map(a => ({
           treatmentId: a.treatmentId,
           treatmentName: a.treatmentName,
