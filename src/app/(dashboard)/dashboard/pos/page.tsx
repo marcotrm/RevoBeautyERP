@@ -232,9 +232,28 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     setSavedTx(saved || null);
     setSaving(false);
     setStep('done');
+
+    /*
+      Lo scontrino esce da solo.
+
+      Prima bisognava premere "Stampa scontrino" a incasso finito: un passaggio
+      in più con la cliente davanti che aspetta, e quando qualcuno se ne
+      dimenticava la copia cartacea non usciva affatto. Il tasto resta, per la
+      seconda copia.
+    */
+    handlePrintReceipt(saved || null);
   };
 
-  const handlePrintReceipt = () => {
+  /**
+   * Stampa il tagliando.
+   *
+   * `tx` si passa a mano subito dopo l'incasso: lo stato con i riferimenti del
+   * documento fiscale è appena stato impostato e in quel giro di render non è
+   * ancora leggibile, e senza quei numeri lo scontrino uscirebbe senza il
+   * riferimento al documento commerciale.
+   */
+  const handlePrintReceipt = (tx?: TransactionRecord | null) => {
+    const doc = tx !== undefined ? tx : savedTx;
     const finalMethod = paymentMethod === 'misto'
       ? `Misto (Contanti €${splitCash}, Carta €${splitCard})`
       : PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label || 'Carta';
@@ -245,8 +264,8 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       client: selectedClient || 'Cliente Occasionale',
       operator: initialData?.operator || 'Staff',
       // Riferimenti del documento commerciale elettronico, se C95 lo ha già emesso
-      progressivo: savedTx?.c95Progressivo,
-      idtrx: savedTx?.c95Idtrx,
+      progressivo: doc?.c95Progressivo,
+      idtrx: doc?.c95Idtrx,
     });
   };
 
@@ -525,8 +544,8 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
               </>
             ) : (
               <div className="w-full flex items-center gap-3">
-                <button onClick={handlePrintReceipt} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border text-sm font-medium text-text-primary hover:bg-bg-hover transition-colors">
-                  <Printer className="w-4 h-4" /> Stampa scontrino
+                <button onClick={() => handlePrintReceipt()} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border text-sm font-medium text-text-primary hover:bg-bg-hover transition-colors">
+                  <Printer className="w-4 h-4" /> Stampa un'altra copia
                 </button>
                 <button onClick={onClose} className="flex-1 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:scale-105 transition-all">
                   ✓ Chiudi

@@ -805,7 +805,7 @@ export const GUIDA: AreaGuida[] = [
         "In Aggiungi Servizi / Prodotti cerca e clicca quello che sta pagando: finisce nel Carrello, dove con − e + cambi la quantità e col cestino togli una riga.",
         "Clicca Vai al Pagamento.",
         "Scegli il metodo di pagamento e clicca Incassa con l'importo.",
-        "Alla schermata Pagamento Completato clicca Stampa scontrino se lo vuole, poi ✓ Chiudi.",
+        "Alla schermata Pagamento Completato lo scontrino parte da solo in stampa: conferma la stampa, poi ✓ Chiudi.",
       ],
       attenzione: "Il cliente è facoltativo: se non lo metti la vendita risulta di Cliente Occasionale. I pacchetti hanno il pacchetto disegnato davanti al nome e i prodotti la boccetta: solo i prodotti scalano il magazzino. Se la cliente ha un listino suo, lo sconto si mette da solo appena la selezioni.",
     },
@@ -883,10 +883,10 @@ export const GUIDA: AreaGuida[] = [
     },
     {
       titolo: "Stampare il foglietto per la cliente",
-      dove: "Cassa → dopo l'incasso Stampa scontrino, oppure Cassa → Ultimo Scontrino → Stampa",
+      dove: "Cassa → parte da solo a fine incasso, oppure Cassa → Ultimo Scontrino → Stampa",
       aCosaServe: "Dare alla cliente il pezzo di carta con quello che ha preso e quanto ha pagato.",
       comeSiFa: [
-        "Appena finito l'incasso, nella schermata Pagamento Completato, clicca Stampa scontrino.",
+        "Appena finito l'incasso la stampa parte da sola: basta confermarla. Per una seconda copia c'è il tasto Stampa un'altra copia.",
         "Se te ne accorgi dopo, dalla pagina Cassa clicca il riquadro Ultimo Scontrino e poi Stampa.",
         "Conferma la stampa e la termica sputa il foglietto.",
       ],
