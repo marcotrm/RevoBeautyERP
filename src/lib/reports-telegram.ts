@@ -88,6 +88,15 @@ function mesePrecedente(mese: string): string {
   return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
 }
 
+function meseSuccessivo(mese: string): string {
+  const [y, m] = mese.split('-').map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+}
+
+function virgola(n: number): string {
+  return n.toFixed(1).replace('.', ',');
+}
+
 function nomeMese(mese: string): string {
   const [, m] = mese.split('-').map(Number);
   return MESI[m - 1] || mese;
@@ -97,49 +106,88 @@ export async function buildClientiNuoviReport(date?: string): Promise<string> {
   const d = date || todayRome();
   const mese = d.slice(0, 7);
   const scorso = mesePrecedente(mese);
+  const giorno = Number(d.slice(8, 10)) || 1;
 
   /*
-    Il mese si conta fino a stasera, non fino alla fine del mese: se il report
-    lo si rilancia per un giorno passato deve dire quello che si sapeva quella
-    sera. La data è scritta in due formati (dal gestionale solo il giorno, dal
-    sito l'istante intero), quindi il confine è "prima di domani" e non "fino
-    a oggi": se no le schede nate oggi dal sito resterebbero fuori.
-  */
-  const domani = new Date(`${d}T12:00:00Z`);
-  domani.setUTCDate(domani.getUTCDate() + 1);
-  const finestra = { gte: `${mese}-01`, lt: domani.toISOString().slice(0, 10) };
+    Si prendono le date grezze dei due mesi e si conta qui.
 
-  const [oggi, delMese, delMesePrima] = await Promise.all([
+    Serve perché ogni numero va guardato "allo stesso punto del mese": venti
+    giorni di settembre contro trentuno di agosto direbbero sempre che si sta
+    andando peggio, anche in un mese ottimo.
+  */
+  const giorniDi = async (m: string): Promise<number[]> => {
+    const righe = await prisma.client.findMany({
+      where: { createdAt: { gte: `${m}-01`, lt: `${meseSuccessivo(m)}-01` } },
+      select: { createdAt: true },
+    });
+    return righe.map(r => Number(r.createdAt.slice(8, 10))).filter(n => n >= 1 && n <= 31);
+  };
+
+  const [oggi, questoMese, meseScorso] = await Promise.all([
     prisma.client.findMany({
       where: { createdAt: { startsWith: d } },
       select: { firstName: true, lastName: true },
       orderBy: [{ firstName: 'asc' }],
     }),
-    prisma.client.count({ where: { createdAt: finestra } }),
-    prisma.client.count({ where: { createdAt: { startsWith: scorso } } }),
+    giorniDi(mese),
+    giorniDi(scorso),
   ]);
 
-  const giorno = Number(d.slice(8, 10)) || 1;
+  const delMese = questoMese.filter(g => g <= giorno).length;
+  const scorsoAdOggi = meseScorso.filter(g => g <= giorno).length;
+  const scorsoTutto = meseScorso.length;
+
+  const [anno, numMese] = mese.split('-').map(Number);
+  const giorniDelMese = new Date(Date.UTC(anno, numMese, 0)).getUTCDate();
   const media = delMese / giorno;
+  const proiezione = Math.round(media * giorniDelMese);
 
   const lines: string[] = [];
-  lines.push(`🌱 <b>Clienti nuove — ${fmtDay(d)}</b>`);
+  lines.push(`\u{1F331} <b>Clienti nuove \u2014 ${fmtDay(d)}</b>`);
   lines.push('');
   if (oggi.length === 0) {
     lines.push('<b>Oggi: nessuna</b>');
   } else {
     lines.push(`<b>Oggi: ${oggi.length}</b>`);
     // Sopra la quindicina l'elenco diventa un muro: resta il numero.
-    for (const c of oggi.slice(0, 15)) lines.push(`• ${`${c.firstName} ${c.lastName}`.trim()}`);
-    if (oggi.length > 15) lines.push(`… e altre ${oggi.length - 15}`);
+    for (const c of oggi.slice(0, 15)) lines.push(`\u2022 ${`${c.firstName} ${c.lastName}`.trim()}`);
+    if (oggi.length > 15) lines.push(`\u2026 e altre ${oggi.length - 15}`);
   }
   lines.push('');
-  lines.push(`📅 <b>${nomeMese(mese)}: ${delMese}</b> dal primo del mese`);
-  lines.push(`📈 Media: ${media.toFixed(1).replace('.', ',')} al giorno`);
-  if (delMesePrima > 0) {
-    const segno = delMese > delMesePrima ? '🔼' : delMese < delMesePrima ? '🔽' : '➡️';
-    lines.push(`${segno} ${nomeMese(scorso).charAt(0).toUpperCase()}${nomeMese(scorso).slice(1)}: ${delMesePrima} in tutto il mese`);
+  lines.push(`\u{1F4C5} <b>${nomeMese(mese)}: ${delMese}</b> nei primi ${giorno} giorni`);
+  lines.push(`\u{1F4C8} Media ${virgola(media)} al giorno \u2014 di questo passo si chiude a ${proiezione}`);
+
+  lines.push('');
+  lines.push(`<b>Contro ${nomeMese(scorso)}</b>`);
+  if (scorsoAdOggi === 0) {
+    lines.push(`Ai primi ${giorno} giorni di ${nomeMese(scorso)}: nessuna`);
+  } else {
+    const diff = delMese - scorsoAdOggi;
+    const perc = Math.round((diff / scorsoAdOggi) * 100);
+    const segno = diff > 0 ? '\u{1F53C}' : diff < 0 ? '\u{1F53D}' : '\u27A1\uFE0F';
+    const parola = diff > 0 ? 'in più' : 'in meno';
+    lines.push(`Ai primi ${giorno} giorni erano ${scorsoAdOggi}`);
+    lines.push(diff === 0
+      ? `${segno} Stesso passo`
+      : `${segno} ${Math.abs(diff)} ${parola} (${perc > 0 ? '+' : ''}${perc}%)`);
   }
+  if (scorsoTutto > 0) lines.push(`Tutto ${nomeMese(scorso)}: ${scorsoTutto}`);
+
+  /*
+    L'andamento dentro al mese, settimana per settimana: dice se la crescita
+    sta rallentando o accelerando, cosa che il totale da solo nasconde.
+  */
+  const settimane: number[] = [];
+  for (let s = 0; s * 7 < giorno; s++) {
+    const da = s * 7 + 1;
+    const a = Math.min(da + 6, giorno);
+    settimane.push(questoMese.filter(g => g >= da && g <= a).length);
+  }
+  if (settimane.length > 1 && delMese > 0) {
+    lines.push('');
+    lines.push(`\u{1F4CA} Settimana per settimana: ${settimane.join(' \u00B7 ')}`);
+  }
+
   return lines.join('\n');
 }
 
