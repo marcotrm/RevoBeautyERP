@@ -21,7 +21,7 @@ export async function saveTelegramConfig(cfg: TelegramConfig) {
 }
 
 // Invia subito un report (per il tasto "Invia ora"), ignorando gli orari.
-export async function sendReportNow(which: 'incassi' | 'staff'): Promise<{ ok: boolean; error?: string }> {
+export async function sendReportNow(which: 'incassi' | 'staff' | 'clienti'): Promise<{ ok: boolean; error?: string }> {
   const cfg = await getTelegramConfig();
   if (!cfg.enabled || !cfg.botToken || !cfg.chatId) return { ok: false, error: 'Configura prima Telegram (token + chat)' };
   const res = await sendDailyReports({ which, force: true });

@@ -10,6 +10,7 @@ export default function TelegramAgentConfig() {
   const [botToken, setBotToken] = useState('');
   const [chatId, setChatId] = useState('');
   const [reportIncassi, setReportIncassi] = useState(false);
+  const [reportClientiNuovi, setReportClientiNuovi] = useState(false);
   const [reportStaff, setReportStaff] = useState(false);
   const [sendingReport, setSendingReport] = useState<string | null>(null);
   const [testingEvent, setTestingEvent] = useState<string | null>(null);
@@ -21,19 +22,20 @@ export default function TelegramAgentConfig() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
-    loadTelegramConfig().then(c => { setEnabled(c.enabled); setBotToken(c.botToken); setChatId(c.chatId); setReportIncassi(!!c.reportIncassi); setReportStaff(!!c.reportStaff); setLoaded(true); }).catch(() => setLoaded(true));
+    loadTelegramConfig().then(c => { setEnabled(c.enabled); setBotToken(c.botToken); setChatId(c.chatId); setReportIncassi(!!c.reportIncassi); setReportStaff(!!c.reportStaff); setReportClientiNuovi(!!c.reportClientiNuovi); setLoaded(true); }).catch(() => setLoaded(true));
   }, []);
 
-  const save = async (overrides?: Partial<{ enabled: boolean; reportIncassi: boolean; reportStaff: boolean }>) => {
+  const save = async (overrides?: Partial<{ enabled: boolean; reportIncassi: boolean; reportStaff: boolean; reportClientiNuovi: boolean }>) => {
     setSaving(true);
     const cfg = {
       enabled: overrides?.enabled ?? enabled,
       botToken: botToken.trim(), chatId: chatId.trim(),
       reportIncassi: overrides?.reportIncassi ?? reportIncassi,
+      reportClientiNuovi: overrides?.reportClientiNuovi ?? reportClientiNuovi,
       reportStaff: overrides?.reportStaff ?? reportStaff,
     };
     await saveTelegramConfig(cfg);
-    setEnabled(cfg.enabled); setReportIncassi(cfg.reportIncassi); setReportStaff(cfg.reportStaff);
+    setEnabled(cfg.enabled); setReportIncassi(cfg.reportIncassi); setReportStaff(cfg.reportStaff); setReportClientiNuovi(!!cfg.reportClientiNuovi);
     setSaving(false);
     setMsg({ ok: true, text: 'Impostazioni salvate' });
     setTimeout(() => setMsg(null), 3000);
@@ -128,6 +130,22 @@ export default function TelegramAgentConfig() {
                 <button onClick={() => save({ reportStaff: !reportStaff })} disabled={saving}
                   className={`relative w-11 h-6 rounded-full transition-colors ${reportStaff ? 'bg-success' : 'bg-bg-hover'}`}>
                   <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${reportStaff ? 'left-6' : 'left-1'}`} />
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-2 border-t border-border/40 pt-3">
+              <div className="min-w-0">
+                <span className="text-sm font-medium text-text-primary">Clienti nuove</span>
+                <p className="text-[11px] text-text-muted">Quante se ne sono registrate oggi e da inizio mese, col confronto col mese scorso</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button onClick={async () => { setSendingReport('clienti'); const r = await sendReportNow('clienti'); setSendingReport(null); setMsg(r.ok ? { ok: true, text: 'Report clienti nuove inviato' } : { ok: false, text: r.error || 'Errore' }); setTimeout(() => setMsg(null), 4000); }}
+                  disabled={sendingReport !== null} className="text-[11px] px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-text-secondary hover:bg-bg-hover disabled:opacity-50">
+                  {sendingReport === 'clienti' ? '...' : 'Invia ora'}
+                </button>
+                <button onClick={() => save({ reportClientiNuovi: !reportClientiNuovi })} disabled={saving}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${reportClientiNuovi ? 'bg-success' : 'bg-bg-hover'}`}>
+                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${reportClientiNuovi ? 'left-6' : 'left-1'}`} />
                 </button>
               </div>
             </div>

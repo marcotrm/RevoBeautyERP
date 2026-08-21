@@ -6,6 +6,8 @@ export interface TelegramConfig {
   chatId: string;
   reportIncassi?: boolean; // report incassi serali alle 20:00
   reportStaff?: boolean;   // classifica estetiste alle 20:00
+  /** Quante clienti nuove sono entrate oggi e da inizio mese. Acceso di suo. */
+  reportClientiNuovi?: boolean;
 }
 
 const ROW_ID = 'integration:telegram';
@@ -14,9 +16,11 @@ export async function getTelegramConfig(): Promise<TelegramConfig> {
   try {
     const row = await prisma.adminEntry.findUnique({ where: { rowId: ROW_ID } });
     const d = (row?.data as Partial<TelegramConfig>) || {};
-    return { enabled: !!d.enabled, botToken: d.botToken || '', chatId: d.chatId || '', reportIncassi: !!d.reportIncassi, reportStaff: !!d.reportStaff };
+    // Il report delle clienti nuove nasce acceso: chi aveva già configurato
+    // Telegram prima che esistesse non ha un interruttore da cercare.
+    return { enabled: !!d.enabled, botToken: d.botToken || '', chatId: d.chatId || '', reportIncassi: !!d.reportIncassi, reportStaff: !!d.reportStaff, reportClientiNuovi: d.reportClientiNuovi !== false };
   } catch {
-    return { enabled: false, botToken: '', chatId: '', reportIncassi: false, reportStaff: false };
+    return { enabled: false, botToken: '', chatId: '', reportIncassi: false, reportStaff: false, reportClientiNuovi: false };
   }
 }
 
