@@ -223,6 +223,38 @@ async function caricaContesto(dateFrom: string, dateTo: string, regole: Regole):
   };
 }
 
+/**
+ * Sotto la mezz'ora, il tempo lasciato libero prima di un appuntamento non è
+ * un posto: non ci sta dentro nessun trattamento e resta vuoto fino a sera.
+ */
+const BUCHETTO_MAX = 30;
+
+/**
+ * Vero se cominciare a quell'ora lascia un buchetto dietro di sé.
+ *
+ * Il riferimento è l'inizio della fascia di lavoro in cui si cade — dopo la
+ * pausa la fascia riparte, quindi la pausa non è un buco — spostato in avanti
+ * fino alla fine dell'ultimo impegno. Se quel riferimento è prima del primo
+ * orario proponibile (il centro non è ancora aperto, la cliente ha chiesto il
+ * pomeriggio, oggi c'è il preavviso) non si può attaccare niente e non è colpa
+ * di nessuno: si lascia passare.
+ */
+function lasciaBuchetto(
+  opId: string | undefined, inizio: number, dalle: number,
+  lavoro: Map<string, Fascia[]>, occupato: Map<string, Fascia[]>,
+): boolean {
+  if (!opId) return false;
+  const fascia = (lavoro.get(opId) || []).find(f => inizio >= f.from && inizio <= f.to);
+  if (!fascia) return false;
+  let rif = fascia.from;
+  for (const o of occupato.get(opId) || []) {
+    if (o.to <= inizio && o.to > rif) rif = o.to;
+  }
+  if (rif < dalle) return false;
+  const buco = inizio - rif;
+  return buco > 0 && buco < BUCHETTO_MAX;
+}
+
 /** Fasce di lavoro di ogni operatrice in una certa data (settimana personalizzata > turno base). */
 function lavoroDelGiorno(ctx: Contesto, date: string): Map<string, Fascia[]> {
   const giorno = new Date(date + 'T12:00:00');
@@ -378,6 +410,20 @@ function slotDelGiorno(
     };
 
     if (prova(0, inizio)) {
+      /*
+        Niente proposte che lascino un buchetto.
+
+        Se l'operatrice si libera alle 12:25, proporre le 12:45 vuol dire venti
+        minuti di cabina ferma: troppo pochi perché ci entri qualcosa, e persi
+        fino a sera. In agenda quell'orario ora è vietato — il gestionale non lo
+        fa salvare — quindi proporlo qui vorrebbe dire mandare le ragazze a
+        sbattere contro un blocco.
+
+        Il conto si fa su chi prende il primo trattamento: è l'unico buco che
+        dipende dall'ora d'inizio.
+      */
+      if (lasciaBuchetto(assegnate[0]?.operatorId, inizio, dalle, lavoro, occupato)) continue;
+
       slots.push({
         attaccato: attacchi.has(inizio),
         time: toHHMM(inizio),

@@ -117,8 +117,13 @@ export async function cercaBuchi(params: {
       scelti.push(t);
       return true;
     };
-    // Gli attaccati stanno più vicini fra loro: sono posti veri, non varianti.
-    const attaccati = g.slots.filter(s => s.attaccato && prendi(s, 45));
+    /*
+      Gli attaccati stanno più vicini fra loro: sono posti veri, non varianti
+      dello stesso posto. Un'ora e mezza di distanza però ci vuole, se no le
+      tre proposte del giorno finiscono tutte in mattinata e alla cliente che
+      lavora la mattina sembra che non ci sia posto.
+    */
+    const attaccati = g.slots.filter(s => s.attaccato && prendi(s, 90));
     const altri = g.slots.filter(s => !s.attaccato && prendi(s, DISTANZA_MIN));
     const slotDiradati = [...attaccati, ...altri].sort((a, b) => minuti(a.time) - minuti(b.time));
     for (const s of slotDiradati) {
