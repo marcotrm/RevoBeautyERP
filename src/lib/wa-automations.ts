@@ -114,7 +114,14 @@ export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
   recallDays: 60,
   recallCooldownDays: 90,
   birthdayDiscount: 'il 20%',
-  birthdayValidDays: 30,
+  /*
+    Una settimana, non un mese.
+
+    Un regalo che scade fra trenta giorni si legge, si pensa "ci vado con
+    calma" e non ci si va più. Sette giorni sono abbastanza per incastrare un
+    appuntamento e abbastanza pochi da farlo prendere adesso.
+  */
+  birthdayValidDays: 7,
   dryRun: true,
   booking: false,
   assistant: false,

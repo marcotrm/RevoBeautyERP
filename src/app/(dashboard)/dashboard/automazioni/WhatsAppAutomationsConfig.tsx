@@ -578,9 +578,10 @@ export default function WhatsAppAutomationsConfig() {
             </div>
             <div>
               <label className="block text-[11px] font-medium text-text-secondary mb-1">Validità regalo (giorni)</label>
-              <input type="number" min={7} value={cfg.birthdayValidDays}
-                onChange={e => save({ birthdayValidDays: Number(e.target.value) || 30 })}
+              <input type="number" min={3} value={cfg.birthdayValidDays}
+                onChange={e => save({ birthdayValidDays: Number(e.target.value) || 7 })}
                 className="w-full px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50" />
+              <p className="text-[10px] text-text-muted mt-1">Sette giorni: un regalo che scade fra un mese si rimanda e non si usa più.</p>
             </div>
           </div>
 
