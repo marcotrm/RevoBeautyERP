@@ -14,6 +14,9 @@
  * meglio nessuna scritta che una sbagliata.
  */
 
+import { eOmaggioInaugurazione } from './omaggioInaugurazione';
+import { packageCoreName } from './packageTreatment';
+
 const norm = (s: string | null | undefined) =>
   (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
 
@@ -55,11 +58,33 @@ export function coperturaPacchetto(
   });
   if (!suoi.length) return null;
 
+  /*
+    Il nome del pacchetto si confronta ripulito dalle parole di contorno.
+
+    "Pressoterapia 5 Sedute" non conteneva "Pressoterapia Infrarossi" e viceversa,
+    quindi il pacchetto comprato non combaciava mai col trattamento in agenda:
+    restava buono solo l'omaggio, che il trattamento se lo porta nel nome.
+    Tolte le parole "5" e "sedute" resta "pressoterapia", e i conti tornano.
+  */
   const tratt = norm(appuntamento.treatmentName);
-  const combacia = suoi.find(p => {
+  const combacianti = suoi.filter(p => {
+    if (!tratt) return false;
     const nome = norm(p.packageName);
-    return !!tratt && (nome.includes(tratt) || tratt.includes(nome));
+    if (nome.includes(tratt) || tratt.includes(nome)) return true;
+    const core = packageCoreName(p.packageName);
+    return !!core && (tratt.includes(core) || core.includes(tratt));
   });
+
+  /*
+    Se combaciano sia l'omaggio dell'inaugurazione sia un pacchetto comprato,
+    vince quello comprato.
+
+    Il nome dell'omaggio contiene per forza quello del trattamento
+    ("Pressoterapia Infrarossi (Omaggio Inaugurazione)"), quindi combaciava
+    sempre per primo: chi aveva finito l'omaggio da un pezzo e stava scalando
+    le sue cinque sedute pagate si vedeva scritto "Omaggio" sull'appuntamento.
+  */
+  const combacia = combacianti.find(p => !eOmaggioInaugurazione(p.packageName)) || combacianti[0];
 
   const scelto = combacia || (suoi.length === 1 ? suoi[0] : null);
   if (!scelto) return null;
