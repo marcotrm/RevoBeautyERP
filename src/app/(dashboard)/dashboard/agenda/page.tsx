@@ -53,6 +53,7 @@ import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { senzaOmaggioInaugurazione } from '@/lib/omaggioInaugurazione';
 import SegniCliente from '@/components/SegniCliente';
 import AvvisoCliente from '@/components/AvvisoCliente';
+import BuonoCompleannoBadge from '@/components/BuonoCompleanno';
 
 /** Mostra in chiaro il rifiuto del server (es. cliente doppione). */
 function avvisaErroreCliente(e: unknown) {
@@ -2791,6 +2792,10 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                 sta dando un posto serve una frase, non un simbolo. */}
             {selectedClientId && <AvvisoCliente clientId={selectedClientId} nome={selectedClientName} />}
 
+            {/* Il regalo di compleanno da spendere: si vede mentre le si dà il
+                posto, non dopo — così glielo si può dire al telefono. */}
+            {selectedClientId && <BuonoCompleannoBadge clientId={selectedClientId} className="w-full justify-center" />}
+
             {/* === PACCHETTI ATTIVI DEL CLIENTE === */}
             {selectedClientName && clientActivePkgs.length > 0 && (
               <div className="rounded-xl border-2 border-accent/20 bg-accent/5 p-3 space-y-2">
@@ -4133,6 +4138,10 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
             )}
 
             {appointment.notes && <div className="p-3 rounded-xl bg-bg-tertiary/50"><p className="text-xs text-text-muted mb-1">Note Appuntamento</p><p className="text-sm text-text-primary">{appointment.notes}</p></div>}
+
+            {/* Il regalo di compleanno: deve stare davanti agli occhi adesso,
+                perché è da qui che si va al check-out. */}
+            <BuonoCompleannoBadge clientId={appointment.clientId} className="w-full justify-center" />
             
             {/* La nota della cliente, tranne il residuo dell'inaugurazione
                 ("Da inaugurazione — interessata a…") su chi nel frattempo ha

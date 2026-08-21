@@ -14,6 +14,8 @@ import {
 import { getCassaforte, closeCassa, withdrawCassa, CassaMovementRecord } from '@/app/actions/cassaforte';
 import { getTransactionsByRange } from '@/app/actions/pos';
 import { printThermalReceipt, primeVatRate } from '@/lib/printReceipt';
+import { buonoDiCliente, usaBuono } from '@/app/actions/buoni';
+import type { BuonoCompleanno } from '@/lib/buonoCompleanno';
 import IncomeSummary from './IncomeSummary';
 import CassaTabs from '@/components/CassaTabs';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
@@ -114,6 +116,17 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   // Transazione salvata a incasso concluso: porta con sé l'esito dello scontrino fiscale C95
   // (progressivo e idtrx), che finiscono sul tagliando stampato.
   const [savedTx, setSavedTx] = useState<TransactionRecord | null>(null);
+  /*
+    Il regalo di compleanno della cliente, se ne ha uno da spendere.
+
+    Lo sconto lo mette il gestionale, non la ragazza al banco: il messaggio
+    l'ha promesso settimane fa e nessuno può ricordarselo a memoria cliente per
+    cliente. Si chiude solo a incasso avvenuto — se la vendita non si conclude
+    il buono resta buono.
+  */
+  const [buono, setBuono] = useState<BuonoCompleanno | null>(null);
+  /** Quanto è stato scalato davvero: serve a dirlo nella schermata finale, dove il buono ormai è chiuso. */
+  const [buonoScalato, setBuonoScalato] = useState<number | null>(null);
 
   const allClients = useClientStore(s => s.clients);
   const packages = usePackageStore(s => s.packages);
@@ -121,6 +134,36 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const filteredClients = clientSearch.trim()
     ? allClients.filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(clientSearch.toLowerCase())).slice(0, 8)
     : [];
+
+  /*
+    Il buono compleanno si carica appena si sa chi è la cliente, e si applica
+    da solo. Se il listino personale le fa uno sconto più grosso vince quello:
+    fra i due regali si dà il migliore, non l'ultimo arrivato.
+  */
+  const clienteScelto = useMemo(
+    () => allClients.find(c => `${c.firstName} ${c.lastName}` === selectedClient) || null,
+    [allClients, selectedClient],
+  );
+
+  useEffect(() => {
+    let vivo = true;
+    // Si chiede sempre, anche senza cliente: la risposta è null e lo stato si
+    // azzera lì, senza toccarlo mentre il componente si sta disegnando.
+    const id = initialData?.debtPkgId ? null : clienteScelto?.id;
+    buonoDiCliente(id).then(b => {
+      if (!vivo) return;
+      setBuono(b);
+      if (!b) return;
+      setDiscountType(prevTipo => {
+        // Uno sconto in euro già concordato in agenda non si tocca: è un patto
+        // fatto con la cliente, non un automatismo.
+        if (prevTipo === 'fixed') return prevTipo;
+        setDiscount(prev => (Number(prev) || 0) >= b.percento ? prev : String(b.percento));
+        return prevTipo;
+      });
+    }).catch(() => {});
+    return () => { vivo = false; };
+  }, [clienteScelto?.id, initialData?.debtPkgId]);
 
   // Auto-apply price list discount when client is selected
   useEffect(() => {
@@ -172,6 +215,12 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discountValue = Number(discount) || 0;
+  /*
+    Il buono si considera usato solo se lo sconto a schermo è davvero il suo:
+    se qualcuno lo azzera o lo cambia in euro, il regalo non è stato dato e
+    resta valido per la prossima volta.
+  */
+  const buonoApplicato = Boolean(buono) && discountType === 'percent' && discountValue >= (buono?.percento || 0);
   const discountAmount = discountType === 'percent' ? (subtotal * discountValue) / 100 : discountValue;
   // Arrotondato ai centesimi: sommando prezzi con la virgola viene fuori
   // 89,99999999999999, che poi si legge così anche nei riepiloghi.
@@ -232,6 +281,13 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     setSavedTx(saved || null);
     setSaving(false);
     setStep('done');
+
+    // Il buono si chiude adesso, che l'incasso c'è stato: vale una volta sola.
+    if (buonoApplicato && clienteScelto?.id) {
+      usaBuono(clienteScelto.id, saved?.id).catch(() => {});
+      setBuonoScalato(buono?.percento ?? null);
+      setBuono(null);
+    }
 
     /*
       Lo scontrino esce da solo.
@@ -388,6 +444,19 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                   ) : (
                     <>
                       <div className="flex justify-between text-sm"><span className="text-text-secondary">Subtotale</span><span className="text-text-primary font-medium">{formatCurrency(subtotal)}</span></div>
+                      {/* Perché c'è quello sconto: senza questa riga sembra un
+                          errore di battitura e qualcuno lo cancella. */}
+                      {buono && (
+                        <div className={`flex items-start gap-2 px-3 py-2 rounded-xl border text-[11px] leading-relaxed ${
+                          buonoApplicato ? 'bg-accent/10 border-accent/25 text-accent' : 'bg-bg-tertiary border-border text-text-secondary'}`}>
+                          <Gift className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                          <span>
+                            {buonoApplicato
+                              ? <><b>Regalo di compleanno applicato: {buono.percento}%.</b> Vale una volta sola e si chiude con questo incasso.</>
+                              : <><b>Ha un regalo di compleanno del {buono.percento}%</b> valido fino al {buono.scadenza.split('-').reverse().slice(0, 2).join('/')}. Non è applicato: se lo incassi così, resta buono per la prossima volta.</>}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-text-secondary">Sconto</span>
                         <div className="flex items-center gap-2">
@@ -508,6 +577,12 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                 )}
                 {/* Esito scontrino fiscale: l'operatore deve sapere subito se il documento
                     commerciale è stato trasmesso all'Agenzia delle Entrate. */}
+                {buonoScalato !== null && (
+                  <div className="w-full rounded-xl bg-accent/10 border border-accent/20 px-3 py-2 mb-3 text-left">
+                    <p className="text-xs font-semibold text-accent">🎁 Regalo di compleanno scalato ({buonoScalato}%)</p>
+                    <p className="text-[11px] text-text-secondary">Da adesso è speso: non comparirà più nella sua scheda.</p>
+                  </div>
+                )}
                 {savedTx?.c95Status === 'emitted' ? (
                   <div className="w-full rounded-xl bg-success/10 border border-success/20 px-3 py-2 text-left">
                     <p className="text-xs font-semibold text-success mb-0.5">✓ Scontrino fiscale emesso</p>

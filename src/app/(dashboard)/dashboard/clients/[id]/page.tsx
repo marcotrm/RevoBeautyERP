@@ -17,6 +17,7 @@ import {
 import { formatCurrency, getInitials, formatDate, getStatusLabel, getStatusColor, getCategoryLabel, generateId } from '@/lib/helpers';
 import Link from 'next/link';
 import AddClientModal from '@/components/AddClientModal';
+import BuonoCompleannoBadge from '@/components/BuonoCompleanno';
 import ClientRecordTab from './ClientRecordTab';
 import PromemoriaCliente from '@/components/PromemoriaCliente';
 import { valutaAffidabilita, dalQuando, MESI_AFFIDABILITA } from '@/lib/affidabilita';
@@ -240,6 +241,9 @@ export default function ClientDetailPage() {
                     <Frown className="w-3.5 h-3.5" /> Segnalata
                   </span>
                 )}
+                {/* Il regalo di compleanno ancora da spendere: qui perché è la
+                    prima scheda che si apre quando la cliente chiama. */}
+                <BuonoCompleannoBadge clientId={client.id} />
               </div>
               
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 mt-3">

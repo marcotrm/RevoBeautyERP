@@ -13,6 +13,7 @@
 import { prisma } from '@/lib/prisma';
 import { idClientiSegnalati } from '@/lib/segnalate';
 import { todayRome } from '@/lib/date';
+import { creaBuonoCompleanno, percentoDa } from '@/lib/buonoCompleanno';
 import { sendWhatsAppTemplate, normalizePhone, isSendablePhone, waProvider } from '@/lib/whatsapp';
 import { WA_TEMPLATES, sanitizeParam, isMarketing, templateButtonLabels, type TemplateKey } from '@/lib/wa-templates';
 import { listD360Templates } from '@/lib/whatsapp360';
@@ -261,6 +262,8 @@ interface Job {
   name: string;
   phone: string;
   params: string[];
+  /** Da fare solo se il messaggio è partito davvero (non in simulazione). */
+  dopoInvio?: () => Promise<void>;
 }
 
 /** Corpo del messaggio con i {{n}} già sostituiti. È il testo, senza i bottoni. */
@@ -336,6 +339,12 @@ async function runJobs(key: TemplateKey, jobs: Job[], dryRun: boolean, chiaveInv
       error: res.error,
       sentAt: new Date().toISOString(),
     });
+
+    if (res.ok && job.dopoInvio) {
+      // Se questo fallisce il messaggio è comunque partito: si annota e si va
+      // avanti, non si finge che l'invio non sia avvenuto.
+      await job.dopoInvio().catch(e => console.error(`[wa-automations] ${key}: dopoInvio`, e));
+    }
 
     if (res.ok) result.sent++; else result.failed++;
     result.details.push({ to: job.phone, name: job.name, ok: res.ok, error: res.error, preview });
@@ -430,6 +439,8 @@ export async function runBirthdays(cfg: WaAutomationsConfig, dryRun: boolean): P
   const mmdd = today.slice(5);
   const year = today.slice(0, 4);
   const expiry = shortDate(shiftDate(today, cfg.birthdayValidDays));
+  // "il 20%" scritto nelle impostazioni diventa il numero da scalare in cassa.
+  const percento = percentoDa(cfg.birthdayDiscount);
 
   const clients = await prisma.client.findMany({
     where: { marketingConsent: true, birthDate: { not: null } },
@@ -447,6 +458,17 @@ export async function runBirthdays(cfg: WaAutomationsConfig, dryRun: boolean): P
       name: `${c.firstName} ${c.lastName}`.trim(),
       phone: normalizePhone(c.phone),
       params: [sanitizeParam(c.firstName), sanitizeParam(cfg.birthdayDiscount), expiry],
+      /*
+        Il regalo promesso nel messaggio diventa un buono scritto: se no la
+        cliente arriva fra tre settimane e l'unica prova dello sconto è uno
+        screenshot sul suo telefono.
+      */
+      dopoInvio: percento
+        ? () => creaBuonoCompleanno({
+            clientId: c.id, percento, dal: today,
+            scadenza: shiftDate(today, cfg.birthdayValidDays),
+          })
+        : undefined,
     });
   }
   return runJobs('birthday', jobs, dryRun);
