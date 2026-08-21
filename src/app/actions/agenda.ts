@@ -5,6 +5,7 @@ import { avanzaSfide } from '@/lib/challenge';
 import { Appointment } from '@/types';
 import { mockOperators, mockTreatments, mockClients } from '@/lib/mock-data';
 import { notifyCancellazione, notifyNuovoAppuntamento, sendTelegram } from '@/lib/telegram';
+import { eClienteNuova } from '@/lib/clienteNuova';
 import { sendAppointmentConfirmation, sendAppointmentMoved } from '@/lib/wa-appointments';
 
 export async function getAppointments() {
@@ -81,15 +82,18 @@ export async function createAppointment(data: Omit<Appointment, 'id' | 'createdA
   sendAppointmentConfirmation(appointment.id).catch(() => {});
 
   // Notifica Telegram del nuovo appuntamento (non blocca la creazione)
-  notifyNuovoAppuntamento({
-    client: appointment.clientName,
-    treatment: appointment.treatmentName,
-    operator: appointment.operatorName,
-    date: appointment.date,
-    time: appointment.startTime,
-    price: appointment.price,
-    source: 'dal gestionale',
-  }).catch(() => {});
+  eClienteNuova(appointment.clientId, appointment.id)
+    .then(nuova => notifyNuovoAppuntamento({
+      client: appointment.clientName,
+      treatment: appointment.treatmentName,
+      operator: appointment.operatorName,
+      date: appointment.date,
+      time: appointment.startTime,
+      price: appointment.price,
+      source: 'dal gestionale',
+      nuova,
+    }))
+    .catch(() => {});
 
   return appointment as unknown as Appointment;
 }

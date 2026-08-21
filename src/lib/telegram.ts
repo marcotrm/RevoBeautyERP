@@ -122,6 +122,8 @@ export async function notifyCancellazione(params: {
 export async function notifyNuovoAppuntamento(params: {
   client?: string | null; treatment?: string; operator?: string;
   date?: string; time?: string; price?: number; source?: string;
+  /** Prima volta da noi: la scheda è nata insieme all'appuntamento. */
+  nuova?: boolean;
 }): Promise<void> {
   const cfg = await getTelegramConfig();
   if (!cfg.enabled) return;
@@ -132,7 +134,7 @@ export async function notifyNuovoAppuntamento(params: {
   const when = [dateFmt, params.time].filter(Boolean).join(' alle ');
   const lines = [
     `📅 <b>Nuovo appuntamento</b>`,
-    params.client ? `👤 ${params.client}` : '',
+    params.client ? `👤 ${params.client}${params.nuova ? ' — 🆕 <b>NEW</b>' : ''}` : '',
     params.treatment ? `🧾 ${params.treatment}` : '',
     params.operator ? `💇‍♀️ ${params.operator}` : '',
     when ? `🗓 ${when}` : '',

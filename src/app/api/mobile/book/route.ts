@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { notifyNuovoAppuntamento } from '@/lib/telegram';
+import { eClienteNuova } from '@/lib/clienteNuova';
 import { getAccountFromRequest, unauthorized } from '@/lib/mobile';
 import { todayInItaly } from '@/lib/voice';
 import { slotDisponibili, type ServizioRichiesto } from '@/lib/bookingEngine';
@@ -109,15 +110,18 @@ export async function POST(request: Request) {
   })().catch(e => console.error('[app] premi prenotazione non assegnati:', e));
 
   // Notifica Telegram del nuovo appuntamento (non blocca la prenotazione)
-  notifyNuovoAppuntamento({
-    client: appointment.clientName,
-    treatment: appointment.treatmentName,
-    operator: appointment.operatorName,
-    date: appointment.date,
-    time: appointment.startTime,
-    price: appointment.price,
-    source: 'app clienti',
-  }).catch(() => {});
+  eClienteNuova(appointment.clientId, appointment.id)
+    .then(nuova => notifyNuovoAppuntamento({
+      client: appointment.clientName,
+      treatment: appointment.treatmentName,
+      operator: appointment.operatorName,
+      date: appointment.date,
+      time: appointment.startTime,
+      price: appointment.price,
+      source: 'app clienti',
+      nuova,
+    }))
+    .catch(() => {});
 
   return Response.json({
     success: true,

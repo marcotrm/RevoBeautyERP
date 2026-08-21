@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { notifyNuovoAppuntamento } from '@/lib/telegram';
+import { eClienteNuova } from '@/lib/clienteNuova';
 import { sendAppointmentConfirmation } from '@/lib/wa-appointments';
 import {
   isAuthorized,
@@ -94,15 +95,18 @@ export async function POST(request: Request) {
   sendAppointmentConfirmation(appointment.id).catch(() => {});
 
   // Notifica Telegram del nuovo appuntamento (non blocca la prenotazione)
-  notifyNuovoAppuntamento({
-    client: appointment.clientName,
-    treatment: appointment.treatmentName,
-    operator: appointment.operatorName,
-    date: appointment.date,
-    time: appointment.startTime,
-    price: appointment.price,
-    source: 'assistente vocale',
-  }).catch(() => {});
+  eClienteNuova(appointment.clientId, appointment.id)
+    .then(nuova => notifyNuovoAppuntamento({
+      client: appointment.clientName,
+      treatment: appointment.treatmentName,
+      operator: appointment.operatorName,
+      date: appointment.date,
+      time: appointment.startTime,
+      price: appointment.price,
+      source: 'assistente vocale',
+      nuova,
+    }))
+    .catch(() => {});
 
   return Response.json({
     success: true,

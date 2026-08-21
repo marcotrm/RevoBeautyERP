@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { notifyNuovoAppuntamento } from '@/lib/telegram';
+import { eClienteNuova } from '@/lib/clienteNuova';
 import { findClientByPhone, todayInItaly } from '@/lib/voice';
 import { sendAppointmentConfirmation } from '@/lib/wa-appointments';
 import { slotDisponibili, type ServizioRichiesto } from '@/lib/bookingEngine';
@@ -112,15 +113,18 @@ export async function POST(request: Request) {
 
   // Conferma WhatsApp e avviso Telegram: nessuno dei due blocca la prenotazione
   sendAppointmentConfirmation(appointment.id).catch(() => {});
-  notifyNuovoAppuntamento({
-    client: appointment.clientName,
-    treatment: appointment.treatmentName,
-    operator: appointment.operatorName,
-    date: appointment.date,
-    time: appointment.startTime,
-    price: appointment.price,
-    source: 'prenotazione online dal sito',
-  }).catch(() => {});
+  eClienteNuova(appointment.clientId, appointment.id)
+    .then(nuova => notifyNuovoAppuntamento({
+      client: appointment.clientName,
+      treatment: appointment.treatmentName,
+      operator: appointment.operatorName,
+      date: appointment.date,
+      time: appointment.startTime,
+      price: appointment.price,
+      source: 'prenotazione online dal sito',
+      nuova,
+    }))
+    .catch(() => {});
 
   return Response.json({
     success: true,
