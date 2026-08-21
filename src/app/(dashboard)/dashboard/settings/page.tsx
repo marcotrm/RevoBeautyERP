@@ -7,7 +7,7 @@ import {
   Settings, Building2, Clock, Palette, Shield,
   Bell, Globe, CreditCard, Users,
   ChevronRight, Save, Plus, Search, X, CheckCircle,
-  Sparkles, DoorOpen, FlaskConical,
+  Sparkles, DoorOpen, FlaskConical, Trash2,
 } from 'lucide-react';
 import { useThemeStore } from '@/stores/useThemeStore';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
@@ -21,6 +21,7 @@ import { AccountsSection } from './AccountsSection';
 import C95Config from './C95Config';
 import CabinsSection from './CabinsSection';
 import AutoclaveSection from './AutoclaveSection';
+import ImmondiziaSection from './ImmondiziaSection';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { roleHasPermission } from '@/lib/permissions';
 
@@ -30,6 +31,7 @@ const settingSections = [
   { id: 'hours', label: 'Orari', icon: Clock, description: 'Orari apertura e chiusura' },
   { id: 'cabins', label: 'Cabine', icon: DoorOpen, description: 'Numero e nome di ogni cabina' },
   { id: 'autoclave', label: 'Autoclave', icon: FlaskConical, description: 'Registro disinfezioni serali' },
+  { id: 'immondizia', label: 'Immondizia', icon: Trash2, description: 'Che sacco si caccia, giorno per giorno' },
   { id: 'appearance', label: 'Aspetto', icon: Palette, description: 'Tema, colori, logo' },
   { id: 'notifications', label: 'Notifiche', icon: Bell, description: 'Email, SMS, push' },
   { id: 'accounts', label: 'Account Gestionale', icon: Users, description: 'Crea accessi staff e assegna i permessi' },
@@ -553,8 +555,14 @@ export default function SettingsPage() {
   const roles = useRolesStore(s => s.roles);
   const role = roles.find(r => r.id === user?.role);
   const puoTutto = roleHasPermission(role, 'settings');
-  const sezioniVisibili = puoTutto ? settingSections : settingSections.filter(s => s.id === 'autoclave');
-  const sezioneAttiva = puoTutto ? activeSection : 'autoclave';
+  /*
+    Chi non ha i permessi pieni vede solo le due cose che riguardano il suo
+    turno: l'autoclave e l'immondizia. Sono le ragazze che chiudono la sera —
+    il calendario dei sacchi serve esattamente a loro.
+  */
+  const perTutte = ['autoclave', 'immondizia'];
+  const sezioniVisibili = puoTutto ? settingSections : settingSections.filter(s => perTutte.includes(s.id));
+  const sezioneAttiva = puoTutto || perTutte.includes(activeSection) ? activeSection : 'autoclave';
   const [toggleStates, setToggleStates] = useState<Record<string, boolean>>(
     Object.fromEntries(notifications.map((n, i) => [i.toString(), n.active]))
   );
@@ -751,6 +759,10 @@ export default function SettingsPage() {
 
             {sezioneAttiva === 'autoclave' && (
               <AutoclaveSection />
+            )}
+
+            {sezioneAttiva === 'immondizia' && (
+              <ImmondiziaSection />
             )}
 
             {sezioneAttiva === 'price_lists' && (

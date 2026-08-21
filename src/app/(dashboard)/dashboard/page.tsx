@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
+import PromemoriaImmondizia from '@/components/PromemoriaImmondizia';
 import { motion } from 'framer-motion';
 import {
   TrendingUp, TrendingDown, Calendar, Users, Euro,
@@ -330,6 +331,12 @@ export default function DashboardPage() {
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all" title="Vedi i dati dal cellulare">
           <Smartphone className="w-4 h-4" /> Versione mobile
         </a>
+      </motion.div>
+
+      {/* Cosa si porta fuori stasera: si vede senza cercarlo, che è l'unico
+          modo perché qualcuno se ne ricordi alla chiusura. */}
+      <motion.div variants={item}>
+        <PromemoriaImmondizia />
       </motion.div>
 
       {/* KPI Cards */}

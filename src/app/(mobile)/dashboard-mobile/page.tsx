@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import PromemoriaImmondizia from '@/components/PromemoriaImmondizia';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Euro, CalendarDays, Users, ShoppingBag, Receipt, ChevronRight, TrendingUp } from 'lucide-react';
@@ -66,6 +67,10 @@ export default function DashboardMobilePage() {
           <p className="text-center text-text-muted py-16 text-sm">Caricamento...</p>
         ) : (
           <>
+            {/* Chi chiude la sera guarda il telefono, non il computer: qui
+                dev'esserci quello che si porta fuori. */}
+            <PromemoriaImmondizia compatto />
+
             {/* KPI */}
             <div className="grid grid-cols-2 gap-3">
               {kpis.map(k => {
