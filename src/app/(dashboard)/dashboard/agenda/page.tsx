@@ -176,6 +176,12 @@ function isMinuteUnavailable(op: Operator, date: Date, minFromStart: number, wee
  * l'appuntamento atterra con l'inizio sotto il cursore e quindi salta in su
  * di quanto l'avevi preso più in basso.
  */
+/**
+ * Sotto la mezz'ora, il tempo lasciato libero fra due appuntamenti non è un
+ * posto: non ci sta dentro nessun trattamento e resta vuoto fino a sera.
+ */
+const BUCHETTO_MAX = 30;
+
 const trascinamento = {
   attivo: false, presaY: 0, durata: 60,
   /** Vero se si sta trascinando la fetta di un appuntamento diviso. */
@@ -2383,6 +2389,8 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
 
   const handleSave = () => {
     if (!canSave || selectedServices.length === 0 || !selectedOperator) return;
+    // Niente buchetti: il tasto è già spento, ma questa è la porta vera.
+    if (buchetti.length > 0) return;
     const first = selectedServices[0];
     const firstTreatment = treatments.find(t => t.id === first.treatmentId);
     const data = {
@@ -2550,18 +2558,46 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   // dopo la chiusura va scritta in agenda, non nascosta.
   const orariPossibili = useMemo(() => {
     const dur = totalDuration || 15;
+    const minuti = new Set<number>();
+    for (let t = START_HOUR * 60; t < END_HOUR * 60; t += 15) minuti.add(t);
+
+    /*
+      Oltre ai quarti d'ora, gli orari in cui qualcuna si libera davvero.
+
+      La tendina andava di quindici in quindici: se il trattamento prima
+      finiva alle 11:50, il primo orario proponibile erano le 12:00 e quei
+      dieci minuti non c'era modo di non lasciarli. Ora la fine di ogni
+      appuntamento (e di ogni fascia bloccata) è essa stessa un orario da
+      scegliere, ed è quello giusto.
+    */
+    const coinvolte = new Set<string>();
+    if (selectedOperatorId) coinvolte.add(selectedOperatorId);
+    for (const sv of selectedServices) if (sv.operatorId) coinvolte.add(sv.operatorId);
+    const delGiorno = appointments.filter(a =>
+      a.date === dateStr && a.id !== editingAppointment?.id &&
+      a.status !== 'cancelled' && a.status !== 'no_show'
+    );
+    for (const opId of coinvolte) {
+      for (const a of appointmentsForOperator(delGiorno, opId)) minuti.add(fineOccupazione(a));
+      for (const b of blocks) {
+        if (b.date === dateStr && b.operatorId === opId) minuti.add(timeToMinutes(b.endTime));
+      }
+    }
+
     const list: { ora: string; occupato: boolean; fuoriTurno: boolean }[] = [];
-    for (let t = START_HOUR * 60; t < END_HOUR * 60; t += 15) {
+    for (const t of [...minuti].sort((a, b) => a - b)) {
+      if (t < START_HOUR * 60 || t >= END_HOUR * 60) continue;
       // In modifica, l'orario attuale dell'appuntamento non si segnala: è già suo.
       const isCurrent = editingAppointment && t === timeToMinutes(startTime);
       list.push({
-        ora: `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`,
+        ora: minutesToTime(t),
         occupato: !isCurrent && !slotIsFree(t, dur),
         fuoriTurno: !isCurrent && fuoriServizioAt(t, dur).length > 0,
       });
     }
     return list;
-  }, [totalDuration, slotIsFree, fuoriServizioAt, editingAppointment, startTime]);
+  }, [totalDuration, slotIsFree, fuoriServizioAt, editingAppointment, startTime,
+      selectedOperatorId, selectedServices, appointments, dateStr, blocks, fineOccupazione]);
 
   // NIENTE cambio d'orario automatico: l'orario che l'operatrice ha cliccato
   // in agenda resta quello. Se poi risulta occupato lo dice l'avviso, ma la
@@ -2581,6 +2617,78 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     if (selectedServices.length === 0 || !selectedOperatorId) return [];
     return fuoriServizioAt(timeToMinutes(startTime), totalDuration);
   }, [startTime, selectedServices, selectedOperatorId, fuoriServizioAt, totalDuration]);
+
+  /**
+   * Il buchetto di dieci minuti fra un appuntamento e l'altro.
+   *
+   * L'appuntamento prima finisce alle 10:00 e questo si scrive alle 10:10:
+   * dieci minuti in cui la cabina è ferma, nessuno può prenotare (troppo corti
+   * per starci dentro un trattamento) e la giornata si accorcia. Succedeva
+   * senza cattiveria — l'orario si sceglieva a occhio dalla tendina, che va di
+   * quarto d'ora in quarto d'ora — e nessuno se ne accorgeva.
+   *
+   * Qui si sbarra la strada: sotto la mezz'ora quello non è un posto libero, è
+   * una pausa. Se la pausa serve davvero si mette come fascia bloccata, e
+   * infatti i blocchi contano come tempo occupato: attaccarsi alla fine di una
+   * pausa scritta va benissimo.
+   *
+   * Si guarda solo il primo trattamento, quello che comincia all'ora scelta:
+   * è l'unico buco che si chiude spostando l'orario di inizio.
+   */
+  const buchetti = ((): { operatorId: string; nome: string; fine: number; minuti: number }[] => {
+    if (selectedServices.length === 0 || !selectedOperatorId) return [];
+    /*
+      In modifica non si sbarra niente finché l'orario resta quello.
+
+      Chi apre un appuntamento di stamattina solo per aggiungere una nota non
+      c'entra col buco: era già lì. Bloccargli il salvataggio vorrebbe dire
+      costringerlo a spostare una cliente per cambiare due parole.
+    */
+    if (editingAppointment && startTime === editingAppointment.startTime && dateStr === editingAppointment.date) return [];
+    const inizio = timeToMinutes(startTime);
+    const altri = appointments.filter(a =>
+      a.date === dateStr && a.id !== editingAppointment?.id &&
+      a.status !== 'cancelled' && a.status !== 'no_show'
+    );
+    const trovati: { operatorId: string; nome: string; fine: number; minuti: number }[] = [];
+    for (const [opId, range] of fetteAt(inizio, totalDuration)) {
+      if (range.from !== inizio) continue;
+      const op = operators.find(o => o.id === opId);
+      // Le cabine restano fuori: una stanza che sta ferma dieci minuti non si
+      // sta prendendo una pausa, e spesso serve per arieggiare o pulire.
+      if (op?.isResource) continue;
+      let fine = -1;
+      for (const a of appointmentsForOperator(altri, opId)) {
+        const f = fineOccupazione(a);
+        if (f <= range.from) fine = Math.max(fine, f);
+      }
+      for (const b of blocks) {
+        if (b.date !== dateStr || b.operatorId !== opId) continue;
+        const f = timeToMinutes(b.endTime);
+        if (f <= range.from) fine = Math.max(fine, f);
+      }
+      if (fine < 0) continue;
+      const minuti = range.from - fine;
+      /*
+        Se in mezzo c'è la pausa del turno, non è una pausa che si è presa lei:
+        gliel'ha data l'orario. Quel tempo non è suo e non si può riempire.
+      */
+      let tempoSuo = true;
+      for (let t = fine; t < range.from && tempoSuo; t += 5) {
+        if (op && isMinuteUnavailable(op, apptDateObj, t - START_HOUR * 60, apptWeekMap)) tempoSuo = false;
+      }
+      if (!tempoSuo) continue;
+      if (minuti > 0 && minuti < BUCHETTO_MAX) {
+        trovati.push({ operatorId: opId, nome: op ? `${op.firstName} ${op.lastName}`.trim() : 'Operatrice', fine, minuti });
+      }
+    }
+    return trovati;
+  })();
+
+  /** L'ora giusta: attaccata a chi si libera per ultima. */
+  const oraAttaccata = buchetti.length > 0
+    ? minutesToTime(Math.max(...buchetti.map(b => b.fine)))
+    : '';
 
   const isOccupied = conflitti.length > 0;
   const isFuoriTurno = fuoriServizio.length > 0;
@@ -2937,6 +3045,39 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                 </span>
               </div>
             )}
+            {/* Qui invece la strada si sbarra. Un buchetto di dieci minuti non lo
+                recupera nessuno, e la sola cosa da fare è attaccarsi: il tasto
+                lo fa in un colpo, senza far cercare l'orario nella tendina. */}
+            {buchetti.length > 0 && (
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-error/10 border border-error/30">
+                <AlertCircle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-error">
+                    {buchetti.length === 1
+                      ? `Lascia ${buchetti[0].minuti} minuti vuoti dopo l'appuntamento di ${buchetti[0].nome}`
+                      : 'Lascia dei minuti vuoti fra un appuntamento e l\'altro'}
+                  </p>
+                  <ul className="text-xs text-text-secondary mt-1 space-y-0.5">
+                    {buchetti.map(b => (
+                      <li key={b.operatorId}>
+                        <strong className="text-text-primary">{b.nome}</strong> si libera alle{' '}
+                        <strong className="text-text-primary">{minutesToTime(b.fine)}</strong>, qui si comincia alle {startTime}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-text-muted mt-1.5">
+                    Sono minuti in cui la cabina resta ferma e nessuna cliente ci sta dentro.
+                    Attacca l&apos;appuntamento a quello prima. Se la pausa serve davvero,
+                    scrivila in agenda come fascia bloccata.
+                  </p>
+                  <button type="button" onClick={() => setStartTime(oraAttaccata)}
+                    className="mt-2 px-3 py-1.5 rounded-xl bg-error text-white text-xs font-bold hover:brightness-110 transition-all">
+                    Sposta alle {oraAttaccata}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Si avvisa, non si sbarra la strada: la durata a listino è larga
                 (cento minuti che spesso ne diventano ottanta) e dieci minuti
                 di accavallamento al banco si gestiscono. Chi sta lì decide. */}
@@ -3025,9 +3166,10 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
               {/* Se è occupata o fuori turno il tasto diventa arancione e
                   cambia nome: si può fare, ma si vede che è una forzatura
                   voluta. */}
-              <button onClick={handleSave} disabled={!canSave}
+              <button onClick={handleSave} disabled={!canSave || buchetti.length > 0}
+                title={buchetti.length > 0 ? `Attacca l'appuntamento alle ${oraAttaccata}: prima resta un buco di ${buchetti[0].minuti} minuti` : undefined}
                 className={`px-5 py-2 rounded-xl text-white text-sm font-medium transition-all ${
-                  !canSave ? 'bg-bg-tertiary text-text-muted cursor-not-allowed'
+                  !canSave || buchetti.length > 0 ? 'bg-bg-tertiary text-text-muted cursor-not-allowed'
                     : (isOccupied || isFuoriTurno) && !editingAppointment ? 'bg-warning shadow-lg shadow-warning/20 hover:brightness-110'
                     : 'gradient-accent shadow-lg shadow-accent/20'}`}>
                 {editingAppointment ? 'Salva Modifiche'
