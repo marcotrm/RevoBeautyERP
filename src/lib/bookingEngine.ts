@@ -510,7 +510,7 @@ export async function cercaSlot(req: RicercaSlot): Promise<{
   const giorni: GiornoDisponibile[] = [];
   for (const d of date) {
     const slots = slotDelGiorno(ctx, d, passi, req.oraDa, req.oraA);
-    if (slots.length > 0) giorni.push({ date: d, slots: slots.slice(0, max) });
+    if (slots.length > 0) giorni.push({ date: d, slots: distribuisci(slots, max) });
   }
 
   return {
@@ -518,6 +518,29 @@ export async function cercaSlot(req: RicercaSlot): Promise<{
     durataTotale: passi.reduce((s, p) => s + p.duration, 0),
     prezzoTotale: passi.reduce((s, p) => s + p.price, 0),
   };
+}
+
+/**
+ * Quando gli orari sono troppi, si tagliano prendendoli in giro per la
+ * giornata — non i primi.
+ *
+ * Prima si faceva `slice(0, max)`: con un tetto di dodici orari e un
+ * trattamento da mezz'ora, i dodici finivano tutti fra le dieci e l'una e il
+ * pomeriggio non veniva proposto mai. In agenda l'operatrice era libera fino a
+ * sera, e "Cerca buchi" rispondeva che c'era posto solo la mattina.
+ *
+ * Qui si tiene il primo, l'ultimo e il resto spalmato in mezzo: il tetto serve
+ * a non mandare in giro cento orari, non a dimezzare la giornata.
+ */
+function distribuisci(slots: SlotProposto[], max: number): SlotProposto[] {
+  if (slots.length <= max || max < 2) return slots.slice(0, Math.max(1, max));
+  const passo = (slots.length - 1) / (max - 1);
+  const scelti: SlotProposto[] = [];
+  for (let i = 0; i < max; i++) {
+    const s = slots[Math.round(i * passo)];
+    if (s && s !== scelti[scelti.length - 1]) scelti.push(s);
+  }
+  return scelti;
 }
 
 export interface OperatriceScelta {

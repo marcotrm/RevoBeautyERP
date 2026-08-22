@@ -77,9 +77,15 @@ export async function cercaBuchi(params: {
     gender: params.gender || 'female',
     oraDa: params.oraDa || null,
     oraA: params.oraA || null,
-    // Si chiedono larghi e poi si diradano qui sotto: il motore propone anche
-    // le 12:45 e le 13:00, che come scelta sono la stessa cosa.
-    maxPerGiorno: 12,
+    /*
+      Si chiede la giornata intera e si dirada qui sotto.
+
+      Con un tetto stretto il motore consegnava i primi orari e basta: per un
+      trattamento da mezz'ora erano tutti fra le dieci e l'una, e il pomeriggio
+      non arrivava nemmeno fin qui. Il diradamento vero — tre orari distanti
+      fra loro — si fa dopo, su tutta la giornata.
+    */
+    maxPerGiorno: 100,
   });
 
   const quanti = Math.min(Math.max(1, params.quanti || 9), 30);
