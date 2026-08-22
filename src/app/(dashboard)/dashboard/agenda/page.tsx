@@ -197,7 +197,16 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
   const startMin = timeToMinutes(appointment.startTime) - START_HOUR * 60;
   const endMin = timeToMinutes(appointment.endTime) - START_HOUR * 60;
   const top = (startMin / 60) * HOUR_HEIGHT;
-  const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT - 2, 18);
+  /*
+    Un appuntamento da dieci minuti va comunque premuto col dito.
+
+    Alla scala dell'agenda dieci minuti sono tredici pixel: una fettina che
+    non si centra, e se sta dentro un appuntamento più lungo — la cliente da
+    dieci minuti infilata in mezzo a una pedicure — diventa impossibile
+    aprirla per farle il check-in. Ventotto pixel sono il minimo perché resti
+    un bersaglio vero; sfora di poco sul blocco dopo, ed è un prezzo giusto.
+  */
+  const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT - 2, 28);
   const isSmall = height < 44;
 
   // Quanto deve pagare la cliente, sempre in chiaro sul blocco: prima si vedeva
@@ -302,7 +311,10 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
               {prezzoBreve}
             </span>
           )}
-          {onWaitlistAdd && (
+          {/* Sui riquadri bassi il tasto sparisce: occupava metà dello spazio
+              premibile, e chi voleva aprire l'appuntamento finiva per
+              metterla in lista d'attesa. Sui blocchi normali resta. */}
+          {onWaitlistAdd && !isSmall && (
             <button 
               onClick={(e) => { e.stopPropagation(); onWaitlistAdd(appointment); }}
               className="p-1 rounded-md bg-white/20 text-text-primary hover:bg-warning hover:text-white opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
