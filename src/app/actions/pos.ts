@@ -231,7 +231,13 @@ export async function createTransaction(data: Omit<TransactionRecord, 'id'>, ori
   // Record restituito al client: viene sostituito con la versione aggiornata dopo l'esito C95,
   // così il POS può avvisare subito l'operatore se lo scontrino fiscale non è stato emesso.
   let outcome = created;
-  if (created.total > 0 && !created.isRefund) {
+  /*
+    Chi paga col buono regalo non sta pagando adesso: ha pagato il giorno in
+    cui il buono è stato comprato, e lo scontrino è uscito lì. Emetterne un
+    altro qui vorrebbe dire dichiarare due volte gli stessi soldi.
+  */
+  const colBuono = /buono/i.test(created.paymentMethod || '');
+  if (created.total > 0 && !created.isRefund && !colBuono) {
     // Stessa emissione usata dai pacchetti (lib/scontrino): un punto solo.
     const aggiornata = await emettiScontrinoElettronico(created, data.items);
     if (aggiornata) outcome = aggiornata;
