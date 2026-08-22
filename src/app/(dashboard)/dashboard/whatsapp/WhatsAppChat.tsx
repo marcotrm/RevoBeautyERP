@@ -15,6 +15,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageSquare, Send, Loader2, Trash2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X, Search, Smile } from 'lucide-react';
 import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione, eliminaConversazione, segnaConversazioneGestita } from '@/app/actions/whatsapp';
 import SegniCliente from '@/components/SegniCliente';
+import MandaListino from '@/components/MandaListino';
 import {
   listaTemplate, clientiPerCampagna, creaTemplateApertura,
   type TemplateRemoto, type DestinatarioCampagna,
@@ -881,6 +882,10 @@ export default function WhatsAppChat() {
                 </p>
                 <p className="text-[11px] text-text-muted font-mono">+{active}</p>
               </div>
+              {/* "Quanto viene?" è la domanda più frequente in chat: la
+                  risposta è un link, e parte da qui senza scriverla a mano. */}
+              <MandaListino phone={active} nome={clientName || undefined} className="flex-shrink-0 py-1.5" />
+
               {/* Rimette la chat fra le non lette: chiude il thread, altrimenti
                   restando aperta verrebbe subito risegnata come letta. */}
               <button onClick={() => segnaDaLeggere(active)} title="Rimetti fra i messaggi da leggere"
