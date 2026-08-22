@@ -53,9 +53,16 @@ export interface CalendarioImmondizia {
    * la mattina stessa, questo si spegne e l'avviso parla del giorno corrente.
    */
   seraPrima: boolean;
+  /**
+   * A che ora salta fuori il promemoria a schermo, in formato HH:MM.
+   *
+   * Verso la chiusura, quando si è ancora dentro e il sacco si può portare
+   * fuori davvero. Un avviso alle nove di mattina lo si guarda e lo si scorda.
+   */
+  oraAvviso: string;
 }
 
-export const CALENDARIO_VUOTO: CalendarioImmondizia = { giorni: {}, seraPrima: true };
+export const CALENDARIO_VUOTO: CalendarioImmondizia = { giorni: {}, seraPrima: true, oraAvviso: '19:00' };
 
 /** Che giorno della settimana è, in Italia. 0 = domenica. */
 export function giornoSettimana(d: Date = new Date()): number {

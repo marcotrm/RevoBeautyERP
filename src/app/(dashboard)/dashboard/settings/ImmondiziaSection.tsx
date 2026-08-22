@@ -10,7 +10,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Trash2, Check } from 'lucide-react';
-import { leggiCalendarioImmondizia, salvaCalendarioImmondizia } from '@/app/actions/immondizia';
+import { leggiCalendarioImmondizia, salvaCalendarioImmondizia, immondiziaDiOggi, type ImmondiziaFatta } from '@/app/actions/immondizia';
 import PromemoriaImmondizia from '@/components/PromemoriaImmondizia';
 import {
   CALENDARIO_VUOTO, GIORNI, RIFIUTI, type CalendarioImmondizia, type TipoRifiuto,
@@ -21,11 +21,13 @@ export default function ImmondiziaSection() {
   const [caricato, setCaricato] = useState(false);
   const [salvato, setSalvato] = useState(false);
   const [chiave, setChiave] = useState(0); // per rileggere l'avviso dopo il salvataggio
+  const [fatta, setFatta] = useState<ImmondiziaFatta | null>(null);
 
   useEffect(() => {
     let vivo = true;
-    leggiCalendarioImmondizia()
-      .then(c => { if (vivo) { setCal(c); setCaricato(true); } })
+    const oggi = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(new Date());
+    Promise.all([leggiCalendarioImmondizia(), immondiziaDiOggi(oggi)])
+      .then(([c, f]) => { if (vivo) { setCal(c); setFatta(f); setCaricato(true); } })
       .catch(() => { if (vivo) setCaricato(true); });
     return () => { vivo = false; };
   }, []);
@@ -84,6 +86,27 @@ export default function ImmondiziaSection() {
             <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${cal.seraPrima ? 'left-6' : 'left-1'}`} />
           </span>
         </button>
+
+        {/* A che ora bussa il promemoria. */}
+        <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-bg-tertiary/50 border border-border">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-text-primary">Promemoria a schermo</p>
+            <p className="text-[11px] text-text-muted mt-0.5">
+              A quest&apos;ora compare l&apos;avviso con i tasti &laquo;Immondizia buttata&raquo; e &laquo;La butto dopo&raquo;.
+            </p>
+          </div>
+          <input type="time" value={cal.oraAvviso || '19:00'}
+            onChange={e => salva({ ...cal, oraAvviso: e.target.value || '19:00' })}
+            className="px-3 py-2 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 flex-shrink-0" />
+        </div>
+
+        {/* Chi l'ha portata fuori oggi: la mattina dopo è l'unica cosa che conta. */}
+        {fatta && (
+          <p className="text-[11px] text-success font-semibold">
+            ✓ Oggi l&apos;ha già portata fuori {fatta.chi} alle{' '}
+            {new Date(fatta.quando).toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit' })}
+          </p>
+        )}
 
         <div className="space-y-2">
           {GIORNI.map(g => {

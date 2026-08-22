@@ -401,7 +401,20 @@ function slotDelGiorno(
     const prova = (g: number, i: number, cursore: number): boolean => {
       if (g >= gruppi.length) return true;
       const catena = gruppi[g];
-      if (i >= catena.length) return prova(g + 1, 0, inizio);
+      if (i >= catena.length) {
+        if (g + 1 >= gruppi.length) return true;
+        /*
+          Insieme se si può, altrimenti una dopo l'altra.
+
+          Due amiche che vogliono la stessa cosa dalla stessa operatrice non
+          possono cominciare nello stesso momento — e rispondere "non c'è
+          posto" sarebbe una bugia: il posto c'è, una alle 10 e l'altra appena
+          finisce la prima. Si prova prima la partenza in parallelo (vengono
+          insieme, escono insieme) e solo se non regge si accodano.
+        */
+        if (prova(g + 1, 0, inizio)) return true;
+        return prova(g + 1, 0, cursore);
+      }
       const p = catena[i];
       const fine = cursore + p.duration;
       // Chi sa fare questa categoria, ristretto all'operatrice chiesta dalla cliente
@@ -447,11 +460,14 @@ function slotDelGiorno(
       */
       if (lasciaBuchetto(assegnate[0]?.operatorId, inizio, dalle, lavoro, occupato)) continue;
 
+      // La fine vera è quella dell'ultimo trattamento assegnato: con due
+      // persone accodate non è più la catena più lunga, è la somma.
+      const fineVera = assegnate.reduce((m, a) => Math.max(m, toMinutes(a.endTime)), inizio);
       slots.push({
         attaccato: attacchi.has(inizio),
         time: toHHMM(inizio),
-        endTime: toHHMM(inizio + durataTotale),
-        durataTotale,
+        endTime: toHHMM(fineVera),
+        durataTotale: fineVera - inizio,
         prezzoTotale,
         assegnazioni: [...assegnate],
       });

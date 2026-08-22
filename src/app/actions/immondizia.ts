@@ -19,6 +19,7 @@ export async function leggiCalendarioImmondizia(): Promise<CalendarioImmondizia>
     return {
       giorni: (d.giorni || {}) as CalendarioImmondizia['giorni'],
       seraPrima: d.seraPrima !== false,
+      oraAvviso: d.oraAvviso || '19:00',
     };
   } catch {
     return CALENDARIO_VUOTO;
@@ -32,6 +33,45 @@ export async function salvaCalendarioImmondizia(cal: CalendarioImmondizia): Prom
     create: {
       rowId: ROW_ID, kind: 'integration', entityId: 'immondizia',
       data: cal as unknown as object, createdAt: new Date().toISOString(),
+    },
+  });
+  return { ok: true };
+}
+
+/*
+  Chi ha portato fuori il sacco, e quando.
+
+  Serve al promemoria della sera per sapere se ha ancora senso comparire, e
+  serve la mattina dopo per sapere se qualcuno l'ha fatto davvero: "credevo
+  l'avesse fatto l'altra" è il modo in cui i sacchi restano dentro.
+*/
+const KIND_FATTO = 'immondizia:fatto';
+
+export interface ImmondiziaFatta {
+  data: string;
+  chi: string;
+  quando: string;
+}
+
+export async function immondiziaDiOggi(data: string): Promise<ImmondiziaFatta | null> {
+  try {
+    const row = await prisma.adminEntry.findUnique({ where: { rowId: `${KIND_FATTO}:${data}` } });
+    if (!row) return null;
+    const d = (row.data || {}) as Partial<ImmondiziaFatta>;
+    return { data, chi: d.chi || '', quando: d.quando || row.createdAt };
+  } catch {
+    return null;
+  }
+}
+
+export async function segnaImmondiziaButtata(data: string, chi: string): Promise<{ ok: boolean }> {
+  const valore: ImmondiziaFatta = { data, chi: chi.trim() || 'qualcuno', quando: new Date().toISOString() };
+  await prisma.adminEntry.upsert({
+    where: { rowId: `${KIND_FATTO}:${data}` },
+    update: { data: valore as unknown as object },
+    create: {
+      rowId: `${KIND_FATTO}:${data}`, kind: KIND_FATTO, entityId: data,
+      data: valore as unknown as object, createdAt: new Date().toISOString(),
     },
   });
   return { ok: true };

@@ -101,6 +101,13 @@ export default function CercaBuchiModal({ onClose, onPrenota, dataIniziale }: Pr
     return attive.filter(o => abili.length === 0 || abili.includes(o.id));
   };
 
+  /** Vero se cominciano nello stesso momento; falso se la seconda si accoda. */
+  const insieme = (b: BucoTrovato) => {
+    const suoi = b.chiFaCosa.filter(c => c.gruppo === 0).map(c => c.startTime);
+    const altrui = b.chiFaCosa.filter(c => c.gruppo === 1).map(c => c.startTime);
+    return suoi.length > 0 && altrui.length > 0 && suoi[0] === altrui[0];
+  };
+
   const cerca = async () => {
     if (scelti.length === 0) return;
     if (inDue && scelti2.length === 0) return;
@@ -239,7 +246,8 @@ export default function CercaBuchiModal({ onClose, onPrenota, dataIniziale }: Pr
                   Vengono in due
                 </p>
                 <p className="text-[11px] text-text-muted">
-                  Lei e un&apos;amica, insieme: cerco un orario in cui cominciano tutte e due, con due operatrici diverse.
+                  Insieme se si può, con due operatrici diverse. Se vogliono la stessa cosa dalla stessa
+                  persona, le metto una dopo l&apos;altra: una alle 10, l&apos;altra appena finisce la prima.
                 </p>
               </div>
               <span className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${inDue ? 'bg-accent' : 'bg-bg-hover'}`}>
@@ -330,6 +338,13 @@ export default function CercaBuchiModal({ onClose, onPrenota, dataIniziale }: Pr
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-text-primary first-letter:uppercase flex items-center gap-2 flex-wrap">
                           {giornoInParole(b.date, oggi)} alle {b.time}
+                          {/* Insieme o accodate: cambia cosa si dice al telefono,
+                              quindi si vede prima di prenotare. */}
+                          {b.inDue && (
+                            insieme(b)
+                              ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-accent/15 text-accent">INSIEME</span>
+                              : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-warning/15 text-warning">UNA DOPO L&apos;ALTRA</span>
+                          )}
                           {/* Il posto che si incastra senza lasciare cabina vuota:
                               è quello che conviene dare, e va detto. */}
                           {b.attaccato && (

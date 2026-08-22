@@ -8,6 +8,7 @@ import Topbar from '@/components/layout/Topbar';
 import CommandPalette from '@/components/layout/CommandPalette';
 import CabinTimers from '@/components/CabinTimers';
 import VersioneNuova from '@/components/VersioneNuova';
+import PopupImmondizia from '@/components/PopupImmondizia';
 import WhatsAppAlert from '@/components/WhatsAppAlert';
 import { useUIStore } from '@/stores/useUIStore';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -75,6 +76,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Avvisa quando esce una versione nuova: senza, le pagine già aperte
             continuano a premere tasti che il server non riconosce più. */}
         <VersioneNuova />
+      <PopupImmondizia />
         <main className="p-4 lg:p-6 page-enter">
           {allowed ? children : (
             <div className="flex flex-col items-center justify-center text-center py-24 px-4">

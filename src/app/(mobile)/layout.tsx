@@ -16,6 +16,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Lock, Loader2 } from 'lucide-react';
 import MobileTabs from '@/components/MobileTabs';
 import VersioneNuova from '@/components/VersioneNuova';
+import PopupImmondizia from '@/components/PopupImmondizia';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRolesStore } from '@/stores/useRolesStore';
 import { permissionForPath, roleHasPermission } from '@/lib/permissions';
@@ -69,6 +70,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
         </div>
       )}
       <VersioneNuova />
+      <PopupImmondizia />
       <MobileTabs />
     </div>
   );
