@@ -254,7 +254,9 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
       draggable={!isFrozen}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      title={motivoFermo || undefined}
+      /* Sotto i venti minuti non ci sta nemmeno una riga in più: almeno
+         passandoci sopra col mouse si legge cosa deve fare. */
+      title={motivoFermo || (isSmall ? `${appointment.clientName} · ${appointment.treatmentName}` : undefined)}
       onClick={(e) => { e.stopPropagation(); onClick(appointment); }}
       className={`appointment-block group ${isFrozen ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'} ${appointment.status === 'in_cabin' ? 'animate-[pulse_1.5s_ease-in-out_infinite] ring-2 ring-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.3)]' : ''}`}
       style={{ top: `${top}px`, height: `${height}px`, backgroundColor: `${blockColor}22`, borderLeftColor: blockColor, ...overlapStyle }}
@@ -319,6 +321,20 @@ function AppointmentBlock({ appointment, onClick, onWaitlistAdd, overlapStyle, c
           )}
         </div>
       </div>
+      {/*
+        Anche nei riquadri bassi si legge cosa deve fare.
+
+        Mezz'ora di pressoterapia sta in quaranta pixel: prima ci entrava solo
+        il nome e il prezzo, e per sapere se era una pressoterapia o una
+        ceretta bisognava aprire l'appuntamento — proprio sulle cabine, dove i
+        trattamenti brevi sono la norma. Il nome del trattamento in piccolo ci
+        sta, se resta almeno un filo di spazio.
+      */}
+      {isSmall && height >= 30 && (
+        <p className="text-[9px] leading-none text-text-secondary truncate mt-0.5" title={appointment.treatmentName}>
+          {appointment.treatmentName}
+        </p>
+      )}
       {!isSmall && (
         <>
           <p className="text-[11px] text-text-secondary leading-tight mt-0.5 line-clamp-2" title={appointment.treatmentName}>
