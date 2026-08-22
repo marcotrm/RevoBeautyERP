@@ -26,7 +26,9 @@ export interface BucoTrovato {
   /** Comincia esattamente quando l'operatrice si libera: non lascia buchi. */
   attaccato: boolean;
   /** Chi fa cosa, in ordine: è quello che finisce sull'appuntamento. */
-  chiFaCosa: { treatmentId: string; treatmentName: string; operatorId: string; operatorName: string; startTime: string }[];
+  chiFaCosa: { treatmentId: string; treatmentName: string; operatorId: string; operatorName: string; startTime: string; gruppo: number }[];
+  /** Vero quando l'orario tiene in piedi due persone insieme. */
+  inDue: boolean;
 }
 
 export interface EsitoCercaBuchi {
@@ -54,6 +56,14 @@ export async function cercaBuchi(params: {
     passaggio di mano sta in piedi davvero.
   */
   richieste: RichiestaBuco[];
+  /**
+   * I trattamenti della seconda persona, quando vengono in due.
+   *
+   * "Lei e l'amica" non è due ricerche separate: serve un orario in cui
+   * cominciano insieme, con due operatrici diverse. Cercarle una alla volta
+   * darebbe due orari lontani, che è esattamente il problema.
+   */
+  richieste2?: RichiestaBuco[];
   /** Da quale giorno cercare. Vuoto = da oggi. */
   dal?: string;
   giorni?: number;
@@ -66,6 +76,7 @@ export async function cercaBuchi(params: {
 }): Promise<EsitoCercaBuchi> {
   const richieste = (params.richieste || []).filter(r => r?.treatmentId);
   if (richieste.length === 0) return { buchi: [], durataTotale: 0, prezzoTotale: 0, giorniGuardati: 0 };
+  const richieste2 = (params.richieste2 || []).filter(r => r?.treatmentId);
 
   const dal = params.dal || todayRome();
   const giorni = Math.min(Math.max(1, params.giorni || 21), 60);
@@ -74,6 +85,9 @@ export async function cercaBuchi(params: {
     dateFrom: dal,
     giorni,
     services: richieste.map(r => ({ treatmentId: r.treatmentId, operatorId: r.operatorId || null })),
+    services2: richieste2.length
+      ? richieste2.map(r => ({ treatmentId: r.treatmentId, operatorId: r.operatorId || null }))
+      : undefined,
     gender: params.gender || 'female',
     oraDa: params.oraDa || null,
     oraA: params.oraA || null,
@@ -140,12 +154,14 @@ export async function cercaBuchi(params: {
         durata: s.durataTotale,
         prezzo: s.prezzoTotale,
         attaccato: Boolean(s.attaccato),
+        inDue: richieste2.length > 0,
         chiFaCosa: s.assegnazioni.map(a => ({
           treatmentId: a.treatmentId,
           treatmentName: a.treatmentName,
           operatorId: a.operatorId,
           operatorName: a.operatorName,
           startTime: a.startTime,
+          gruppo: a.gruppo ?? 0,
         })),
       });
       if (buchi.length >= quanti) break;

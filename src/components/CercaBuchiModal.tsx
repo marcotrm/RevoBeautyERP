@@ -39,11 +39,18 @@ function giornoInParole(iso: string, oggi: string): string {
 
 interface Props {
   onClose: () => void;
+  /**
+   * Il giorno da cui partire: quello che si sta guardando in agenda.
+   *
+   * Chi apre "Cerca buchi" mentre è sul 3 settembre sta cercando posto da lì
+   * in poi, non da oggi — se no la prima risposta è sempre domani mattina.
+   */
+  dataIniziale?: string;
   /** Prenota: giorno, ora, chi fa il primo trattamento e la lista dei trattamenti. */
-  onPrenota: (b: BucoTrovato, treatmentIds: string[]) => void;
+  onPrenota: (b: BucoTrovato, treatmentIds: string[], gruppo?: number) => void;
 }
 
-export default function CercaBuchiModal({ onClose, onPrenota }: Props) {
+export default function CercaBuchiModal({ onClose, onPrenota, dataIniziale }: Props) {
   const treatments = useTreatmentStore(s => s.treatments);
   const operators = useOperatorStore(s => s.operators);
 
@@ -55,22 +62,33 @@ export default function CercaBuchiModal({ onClose, onPrenota }: Props) {
   */
   const [scelti, setScelti] = useState<{ t: Treatment; operatorId: string }[]>([]);
   const [query, setQuery] = useState('');
+  /*
+    Vengono in due.
+
+    "Io e la mia amica, possibilmente insieme": cercare due volte di fila dà
+    due orari lontani, ed è il motivo per cui finivano a chiamare due giorni
+    diversi. Qui si cerca un orario solo in cui stanno in piedi tutte e due,
+    con due operatrici diverse.
+  */
+  const [inDue, setInDue] = useState(false);
+  const [scelti2, setScelti2] = useState<{ t: Treatment; operatorId: string }[]>([]);
+  const [query2, setQuery2] = useState('');
   const [gender, setGender] = useState<'female' | 'male'>('female');
   const [fascia, setFascia] = useState<'tutto' | 'mattina' | 'pomeriggio'>('tutto');
-  const [dal, setDal] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dal, setDal] = useState(() => dataIniziale || new Date().toISOString().slice(0, 10));
 
   const [cercando, setCercando] = useState(false);
   const [buchi, setBuchi] = useState<BucoTrovato[] | null>(null);
 
   const oggi = new Date().toISOString().slice(0, 10);
 
-  const risultati = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return treatments
-      .filter(t => t.isActive !== false && t.name.toLowerCase().includes(q))
-      .slice(0, 8);
-  }, [query, treatments]);
+  const cerca8 = (q: string) => {
+    const testo = q.trim().toLowerCase();
+    if (!testo) return [];
+    return treatments.filter(t => t.isActive !== false && t.name.toLowerCase().includes(testo)).slice(0, 8);
+  };
+  const risultati = useMemo(() => cerca8(query), [query, treatments]);
+  const risultati2 = useMemo(() => cerca8(query2), [query2, treatments]);
 
   /*
     Chi può fare QUEL trattamento: la tendina di ogni riga mostra solo loro,
@@ -85,11 +103,13 @@ export default function CercaBuchiModal({ onClose, onPrenota }: Props) {
 
   const cerca = async () => {
     if (scelti.length === 0) return;
+    if (inDue && scelti2.length === 0) return;
     setCercando(true);
     setBuchi(null);
     try {
       const esito = await cercaBuchi({
         richieste: scelti.map(s => ({ treatmentId: s.t.id, operatorId: s.operatorId || null })),
+        richieste2: inDue ? scelti2.map(s => ({ treatmentId: s.t.id, operatorId: s.operatorId || null })) : undefined,
         dal,
         giorni: 21,
         gender,
@@ -104,10 +124,87 @@ export default function CercaBuchiModal({ onClose, onPrenota }: Props) {
   };
 
   // Il tempo mostrato qui è quello che occupa in agenda: preparazione compresa.
-  const durataTotale = scelti.reduce((s, x) => s
+  const minutiDi = (lista: { t: Treatment }[]) => lista.reduce((s, x) => s
     + (gender === 'male' ? (x.t.durationMale ?? x.t.duration) : (x.t.durationFemale ?? x.t.duration))
     + (x.t.preparazione || 0), 0);
-  const prezzoTotale = scelti.reduce((s, x) => s + (gender === 'male' ? (x.t.priceMale ?? x.t.price) : (x.t.priceFemale ?? x.t.price)), 0);
+  const euroDi = (lista: { t: Treatment }[]) => lista.reduce((s, x) =>
+    s + (gender === 'male' ? (x.t.priceMale ?? x.t.price) : (x.t.priceFemale ?? x.t.price)), 0);
+  // In due il tempo in agenda è quello della più lunga (cominciano insieme),
+  // il prezzo invece è la somma: pagano tutte e due.
+  const durataTotale = inDue ? Math.max(minutiDi(scelti), minutiDi(scelti2)) : minutiDi(scelti);
+  const prezzoTotale = inDue ? euroDi(scelti) + euroDi(scelti2) : euroDi(scelti);
+
+  /*
+    L'elenco dei trattamenti di UNA persona: si disegna due volte uguale, una
+    per lei e una per l'amica. È una funzione e non un componente apposta —
+    così i campi non si svuotano a ogni battuta di tasto.
+  */
+  const blocco = (
+    etichetta: string,
+    lista: { t: Treatment; operatorId: string }[],
+    setLista: React.Dispatch<React.SetStateAction<{ t: Treatment; operatorId: string }[]>>,
+    testo: string,
+    setTesto: (v: string) => void,
+    trovati: Treatment[],
+    primo: boolean,
+  ) => (
+    <div>
+      <label className="block text-sm font-medium text-text-secondary mb-1.5">{etichetta}</label>
+      {lista.length > 0 && (
+        <div className="space-y-1.5 mb-2">
+          {lista.map((x, i) => {
+            const minuti = (gender === 'male' ? (x.t.durationMale ?? x.t.duration) : (x.t.durationFemale ?? x.t.duration))
+              + (x.t.preparazione || 0);
+            const fanno = chiPuoFare(x.t);
+            return (
+              <div key={`${x.t.id}-${i}`} className="px-3 py-2 rounded-xl bg-accent/5 border border-accent/20 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-bold flex-shrink-0">{i + 1}</span>
+                  <span className="text-sm text-text-primary flex-1 min-w-0 truncate">{x.t.name}</span>
+                  <span className="text-xs text-text-muted flex-shrink-0">
+                    {minuti} min{x.t.preparazione ? ` (${minuti - x.t.preparazione}+${x.t.preparazione} prep)` : ''}
+                  </span>
+                  <button onClick={() => { setLista(prev => prev.filter((_, k) => k !== i)); setBuchi(null); }}
+                    className="p-1 rounded-lg text-text-muted hover:text-error flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
+                </div>
+                {/* Ognuno con la sua: è il senso di tutto — il refill
+                    lo fa una e subito dopo il massaggio lo fa un'altra. */}
+                <select value={x.operatorId}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setLista(prev => prev.map((y, k) => k === i ? { ...y, operatorId: v } : y));
+                    setBuchi(null);
+                  }}
+                  className="w-full px-2 py-1.5 rounded-lg bg-bg-secondary border border-border text-[11px] text-text-secondary focus:outline-none focus:border-accent/50">
+                  <option value="">Chiunque sia libera</option>
+                  {fanno.map(o => (
+                    <option key={o.id} value={o.id}>{o.firstName} {o.lastName}</option>
+                  ))}
+                </select>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+        <input value={testo} onChange={e => setTesto(e.target.value)} {...NO_AUTOFILL} autoFocus={primo}
+          placeholder={lista.length ? 'Aggiungi un altro trattamento…' : 'Cerca il trattamento…'}
+          className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
+      </div>
+      {trovati.length > 0 && (
+        <div className="mt-1 rounded-xl border border-border bg-bg-tertiary overflow-hidden max-h-44 overflow-y-auto">
+          {trovati.map(t => (
+            <button key={t.id} onClick={() => { setLista(prev => [...prev, { t, operatorId: '' }]); setTesto(''); setBuchi(null); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-hover">
+              <span className="text-sm text-text-primary flex-1 min-w-0 truncate">{t.name}</span>
+              <span className="text-xs text-text-muted flex-shrink-0">{t.duration} min · {formatCurrency(t.price)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <>
@@ -130,62 +227,27 @@ export default function CercaBuchiModal({ onClose, onPrenota }: Props) {
 
           <div className="px-6 py-5 space-y-4 flex-1 overflow-y-auto">
             {/* 1. Cosa deve fare */}
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1.5">Cosa deve fare</label>
-              {scelti.length > 0 && (
-                <div className="space-y-1.5 mb-2">
-                  {scelti.map((x, i) => {
-                    const minuti = (gender === 'male' ? (x.t.durationMale ?? x.t.duration) : (x.t.durationFemale ?? x.t.duration))
-                      + (x.t.preparazione || 0);
-                    const fanno = chiPuoFare(x.t);
-                    return (
-                      <div key={`${x.t.id}-${i}`} className="px-3 py-2 rounded-xl bg-accent/5 border border-accent/20 space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="flex items-center justify-center w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-bold flex-shrink-0">{i + 1}</span>
-                          <span className="text-sm text-text-primary flex-1 min-w-0 truncate">{x.t.name}</span>
-                          <span className="text-xs text-text-muted flex-shrink-0">
-                            {minuti} min{x.t.preparazione ? ` (${minuti - x.t.preparazione}+${x.t.preparazione} prep)` : ''}
-                          </span>
-                          <button onClick={() => { setScelti(prev => prev.filter((_, k) => k !== i)); setBuchi(null); }}
-                            className="p-1 rounded-lg text-text-muted hover:text-error flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
-                        </div>
-                        {/* Ognuno con la sua: è il senso di tutto — il refill
-                            lo fa una e subito dopo il massaggio lo fa un'altra. */}
-                        <select value={x.operatorId}
-                          onChange={e => {
-                            const v = e.target.value;
-                            setScelti(prev => prev.map((y, k) => k === i ? { ...y, operatorId: v } : y));
-                            setBuchi(null);
-                          }}
-                          className="w-full px-2 py-1.5 rounded-lg bg-bg-secondary border border-border text-[11px] text-text-secondary focus:outline-none focus:border-accent/50">
-                          <option value="">Chiunque sia libera</option>
-                          {fanno.map(o => (
-                            <option key={o.id} value={o.id}>{o.firstName} {o.lastName}</option>
-                          ))}
-                        </select>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                <input value={query} onChange={e => setQuery(e.target.value)} {...NO_AUTOFILL} autoFocus
-                  placeholder={scelti.length ? 'Aggiungi un altro trattamento…' : 'Cerca il trattamento…'}
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
+            {blocco('Cosa deve fare', scelti, setScelti, query, setQuery, risultati, true)}
+
+            {/* Vengono in due: due elenchi, un orario solo. */}
+            <button type="button" onClick={() => { setInDue(v => !v); setBuchi(null); }}
+              className={`w-full flex items-center gap-2.5 p-3 rounded-xl border text-left transition-colors ${
+                inDue ? 'border-accent/40 bg-accent/5' : 'border-border bg-bg-tertiary/40 hover:bg-bg-hover'}`}>
+              <Users className={`w-4 h-4 flex-shrink-0 ${inDue ? 'text-accent' : 'text-text-muted'}`} />
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium ${inDue ? 'text-accent' : 'text-text-primary'}`}>
+                  Vengono in due
+                </p>
+                <p className="text-[11px] text-text-muted">
+                  Lei e un&apos;amica, insieme: cerco un orario in cui cominciano tutte e due, con due operatrici diverse.
+                </p>
               </div>
-              {risultati.length > 0 && (
-                <div className="mt-1 rounded-xl border border-border bg-bg-tertiary overflow-hidden max-h-44 overflow-y-auto">
-                  {risultati.map(t => (
-                    <button key={t.id} onClick={() => { setScelti(prev => [...prev, { t, operatorId: '' }]); setQuery(''); setBuchi(null); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-hover">
-                      <span className="text-sm text-text-primary flex-1 min-w-0 truncate">{t.name}</span>
-                      <span className="text-xs text-text-muted flex-shrink-0">{t.duration} min · {formatCurrency(t.price)}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+              <span className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors ${inDue ? 'bg-accent' : 'bg-bg-hover'}`}>
+                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${inDue ? 'left-6' : 'left-1'}`} />
+              </span>
+            </button>
+
+            {inDue && blocco("Cosa fa l'amica", scelti2, setScelti2, query2, setQuery2, risultati2, false)}
 
             {scelti.length > 1 && (
               <p className="text-[11px] text-text-muted flex items-start gap-1.5">
@@ -234,7 +296,7 @@ export default function CercaBuchiModal({ onClose, onPrenota }: Props) {
               )}
             </div>
 
-            <button onClick={cerca} disabled={scelti.length === 0 || cercando}
+            <button onClick={cerca} disabled={scelti.length === 0 || (inDue && scelti2.length === 0) || cercando}
               className="w-full py-3 rounded-xl gradient-accent text-white text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2">
               {cercando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
               {cercando ? 'Sto guardando l’agenda…' : 'Trova posto'}
@@ -262,7 +324,8 @@ export default function CercaBuchiModal({ onClose, onPrenota }: Props) {
                   // quando: è l'unica cosa che si vuole sapere prima di dire sì.
                   const staffetta = operatrici.length > 1 || b.chiFaCosa.length > 1;
                   return (
-                    <button key={`${b.date}-${b.time}-${i}`} onClick={() => onPrenota(b, scelti.map(x => x.t.id))}
+                    <button key={`${b.date}-${b.time}-${i}`}
+                      onClick={() => onPrenota(b, scelti.map(x => x.t.id), b.inDue ? 0 : undefined)}
                       className="w-full flex items-start gap-3 p-3 rounded-xl bg-bg-tertiary/60 border border-border hover:border-accent/50 hover:bg-bg-hover transition-all text-left group">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-text-primary first-letter:uppercase flex items-center gap-2 flex-wrap">
@@ -280,6 +343,9 @@ export default function CercaBuchiModal({ onClose, onPrenota }: Props) {
                           <div className="mt-1 space-y-0.5">
                             {b.chiFaCosa.map((c, k) => (
                               <p key={k} className="text-[11px] text-text-muted truncate">
+                                {b.inDue && (
+                                  <span className="font-semibold text-text-secondary">{c.gruppo === 0 ? 'Lei: ' : "L'amica: "}</span>
+                                )}
                                 <span className="text-text-secondary font-medium">{c.startTime}</span> {c.treatmentName} — {c.operatorName}
                               </p>
                             ))}

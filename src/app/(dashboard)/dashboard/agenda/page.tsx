@@ -4872,6 +4872,11 @@ export default function AgendaPage() {
   const [showWaitlistPanel, setShowWaitlistPanel] = useState(false);
   /** "Quando posso metterla?": la ricerca del primo posto libero. */
   const [showCercaBuchi, setShowCercaBuchi] = useState(false);
+  /** Quando vengono in due: il secondo appuntamento, che aspetta il suo turno. */
+  const [amicaDaPrenotare, setAmicaDaPrenotare] = useState<{
+    date: string; time: string;
+    chiFaCosa: { treatmentId: string; treatmentName: string; operatorId: string; operatorName: string; startTime: string }[];
+  } | null>(null);
   const [showWaitlistModal, setShowWaitlistModal] = useState(false);
   const [waitlistPreFill, setWaitlistPreFill] = useState<Partial<WaitlistEntry>>({});
 
@@ -5263,24 +5268,74 @@ export default function AgendaPage() {
           onSegnalazioneCambiata={ricaricaSegnalate} />}
       </AnimatePresence>
 
+      {/* L'amica che aspetta il suo appuntamento: resta qui finché non la si
+          prenota, se no ci si dimentica di lei un secondo dopo aver salvato. */}
+      {amicaDaPrenotare && !isAppointmentModalOpen && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-3 px-4 py-3
+          rounded-2xl bg-bg-secondary border border-accent/40 shadow-2xl max-w-[92vw]">
+          <Users className="w-4 h-4 text-accent flex-shrink-0" />
+          <p className="text-sm text-text-primary">
+            <strong>Manca l&apos;amica.</strong>{' '}
+            <span className="text-text-secondary">
+              {amicaDaPrenotare.chiFaCosa.map(c => c.treatmentName).join(' + ')} alle {amicaDaPrenotare.time}
+              {' '}con {[...new Set(amicaDaPrenotare.chiFaCosa.map(c => c.operatorName))].join(' e ')}
+            </span>
+          </p>
+          <button onClick={() => {
+            const a = amicaDaPrenotare;
+            setAmicaDaPrenotare(null);
+            openAppointmentModal(null, {
+              operatorId: a.chiFaCosa[0]?.operatorId || '',
+              time: a.time,
+              date: a.date,
+              treatmentIds: a.chiFaCosa.map(c => c.treatmentId),
+              assegnazioni: a.chiFaCosa.map(c => ({ treatmentId: c.treatmentId, operatorId: c.operatorId })),
+            });
+          }}
+            className="px-3 py-1.5 rounded-xl gradient-accent text-white text-xs font-bold hover:opacity-90 flex-shrink-0">
+            Prenota anche lei
+          </button>
+          <button onClick={() => setAmicaDaPrenotare(null)}
+            className="p-1 rounded-lg text-text-muted hover:text-text-primary flex-shrink-0" title="Lascia perdere">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Cerca buchi: due domande, i primi posti liberi, e si prenota da lì. */}
       <AnimatePresence>
         {showCercaBuchi && (
           <CercaBuchiModal
             onClose={() => setShowCercaBuchi(false)}
-            onPrenota={(b, treatmentIds) => {
+            // Si parte dal giorno che si sta guardando: chi cerca posto mentre
+            // è sul 3 settembre non vuole sentirsi proporre domani mattina.
+            dataIniziale={fmtDate(selectedDate)}
+            onPrenota={(b, treatmentIds, gruppo) => {
               setShowCercaBuchi(false);
               // L'agenda si sposta sul giorno trovato: se no si prenota "al
               // buio" su una giornata che non si sta guardando.
               setSelectedDate(new Date(`${b.date}T12:00:00`));
+
+              /*
+                In due: si prenota una persona alla volta, perché sono due
+                appuntamenti con due clienti diverse. Qui si apre quello di
+                lei e si mette da parte l'amica, che resta in un avviso in
+                fondo allo schermo finché non la si prenota anche lei.
+              */
+              const suo = b.inDue ? b.chiFaCosa.filter(c => c.gruppo === (gruppo ?? 0)) : b.chiFaCosa;
+              const altrui = b.inDue ? b.chiFaCosa.filter(c => c.gruppo !== (gruppo ?? 0)) : [];
+              setAmicaDaPrenotare(altrui.length > 0
+                ? { date: b.date, time: altrui[0].startTime, chiFaCosa: altrui }
+                : null);
+
               openAppointmentModal(null, {
-                operatorId: b.chiFaCosa[0]?.operatorId || '',
-                time: b.time,
+                operatorId: suo[0]?.operatorId || '',
+                time: suo[0]?.startTime || b.time,
                 date: b.date,
-                treatmentIds,
+                treatmentIds: b.inDue ? suo.map(c => c.treatmentId) : treatmentIds,
                 // Chi fa cosa: con due operatrici in staffetta, ognuna deve
                 // ritrovarsi il suo trattamento e non tutti addosso alla prima.
-                assegnazioni: b.chiFaCosa.map(c => ({ treatmentId: c.treatmentId, operatorId: c.operatorId })),
+                assegnazioni: suo.map(c => ({ treatmentId: c.treatmentId, operatorId: c.operatorId })),
               });
             }}
           />

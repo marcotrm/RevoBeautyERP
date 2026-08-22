@@ -43,6 +43,11 @@ export interface AssegnazioneServizio {
   endTime: string;
   duration: number;
   price: number;
+  /**
+   * Di chi è questo trattamento quando si prenota in due: 0 la prima persona,
+   * 1 l'amica. Con una persona sola è sempre 0.
+   */
+  gruppo?: number;
 }
 
 export interface SlotProposto {
@@ -330,16 +335,24 @@ async function preparaPassi(services: ServizioRichiesto[], gender: 'male' | 'fem
   });
 }
 
-/** Gli orari buoni di UN giorno, con il contesto già caricato. */
+/**
+ * Gli orari buoni di UN giorno, con il contesto già caricato.
+ *
+ * `gruppi` è una lista di catene: dentro una catena i trattamenti si fanno uno
+ * dopo l'altro (la stessa persona), fra catene si va in parallelo (lei e
+ * l'amica, che cominciano insieme con due operatrici diverse).
+ */
 function slotDelGiorno(
-  ctx: Contesto, date: string, passi: Passo[], oraDa?: string | null, oraA?: string | null,
+  ctx: Contesto, date: string, gruppi: Passo[][], oraDa?: string | null, oraA?: string | null,
 ): SlotProposto[] {
   const lavoro = lavoroDelGiorno(ctx, date);
   const occupato = ctx.occupatoPerData.get(date) || new Map<string, Fascia[]>();
   const nomeDi = new Map(ctx.operatori.map(o => [o.id, `${o.firstName} ${o.lastName}`.trim()]));
 
-  const durataTotale = passi.reduce((s, p) => s + p.duration, 0);
-  const prezzoTotale = passi.reduce((s, p) => s + p.price, 0);
+  // La seduta finisce quando finisce la catena più lunga: se lei fa due ore e
+  // l'amica quaranta minuti, il posto va tenuto per due ore.
+  const durataTotale = Math.max(...gruppi.map(g => g.reduce((s, p) => s + p.duration, 0)));
+  const prezzoTotale = gruppi.reduce((s, g) => s + g.reduce((x, p) => x + p.price, 0), 0);
 
   // Se il giorno è oggi, si parte da adesso più il preavviso
   let minimoOggi = 0;
@@ -378,9 +391,18 @@ function slotDelGiorno(
   for (const inizio of inizi) {
     const assegnate: AssegnazioneServizio[] = [];
 
-    const prova = (i: number, cursore: number): boolean => {
-      if (i >= passi.length) return true;
-      const p = passi[i];
+    /*
+      Si prova a incastrare tutte le catene: prima persona, poi l'amica, con
+      backtracking. Ogni catena riparte dall'ora d'inizio scelta, e la stessa
+      operatrice non può stare su due trattamenti sovrapposti — controllo che
+      vale anche fra una persona e l'altra, ed è quello che rende impossibile
+      proporre Michela a tutte e due nello stesso momento.
+    */
+    const prova = (g: number, i: number, cursore: number): boolean => {
+      if (g >= gruppi.length) return true;
+      const catena = gruppi[g];
+      if (i >= catena.length) return prova(g + 1, 0, inizio);
+      const p = catena[i];
       const fine = cursore + p.duration;
       // Chi sa fare questa categoria, ristretto all'operatrice chiesta dalla cliente
       const candidate = ctx.operatori.filter(o =>
@@ -402,14 +424,15 @@ function slotDelGiorno(
           endTime: toHHMM(fine),
           duration: p.duration,
           price: p.price,
+          gruppo: g,
         });
-        if (prova(i + 1, fine)) return true;
+        if (prova(g, i + 1, fine)) return true;
         assegnate.pop();
       }
       return false;
     };
 
-    if (prova(0, inizio)) {
+    if (prova(0, 0, inizio)) {
       /*
         Niente proposte che lascino un buchetto.
 
@@ -449,7 +472,7 @@ export async function slotDisponibili(req: RichiestaDisponibilita): Promise<{
   const { prenotazione } = await leggiConfig();
   const ctx = await caricaContesto(req.date, req.date, prenotazione);
   return {
-    slots: slotDelGiorno(ctx, req.date, passi, req.oraDa, req.oraA),
+    slots: slotDelGiorno(ctx, req.date, [passi], req.oraDa, req.oraA),
     durataTotale: passi.reduce((s, p) => s + p.duration, 0),
     prezzoTotale: passi.reduce((s, p) => s + p.price, 0),
   };
@@ -461,6 +484,13 @@ export interface RicercaSlot {
   /** Quanti giorni guardare in avanti. */
   giorni: number;
   services: ServizioRichiesto[];
+  /**
+   * I trattamenti della seconda persona, quando si prenota in due.
+   *
+   * Non è una seconda ricerca: si cerca un orario in cui stanno in piedi
+   * tutte e due insieme, con operatrici diverse. Vuoto = una persona sola.
+   */
+  services2?: ServizioRichiesto[];
   gender: 'male' | 'female';
   /** Giorni della settimana accettati: 1=Lun … 6=Sab. Vuoto = tutti. */
   giorniSettimana?: number[];
@@ -488,6 +518,10 @@ export async function cercaSlot(req: RicercaSlot): Promise<{
   const passi = await preparaPassi(req.services, req.gender);
   if (!passi) return { giorni: [], durataTotale: 0, prezzoTotale: 0 };
 
+  const passi2 = req.services2?.length ? await preparaPassi(req.services2, req.gender) : null;
+  if (req.services2?.length && !passi2) return { giorni: [], durataTotale: 0, prezzoTotale: 0 };
+  const gruppi = passi2 ? [passi, passi2] : [passi];
+
   const { prenotazione } = await leggiConfig();
   // Quanto avanti guardare: il centro decide il tetto, chi chiama può solo
   // restare sotto — altrimenti l'app aprirebbe l'agenda di sei mesi.
@@ -509,14 +543,15 @@ export async function cercaSlot(req: RicercaSlot): Promise<{
 
   const giorni: GiornoDisponibile[] = [];
   for (const d of date) {
-    const slots = slotDelGiorno(ctx, d, passi, req.oraDa, req.oraA);
+    const slots = slotDelGiorno(ctx, d, gruppi, req.oraDa, req.oraA);
     if (slots.length > 0) giorni.push({ date: d, slots: distribuisci(slots, max) });
   }
 
   return {
     giorni,
-    durataTotale: passi.reduce((s, p) => s + p.duration, 0),
-    prezzoTotale: passi.reduce((s, p) => s + p.price, 0),
+    // Con due persone il tempo è quello della più lunga, il prezzo la somma.
+    durataTotale: Math.max(...gruppi.map(g => g.reduce((s, p) => s + p.duration, 0))),
+    prezzoTotale: gruppi.reduce((s, g) => s + g.reduce((x, p) => x + p.price, 0), 0),
   };
 }
 
