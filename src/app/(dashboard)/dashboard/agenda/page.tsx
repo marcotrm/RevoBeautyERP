@@ -51,6 +51,7 @@ import CercaBuchiModal from '@/components/CercaBuchiModal';
 import AddClientModal from '@/components/AddClientModal';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { senzaOmaggioInaugurazione } from '@/lib/omaggioInaugurazione';
+import { esoneriScheda, esoneraScheda } from '@/app/actions/esoneroScheda';
 import SegniCliente from '@/components/SegniCliente';
 import AvvisoCliente from '@/components/AvvisoCliente';
 import BuonoCompleannoBadge from '@/components/BuonoCompleanno';
@@ -3260,6 +3261,15 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   // Scheda cliente da completare: al telefono si prendono solo nome e numero,
   // il resto si compila QUI, al check-in, quando la cliente è davanti al banco.
   const [schedaOpen, setSchedaOpen] = useState(false);
+  /*
+    La deroga: questa cliente i dati non li vuole dare.
+
+    Vale solo per lei e solo per il check-in — l'incasso e il check-out non
+    l'hanno mai chiesta. Resta scritta con chi l'ha concessa: se domani manca
+    un indirizzo si sa che è una scelta e non una dimenticanza.
+  */
+  const [esonerata, setEsonerata] = useState(false);
+  const [esonerando, setEsonerando] = useState(false);
   const [schedaForm, setSchedaForm] = useState({ birthDate: '', gender: '' as '' | 'F' | 'M', address: '', city: '', email: '', marketing: false });
   const [schedaBusy, setSchedaBusy] = useState(false);
   const cabins = useCabinStore(s => s.cabins);
@@ -3446,6 +3456,16 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
            appointment.clientName.toLowerCase().includes(cp.clientName.toLowerCase())) &&
           (cp.status === 'active' || cp.status === 'expiring')
   ));
+
+  // La deroga della cliente, letta appena si apre il suo appuntamento.
+  useEffect(() => {
+    let vivo = true;
+    const id = clientData?.id;
+    esoneriScheda()
+      .then(mappa => { if (vivo) setEsonerata(Boolean(id && mappa[id])); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [clientData?.id]);
 
   const packagesWithDebt = clientPkgs.filter(cp => cp.remainingBalance > 0);
   const totalPkgDebt = packagesWithDebt.reduce((s, cp) => s + (cp.remainingBalance || 0), 0);
@@ -3736,7 +3756,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     // è la sola occasione in cui la cliente è davanti a te e glielo puoi
     // chiedere. Senza consenso non riceve né auguri né l'avviso di un posto
     // che si libera — e il consenso non si può spuntare per lei, va chiesto.
-    if (clientData && (!schedaCompleta(clientData) || !clientData.marketingConsent)) {
+    if (clientData && !esonerata && (!schedaCompleta(clientData) || !clientData.marketingConsent)) {
       setSchedaForm({
         birthDate: clientData.birthDate || '',
         gender: (clientData.gender === 'M' ? 'M' : clientData.gender === 'F' ? 'F' : ''),
@@ -4628,6 +4648,32 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
               <button onClick={() => setSchedaOpen(false)}
                 className="w-full py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
                 Chiudi senza check-in
+              </button>
+              {/*
+                L'eccezione, per chi i dati non li vuole dare.
+
+                Senza questa via d'uscita si finisce per inventare una data di
+                nascita, che è peggio del campo vuoto: ci parte sopra un
+                messaggio di auguri a una data a caso. Vale solo per questa
+                cliente, resta scritta col nome di chi l'ha concessa, e si
+                toglie dalla sua scheda quando cambia idea.
+              */}
+              <button onClick={async () => {
+                if (!clientData) return;
+                setEsonerando(true);
+                const io = useAuthStore.getState().user;
+                await esoneraScheda({
+                  clientId: clientData.id,
+                  motivo: 'Non vuole dare i dati',
+                  concessoDa: [io?.firstName, io?.lastName].filter(Boolean).join(' ').trim(),
+                }).catch(() => {});
+                setEsonerando(false);
+                setEsonerata(true);
+                setSchedaOpen(false);
+                dopoControlloScheda();
+              }} disabled={esonerando}
+                className="w-full py-2 rounded-xl text-[11px] font-medium text-text-muted hover:text-warning hover:bg-warning/10 transition-colors disabled:opacity-50">
+                {esonerando ? 'Un attimo…' : 'Non vuole darli: fai il check-in lo stesso'}
               </button>
             </div>
           </motion.div>
