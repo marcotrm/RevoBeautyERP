@@ -42,6 +42,15 @@ export function reviewRedirectUrl(): string {
 }
 
 /**
+ * La pagina pubblica del listino: quella del bottone su WhatsApp e del QR al
+ * banco. Un indirizzo solo, così il template approvato da Meta non va rifatto
+ * se un domani cambia dove sta la pagina.
+ */
+export function listinoUrl(): string {
+  return `${erpBaseUrl()}/listino`;
+}
+
+/**
  * Da dove arriva chi apre il modulo del coupon.
  *
  * L'inaugurazione è passata: i contatti che arrivano adesso non vengono più dal

@@ -13,7 +13,7 @@
  *               (Client.marketingConsent) e costa di più.
  */
 
-import { reviewRedirectUrl } from '@/lib/links';
+import { listinoUrl, reviewRedirectUrl } from '@/lib/links';
 
 export type TemplateCategory = 'UTILITY' | 'MARKETING';
 
@@ -24,7 +24,7 @@ export type TemplateCategory = 'UTILITY' | 'MARKETING';
  * dipendono dall'ambiente (ERP_URL). Il catalogo nomina la destinazione, chi
  * gliela serve è `resolveButtonUrl`.
  */
-export type ButtonLink = 'review-redirect';
+export type ButtonLink = 'review-redirect' | 'listino';
 
 /**
  * Bottone del template, come approvato su Meta.
@@ -312,6 +312,32 @@ export const WA_TEMPLATES = {
       'prenotato. Non è a orario: parte a mano dalla pagina Inaugurazione. È MARKETING, quindi va ' +
       'solo a chi non ha revocato il consenso e ogni contatto la riceve una volta sola.',
   },
+  /**
+   * Il listino a chi lo chiede, quando su WhatsApp non si può scrivere.
+   *
+   * Al banco lo chiedono in continuazione, ma il testo libero vale solo nelle
+   * 24 ore da un messaggio della cliente: con chi non ha mai scritto — cioè
+   * quasi tutte — l'unica strada è un template approvato.
+   *
+   * Il link sta nel bottone e non nel corpo, come nella richiesta recensione:
+   * l'indirizzo si può cambiare senza rifare l'approvazione, e il messaggio
+   * resta pulito. Non promette sconti né offerte: dice solo dove sono i
+   * prezzi, che è esattamente quello che la cliente ha chiesto.
+   */
+  listino: {
+    name: 'listino_prezzi',
+    category: 'MARKETING',
+    language: 'it',
+    params: ['nome cliente'],
+    body:
+      'Ciao {{1}}, come richiesto ecco il listino di RevoBeauty: trattamenti, durate e prezzi aggiornati.\n' +
+      'Tocca il bottone qui sotto per aprirlo. Se vuoi un consiglio o vuoi prenotare, rispondi pure a questo messaggio.',
+    buttons: [{ type: 'URL', text: 'Vedi il listino', link: 'listino' }],
+    note:
+      'MARKETING perché è un catalogo di prezzi: va solo a chi non ha revocato il consenso. Il ' +
+      'bottone punta al nostro /listino, che si aggiorna da solo dai trattamenti — quindi il ' +
+      'template resta valido anche quando i prezzi cambiano.',
+  },
 } as const satisfies Record<string, WaTemplate>;
 
 export type TemplateKey = keyof typeof WA_TEMPLATES;
@@ -346,6 +372,8 @@ export function resolveButtonUrl(link: ButtonLink): string {
   switch (link) {
     case 'review-redirect':
       return reviewRedirectUrl();
+    case 'listino':
+      return listinoUrl();
   }
 }
 

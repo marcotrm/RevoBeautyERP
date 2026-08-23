@@ -268,6 +268,7 @@ export async function creaTemplateRecensione(): Promise<{ ok: boolean; status?: 
  * combacia Meta risponde 132000 e il messaggio non parte.
  */
 const ESEMPI_PARAMETRI: Record<TemplateKey, string[]> = {
+  listino: ['Maria'],
   confirm: ['Maria', 'pulizia viso', 'domani', '15:30'],
   spostato: ['Maria', 'pulizia viso', 'domani', '15:45'],
   reminder: ['Maria', 'pulizia viso', 'domani', '15:30'],

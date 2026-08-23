@@ -15,7 +15,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Receipt, X, Send, Check, Copy, QrCode } from 'lucide-react';
-import { mandaListino, urlListino } from '@/app/actions/listino';
+import { mandaListino, urlListino, statoTemplateListino, creaTemplateListino } from '@/app/actions/listino';
 
 export default function MandaListino({ phone, nome, className = '' }: {
   phone?: string | null; nome?: string; className?: string;
@@ -25,10 +25,21 @@ export default function MandaListino({ phone, nome, className = '' }: {
   const [esito, setEsito] = useState<{ ok: boolean; testo: string } | null>(null);
   const [link, setLink] = useState('');
   const [copiato, setCopiato] = useState(false);
+  /*
+    Lo stato del template su Meta.
+
+    Serve perché la differenza fra "glielo mando" e "non posso" non dipende da
+    noi: dentro le 24 ore da un suo messaggio si scrive libero, fuori serve un
+    template approvato. Chi sta al banco deve saperlo prima di premere, non
+    dopo un errore.
+  */
+  const [tpl, setTpl] = useState<string>('');
+  const [creando, setCreando] = useState(false);
 
   useEffect(() => {
     if (!aperto) return;
     urlListino().then(setLink).catch(() => {});
+    statoTemplateListino().then(r => setTpl(r.stato)).catch(() => {});
   }, [aperto]);
 
   const manda = async () => {
@@ -85,6 +96,31 @@ export default function MandaListino({ phone, nome, className = '' }: {
                         <p className={`text-[11px] mt-2 ${esito.ok ? 'text-success' : 'text-error'}`}>
                           {esito.ok ? <><Check className="w-3 h-3 inline mr-1" />{esito.testo}</> : esito.testo}
                         </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Il template: serve solo con chi non ha scritto di recente. */}
+                  {tpl && tpl !== 'APPROVED' && (
+                    <div className="p-2.5 rounded-xl bg-warning/10 border border-warning/25">
+                      <p className="text-[11px] text-warning font-semibold">
+                        {tpl === 'ASSENTE'
+                          ? 'Con chi non ha scritto nelle ultime 24 ore serve un messaggio approvato da Meta, e non c\u2019\u00e8 ancora.'
+                          : `Il messaggio approvato da Meta \u00e8 ancora in attesa (${tpl.toLowerCase()}).`}
+                      </p>
+                      <p className="text-[10px] text-text-secondary mt-0.5">
+                        Intanto funziona il QR qui sotto, che non chiede permesso a nessuno.
+                      </p>
+                      {tpl === 'ASSENTE' && (
+                        <button onClick={async () => {
+                          setCreando(true);
+                          const r = await creaTemplateListino().catch(() => ({ ok: false }));
+                          setCreando(false);
+                          if ('stato' in r && r.stato) setTpl(String(r.stato).toUpperCase());
+                        }} disabled={creando}
+                          className="mt-2 px-2.5 py-1 rounded-lg bg-warning text-white text-[11px] font-bold disabled:opacity-50">
+                          {creando ? 'Mando\u2026' : 'Mandalo in approvazione a Meta'}
+                        </button>
                       )}
                     </div>
                   )}
