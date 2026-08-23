@@ -743,6 +743,9 @@ export default function WhatsAppChat() {
               title="Scrivi a un cliente">
               <PenSquare className="w-3.5 h-3.5" />
             </button>
+            {/* Il listino a chi lo chiede e in rubrica non c'è: si scrive solo
+                il numero. È la richiesta più frequente al banco. */}
+            <MandaListino soloIcona chiediNumero />
             <button onClick={manualRefresh} disabled={loadingList}
               className="p-1.5 rounded-lg text-text-muted hover:bg-bg-hover disabled:opacity-50" title="Aggiorna">
               <RefreshCw className={`w-3.5 h-3.5 ${loadingList ? 'animate-spin' : ''}`} />

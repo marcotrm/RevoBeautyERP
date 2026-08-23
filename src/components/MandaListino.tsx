@@ -17,10 +17,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Receipt, X, Send, Check, Copy, QrCode } from 'lucide-react';
 import { mandaListino, urlListino, statoTemplateListino, creaTemplateListino } from '@/app/actions/listino';
 
-export default function MandaListino({ phone, nome, className = '' }: {
+export default function MandaListino({ phone, nome, className = '', soloIcona = false, chiediNumero = false }: {
   phone?: string | null; nome?: string; className?: string;
+  /** Solo l'icona, per le barre strette dove non c'è posto per la scritta. */
+  soloIcona?: boolean;
+  /**
+   * Il numero lo si scrive lì per lì.
+   *
+   * Al banco arriva anche chi in rubrica non c'è: chiede il listino, detta il
+   * numero e se ne va. Senza questa strada bisognava prima crearle la scheda —
+   * cioè chiederle dei dati che non voleva dare — per mandarle un link.
+   */
+  chiediNumero?: boolean;
 }) {
   const [aperto, setAperto] = useState(false);
+  const [numero, setNumero] = useState('');
+  const [nomeScritto, setNomeScritto] = useState('');
   const [inviando, setInviando] = useState(false);
   const [esito, setEsito] = useState<{ ok: boolean; testo: string } | null>(null);
   const [link, setLink] = useState('');
@@ -42,11 +54,16 @@ export default function MandaListino({ phone, nome, className = '' }: {
     statoTemplateListino().then(r => setTpl(r.stato)).catch(() => {});
   }, [aperto]);
 
+  // Il numero: quello della scheda, o quello appena scritto a mano.
+  const numeroDaUsare = (phone || numero).replace(/[^\d+]/g, '');
+  const pronto = numeroDaUsare.replace(/\D/g, '').length >= 9;
+
   const manda = async () => {
-    if (!phone) return;
+    if (!pronto) return;
     setInviando(true);
     setEsito(null);
-    const r = await mandaListino({ phone, nome }).catch(() => ({ ok: false, error: 'Invio fallito' }));
+    const r = await mandaListino({ phone: numeroDaUsare, nome: nome || nomeScritto })
+      .catch(() => ({ ok: false, error: 'Invio fallito' }));
     setInviando(false);
     setEsito({
       ok: Boolean(r.ok),
@@ -65,8 +82,11 @@ export default function MandaListino({ phone, nome, className = '' }: {
   return (
     <>
       <button type="button" onClick={() => { setAperto(true); setEsito(null); }}
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-bg-tertiary border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors ${className}`}>
-        <Receipt className="w-3.5 h-3.5" /> Manda il listino
+        title="Manda il listino"
+        className={soloIcona
+          ? `p-1.5 rounded-lg text-text-muted hover:bg-bg-hover transition-colors ${className}`
+          : `flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-bg-tertiary border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors ${className}`}>
+        <Receipt className="w-3.5 h-3.5" />{soloIcona ? null : ' Manda il listino'}
       </button>
 
       <AnimatePresence>
@@ -86,11 +106,32 @@ export default function MandaListino({ phone, nome, className = '' }: {
                 </div>
 
                 <div className="p-5 space-y-4">
-                  {phone && (
+                  {/* Il numero scritto a mano: per chi in rubrica non c'è. */}
+                  {!phone && chiediNumero && (
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-text-secondary mb-1">Numero di WhatsApp</label>
+                        <input value={numero} onChange={e => { setNumero(e.target.value); setEsito(null); }}
+                          inputMode="tel" placeholder="Es. 333 1234567" autoFocus
+                          className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-text-secondary mb-1">Nome <span className="font-normal text-text-muted">(facoltativo)</span></label>
+                        <input value={nomeScritto} onChange={e => setNomeScritto(e.target.value)}
+                          placeholder="Come la saluto nel messaggio"
+                          className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
+                      </div>
+                      <p className="text-[10px] text-text-muted">
+                        Non serve che sia registrata: il messaggio parte lo stesso e la scheda si crea quando viene.
+                      </p>
+                    </div>
+                  )}
+
+                  {(phone || chiediNumero) && (
                     <div>
-                      <button onClick={manda} disabled={inviando}
-                        className="w-full py-3 rounded-xl gradient-accent text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50">
-                        <Send className="w-4 h-4" /> {inviando ? 'Sto mandando…' : `Manda su WhatsApp al ${phone}`}
+                      <button onClick={manda} disabled={inviando || !pronto}
+                        className="w-full py-3 rounded-xl gradient-accent text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-40">
+                        <Send className="w-4 h-4" /> {inviando ? 'Sto mandando…' : phone ? `Manda su WhatsApp al ${phone}` : 'Manda il listino'}
                       </button>
                       {esito && (
                         <p className={`text-[11px] mt-2 ${esito.ok ? 'text-success' : 'text-error'}`}>
