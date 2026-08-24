@@ -1677,16 +1677,50 @@ function MiniDatePicker({ selectedDate, onPick, onClose }: {
 
   const changeMonth = (delta: number) => setViewMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
 
+  /*
+    Gli anni offerti: dall'apertura del centro fino a tre anni avanti.
+
+    Indietro serve per ritrovare una vecchia seduta in scheda, avanti perché i
+    pacchetti lunghi e i richiami si prenotano anche a più di un anno.
+  */
+  const annoOggi = today.getFullYear();
+  const anni = ((): number[] => {
+    const da = Math.min(2025, annoOggi - 2, selectedDate.getFullYear());
+    const a = Math.max(annoOggi + 3, selectedDate.getFullYear());
+    const out: number[] = [];
+    for (let y = da; y <= a; y++) out.push(y);
+    return out;
+  })();
+
   return (
     <>
       <div className="fixed inset-0 z-[55]" onClick={onClose} />
       <div className="absolute top-full left-0 mt-2 z-[56] w-72 bg-bg-secondary border border-border rounded-2xl shadow-2xl p-3"
         onClick={e => e.stopPropagation()}>
-        {/* Header mese con navigazione */}
-        <div className="flex items-center justify-between mb-2">
-          <button onClick={() => changeMonth(-1)} className="p-1.5 rounded-lg hover:bg-bg-hover text-text-secondary"><ChevronLeft className="w-4 h-4" /></button>
-          <span className="text-sm font-semibold text-text-primary capitalize">{MONTH_NAMES_IT[viewMonth.getMonth()]} {viewMonth.getFullYear()}</span>
-          <button onClick={() => changeMonth(1)} className="p-1.5 rounded-lg hover:bg-bg-hover text-text-secondary"><ChevronRight className="w-4 h-4" /></button>
+        {/*
+          Mese e anno si scelgono, non si rincorrono.
+
+          Prima c'erano solo le frecce del mese: per arrivare a gennaio
+          dell'anno dopo bisognava premere sei volte, e per riguardare un
+          appuntamento dell'anno prima anche di più. Anno e mese sono due
+          tendine, e sotto c'è il campo per scrivere la data intera quando la
+          si sa già.
+        */}
+        <div className="flex items-center gap-1.5 mb-2">
+          <button onClick={() => changeMonth(-1)} title="Mese precedente"
+            className="p-1.5 rounded-lg hover:bg-bg-hover text-text-secondary flex-shrink-0"><ChevronLeft className="w-4 h-4" /></button>
+          <select value={viewMonth.getMonth()}
+            onChange={e => setViewMonth(new Date(viewMonth.getFullYear(), Number(e.target.value), 1))}
+            className="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs font-semibold text-text-primary capitalize focus:outline-none focus:border-accent/50">
+            {MONTH_NAMES_IT.map((mn, i) => <option key={i} value={i}>{mn}</option>)}
+          </select>
+          <select value={viewMonth.getFullYear()}
+            onChange={e => setViewMonth(new Date(Number(e.target.value), viewMonth.getMonth(), 1))}
+            className="px-2 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs font-semibold text-text-primary focus:outline-none focus:border-accent/50">
+            {anni.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+          <button onClick={() => changeMonth(1)} title="Mese successivo"
+            className="p-1.5 rounded-lg hover:bg-bg-hover text-text-secondary flex-shrink-0"><ChevronRight className="w-4 h-4" /></button>
         </div>
         {/* Salto rapido ai mesi */}
         <div className="grid grid-cols-6 gap-1 mb-2 pb-2 border-b border-border/50">
@@ -1717,10 +1751,25 @@ function MiniDatePicker({ selectedDate, onPick, onClose }: {
             );
           })}
         </div>
-        <button onClick={() => { onPick(new Date()); onClose(); }}
-          className="w-full mt-2 py-1.5 rounded-lg bg-bg-tertiary text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors">
-          Vai a Oggi
-        </button>
+        {/* La data scritta per intero: quando si sa già dove si vuole andare
+            è più veloce di qualunque calendario. */}
+        <div className="mt-2 flex items-center gap-1.5">
+          <input type="date" value={fmtDate(selectedDate)}
+            onChange={e => {
+              const v = e.target.value;
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+              const [y, m, d] = v.split('-').map(Number);
+              const scelta = new Date(y, m - 1, d);
+              setViewMonth(new Date(y, m - 1, 1));
+              onPick(scelta);
+              onClose();
+            }}
+            className="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary focus:outline-none focus:border-accent/50" />
+          <button onClick={() => { onPick(new Date()); onClose(); }}
+            className="px-3 py-1.5 rounded-lg bg-bg-tertiary text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors flex-shrink-0">
+            Oggi
+          </button>
+        </div>
       </div>
     </>
   );
