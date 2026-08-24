@@ -32,7 +32,25 @@ export function resolveDaySchedule(
 ): WeekDaySchedule | undefined {
   const dow = date.getDay(); // 1..6 (0=Dom gestito a parte da chi chiama)
   const forWeek = weekMap?.[op.id];
-  if (forWeek && forWeek[dow] !== undefined) return forWeek[dow];
+
+  /*
+    Se quella settimana è stata pianificata, comanda lei — anche nei giorni
+    lasciati vuoti.
+
+    In Staff → Turni una casella vuota conta già come zero ore: chi compila la
+    settimana e mette un'operatrice solo mercoledì, giovedì e sabato sta
+    dicendo che il lunedì è a casa. L'agenda invece leggeva il giorno mancante
+    come "non pianificato" e ripiegava sul turno abituale della scheda,
+    rimettendola in colonna con la giornata libera: due schermate che dicevano
+    il contrario l'una dell'altra sulla stessa persona.
+
+    Il ripiego sul turno abituale resta dov'è giusto: le settimane che nessuno
+    ha ancora toccato, che se no bloccherebbero le prenotazioni.
+  */
+  if (forWeek && Object.keys(forWeek).length > 0) {
+    return forWeek[dow] ?? { isWorking: false, startTime: '', endTime: '' };
+  }
+
   // Ripiego: turno ricorrente della scheda operatrice (settimana non pianificata)
   return op.schedule?.[dow];
 }

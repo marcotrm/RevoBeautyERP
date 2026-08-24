@@ -269,7 +269,23 @@ function lavoroDelGiorno(ctx: Contesto, date: string): Map<string, Fascia[]> {
   for (const op of ctx.operatori) {
     if (dow === 0) { lavoro.set(op.id, []); continue; } // domenica chiuso
     const perSettimana = ctx.settimane.find(w => w.operatorId === op.id && w.weekStart === weekStart);
-    const mappa = (perSettimana?.schedule ?? op.schedule) as Record<string, Turno> | null;
+    const settimana = perSettimana?.schedule as Record<string, Turno> | null | undefined;
+
+    /*
+      Settimana pianificata: i giorni lasciati vuoti sono riposo.
+
+      È la stessa regola del pianificatore dei turni, dove una casella vuota
+      vale zero ore. Senza, chi compila la settimana solo per tre giorni si
+      ritrovava proposta anche negli altri — e il gestionale prenotava
+      appuntamenti a chi quel giorno non c'è.
+    */
+    if (settimana && Object.keys(settimana).length > 0) {
+      const turno = settimana[String(dow)];
+      lavoro.set(op.id, turno ? fasceDiLavoro(turno, ctx.regole) : []);
+      continue;
+    }
+
+    const mappa = op.schedule as Record<string, Turno> | null;
     lavoro.set(op.id, fasceDiLavoro(mappa?.[String(dow)], ctx.regole));
   }
   return lavoro;
