@@ -56,17 +56,32 @@ export interface AppuntamentoInSospeso {
 
 export async function appuntamentiFuturiOperatrice(id: string): Promise<AppuntamentoInSospeso[]> {
   const oggi = new Date().toISOString().slice(0, 10);
+  /*
+    Non basta guardare di chi è l'appuntamento.
+
+    Da quando ogni trattamento può essere affidato a un'altra — il refill lo fa
+    Michela e subito dopo il pedicure lo fa Rosaria — un'operatrice può avere
+    mezza giornata di lavoro dentro appuntamenti intestati a qualcun altro.
+    Cercando solo per `operatorId` risultava libera, si metteva in stand-by, e
+    quei trattamenti restavano senza nessuno.
+  */
   const righe = await prisma.appointment.findMany({
     where: {
-      operatorId: id,
       date: { gte: oggi },
       status: { in: ['confirmed', 'pending', 'in_progress', 'in_cabin'] },
     },
-    select: { id: true, date: true, startTime: true, clientName: true },
+    select: { id: true, date: true, startTime: true, clientName: true, operatorId: true, services: true },
     orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-    take: 50,
+    take: 500,
   });
-  return righe.map(r => ({ id: r.id, data: r.date, ora: r.startTime, cliente: r.clientName }));
+
+  const suoi = righe.filter(r => {
+    if (r.operatorId === id) return true;
+    const servizi = Array.isArray(r.services) ? (r.services as { operatorId?: string }[]) : [];
+    return servizi.some(s => s?.operatorId === id);
+  });
+
+  return suoi.slice(0, 50).map(r => ({ id: r.id, data: r.date, ora: r.startTime, cliente: r.clientName }));
 }
 
 export async function mettiInServizio(id: string, inServizio: boolean): Promise<{
