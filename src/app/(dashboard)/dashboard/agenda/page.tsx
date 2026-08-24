@@ -55,6 +55,7 @@ import { esoneriScheda, esoneraScheda } from '@/app/actions/esoneroScheda';
 import SegniCliente from '@/components/SegniCliente';
 import AvvisoCliente from '@/components/AvvisoCliente';
 import BuonoCompleannoBadge from '@/components/BuonoCompleanno';
+import CampoData from '@/components/ui/CampoData';
 
 /** Mostra in chiaro il rifiuto del server (es. cliente doppione). */
 function avvisaErroreCliente(e: unknown) {
@@ -4640,9 +4641,9 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-text-secondary mb-1">Data di nascita *</label>
-                  <input type="date" value={schedaForm.birthDate}
-                    onChange={e => setSchedaForm(f => ({ ...f, birthDate: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary" />
+                  <CampoData value={schedaForm.birthDate}
+                    onChange={v => setSchedaForm(f => ({ ...f, birthDate: v }))}
+                    className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-text-secondary mb-1">Sesso *</label>

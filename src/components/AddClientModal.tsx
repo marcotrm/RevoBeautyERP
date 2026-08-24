@@ -8,6 +8,7 @@ import { Client } from '@/types';
 import { getInitials } from '@/lib/helpers';
 import { useClientStore } from '@/stores/useClientStore';
 import { maiuscoleNome } from '@/lib/nomiPropri';
+import CampoData from '@/components/ui/CampoData';
 
 /** Ultime 9 cifre: confronta i numeri ignorando prefisso, spazi e trattini. */
 function codaTelefono(raw: string): string {
@@ -174,7 +175,7 @@ export default function AddClientModal({
             {/* Data nascita + Genere */}
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Data di Nascita {!birthDate && <span className="text-warning text-xs font-normal">• da completare</span>}</label>
-                <input type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} className={`w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all ${!birthDate ? 'border-warning/50 bg-warning/[0.04]' : 'border-border'}`} /></div>
+                <CampoData value={birthDate} onChange={setBirthDate} className={`w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all ${!birthDate ? 'border-warning/50 bg-warning/[0.04]' : 'border-border'}`} /></div>
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Genere</label>
                 <div className="flex gap-2">
                   {([['F', 'Donna'], ['M', 'Uomo'], ['other', 'Altro']] as const).map(([val, label]) => (
