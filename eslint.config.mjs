@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // App mobile clienti (Expo): ha il suo tsconfig/eslint, non va lintata dall'ERP
+    "app-clienti/**",
   ]),
 ]);
 
