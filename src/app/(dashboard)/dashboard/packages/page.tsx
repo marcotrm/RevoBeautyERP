@@ -12,6 +12,7 @@ import { foglioPacchetti, type PacchettoDaStampare } from '@/lib/foglioPacchetti
 import { CENTRO } from '@/lib/centro';
 import { useClientStore } from '@/stores/useClientStore';
 import SegniCliente from '@/components/SegniCliente';
+import { eOmaggioInaugurazione } from '@/lib/omaggioInaugurazione';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { TreatmentsSection } from './TreatmentsSection';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
@@ -955,9 +956,33 @@ export default function PackagesPage() {
     setUsingSession(null);
   };
 
-  const activeCount = clientPkgs.filter(cp => cp.status === 'active' || cp.status === 'expiring').length;
-  const totalRemaining = clientPkgs.filter(cp => cp.status === 'active' || cp.status === 'expiring').reduce((s, cp) => s + (cp.totalSessions - cp.usedSessions), 0);
-  const totalDebt = clientPkgs.filter(cp => cp.status === 'active' || cp.status === 'expiring').reduce((s, cp) => s + (cp.remainingBalance || 0), 0);
+  /*
+    "Clienti con Pacchetto: 72" non era vero due volte.
+
+    Contava i PACCHETTI, non le persone — e dentro ci stavano i 62 omaggi
+    dell'inaugurazione, mai usati e mai pagati. I pacchetti comprati davvero
+    erano dieci, di nove clienti. Un numero così non è un dettaglio: è quello
+    che si guarda per capire se i pacchetti si vendono.
+
+    Quindi il numero grande sono le persone che hanno comprato, e l'omaggio si
+    conta a parte, dove non si confonde con una vendita.
+  */
+  const attivi = clientPkgs.filter(cp => cp.status === 'active' || cp.status === 'expiring');
+  const chiave = (cp: { clientId?: string | null; clientName: string }) =>
+    cp.clientId || cp.clientName.trim().toLowerCase();
+
+  const comprati = attivi.filter(cp => !eOmaggioInaugurazione(cp.packageName));
+  const clientiComprato = new Set(comprati.map(chiave));
+  const clientiSoloOmaggio = new Set(
+    attivi.filter(cp => eOmaggioInaugurazione(cp.packageName) && !clientiComprato.has(chiave(cp))).map(chiave)
+  );
+
+  const activeCount = clientiComprato.size;
+  const totalRemaining = comprati.reduce((s, cp) => s + (cp.totalSessions - cp.usedSessions), 0);
+  const seduteOmaggio = attivi
+    .filter(cp => eOmaggioInaugurazione(cp.packageName))
+    .reduce((s, cp) => s + (cp.totalSessions - cp.usedSessions), 0);
+  const totalDebt = attivi.reduce((s, cp) => s + (cp.remainingBalance || 0), 0);
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -971,8 +996,20 @@ export default function PackagesPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-bg-secondary border border-border rounded-2xl p-5"><p className="text-sm text-text-secondary">Pacchetti Catalogo</p><p className="text-2xl font-display font-bold text-text-primary mt-1">{packages.length}</p></div>
-        <div className="bg-bg-secondary border border-border rounded-2xl p-5"><p className="text-sm text-text-secondary">Clienti con Pacchetto</p><p className="text-2xl font-display font-bold text-accent mt-1">{activeCount}</p></div>
-        <div className="bg-bg-secondary border border-border rounded-2xl p-5"><p className="text-sm text-text-secondary">Sedute Rimanenti</p><p className="text-2xl font-display font-bold text-warning mt-1">{totalRemaining}</p></div>
+        <div className="bg-bg-secondary border border-border rounded-2xl p-5">
+          <p className="text-sm text-text-secondary">Clienti con Pacchetto</p>
+          <p className="text-2xl font-display font-bold text-accent mt-1">{activeCount}</p>
+          {clientiSoloOmaggio.size > 0 && (
+            <p className="text-[11px] text-text-muted mt-0.5">+{clientiSoloOmaggio.size} con solo l&apos;omaggio inaugurazione</p>
+          )}
+        </div>
+        <div className="bg-bg-secondary border border-border rounded-2xl p-5">
+          <p className="text-sm text-text-secondary">Sedute Rimanenti</p>
+          <p className="text-2xl font-display font-bold text-warning mt-1">{totalRemaining}</p>
+          {seduteOmaggio > 0 && (
+            <p className="text-[11px] text-text-muted mt-0.5">+{seduteOmaggio} dagli omaggi</p>
+          )}
+        </div>
         <div className="bg-bg-secondary border border-border rounded-2xl p-5"><p className="text-sm text-text-secondary">Incassato</p><p className="text-2xl font-display font-bold text-success mt-1">{formatCurrency(clientPkgs.reduce((s, cp) => s + (cp.totalPaid || cp.pricePaid), 0))}</p></div>
         <div className={`bg-bg-secondary border rounded-2xl p-5 ${totalDebt > 0 ? 'border-error/30 bg-error/[0.02]' : 'border-border'}`}><p className="text-sm text-text-secondary">Crediti da Incassare</p><p className={`text-2xl font-display font-bold mt-1 ${totalDebt > 0 ? 'text-error' : 'text-text-muted'}`}>{formatCurrency(totalDebt)}</p></div>
       </div>
@@ -1092,7 +1129,7 @@ export default function PackagesPage() {
         <div>
           <h3 className="text-base font-display font-semibold text-text-primary">Pacchetti Clienti</h3>
           <p className="text-xs text-text-secondary mt-0.5">
-            {clientPkgs.length} venduti · {activeCount} attivi · {totalRemaining} sedute da fare
+            {comprati.length} pacchetti comprati attivi · {activeCount} clienti · {totalRemaining} sedute da fare
             {totalDebt > 0 && <span className="text-error font-medium"> · {formatCurrency(totalDebt)} da incassare</span>}
           </p>
         </div>
