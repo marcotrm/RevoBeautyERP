@@ -53,7 +53,7 @@ const coda = (p: string | null | undefined) => (p || '').replace(/\D/g, '').slic
 
 export type EsitoRichiesta =
   | { ok: true; codice: string; phone: string; nome: string }
-  | { ok: false; code: 'VALIDATION' | 'USER_NOT_FOUND' | 'TOO_MANY'; error: string; attesa?: number };
+  | { ok: false; code: 'VALIDATION' | 'USER_NOT_FOUND' | 'TOO_MANY' | 'CONFLICT'; error: string; attesa?: number };
 
 /**
  * Prepara il codice per un numero e restituisce il codice in chiaro *una sola
@@ -69,8 +69,8 @@ export async function preparaCodice(telefonoGrezzo: string): Promise<EsitoRichie
   // Il numero in anagrafica è scritto in mille modi: si confronta la coda
   const chiave = coda(phone);
   const candidati = await prisma.client.findMany({ select: { id: true, firstName: true, phone: true } });
-  const cliente = candidati.find(c => coda(c.phone) === chiave);
-  if (!cliente) {
+  const conQuelNumero = candidati.filter(c => coda(c.phone) === chiave);
+  if (conQuelNumero.length === 0) {
     return {
       ok: false,
       code: 'USER_NOT_FOUND',
@@ -78,8 +78,19 @@ export async function preparaCodice(telefonoGrezzo: string): Promise<EsitoRichie
     };
   }
 
+  /**
+   * Della stessa persona può esserci più di una scheda: il blocco sui doppioni
+   * è arrivato dopo, e quelli già dentro sono rimasti. Se un account esiste già
+   * per questo numero comanda lui — è quello che ha lo storico degli accessi, e
+   * l'unicità nel database è sul numero, non sulla scheda. Sceglierne un'altra
+   * faceva fallire il salvataggio, e alla cliente arrivava un errore secco
+   * senza che il codice partisse.
+   */
+  const perNumero = await prisma.mobileAccount.findUnique({ where: { phone } });
+  const cliente = (perNumero && conQuelNumero.find(c => c.id === perNumero.clientId)) || conQuelNumero[0];
+
   const adesso = new Date();
-  const account = await prisma.mobileAccount.findUnique({ where: { clientId: cliente.id } });
+  const account = perNumero ?? await prisma.mobileAccount.findUnique({ where: { clientId: cliente.id } });
 
   if (account?.otpSentAt) {
     const passati = (adesso.getTime() - Date.parse(account.otpSentAt)) / 1000;
@@ -101,13 +112,25 @@ export async function preparaCodice(telefonoGrezzo: string): Promise<EsitoRichie
     otpSentAt: adesso.toISOString(),
   };
 
-  await prisma.mobileAccount.upsert({
-    where: { clientId: cliente.id },
-    // L'account nasce al primo accesso: non c'è una registrazione da fare,
-    // chi è già cliente del centro è già "iscritto".
-    create: { clientId: cliente.id, phone, createdAt: adesso.toISOString(), ...dati },
-    update: { phone, ...dati },
-  });
+  try {
+    if (account) {
+      await prisma.mobileAccount.update({ where: { id: account.id }, data: { phone, ...dati } });
+    } else {
+      // L'account nasce al primo accesso: non c'è una registrazione da fare,
+      // chi è già cliente del centro è già "iscritto".
+      await prisma.mobileAccount.create({
+        data: { clientId: cliente.id, phone, createdAt: adesso.toISOString(), ...dati },
+      });
+    }
+  } catch {
+    // Resta il caso di due richieste nello stesso istante. Meglio dirlo in
+    // italiano che lasciare andare fuori un errore del database.
+    return {
+      ok: false,
+      code: 'CONFLICT',
+      error: 'Non siamo riusciti a preparare il codice. Riprova fra qualche secondo.',
+    };
+  }
 
   return { ok: true, codice, phone, nome: cliente.firstName };
 }
