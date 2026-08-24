@@ -18,11 +18,15 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://revobeautyerp-production.up.railway.app"
+        "EXPO_PUBLIC_API_URL": "https://erp.revobeauty.it"
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6804702856"
+      }
+    }
   }
 }
