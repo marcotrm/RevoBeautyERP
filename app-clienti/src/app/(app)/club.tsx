@@ -13,7 +13,7 @@ import { homeService, type DatiHome } from '@/api';
 import { Card } from '@/components/ui/Card';
 import { Progress } from '@/components/ui/Progress';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, spacing, typography } from '@/theme';
+import { colors, fonts, spacing, typography } from '@/theme';
 
 const eur = (n: number) => `${n.toLocaleString('it-IT', { maximumFractionDigits: 0 })} €`;
 
@@ -75,18 +75,18 @@ const styles = StyleSheet.create({
   schermo: { flex: 1, backgroundColor: colors.background },
   centro: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
   contenuto: { padding: spacing.md },
-  etichetta: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: '700' },
+  etichetta: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, fontFamily: fonts.w700 },
   rigaLivello: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginVertical: spacing.xs },
   pallone: { width: 26, height: 26, borderRadius: 13 },
   livello: { ...typography.title, color: colors.textPrimary },
-  titoletto: { ...typography.body, color: colors.textPrimary, fontWeight: '700' },
+  titoletto: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w700 },
   barra: { marginVertical: spacing.sm },
   piccolo: { ...typography.caption, color: colors.textSecondary, lineHeight: 18 },
   spazio: { marginTop: spacing.md },
   spazioMini: { marginTop: spacing.sm },
   sezione: { ...typography.subtitle, color: colors.textPrimary, marginTop: spacing.lg },
   rigaVantaggio: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
-  spunta: { color: colors.success, fontWeight: '700' },
+  spunta: { color: colors.success, fontFamily: fonts.w700 },
   vantaggio: { ...typography.body, color: colors.textPrimary, flex: 1 },
   fondo: { height: spacing.xl },
 });

@@ -23,7 +23,7 @@ import {
 } from '@/api';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, fonts, radius, spacing, typography } from '@/theme';
 import { formatPrice } from '@/utils/format';
 
 /** Nome e faccina di ogni categoria, nell'ordine in cui il centro le usa. */
@@ -438,12 +438,12 @@ const styles = StyleSheet.create({
   blocco: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.md, backgroundColor: colors.surface },
   bloccoTitolo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   bloccoTitoloTxt: { ...typography.label, color: colors.primary, textTransform: 'uppercase' },
-  togli: { ...typography.caption, color: colors.error, fontWeight: '700' },
+  togli: { ...typography.caption, color: colors.error, fontFamily: fonts.w700 },
 
   rigaChiusa: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.surface, marginTop: spacing.md },
   rigaEmoji: { fontSize: 22 },
-  selName: { ...typography.body, fontWeight: '700', color: colors.textPrimary },
-  change: { ...typography.caption, color: colors.primary, fontWeight: '700' },
+  selName: { ...typography.body, fontFamily: fonts.w700, color: colors.textPrimary },
+  change: { ...typography.caption, color: colors.primary, fontFamily: fonts.w700 },
 
   label: { ...typography.label, color: colors.primary, marginTop: spacing.md, marginBottom: spacing.sm, textTransform: 'uppercase' },
 
@@ -452,14 +452,14 @@ const styles = StyleSheet.create({
   catCard: { width: '47.5%', flexGrow: 1, paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, alignItems: 'center', gap: 2 },
   catCardOn: { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primarySoft },
   catEmoji: { fontSize: 24 },
-  catLabel: { ...typography.body, fontWeight: '700', color: colors.textPrimary },
+  catLabel: { ...typography.body, fontFamily: fonts.w700, color: colors.textPrimary },
   catLabelOn: { color: colors.primaryDark },
   catQuante: { ...typography.caption, color: colors.textMuted, fontSize: 11 },
 
   treatItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.xs, backgroundColor: colors.background },
   treatItemOn: { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primarySoft },
-  treatName: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
-  treatPrezzo: { ...typography.body, fontWeight: '800', color: colors.textSecondary },
+  treatName: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w600 },
+  treatPrezzo: { ...typography.body, fontFamily: fonts.w800, color: colors.textSecondary },
   treatPrezzoOn: { color: colors.primaryDark },
   muted: { ...typography.caption, color: colors.textSecondary },
 
@@ -469,34 +469,34 @@ const styles = StyleSheet.create({
   facciaCerchio: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 2, borderColor: 'transparent' },
   facciaCerchioOn: { borderColor: colors.primary, borderWidth: 3 },
   facciaFoto: { width: '100%', height: '100%' },
-  facciaIniziali: { ...typography.body, fontWeight: '800', color: colors.white, fontSize: 20 },
-  facciaNome: { ...typography.caption, color: colors.textSecondary, fontWeight: '700', marginTop: 6 },
+  facciaIniziali: { ...typography.body, fontFamily: fonts.w800, color: colors.white, fontSize: 20 },
+  facciaNome: { ...typography.caption, color: colors.textSecondary, fontFamily: fonts.w700, marginTop: 6 },
   facciaNomeOn: { color: colors.primaryDark },
   facciaSotto: { ...typography.caption, color: colors.textMuted, fontSize: 10 },
 
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   chip: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
   chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipTxt: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
+  chipTxt: { ...typography.caption, color: colors.textSecondary, fontFamily: fonts.w600 },
   chipTxtOn: { color: '#fff' },
 
   fatto: { marginTop: spacing.md, alignSelf: 'flex-start', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.lg, backgroundColor: colors.primary },
-  fattoTxt: { ...typography.caption, color: '#fff', fontWeight: '700' },
+  fattoTxt: { ...typography.caption, color: '#fff', fontFamily: fonts.w700 },
 
   aggiungi: { marginTop: spacing.md, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.primary, alignItems: 'center' },
-  aggiungiTxt: { ...typography.body, color: colors.primary, fontWeight: '700' },
+  aggiungiTxt: { ...typography.body, color: colors.primary, fontFamily: fonts.w700 },
   totale: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.md, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  totaleVal: { ...typography.body, fontWeight: '800', color: colors.textPrimary },
+  totaleVal: { ...typography.body, fontFamily: fonts.w800, color: colors.textPrimary },
 
-  giornoTitolo: { ...typography.body, fontWeight: '800', color: colors.textPrimary, textTransform: 'capitalize', marginBottom: spacing.sm },
+  giornoTitolo: { ...typography.body, fontFamily: fonts.w800, color: colors.textPrimary, textTransform: 'capitalize', marginBottom: spacing.sm },
   slots: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   slot: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, minWidth: 68, alignItems: 'center' },
   slotActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  slotTxt: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
+  slotTxt: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w600 },
   slotTxtActive: { color: '#fff' },
 
   riepilogo: { marginTop: spacing.md, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.surface, gap: 2 },
-  riepilogoTitolo: { ...typography.body, fontWeight: '800', color: colors.textPrimary, textTransform: 'capitalize', marginBottom: 4 },
+  riepilogoTitolo: { ...typography.body, fontFamily: fonts.w800, color: colors.textPrimary, textTransform: 'capitalize', marginBottom: 4 },
 
   error: { ...typography.caption, color: colors.error, marginTop: spacing.md },
   check: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' },
@@ -504,5 +504,5 @@ const styles = StyleSheet.create({
   doneTitle: { ...typography.title, color: colors.textPrimary, textAlign: 'center' },
   summary: { alignSelf: 'stretch', backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm, borderWidth: 1, borderColor: colors.border },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
-  rowVal: { ...typography.body, color: colors.textPrimary, fontWeight: '600', flexShrink: 1, textAlign: 'right', textTransform: 'capitalize' },
+  rowVal: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w600, flexShrink: 1, textAlign: 'right', textTransform: 'capitalize' },
 });

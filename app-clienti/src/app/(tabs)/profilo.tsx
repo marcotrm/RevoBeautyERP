@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Card } from '@/components/ui/Card';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, spacing, typography } from '@/theme';
+import { colors, fonts, spacing, typography } from '@/theme';
 
 type Voce = { icona: keyof typeof Ionicons.glyphMap; testo: string; rotta: string };
 
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     width: 60, height: 60, borderRadius: 30, backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
-  iniziali: { ...typography.subtitle, color: colors.white, fontWeight: '700' },
+  iniziali: { ...typography.subtitle, color: colors.white },
   testi: { flex: 1 },
   nome: { ...typography.subtitle, color: colors.textPrimary },
   piccolo: { ...typography.caption, color: colors.textSecondary },
@@ -82,5 +82,5 @@ const styles = StyleSheet.create({
   premuta: { backgroundColor: colors.backgroundAlt },
   voceTesto: { ...typography.body, color: colors.textPrimary, flex: 1 },
   esci: { alignItems: 'center', paddingVertical: spacing.lg },
-  esciTesto: { ...typography.label, color: colors.textSecondary, fontWeight: '600' },
+  esciTesto: { ...typography.label, color: colors.textSecondary, fontFamily: fonts.w600 },
 });

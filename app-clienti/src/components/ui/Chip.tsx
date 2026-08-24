@@ -1,7 +1,7 @@
 /** Etichetta breve: livello del Club, stato, conto alla rovescia. */
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing } from '@/theme';
+import { colors, fonts, radius, spacing } from '@/theme';
 
 export function Chip({ testo, colore, sfondo }: { testo: string; colore?: string; sfondo?: string }) {
   return (
@@ -18,5 +18,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignSelf: 'flex-start',
   },
-  testo: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
+  testo: { fontSize: 11, fontFamily: fonts.w700, letterSpacing: 0.2 },
 });

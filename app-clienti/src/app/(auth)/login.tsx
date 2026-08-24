@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/Button';
 import { FormError } from '@/components/ui/FormError';
 import { TextField } from '@/components/ui/TextField';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, spacing, typography } from '@/theme';
+import { colors, fonts, spacing, typography } from '@/theme';
 
 type Passo = 'numero' | 'codice';
 
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     marginBottom: spacing.xl,
   },
-  numero: { color: colors.textPrimary, fontWeight: '700' },
+  numero: { color: colors.textPrimary, fontFamily: fonts.w700 },
   nota: {
     ...typography.label,
     color: colors.textSecondary,
@@ -234,6 +234,6 @@ const styles = StyleSheet.create({
   },
   azioni: { alignItems: 'center', gap: spacing.sm, marginTop: spacing.lg },
   attesa: { ...typography.label, color: colors.textSecondary },
-  link: { ...typography.label, color: colors.primary, fontWeight: '700' },
+  link: { ...typography.label, color: colors.primary, fontFamily: fonts.w700 },
   linkTenue: { ...typography.label, color: colors.textSecondary },
 });

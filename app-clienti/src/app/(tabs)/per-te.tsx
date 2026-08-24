@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, spacing, typography } from '@/theme';
+import { colors, fonts, spacing, typography } from '@/theme';
 
 const eur = (n: number) => `${n.toLocaleString('it-IT', { maximumFractionDigits: 2 })} €`;
 
@@ -188,16 +188,16 @@ const styles = StyleSheet.create({
   sezione: { ...typography.subtitle, color: colors.textPrimary, marginTop: spacing.lg },
   spazio: { marginTop: spacing.sm },
   rigaTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  flashOra: { ...typography.label, color: colors.flash, fontWeight: '700', textTransform: 'capitalize' },
+  flashOra: { ...typography.label, color: colors.flash, fontFamily: fonts.w700, textTransform: 'capitalize' },
   flashTratt: { ...typography.subtitle, color: colors.textPrimary, marginTop: spacing.xs },
   flashOp: { ...typography.caption, color: colors.textSecondary },
   prezzi: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm, marginTop: spacing.sm },
   prezzoVecchio: { ...typography.body, color: colors.textMuted, textDecorationLine: 'line-through' },
-  prezzoNuovo: { ...typography.subtitle, color: colors.textPrimary, fontWeight: '700' },
-  risparmio: { ...typography.caption, color: colors.success, fontWeight: '700' },
+  prezzoNuovo: { ...typography.numero, fontSize: 20, color: colors.textPrimary },
+  risparmio: { ...typography.caption, color: colors.success, fontFamily: fonts.w700 },
   propostaRiga: { flexDirection: 'row', gap: spacing.sm },
   icona: { fontSize: 22 },
   testi: { flex: 1 },
-  pTitolo: { ...typography.body, color: colors.textPrimary, fontWeight: '700' },
+  pTitolo: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w700 },
   pSotto: { ...typography.caption, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
 });

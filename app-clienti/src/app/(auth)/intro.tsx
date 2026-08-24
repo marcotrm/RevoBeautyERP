@@ -23,7 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, fonts, radius, spacing, typography } from '@/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -126,7 +126,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
   },
-  marchio: { ...typography.subtitle, color: colors.primary, fontWeight: '700' },
+  // Il marchio resta serif e largo: è la firma, non un titolo qualsiasi.
+  marchio: { ...typography.subtitle, color: colors.primary, letterSpacing: 1.2 },
   salta: { ...typography.label, color: colors.textSecondary },
 
   scorrevole: { flex: 1 },

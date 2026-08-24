@@ -13,7 +13,7 @@ import { homeService, type DatiWallet } from '@/api';
 import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, spacing, typography } from '@/theme';
+import { colors, fonts, spacing, typography } from '@/theme';
 
 const eur = (n: number) =>
   `${n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -119,20 +119,20 @@ const styles = StyleSheet.create({
   schermo: { flex: 1, backgroundColor: colors.background },
   centro: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
   contenuto: { padding: spacing.md },
-  etichetta: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: '700' },
-  saldo: { fontSize: 34, fontWeight: '700', color: colors.primaryDark, marginVertical: spacing.xs },
+  etichetta: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, fontFamily: fonts.w700 },
+  saldo: { fontSize: 34, fontFamily: fonts.w700, color: colors.primaryDark, marginVertical: spacing.xs },
   rigaTasca: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
   tascaNome: { ...typography.caption, color: colors.textSecondary },
-  tascaImporto: { ...typography.caption, color: colors.textPrimary, fontWeight: '600' },
+  tascaImporto: { ...typography.caption, color: colors.textPrimary, fontFamily: fonts.w600 },
   spazio: { marginTop: spacing.md },
   spazioMini: { marginTop: spacing.sm },
-  scadenzaTitolo: { ...typography.body, color: colors.urgent, fontWeight: '700' },
+  scadenzaTitolo: { ...typography.body, color: colors.urgent, fontFamily: fonts.w700 },
   piccolo: { ...typography.caption, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
   rigaTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   punti: { ...typography.title, color: colors.textPrimary },
   sezione: { ...typography.subtitle, color: colors.textPrimary, marginTop: spacing.lg },
   movTesti: { flex: 1, paddingRight: spacing.sm },
-  movMotivo: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
-  movImporto: { ...typography.body, fontWeight: '700' },
+  movMotivo: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w600 },
+  movImporto: { ...typography.body, fontFamily: fonts.w700 },
   fondo: { height: spacing.xl },
 });

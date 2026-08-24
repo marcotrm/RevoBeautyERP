@@ -4,7 +4,7 @@
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, fonts, radius, spacing, typography } from '@/theme';
 
 interface GenderSelectorProps {
   value: 'F' | 'M' | undefined;
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
   },
   pillTextSelected: {
     color: colors.primaryDark,
-    fontWeight: '700',
+    fontFamily: fonts.w700,
   },
   error: {
     ...typography.caption,

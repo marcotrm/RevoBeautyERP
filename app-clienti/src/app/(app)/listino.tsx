@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { catalogService } from '@/api';
 import { Button } from '@/components/ui/Button';
 import { useApiData } from '@/hooks/useApiData';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, fonts, radius, spacing, typography } from '@/theme';
 import { formatDuration, formatPrice } from '@/utils/format';
 
 export default function PacchettiScreen() {
@@ -227,6 +227,6 @@ const styles = StyleSheet.create({
     ...typography.label,
     fontSize: 15,
     color: colors.primary,
-    fontWeight: '700',
+    fontFamily: fonts.w700,
   },
 });

@@ -15,7 +15,7 @@ import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { TextField } from '@/components/ui/TextField';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, spacing, typography } from '@/theme';
+import { colors, fonts, spacing, typography } from '@/theme';
 
 const eur = (n: number) => `${n.toLocaleString('it-IT', { maximumFractionDigits: 2 })} €`;
 
@@ -130,18 +130,18 @@ const styles = StyleSheet.create({
   schermo: { flex: 1, backgroundColor: colors.background },
   centro: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
   contenuto: { padding: spacing.md },
-  etichetta: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: '700' },
-  codice: { fontSize: 30, fontWeight: '700', color: colors.primaryDark, letterSpacing: 2, marginVertical: spacing.xs },
+  etichetta: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, fontFamily: fonts.w700 },
+  codice: { fontSize: 30, fontFamily: fonts.w700, color: colors.primaryDark, letterSpacing: 2, marginVertical: spacing.xs },
   piccolo: { ...typography.caption, color: colors.textSecondary, lineHeight: 18 },
   spazio: { marginTop: spacing.md },
   spazioMini: { marginTop: spacing.sm },
   numeri: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   numero: { flex: 1, alignItems: 'center', paddingVertical: spacing.md },
   numeroValore: { ...typography.title, color: colors.textPrimary },
-  guadagno: { ...typography.body, color: colors.success, fontWeight: '700' },
+  guadagno: { ...typography.body, color: colors.success, fontFamily: fonts.w700 },
   sezione: { ...typography.subtitle, color: colors.textPrimary, marginTop: spacing.lg },
   rigaTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   testi: { flex: 1 },
-  nomeAmica: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
+  nomeAmica: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w600 },
   fondo: { height: spacing.xl },
 });

@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError, ChatMessage, chatService } from '@/api';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, fonts, radius, spacing, typography } from '@/theme';
 
 function formatTime(iso: string): string {
   try {
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderBottomLeftRadius: 4,
   },
-  author: { ...typography.caption, color: colors.primaryDark, fontWeight: '700', marginBottom: 2 },
+  author: { ...typography.caption, color: colors.primaryDark, fontFamily: fonts.w700, marginBottom: 2 },
   bubbleText: { ...typography.body, color: colors.textPrimary },
   bubbleTextMine: { color: '#fff' },
   time: { ...typography.caption, color: colors.textSecondary, marginTop: 4, alignSelf: 'flex-end' },

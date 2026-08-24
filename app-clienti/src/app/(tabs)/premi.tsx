@@ -16,7 +16,7 @@ import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { Progress } from '@/components/ui/Progress';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, spacing, typography } from '@/theme';
+import { colors, fonts, spacing, typography } from '@/theme';
 
 const eur = (n: number) => `${n.toLocaleString('it-IT', { maximumFractionDigits: 2 })} €`;
 
@@ -155,10 +155,10 @@ const styles = StyleSheet.create({
   piccolo: { ...typography.caption, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
   duo: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   meta: { flex: 1 },
-  metaTitolo: { ...typography.body, color: colors.textPrimary, fontWeight: '700' },
+  metaTitolo: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w700 },
   barra: { marginTop: spacing.sm },
   sezione: { ...typography.subtitle, color: colors.textPrimary, marginTop: spacing.lg },
-  sfidaTitolo: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
+  sfidaTitolo: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w600 },
   rigaTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   testi: { flex: 1, paddingRight: spacing.sm },
   fondo: { height: spacing.xl },

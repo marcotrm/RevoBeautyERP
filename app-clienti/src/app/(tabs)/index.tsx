@@ -23,7 +23,7 @@ import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { Progress } from '@/components/ui/Progress';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, fonts, radius, spacing, typography } from '@/theme';
 
 const eur = (n: number) =>
   `${n.toLocaleString('it-IT', { minimumFractionDigits: n % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })} €`;
@@ -244,17 +244,18 @@ const styles = StyleSheet.create({
   spazio: { marginTop: spacing.md },
   spazioMini: { marginTop: spacing.sm },
 
-  etichetta: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: '700' },
+  etichetta: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, fontFamily: fonts.w700 },
   appQuando: { ...typography.subtitle, color: colors.primaryDark, marginTop: spacing.xs },
-  appTratt: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
+  appTratt: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w600 },
   appOperatrice: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
 
   rigaAzione: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
-  azioneTesto: { ...typography.body, color: colors.primary, fontWeight: '700' },
+  azioneTesto: { ...typography.body, color: colors.primary, fontFamily: fonts.w700 },
 
   trioRiga: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   trio: { flex: 1, alignItems: 'center', paddingVertical: spacing.md },
-  trioNumero: { ...typography.subtitle, color: colors.textPrimary, fontWeight: '700' },
+  // Cifra, non titolo: Montserrat tabellare, così non balla quando cambia.
+  trioNumero: { ...typography.numero, color: colors.textPrimary },
   trioEtichetta: { ...typography.caption, color: colors.textSecondary, marginTop: 2, textAlign: 'center' },
   pallino: { width: 18, height: 18, borderRadius: 9, marginBottom: 4 },
 
@@ -267,7 +268,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.md,
   },
-  ctaTitolo: { ...typography.subtitle, color: colors.white, fontWeight: '700' },
+  ctaTitolo: { ...typography.subtitle, color: colors.white },
   ctaSotto: { ...typography.caption, color: colors.primaryLight, marginTop: 2 },
 
   titoloSezione: { ...typography.subtitle, color: colors.textPrimary, marginTop: spacing.lg },
@@ -275,11 +276,11 @@ const styles = StyleSheet.create({
   propostaRiga: { flexDirection: 'row', gap: spacing.sm },
   propostaIcona: { fontSize: 22 },
   propostaTesti: { flex: 1 },
-  propostaTitolo: { ...typography.body, color: colors.textPrimary, fontWeight: '700' },
+  propostaTitolo: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w700 },
   propostaSotto: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
-  propostaAzione: { ...typography.label, fontWeight: '700', marginTop: spacing.sm },
+  propostaAzione: { ...typography.label, fontFamily: fonts.w700, marginTop: spacing.sm },
 
-  percorsoNome: { ...typography.body, color: colors.textPrimary, fontWeight: '600', flex: 1 },
+  percorsoNome: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w600, flex: 1 },
 
   fondo: { height: spacing.xl },
 });

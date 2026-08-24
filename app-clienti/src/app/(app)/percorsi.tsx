@@ -16,7 +16,7 @@ import { Card } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
 import { Progress } from '@/components/ui/Progress';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, spacing, typography } from '@/theme';
+import { colors, fonts, spacing, typography } from '@/theme';
 
 const data = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('it-IT', { day: '2-digit', month: 'long' });
 
@@ -128,10 +128,10 @@ const styles = StyleSheet.create({
   rigaTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   nome: { ...typography.subtitle, color: colors.textPrimary, flex: 1 },
   nomeTenue: { ...typography.body, color: colors.textSecondary, flex: 1 },
-  conteggio: { ...typography.body, color: colors.textPrimary, fontWeight: '700', marginTop: spacing.xs },
+  conteggio: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w700, marginTop: spacing.xs },
   barra: { marginVertical: spacing.sm },
   riga: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
-  forte: { color: colors.textPrimary, fontWeight: '700' },
+  forte: { color: colors.textPrimary, fontFamily: fonts.w700 },
   piccolo: { ...typography.caption, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
   sezione: { ...typography.subtitle, color: colors.textPrimary, marginTop: spacing.lg },
   timeline: { marginTop: spacing.md },
@@ -140,6 +140,6 @@ const styles = StyleSheet.create({
   pallino: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
   filo: { flex: 1, width: 2, backgroundColor: colors.border, marginVertical: 2 },
   tappaTesti: { flex: 1, paddingBottom: spacing.sm },
-  tappaTitolo: { ...typography.label, color: colors.textPrimary, fontWeight: '600' },
+  tappaTitolo: { ...typography.label, color: colors.textPrimary, fontFamily: fonts.w600 },
   fondo: { height: spacing.xl },
 });

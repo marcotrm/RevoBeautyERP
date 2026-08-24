@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { FormError } from '@/components/ui/FormError';
 import { useApiData } from '@/hooks/useApiData';
 import { useAuth } from '@/hooks/useAuth';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, fonts, radius, spacing, typography } from '@/theme';
 import { confirmAsync } from '@/utils/confirm';
 import { formatDate, formatPrice } from '@/utils/format';
 
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
   cardStatus: {
     ...typography.caption,
     color: colors.success,
-    fontWeight: '600',
+    fontFamily: fonts.w600,
   },
   cardStatusCancelled: {
     color: colors.error,
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     ...typography.caption,
-    fontWeight: '600',
+    fontFamily: fonts.w600,
     color: colors.error,
   },
   cannotCancelHint: {
