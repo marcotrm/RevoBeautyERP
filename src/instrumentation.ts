@@ -110,10 +110,45 @@ export async function register() {
     }
   };
 
+  /**
+   * Recensioni Google: si guarda ogni mezz'ora, e solo mentre il centro è
+   * sveglio (8-22). Ogni lettura è una chiamata a pagamento alla Places API:
+   * al minuto sarebbero 1440 chiamate al giorno per una recensione che arriva
+   * una volta a settimana. Mezz'ora è già più veloce di chiunque guardi Google
+   * a mano.
+   *
+   * Il riepilogo delle positive parte alle 20:05, cinque minuti dopo i report,
+   * per non far arrivare tre messaggi tutti insieme.
+   */
+  const recensioniTick = async () => {
+    const { hhmm } = nowRome();
+    const [hh, mm] = hhmm.split(':').map(Number);
+
+    try {
+      if (hh >= 8 && hh < 22 && (mm === 0 || mm === 30)) {
+        const { controllaRecensioni } = await import('@/lib/recensioniTelegram');
+        const e = await controllaRecensioni();
+        if (e.errore) console.error('[recensioni] lettura fallita:', e.errore);
+        else if (e.negativeInviate || e.positiveInCoda || e.invisibili) {
+          console.log(`[recensioni] ${e.negativeInviate} negative avvisate, ${e.positiveInCoda} in coda per la sera, ${e.invisibili} senza testo`);
+        }
+      }
+
+      if (hhmm === '20:05') {
+        const { riepilogoRecensioni } = await import('@/lib/recensioniTelegram');
+        const r = await riepilogoRecensioni();
+        if (r.inviato) console.log(`[recensioni] riepilogo serale: ${r.quante} positive`);
+      }
+    } catch (err) {
+      console.error('[recensioni] scheduler error', err);
+    }
+  };
+
   // Controlla ogni minuto
-  setInterval(() => { void tick(); void waTick(); void buchiTick(); void affiliatiTick(); }, 60 * 1000);
+  setInterval(() => { void tick(); void waTick(); void buchiTick(); void affiliatiTick(); void recensioniTick(); }, 60 * 1000);
   console.log('[reports] Scheduler report Telegram attivo (invio alle 20:00 Europe/Rome)');
   console.log('[wa] Scheduler automazioni WhatsApp attivo');
   console.log('[copri-buchi] Scheduler copri buchi attivo');
   console.log('[affiliati] Riepilogo mensile attivo (il 1° del mese dalle 10:00)');
+  console.log('[recensioni] Controllo Google ogni 30 minuti (8-22), riepilogo positive alle 20:05');
 }

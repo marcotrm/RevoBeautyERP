@@ -57,10 +57,27 @@ export interface StatoRecensioni {
   totaleAllUltimaVista: number;
   ultimaLettura?: string;
   errore?: string;
+
+  /**
+   * Gli avvisi su Telegram tengono un conto loro, separato da `viste`.
+   *
+   * "Visto" vuol dire che qualcuno ha aperto la pagina del gestionale; se le due
+   * cose stessero insieme, chi apre Marketing di mattina spegnerebbe senza
+   * saperlo l'avviso della sera, e la recensione da una stella non arriverebbe
+   * mai sul telefono.
+   */
+  notificate?: string[];
+  /** Quante ce n'erano all'ultimo avviso: serve a contare quelle che Google non mostra. */
+  totaleAllUltimoAvviso?: number;
+  /** Le positive in coda per il riepilogo della sera. */
+  positiveInAttesa?: Recensione[];
+  /** Giorno dell'ultimo riepilogo mandato, per non ripeterlo. */
+  ultimoRiepilogo?: string;
 }
 
 const VUOTO: StatoRecensioni = {
   media: 0, totale: 0, recensioni: [], viste: [], totaleAllUltimaVista: 0,
+  notificate: [], totaleAllUltimoAvviso: 0, positiveInAttesa: [],
 };
 
 export async function leggiStato(): Promise<StatoRecensioni> {
@@ -68,7 +85,7 @@ export async function leggiStato(): Promise<StatoRecensioni> {
   return { ...VUOTO, ...((riga?.data as Partial<StatoRecensioni> | null) || {}) };
 }
 
-async function salvaStato(stato: StatoRecensioni): Promise<StatoRecensioni> {
+export async function salvaStato(stato: StatoRecensioni): Promise<StatoRecensioni> {
   await prisma.adminEntry.upsert({
     where: { rowId: RIGA_STATO },
     update: { data: stato as unknown as object },
@@ -212,10 +229,13 @@ export async function aggiornaRecensioni(): Promise<StatoRecensioni> {
     };
 
     // Prima lettura in assoluto: tutto quello che c'è ora è "già passato", non
-    // ha senso far lampeggiare venti recensioni vecchie di mesi.
+    // ha senso far lampeggiare venti recensioni vecchie di mesi — né mandarle
+    // tutte su Telegram al primo giro.
     if (!stato.ultimaLettura) {
       aggiornato.viste = aggiornato.recensioni.map(r => r.id);
       aggiornato.totaleAllUltimaVista = aggiornato.totale;
+      aggiornato.notificate = aggiornato.recensioni.map(r => r.id);
+      aggiornato.totaleAllUltimoAvviso = aggiornato.totale;
     }
 
     return salvaStato(aggiornato);
