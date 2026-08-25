@@ -229,7 +229,46 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     e.preventDefault();
     const perCodice = allSellableItems.find(t => t.barcode && t.barcode.toLowerCase() === cercato);
     const scelto = perCodice || (filteredServices.length === 1 ? filteredServices[0] : null);
-    if (scelto) addToCart(scelto);
+    if (scelto) { addToCart(scelto); return; }
+    // Codice letto ma sconosciuto: si chiede a chi sta al banco di che prodotto è.
+    if (sembraCodice) setDaAbbinare(cercato);
+  };
+
+  /*
+    Un codice che il gestionale non conosce.
+
+    Quasi tutti i prodotti del centro sono stati caricati senza codice a
+    barre: il lettore spara le cifre e non trova niente, e l'unico modo per
+    sistemarlo sarebbe aprire il magazzino e scriverli uno per uno, cinquanta
+    volte. Così invece il codice si impara al banco: si legge, si dice una
+    volta sola a quale prodotto appartiene, e da lì in poi funziona.
+  */
+  const sembraCodice = /^\d{6,}$/.test(cercato);
+  const [daAbbinare, setDaAbbinare] = useState<string | null>(null);
+  const [cercaProdotto, setCercaProdotto] = useState('');
+  const [abbinando, setAbbinando] = useState(false);
+  const aggiornaProdotto = useProductStore(s => s.updateProduct);
+
+  const prodottiPerAbbinare = useMemo(() => {
+    const q = cercaProdotto.trim().toLowerCase();
+    const senzaCodice = products.filter(p => !(p.barcode || '').trim());
+    const lista = q
+      ? products.filter(p => p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q))
+      : senzaCodice;
+    return lista.slice(0, 8);
+  }, [products, cercaProdotto]);
+
+  const abbina = async (prodottoId: string, nome: string, prezzo: number) => {
+    if (!daAbbinare || abbinando) return;
+    setAbbinando(true);
+    try {
+      await aggiornaProdotto(prodottoId, { barcode: daAbbinare });
+      addToCart({ id: prodottoId, name: `🧴 ${nome}`, price: prezzo, duration: 0, color: '#F59E0B', type: 'product', isPackage: false, barcode: daAbbinare, cerca: '' });
+      setDaAbbinare(null);
+      setCercaProdotto('');
+    } finally {
+      setAbbinando(false);
+    }
   };
 
   const addToCart = (t: typeof allSellableItems[0]) => {
@@ -413,6 +452,35 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                       placeholder="Cerca trattamento, prodotto o codice a barre…"
                       className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
                   </div>
+                  {/* Il codice letto che non risulta a nessun prodotto: si abbina
+                      qui, una volta sola, e da domani il lettore lo trova. */}
+                  {daAbbinare && (
+                    <div className="mb-2 p-3 rounded-xl bg-warning/10 border border-warning/30 space-y-2">
+                      <p className="text-xs font-semibold text-warning">
+                        Codice <span className="font-mono">{daAbbinare}</span> non ancora abbinato
+                      </p>
+                      <p className="text-[11px] text-text-secondary">
+                        Dimmi di che prodotto è: lo salvo sulla sua scheda e la prossima volta lo trova da solo.
+                      </p>
+                      <input value={cercaProdotto} onChange={e => setCercaProdotto(e.target.value)} {...NO_AUTOFILL}
+                        placeholder="Cerca il prodotto per nome o codice interno…"
+                        className="w-full px-3 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
+                      <div className="max-h-40 overflow-y-auto space-y-1">
+                        {prodottiPerAbbinare.map(pr => (
+                          <button key={pr.id} onClick={() => abbina(pr.id, pr.name, pr.price)} disabled={abbinando}
+                            className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-bg-secondary border border-border hover:border-accent/40 text-left disabled:opacity-50">
+                            <span className="text-sm text-text-primary truncate">{pr.name}</span>
+                            <span className="text-[11px] text-text-muted flex-shrink-0">{pr.sku || ''} · {formatCurrency(pr.price)}</span>
+                          </button>
+                        ))}
+                        {prodottiPerAbbinare.length === 0 && (
+                          <p className="text-[11px] text-text-muted px-1">Nessun prodotto con questo nome.</p>
+                        )}
+                      </div>
+                      <button onClick={() => { setDaAbbinare(null); setCercaProdotto(''); }}
+                        className="text-[11px] text-text-muted hover:text-text-primary">Lascia perdere</button>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto">
                     {filteredServices.map(t => (
                       <button key={t.id} onClick={() => addToCart(t)}
