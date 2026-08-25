@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, X, CheckCircle, Upload, Loader2, Trash2 } from 'lucide-react';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
-import { Treatment, OperatorSkill } from '@/types';
+import { Treatment, OperatorSkill, Operator } from '@/types';
 import { useOperatorStore } from '@/stores/useOperatorStore';
 import { formatCurrency } from '@/lib/helpers';
 import { getCategoryLabel } from '@/lib/helpers';
@@ -17,6 +17,73 @@ export const CATEGORIES = [
 ];
 
 export const TREATMENT_COLORS = ['#A855F7','#EC4899','#3B82F6','#22C55E','#F59E0B','#EF4444','#6366F1','#14B8A6','#8B5CF6','#F97316'];
+
+/**
+ * Le iniziali di chi sa fare quel trattamento, da toccare.
+ *
+ * Elenco vuoto vuol dire "lo fanno tutte": è il comportamento che il
+ * gestionale ha sempre avuto, e va scritto, se no un trattamento senza
+ * nessuna accesa sembra un trattamento che non fa nessuno.
+ *
+ * Appena si accende la prima, il trattamento diventa "di quelle lì" e in
+ * prenotazione le altre non compaiono più — quindi il passaggio da "tutte" a
+ * "solo lei" è un cambio grosso, e va detto sotto ai pallini.
+ */
+function ChiLoFa({ trattamento, staff }: { trattamento: Treatment; staff: Operator[] }) {
+  const updateTreatment = useTreatmentStore(s => s.updateTreatment);
+  const [salvando, setSalvando] = useState(false);
+  const scelte = trattamento.operatorSkills || [];
+  const accesa = (id: string) => scelte.some(k => k.operatorId === id);
+
+  const cambia = async (id: string) => {
+    if (salvando) return;
+    // La durata personale, se c'è, non si perde spegnendo e riaccendendo.
+    const nuove = accesa(id)
+      ? scelte.filter(k => k.operatorId !== id)
+      : [...scelte, { operatorId: id }];
+    setSalvando(true);
+    try {
+      await updateTreatment(trattamento.id, { operatorSkills: nuove });
+    } catch {
+      // L'errore lo racconta già la console dello store: qui si torna
+      // semplicemente cliccabili, senza far sparire niente da sotto le mani.
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1 flex-wrap max-w-[220px]">
+      {staff.map(o => {
+        const on = accesa(o.id);
+        const nome = `${o.firstName} ${o.lastName}`.trim();
+        /*
+          Le cabine si chiamano tutte "Cabina Automatica" e il cognome non ce
+          l'hanno: a iniziali diventavano due pallini identici con la "C". Si
+          tiene il numero, che è l'unica cosa che le distingue.
+        */
+        const numero = (nome.match(/(\d+)\s*$/) || [])[1];
+        const iniziali = o.isResource
+          ? `C${numero || ''}`
+          : `${o.firstName?.[0] || ''}${o.lastName?.[0] || ''}`.toUpperCase();
+        return (
+          <button key={o.id} type="button" onClick={() => cambia(o.id)} disabled={salvando}
+            title={on ? `${nome} lo fa — tocca per toglierla` : `${nome} non lo fa — tocca per metterla`}
+            className={`w-7 h-7 rounded-full text-[10px] font-bold flex items-center justify-center transition-all disabled:opacity-50 ${
+              on ? 'text-white shadow-sm' : 'text-text-muted bg-bg-tertiary border border-border hover:border-accent/40'}`}
+            style={on ? { backgroundColor: o.color || '#A855F7' } : undefined}>
+            {iniziali}
+          </button>
+        );
+      })}
+      {scelte.length === 0 && (
+        <span className="text-[10px] text-text-muted ml-0.5" title="Nessuna scelta: in prenotazione lo propone a chiunque sia libera">
+          tutte
+        </span>
+      )}
+    </div>
+  );
+}
 
 export function TreatmentsSection() {
   const treatments = useTreatmentStore(s => s.treatments);
@@ -230,6 +297,7 @@ export function TreatmentsSection() {
               <th className="w-10 px-4 py-3 text-center"><input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="w-4 h-4 rounded border-border accent-accent cursor-pointer" /></th>
               <th className="text-left px-5 py-3 text-xs font-semibold text-text-muted uppercase">Trattamento</th>
               <th className="text-left px-5 py-3 text-xs font-semibold text-text-muted uppercase hidden sm:table-cell">Categoria</th>
+              <th className="text-left px-5 py-3 text-xs font-semibold text-text-muted uppercase hidden md:table-cell">Chi lo fa</th>
               <th className="text-center px-5 py-3 text-xs font-semibold text-text-muted uppercase">Durata</th>
               <th className="text-right px-5 py-3 text-xs font-semibold text-text-muted uppercase">Prezzo</th>
               <th className="w-20"></th>
@@ -240,6 +308,19 @@ export function TreatmentsSection() {
                   <td className="px-4 py-3 text-center"><input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleOne(t.id)} className="w-4 h-4 rounded border-border accent-accent cursor-pointer" /></td>
                   <td className="px-5 py-3"><div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} /><span className="text-sm font-medium text-text-primary">{t.name}</span></div></td>
                   <td className="px-5 py-3 hidden sm:table-cell"><span className="text-xs text-text-secondary">{getCategoryLabel(t.category)}</span></td>
+                  {/*
+                    Chi lo fa, senza aprire niente.
+
+                    Era una spunta dentro la scheda del trattamento, e infatti
+                    su centoquattordici trattamenti risultava compilata due
+                    volte: nessuno apre centoquattordici schede. Qui si tocca
+                    l'iniziale e si salva, riga per riga — ed è l'unico modo
+                    perché quel dato esista davvero, visto che senza di esso
+                    l'agenda propone chiunque per qualunque cosa.
+                  */}
+                  <td className="px-5 py-3 hidden md:table-cell">
+                    <ChiLoFa trattamento={t} staff={staff} />
+                  </td>
                   <td className="px-5 py-3 text-center">
                     <span className="text-sm text-text-secondary">♀ {durF(t)}′{durM(t) != null ? <span className="text-text-muted"> · ♂ {durM(t)}′</span> : null}</span>
                     {/* Con la preparazione i minuti veri sono altri: si vedono
