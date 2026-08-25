@@ -6,12 +6,13 @@ import { useClientStore } from '@/stores/useClientStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Gift, Plus, X, Search, User, CheckCircle, Trash2,
-  CreditCard, Clock, Euro, Eye,
+  CreditCard, Clock, Euro, Eye, MessageSquare,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { useStaffNames } from '@/hooks/useStaffNames';
+import { avvisaDestinatario } from '@/app/actions/giftcards';
 
 /* ========== CREATE GIFT CARD MODAL ========== */
 function CreateGiftCardModal({ onClose, onCreate }: {
@@ -279,6 +280,73 @@ function CreateGiftCardModal({ onClose, onCreate }: {
 }
 
 /* ========== REDEEM GIFT CARD MODAL ========== */
+/**
+ * "Avvisa" su un buono già fatto: si scrive il numero e parte il messaggio.
+ *
+ * Sta accanto a "Scala" perché è l'altra cosa che si fa su un buono esistente.
+ * Se il numero c'è già, chiede solo conferma; se manca, lo si scrive qui senza
+ * rifare il buono.
+ */
+function AvvisaDestinatario({ gc, onFatto }: { gc: GiftCard; onFatto: () => void }) {
+  const [aperto, setAperto] = useState(false);
+  const [numero, setNumero] = useState(gc.recipientPhone || '');
+  const [inviando, setInviando] = useState(false);
+  const [esito, setEsito] = useState<{ ok: boolean; testo: string } | null>(null);
+
+  const manda = async () => {
+    setInviando(true);
+    setEsito(null);
+    const r = await avvisaDestinatario(gc.id, numero.trim() || undefined).catch(() => ({ ok: false, error: 'Invio fallito' }));
+    setInviando(false);
+    setEsito({ ok: Boolean(r.ok), testo: r.ok ? 'Avviso mandato.' : (('error' in r && r.error) || 'Invio fallito') });
+    if (r.ok) onFatto();
+  };
+
+  return (
+    <>
+      <button onClick={() => { setAperto(true); setEsito(null); }}
+        className="p-2 rounded-lg hover:bg-bg-tertiary text-text-muted hover:text-accent transition-all"
+        title={gc.recipientPhone ? `Avvisa ${gc.recipientName} su WhatsApp` : 'Manca il numero di chi riceve: scrivilo e avvisala'}>
+        <MessageSquare className="w-4 h-4" />
+      </button>
+
+      <AnimatePresence>
+        {aperto && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm" onClick={() => setAperto(false)} />
+            <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
+              className="fixed inset-0 z-[71] flex items-center justify-center p-4"
+              onClick={e => e.target === e.currentTarget && setAperto(false)}>
+              <div className="w-full max-w-sm bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-border">
+                  <h3 className="text-base font-display font-semibold text-text-primary">Avvisa {gc.recipientName}</h3>
+                  <p className="text-xs text-text-muted mt-0.5">Le arriva il codice {gc.code} con importo e scadenza.</p>
+                </div>
+                <div className="p-5 space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-text-secondary mb-1">Numero WhatsApp</label>
+                    <input value={numero} onChange={e => setNumero(e.target.value)} inputMode="tel" autoFocus
+                      placeholder="Es. 333 1234567"
+                      className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
+                  </div>
+                  <button onClick={manda} disabled={inviando || numero.replace(/\D/g, '').length < 9}
+                    className="w-full py-3 rounded-xl gradient-accent text-white text-sm font-bold disabled:opacity-40">
+                    {inviando ? 'Sto mandando…' : 'Manda l\u2019avviso'}
+                  </button>
+                  {esito && <p className={`text-[11px] ${esito.ok ? 'text-success' : 'text-error'}`}>{esito.testo}</p>}
+                  <button onClick={() => setAperto(false)}
+                    className="w-full py-2 rounded-xl border border-border text-xs text-text-secondary hover:bg-bg-hover">Chiudi</button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
 function RedeemModal({ gc, onClose, onRedeem }: {
   gc: GiftCard; onClose: () => void;
   onRedeem: (amount: number, service: string, operator: string) => void;
@@ -490,6 +558,10 @@ export default function GiftCardsPage() {
                 <button onClick={() => setViewingGc(gc)} className="p-2 rounded-lg hover:bg-bg-tertiary text-text-muted hover:text-text-primary transition-all" title="Dettagli">
                   <Eye className="w-4 h-4" />
                 </button>
+                {/* L'avviso a chi ha ricevuto il regalo, anche dopo: i buoni
+                    fatti prima non hanno il numero, e capita che arrivi il
+                    giorno dopo. */}
+                <AvvisaDestinatario gc={gc} onFatto={fetchGiftCards} />
                 {(gc.status === 'active' || gc.status === 'partial') && (
                   <button onClick={() => setRedeemingGc(gc)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent/10 text-accent text-xs font-semibold hover:bg-accent/20 transition-colors">

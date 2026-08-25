@@ -13,7 +13,8 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { sendWhatsAppTemplate, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
+import { sendWhatsAppTemplate, sendWhatsApp, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
+import { conversationWindow } from '@/lib/wa-conversations';
 import { sanitizeParam, WA_TEMPLATES } from '@/lib/wa-templates';
 
 const KIND = 'wa_log';
@@ -27,7 +28,7 @@ function giorno(ymd: string): string {
   return a && m && g ? `${g}/${m}/${a}` : ymd;
 }
 
-export async function sendBuonoRegalo(giftCardId: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendBuonoRegalo(giftCardId: string, forzato = false): Promise<{ ok: boolean; error?: string }> {
   const gc = await prisma.giftCard.findUnique({ where: { id: giftCardId } });
   if (!gc) return { ok: false, error: 'Buono non trovato' };
   if (!gc.recipientPhone || !isSendablePhone(gc.recipientPhone)) {
@@ -50,8 +51,13 @@ export async function sendBuonoRegalo(giftCardId: string): Promise<{ ok: boolean
       },
     });
   } catch {
-    // Riga già presente: l'avviso è già partito (o ci sta provando qualcun altro).
-    return { ok: false, error: 'Avviso già inviato per questo buono' };
+    /*
+      Riga già presente: l'avviso è già partito, o ci sta provando qualcun
+      altro. Se però lo si è chiesto a mano dalla scheda del buono — perché
+      il primo tentativo era fallito, o perché il numero l'abbiamo avuto
+      dopo — si riprova: la ripetizione voluta è un'altra cosa dal doppione.
+    */
+    if (!forzato) return { ok: false, error: 'Avviso già inviato per questo buono' };
   }
 
   // Solo il nome di battesimo: "Ciao Maria Rossi" non lo scrive nessuno.
@@ -59,10 +65,17 @@ export async function sendBuonoRegalo(giftCardId: string): Promise<{ ok: boolean
   const daParte = sanitizeParam(gc.purchasedBy.trim().split(' ')[0] || gc.purchasedBy);
   const params = [nome, daParte, euro(gc.amount), gc.code, giorno(gc.expiryDate)];
 
-  const res = await sendWhatsAppTemplate(numero, 'buonoRegalo', {
-    bodyParams: params,
-    fallbackText: WA_TEMPLATES.buonoRegalo.body.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1] ?? ''),
-  });
+  const testo = WA_TEMPLATES.buonoRegalo.body.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1] ?? '');
+
+  /*
+    Se la persona ha scritto al centro nelle ultime 24 ore si può mandare il
+    testo libero: arriva subito, non costa niente e non aspetta nessuna
+    approvazione. Fuori da lì comanda Meta e serve il template.
+  */
+  const finestra = await conversationWindow(numero).catch(() => ({ open: false }));
+  const res = finestra.open
+    ? await sendWhatsApp(numero, testo, 'manual')
+    : await sendWhatsAppTemplate(numero, 'buonoRegalo', { bodyParams: params, fallbackText: testo });
 
   await prisma.adminEntry.update({
     where: { rowId },

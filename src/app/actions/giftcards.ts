@@ -142,3 +142,18 @@ export async function deleteGiftCard(gcId: string) {
   await prisma.giftCard.delete({ where: { id: gcId } });
   return true;
 }
+
+/**
+ * Il numero di chi riceve, aggiunto dopo — e l'avviso mandato a mano.
+ *
+ * I buoni fatti prima che il campo esistesse non ce l'hanno, e capita anche
+ * che al banco il numero arrivi il giorno dopo ("te lo mando su WhatsApp").
+ * Da qui si scrive e si manda, senza rifare il buono.
+ */
+export async function avvisaDestinatario(gcId: string, phone?: string): Promise<{ ok: boolean; error?: string }> {
+  const numero = (phone || '').trim();
+  if (numero) {
+    await prisma.giftCard.update({ where: { id: gcId }, data: { recipientPhone: numero } });
+  }
+  return sendBuonoRegalo(gcId, true);
+}
