@@ -5149,6 +5149,23 @@ export default function AgendaPage() {
   const totalApts = todayAppointments.length;
   const completedApts = todayAppointments.filter(a => a.status === 'completed').length;
 
+  /*
+    Perché contando a occhio i completati sembrano di più.
+
+    Una seduta divisa fra due operatrici occupa DUE riquadri in agenda — uno
+    per colonna — e tutti e due portano la spunta verde. Chi conta le spunte
+    arriva a tredici dove gli appuntamenti sono undici, e pensa che il numero
+    sia sbagliato. Non lo è: conta le sedute, non i riquadri. Qui si calcola
+    la differenza, per poterla spiegare nel suggerimento invece di lasciare
+    il dubbio.
+  */
+  const seduteDivise = todayAppointments.filter(a => {
+    if (a.status !== 'completed') return false;
+    const sv = Array.isArray(a.services) ? (a.services as { operatorName?: string }[]) : [];
+    const mani = new Set(sv.map(x => x?.operatorName).filter(Boolean));
+    return mani.size > 1;
+  }).length;
+
   // Incasso stimato: di default segue il periodo mostrato in agenda (giorno/settimana/mese),
   // ma dal pannello si può scegliere qualsiasi data o intervallo dal calendario.
   const [showRevenuePanel, setShowRevenuePanel] = useState(false);
@@ -5292,7 +5309,10 @@ export default function AgendaPage() {
           {/* I due numeri della giornata in un solo riquadro: erano due
               pillole diverse per dire una cosa sola. */}
           {view === 'day' && (
-            <span title={`${totalApts} appuntamenti oggi, ${completedApts} già completati`}
+            <span title={`${totalApts} appuntamenti oggi, ${completedApts} già completati.`
+              + (seduteDivise > 0
+                ? ` In agenda le spunte verdi sembrano ${completedApts + seduteDivise}: ${seduteDivise} ${seduteDivise === 1 ? 'seduta è divisa' : 'sedute sono divise'} fra due operatrici e occupano due riquadri, ma restano ${seduteDivise === 1 ? 'un appuntamento' : 'un appuntamento ciascuna'}.`
+                : '')}
               className="hidden 2xl:inline-flex items-center gap-1.5 h-10 px-3 rounded-xl bg-bg-tertiary text-sm text-text-secondary whitespace-nowrap flex-shrink-0">
               {totalApts}
               <CheckCircle className="w-4 h-4 text-success" /><span className="text-success font-medium">{completedApts}</span>
