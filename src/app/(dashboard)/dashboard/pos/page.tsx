@@ -25,6 +25,7 @@ import { usePackageStore } from '@/stores/usePackageStore';
 import { usePriceListStore } from '@/stores/usePriceListStore';
 import { useProductStore } from '@/stores/useProductStore';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
+import { nomiDoppi, chiaveNome as chiaveOmonimi } from '@/lib/omonimi';
 
 interface CartItem {
   id: string;
@@ -129,6 +130,8 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const [buonoScalato, setBuonoScalato] = useState<number | null>(null);
 
   const allClients = useClientStore(s => s.clients);
+  /** Nomi che in rubrica compaiono più di una volta: si segnalano nell'elenco. */
+  const doppioni = useMemo(() => nomiDoppi(allClients), [allClients]);
   const packages = usePackageStore(s => s.packages);
   const { priceLists } = usePriceListStore();
   const filteredClients = clientSearch.trim()
@@ -435,6 +438,12 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                               className="w-full text-left px-4 py-2.5 hover:bg-bg-hover text-sm text-text-primary transition-colors flex items-center gap-1.5">
                                 {c.firstName} {c.lastName}
                                 <SegniCliente clientId={c.id} nome={`${c.firstName} ${c.lastName}`} conMotivo />
+                                {/* Stesso nome, due schede: qui si incassa, e
+                                    l'incasso finirebbe sulla persona sbagliata. */}
+                                {doppioni.has(chiaveOmonimi(c)) && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-warning/20 text-warning flex-shrink-0"
+                                    title="C'è un'altra cliente con lo stesso nome: controlla il numero">OMONIMA</span>
+                                )}
                                 <span className="text-text-muted">• {c.phone}</span></button>
                           ))}
                         </div>

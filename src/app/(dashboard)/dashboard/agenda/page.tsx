@@ -54,6 +54,7 @@ import { senzaOmaggioInaugurazione } from '@/lib/omaggioInaugurazione';
 import { esoneriScheda, esoneraScheda } from '@/app/actions/esoneroScheda';
 import SegniCliente from '@/components/SegniCliente';
 import AvvisoCliente from '@/components/AvvisoCliente';
+import { nomiDoppi, omonimiDi, chiaveNome as chiaveOmonimi } from '@/lib/omonimi';
 import BuonoCompleannoBadge from '@/components/BuonoCompleanno';
 import CampoData from '@/components/ui/CampoData';
 
@@ -2232,6 +2233,14 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   }, [isAppointmentModalOpen, editingAppointment, selectedOperatorId, operators]);
 
   const allClients = useClientStore(s => s.clients);
+  /** I nomi presenti più di una volta in rubrica: si segnalano nell'elenco. */
+  const doppioni = useMemo(() => nomiDoppi(allClients), [allClients]);
+  /** Le altre schede con lo stesso nome della cliente scelta. */
+  const altreStessoNome = useMemo(
+    () => (selectedClientId ? omonimiDi(allClients, selectedClientId) : []),
+    [allClients, selectedClientId],
+  );
+
   const filteredClients = useMemo(() => {
     if (!clientSearch.trim()) return allClients.slice(0, 5);
     const q = clientSearch.toLowerCase();
@@ -2854,6 +2863,14 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                             <p className="text-sm font-medium text-text-primary flex items-center gap-1.5">
                               {client.firstName} {client.lastName}
                               <SegniCliente clientId={client.id} nome={`${client.firstName} ${client.lastName}`} conMotivo />
+                              {/* Due righe identiche nell'elenco: senza questo segno
+                                  si prende la prima e si scopre l'errore dopo. */}
+                              {doppioni.has(chiaveOmonimi(client)) && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-warning/20 text-warning flex-shrink-0"
+                                  title="C'è un'altra cliente con lo stesso nome e cognome: controlla il numero">
+                                  OMONIMA
+                                </span>
+                              )}
                             </p>
                             <p className="text-xs text-text-muted">{client.phone}</p>
                           </div>
@@ -2869,6 +2886,23 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
             {/* Chi salta gli appuntamenti o è stata segnalata: qui in chiaro.
                 Le iconcine vanno bene per riconoscere, ma nel momento in cui si
                 sta dando un posto serve una frase, non un simbolo. */}
+            {/* Scelta fatta, ma esiste un'altra con lo stesso nome: si dice
+                adesso, col numero, finché si è in tempo a cambiarla. */}
+            {altreStessoNome.length > 0 && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-warning/10 border border-warning/30">
+                <AlertCircle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-text-secondary">
+                  <p className="font-semibold text-warning">
+                    Attenzione: {altreStessoNome.length === 1 ? "c'è un'altra cliente" : `ce ne sono altre ${altreStessoNome.length}`} con questo nome.
+                  </p>
+                  <p className="mt-0.5">
+                    Hai scelto quella col numero <strong className="text-text-primary">{allClients.find(c => c.id === selectedClientId)?.phone || '—'}</strong>.
+                    {' '}L&apos;altra ha {altreStessoNome.map(c => c.phone).join(', ')}. Controlla che sia la persona giusta.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {selectedClientId && <AvvisoCliente clientId={selectedClientId} nome={selectedClientName} />}
 
             {/* Il regalo di compleanno da spendere: si vede mentre le si dà il
