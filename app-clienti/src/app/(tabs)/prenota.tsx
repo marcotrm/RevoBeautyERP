@@ -297,18 +297,6 @@ export default function PrenotaScreen() {
               <Text style={styles.aggiungiTxt}>+ Aggiungi un altro trattamento</Text>
             </Pressable>
 
-            {sceltePiene.length > 0 && (
-              <View style={styles.totale}>
-                <Text style={styles.muted}>
-                  {sceltePiene.length} trattament{sceltePiene.length === 1 ? 'o' : 'i'} · {totaleDurata} min
-                </Text>
-                <Text style={styles.totaleVal}>{formatPrice(totalePrezzo)}</Text>
-              </View>
-            )}
-
-            <Button title="Avanti" disabled={sceltePiene.length === 0}
-              onPress={() => { setPasso(2); if (!giorni) void cerca(); }}
-              style={{ marginTop: spacing.lg }} />
           </>
         )}
 
@@ -385,6 +373,26 @@ export default function PrenotaScreen() {
           </>
         )}
       </ScrollView>
+
+      {/*
+        La barra resta incollata in fondo appena c'e' qualcosa di scelto.
+        Prima il riepilogo e il tasto stavano in coda alla lista: con
+        quarantatre trattamenti nella categoria Laser, per confermare il primo
+        della lista bisognava scorrere fino in fondo e tornare su.
+      */}
+      {passo === 1 && sceltePiene.length > 0 && (
+        <View style={styles.barra}>
+          <View style={styles.barraTesti}>
+            <Text style={styles.barraCosa} numberOfLines={1}>
+              {sceltePiene.length === 1
+                ? treatments.find(t => t.id === sceltePiene[0].treatmentId)?.name
+                : `${sceltePiene.length} trattamenti`}
+            </Text>
+            <Text style={styles.muted}>{totaleDurata} min · {formatPrice(totalePrezzo)}</Text>
+          </View>
+          <Button title="Avanti" onPress={() => { setPasso(2); if (!giorni) void cerca(); }} />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -423,6 +431,20 @@ function Row({ k, v }: { k: string; v: string }) {
 }
 
 const styles = StyleSheet.create({
+  barra: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm + 2,
+    paddingBottom: spacing.sm + 2,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  barraTesti: { flex: 1 },
+  barraCosa: { ...typography.bodyForte, color: colors.textPrimary },
+
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.md },
