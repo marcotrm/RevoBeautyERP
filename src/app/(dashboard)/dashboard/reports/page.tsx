@@ -8,7 +8,7 @@ import RevenueTab from '@/components/reports/RevenueTab';
 import TreatmentsTab from '@/components/reports/TreatmentsTab';
 import ClientsTab from '@/components/reports/ClientsTab';
 import StaffAgendaTab from '@/components/reports/StaffAgendaTab';
-import { getAnalytics, type Analytics } from '@/app/actions/analytics';
+import { getAnalytics, type Analytics, type PeriodoReport } from '@/app/actions/analytics';
 
 type TabId = 'ai' | 'revenue' | 'clients' | 'treatments' | 'staff';
 
@@ -20,15 +20,72 @@ const TABS = [
   { id: 'staff', label: 'Staff & Agenda', icon: Briefcase },
 ] as const;
 
+/* Il giorno di oggi in Italia: i report si leggono di qua, non a Greenwich. */
+function oggiRoma(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(new Date());
+}
+
+function piu(ymd: string, giorni: number): string {
+  const d = new Date(`${ymd}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + giorni);
+  return d.toISOString().slice(0, 10);
+}
+
+type ChiaveP = 'tutto' | 'oggi' | 'ieri' | 'settimana' | 'mese' | 'trimestre' | 'scelto';
+
+/** I sei tasti in alto, con il periodo che ognuno vuol dire. */
+const PERIODI: { chiave: ChiaveP; label: string; calcola?: () => PeriodoReport }[] = [
+  { chiave: 'tutto', label: 'Sempre' },
+  { chiave: 'oggi', label: 'Oggi', calcola: () => ({ dal: oggiRoma(), al: oggiRoma() }) },
+  { chiave: 'ieri', label: 'Ieri', calcola: () => ({ dal: piu(oggiRoma(), -1), al: piu(oggiRoma(), -1) }) },
+  { chiave: 'settimana', label: 'Questa Settimana', calcola: () => {
+    const oggi = oggiRoma();
+    const g = new Date(`${oggi}T12:00:00Z`).getUTCDay(); // 0=Dom
+    const lunedi = piu(oggi, g === 0 ? -6 : 1 - g);
+    return { dal: lunedi, al: oggi };
+  } },
+  { chiave: 'mese', label: 'Questo Mese', calcola: () => ({ dal: `${oggiRoma().slice(0, 7)}-01`, al: oggiRoma() }) },
+  { chiave: 'trimestre', label: 'Ultimi 3 Mesi', calcola: () => ({ dal: piu(oggiRoma(), -90), al: oggiRoma() }) },
+  { chiave: 'scelto', label: 'Periodo Personalizzato' },
+];
+
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('ai');
   const [showFilters, setShowFilters] = useState(false);
   const [data, setData] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
 
+  /*
+    Il filtro del periodo: prima erano sei tasti senza niente sotto.
+
+    Si premevano, si coloravano un istante e i numeri non si muovevano di un
+    euro — e chi guardava il report credeva che "Oggi" avesse incassato quanto
+    tutto lo storico del centro.
+  */
+  const [chiave, setChiave] = useState<ChiaveP>('tutto');
+  const [dal, setDal] = useState(() => `${oggiRoma().slice(0, 7)}-01`);
+  const [al, setAl] = useState(oggiRoma);
+
+  const periodo: PeriodoReport | null =
+    chiave === 'tutto' ? null
+      : chiave === 'scelto' ? { dal, al }
+      : PERIODI.find(p => p.chiave === chiave)?.calcola?.() || null;
+
   useEffect(() => {
-    getAnalytics().then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
-  }, []);
+    let vivo = true;
+    // Il "sto calcolando" si accende fuori dal disegno: dentro l'effetto
+    // scriverebbe nello stato mentre React sta ancora componendo la pagina.
+    const avvio = setTimeout(() => {
+      if (!vivo) return;
+      setLoading(true);
+      getAnalytics(periodo)
+        .then(d => { if (vivo) { setData(d); setLoading(false); } })
+        .catch(() => { if (vivo) setLoading(false); });
+    }, 0);
+    return () => { vivo = false; clearTimeout(avvio); };
+    // Le date sono già dentro `periodo`, ma come oggetto nuovo a ogni giro:
+    // si dipende dai valori, se no il caricamento ripartirebbe all'infinito.
+  }, [chiave, dal, al]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-6">
@@ -36,7 +93,16 @@ export default function ReportsPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 className="text-2xl font-display font-bold text-text-primary">Business Intelligence</h2>
-          <p className="text-sm text-text-secondary mt-1">Dati reali del tuo centro, aggiornati in tempo reale.</p>
+          <p className="text-sm text-text-secondary mt-1">
+            Dati reali del tuo centro, aggiornati in tempo reale.
+            {periodo && (
+              <span className="text-accent font-medium">
+                {' '}· {periodo.dal === periodo.al
+                  ? periodo.dal.split('-').reverse().join('/')
+                  : `dal ${periodo.dal.split('-').reverse().join('/')} al ${periodo.al.split('-').reverse().join('/')}`}
+              </span>
+            )}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -62,12 +128,35 @@ export default function ReportsPage() {
             exit={{ opacity: 0, height: 0, marginTop: 0 }}
             className="overflow-hidden"
           >
-            <div className="bg-bg-secondary border border-border rounded-2xl p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {['Oggi', 'Ieri', 'Questa Settimana', 'Questo Mese', 'Ultimi 3 Mesi', 'Periodo Personalizzato'].map(p => (
-                <button key={p} className="px-3 py-2 text-xs font-semibold text-text-secondary border border-border rounded-xl hover:bg-bg-hover hover:text-text-primary transition-colors focus:bg-accent focus:text-white focus:border-accent">
-                  {p}
-                </button>
-              ))}
+            <div className="bg-bg-secondary border border-border rounded-2xl p-4 space-y-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                {PERIODI.map(p => (
+                  <button key={p.chiave} onClick={() => setChiave(p.chiave)}
+                    className={`px-3 py-2 text-xs font-semibold rounded-xl border transition-colors ${
+                      chiave === p.chiave
+                        ? 'bg-accent text-white border-accent'
+                        : 'text-text-secondary border-border hover:bg-bg-hover hover:text-text-primary'}`}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              {chiave === 'scelto' && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="text-xs text-text-secondary">Dal</label>
+                  <input type="date" value={dal} max={al} onChange={e => e.target.value && setDal(e.target.value)}
+                    className="px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50" />
+                  <label className="text-xs text-text-secondary">al</label>
+                  <input type="date" value={al} min={dal} onChange={e => e.target.value && setAl(e.target.value)}
+                    className="px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50" />
+                </div>
+              )}
+              {/* Cosa resta fuori dal filtro, detto prima che qualcuno se lo
+                  chieda guardando un grafico che non si muove. */}
+              <p className="text-[11px] text-text-muted">
+                Il periodo taglia incassi, appuntamenti, trattamenti e classifica dello staff.
+                Restano su tutto lo storico il grafico degli ultimi sei mesi, il confronto col mese scorso,
+                i pacchetti in scadenza e da quanto tempo una cliente non si vede.
+              </p>
             </div>
           </motion.div>
         )}

@@ -10,7 +10,15 @@ const PAYMENT_COLORS: Record<string, string> = {
 
 function toMin(t: string) { const [h, m] = t.split(':').map(Number); return (h || 0) * 60 + (m || 0); }
 
-export async function getAnalytics() {
+/** Il periodo scelto in alto nella pagina. Vuoto = tutto lo storico. */
+export interface PeriodoReport {
+  /** Primo giorno compreso, YYYY-MM-DD. */
+  dal: string;
+  /** Ultimo giorno compreso, YYYY-MM-DD. */
+  al: string;
+}
+
+export async function getAnalytics(periodo?: PeriodoReport | null) {
   const now = new Date();
   const today = now.toISOString().split('T')[0];
   const ym = today.slice(0, 7); // YYYY-MM
@@ -19,7 +27,7 @@ export async function getAnalytics() {
   const sevenDaysAgo = new Date(now); sevenDaysAgo.setDate(now.getDate() - 7);
   const sevenAgoStr = sevenDaysAgo.toISOString().split('T')[0];
 
-  const [transactions, appointments, clients, operators, clientPackages] = await Promise.all([
+  const [tutteTransazioni, tuttiAppuntamenti, clients, operators, tuttiPacchetti] = await Promise.all([
     prisma.posTransaction.findMany(),
     prisma.appointment.findMany(),
     prisma.client.findMany(),
@@ -32,12 +40,30 @@ export async function getAnalytics() {
     prisma.clientPackage.findMany(),
   ]);
 
+  /*
+    Il periodo scelto in alto taglia i dati, ma non tutti.
+
+    Incassi, appuntamenti, trattamenti e classifica dello staff sono "quanto è
+    successo in quel periodo" e si filtrano. Restano invece sullo storico
+    intero le cose che parlano del futuro o di un confronto: il grafico degli
+    ultimi sei mesi, la crescita rispetto al mese scorso, i pacchetti in
+    scadenza e da quanto tempo una cliente non si vede — filtrarle vorrebbe
+    dire, scegliendo "Oggi", far sparire il grafico e dichiarare perse tutte
+    le clienti che non sono venute stamattina.
+  */
+  const dentro = (data: string) => !periodo || (data >= periodo.dal && data <= periodo.al);
+  const transactions = tutteTransazioni.filter(t => dentro(t.date));
+  const appointments = tuttiAppuntamenti.filter(a => dentro(a.date));
+  const clientPackages = tuttiPacchetti.filter(cp => dentro((cp.purchaseDate || '').slice(0, 10)));
+
   // ---------- FATTURATO (dalla cassa) ----------
   const sum = (arr: { total: number }[]) => arr.reduce((s, t) => s + t.total, 0);
-  const daily = sum(transactions.filter(t => t.date === today));
-  const weekly = sum(transactions.filter(t => t.date >= sevenAgoStr));
-  const monthly = sum(transactions.filter(t => t.date.startsWith(ym)));
-  const prevMonthlyRev = sum(transactions.filter(t => t.date.startsWith(prevYm)));
+  // Oggi, la settimana e il mese sono finestre loro: non seguono il filtro,
+  // se no scegliendo "Ieri" l'incasso di oggi diventerebbe zero.
+  const daily = sum(tutteTransazioni.filter(t => t.date === today));
+  const weekly = sum(tutteTransazioni.filter(t => t.date >= sevenAgoStr));
+  const monthly = sum(tutteTransazioni.filter(t => t.date.startsWith(ym)));
+  const prevMonthlyRev = sum(tutteTransazioni.filter(t => t.date.startsWith(prevYm)));
   const total = sum(transactions);
   const avgTicket = transactions.length > 0 ? Math.round(total / transactions.length) : 0;
   const growthPercentage = prevMonthlyRev > 0 ? Math.round(((monthly - prevMonthlyRev) / prevMonthlyRev) * 1000) / 10 : 0;
@@ -55,7 +81,8 @@ export async function getAnalytics() {
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    revenueByMonth.push({ month: MONTHS_IT[d.getMonth()], revenue: sum(transactions.filter(t => t.date.startsWith(key))), costs: 0 });
+    // Il grafico è una serie storica: sempre gli ultimi sei mesi veri.
+    revenueByMonth.push({ month: MONTHS_IT[d.getMonth()], revenue: sum(tutteTransazioni.filter(t => t.date.startsWith(key))), costs: 0 });
   }
 
   // ---------- APPUNTAMENTI ----------
@@ -123,8 +150,10 @@ export async function getAnalytics() {
   const usedSessions = clientPackages.reduce((s, cp) => s + cp.usedSessions, 0);
   const in30 = new Date(now); in30.setDate(now.getDate() + 30);
   const in30Str = in30.toISOString().split('T')[0];
-  const expiring = clientPackages.filter(cp => (cp.totalSessions - cp.usedSessions) > 0 && cp.expiryDate <= in30Str).length;
-  const residualValue = Math.round(clientPackages.reduce((s, cp) => {
+  // Scadenze e valore residuo guardano avanti: contano tutti i pacchetti in
+  // piedi, non solo quelli venduti nel periodo scelto.
+  const expiring = tuttiPacchetti.filter(cp => (cp.totalSessions - cp.usedSessions) > 0 && cp.expiryDate <= in30Str).length;
+  const residualValue = Math.round(tuttiPacchetti.reduce((s, cp) => {
     const perSession = cp.totalSessions > 0 ? cp.pricePaid / cp.totalSessions : 0;
     return s + perSession * Math.max(0, cp.totalSessions - cp.usedSessions);
   }, 0));
@@ -133,8 +162,10 @@ export async function getAnalytics() {
   const daysAgo = (n: number) => { const d = new Date(now); d.setDate(now.getDate() - n); return d.toISOString().split('T')[0]; };
   const d30 = daysAgo(30), d60 = daysAgo(60), d90 = daysAgo(90);
   // Ultima visita reale per cliente (da appuntamenti completati)
+  // "Da quanto non si vede" si misura su tutta la storia: col filtro attivo
+  // sarebbero tutte perse tranne quelle venute nel periodo.
   const lastVisitByClient: Record<string, string> = {};
-  appointments.filter(a => a.status === 'completed').forEach(a => {
+  tuttiAppuntamenti.filter(a => a.status === 'completed').forEach(a => {
     if (!lastVisitByClient[a.clientId] || a.date > lastVisitByClient[a.clientId]) lastVisitByClient[a.clientId] = a.date;
   });
   const clientLast = (c: { id: string; lastVisit: string | null }) => lastVisitByClient[c.id] || (c.lastVisit ? c.lastVisit.slice(0, 10) : null);
