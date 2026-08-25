@@ -121,11 +121,23 @@ export function TreatmentsSection() {
    * La lampada e la pressoterapia non le fa una persona, le fa la cabina —
    * e devono poter comparire nell'elenco come tutte le altre.
    */
+  /*
+    Nella colonna dell'elenco ci vanno solo le persone.
+
+    Le cabine automatiche non sono qualcuno che "sa fare" un trattamento: sono
+    la stanza dove si fa. Fra le iniziali diventavano due pallini muti che
+    nessuno avrebbe mai acceso. Restano nella scheda del trattamento, che è il
+    posto giusto per dire "questa la fa la cabina" — e chi ce l'ha già non la
+    perde: accendere o spegnere un'operatrice tocca solo il nome premuto.
+  */
   const staff = useMemo(
     // "Chi lo fa" riguarda il lavoro futuro: chi se n'è andata non compare più.
     () => operatori.filter(o => o.isActive !== false).sort((a, b) => (a.isResource ? 1 : 0) - (b.isResource ? 1 : 0)),
     [operatori],
   );
+
+  /** Solo le persone: la colonna dell'elenco è per chi il lavoro lo fa con le mani. */
+  const persone = useMemo(() => staff.filter(o => !o.isResource), [staff]);
 
   const openAdd = () => { setEditing(null); setName(''); setCategory('facial'); setWPrice(''); setMPrice(''); setWDur('30'); setMDur(''); setPrep(''); setColor('#A855F7'); setSkills([]); setShowModal(true); };
   const openEdit = (t: Treatment) => {
@@ -319,7 +331,7 @@ export function TreatmentsSection() {
                     l'agenda propone chiunque per qualunque cosa.
                   */}
                   <td className="px-5 py-3 hidden md:table-cell">
-                    <ChiLoFa trattamento={t} staff={staff} />
+                    <ChiLoFa trattamento={t} staff={persone} />
                   </td>
                   <td className="px-5 py-3 text-center">
                     <span className="text-sm text-text-secondary">♀ {durF(t)}′{durM(t) != null ? <span className="text-text-muted"> · ♂ {durM(t)}′</span> : null}</span>
