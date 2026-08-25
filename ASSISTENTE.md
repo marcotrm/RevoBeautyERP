@@ -108,21 +108,22 @@ Un mestiere diverso, non lo stesso testo letto ad alta voce.
 - Se non capisce, chiede di ripetere. Al secondo tentativo andato male passa al
   centro, non prova un terzo giro.
 
-**Come si presenta.** Da decidere: oggi la scelta è di dirlo solo se glielo
-chiedono. Vedi la nota qui sotto.
+**Come si presenta.** Prima frase, sempre:
+
+> «RevoBeauty, sono l'assistente virtuale, dimmi pure.»
+
+Lo dice e va avanti, senza scusarsi e senza spiegazioni. Una parola in più, e
+la cliente che se ne accorge da sola dopo tre minuti — che è il danno vero —
+non succede.
 
 ---
 
-## Nota aperta — dichiararsi o no
+## Perché si dichiara
 
 Dal 2 agosto 2026 il regolamento europeo sull'intelligenza artificiale chiede
-che una persona sia informata quando sta parlando con un sistema di AI, se non
-è evidente dal contesto. Una voce che risponde al telefono senza dirlo non è
-evidente.
+che una persona sappia di parlare con un sistema di AI, quando non è evidente
+dal contesto. Una voce al telefono non è evidente.
 
-Il compromesso che non fa perdere niente: **"Sono l'assistente virtuale di
-RevoBeauty, dimmi pure"**. Una parola in più, resta caldo, e la cliente che se
-ne accorge dopo non si sente presa in giro — che è il vero danno, più della
-norma.
-
-Da confermare con Marco.
+Ma la ragione pratica viene prima della norma: chi lo scopre da solo a metà
+conversazione si sente preso in giro, e quello se lo ricorda. Detto subito, in
+sette parole, non fa riattaccare nessuno.
