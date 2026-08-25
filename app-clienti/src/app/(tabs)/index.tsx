@@ -1,13 +1,18 @@
 /**
  * Home dell'app clienti.
  *
- * Deve rispondere in tre secondi a "cosa c'è per me": quando torno, quanto ho,
- * cosa sto per perdere. Per questo l'ordine è quello e non un altro — prima il
- * prossimo appuntamento (la cosa che si viene a controllare più spesso), poi
- * punti e credito, poi le proposte vere, in fondo i percorsi aperti.
+ * Deve rispondere in tre secondi a "quando torno?". Tutto il resto viene dopo,
+ * e viene piccolo.
  *
- * Le proposte arrivano già ordinate dal server per urgenza reale: qui non si
- * riordina niente, si dipinge soltanto.
+ * La versione precedente metteva nove riquadri uno sotto l'altro — appuntamento,
+ * tre contatori, avanzamento del livello, un invito, tre proposte colorate,
+ * i percorsi — ognuno col suo bordo e la sua ombra. Nessuno era sbagliato: erano
+ * tutti allo stesso volume, e l'occhio non aveva un punto da cui partire.
+ *
+ * Adesso: un fatto grande (il prossimo appuntamento), una riga sottile per i
+ * numeri che non sono urgenze, e **un solo accento colorato** — la cosa che si
+ * perde se non la si guarda oggi. Le altre proposte vivono in "Per te", che è
+ * la schermata fatta apposta: qui resta il conteggio e un tocco per arrivarci.
  */
 import { useCallback, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -16,11 +21,9 @@ import {
   StyleSheet, Text, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 
 import { ApiError, homeService, type DatiHome, type Proposta } from '@/api';
-import { Card } from '@/components/ui/Card';
-import { Chip } from '@/components/ui/Chip';
+import { Icona } from '@/components/ui/Icona';
 import { Progress } from '@/components/ui/Progress';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, fonts, radius, spacing, typography } from '@/theme';
@@ -33,27 +36,32 @@ const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'lug
 
 const maiuscolaIniziale = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
-/** "oggi", "domani" o "giovedì 14 agosto": come lo direbbe una persona. */
+/** "Oggi", "Domani" o "Giovedì 28 agosto": come lo direbbe una persona. */
 function quando(data: string): string {
   const d = new Date(`${data}T12:00:00`);
   const oggi = new Date();
-  const differenza = Math.round((d.getTime() - new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate(), 12).getTime()) / 86400000);
-  if (differenza === 0) return 'oggi';
-  if (differenza === 1) return 'domani';
-  if (differenza > 1 && differenza < 7) return GIORNI[d.getDay()];
-  return `${GIORNI[d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()]}`;
+  const differenza = Math.round(
+    (d.getTime() - new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate(), 12).getTime()) / 86400000
+  );
+  if (differenza === 0) return 'Oggi';
+  if (differenza === 1) return 'Domani';
+  if (differenza > 1 && differenza < 7) return maiuscolaIniziale(GIORNI[d.getDay()]);
+  return `${maiuscolaIniziale(GIORNI[d.getDay()])} ${d.getDate()} ${MESI[d.getMonth()]}`;
 }
 
-/** Colore e icona di una proposta, secondo cosa rappresenta. */
-function vestito(tipo: Proposta['tipo']) {
-  switch (tipo) {
-    case 'scadenza': return { tone: 'urgent' as const, colore: colors.urgent };
-    case 'flash': return { tone: 'flash' as const, colore: colors.flash };
-    case 'premio': return { tone: 'reward' as const, colore: colors.reward };
-    case 'percorso': return { tone: 'primary' as const, colore: colors.primaryDark };
-    case 'club': return { tone: 'surface' as const, colore: colors.secondary };
-    default: return { tone: 'surface' as const, colore: colors.primary };
-  }
+/**
+ * La proposta che merita il colore, se ce n'è una.
+ *
+ * Una sola: due barrette colorate in una schermata fatta di spazio bianco si
+ * annullano a vicenda. Vince quella che fa perdere qualcosa se non la guardi
+ * oggi — prima le scadenze, poi le occasioni a tempo.
+ */
+function piuUrgente(proposte: Proposta[]): { p: Proposta; colore: string } | null {
+  const scadenza = proposte.find(p => p.tipo === 'scadenza');
+  if (scadenza) return { p: scadenza, colore: colors.urgent };
+  const flash = proposte.find(p => p.tipo === 'flash');
+  if (flash) return { p: flash, colore: colors.flash };
+  return null;
 }
 
 export default function HomeScreen() {
@@ -82,30 +90,26 @@ export default function HomeScreen() {
     setAggiornando(false);
   };
 
-  const apri = (p: Proposta) => {
-    switch (p.azione.tipo) {
-      case 'flash': router.push('/per-te'); break;
-      case 'wallet': router.push('/wallet'); break;
-      case 'percorso': router.push('/percorsi'); break;
-      case 'premio': router.push('/per-te'); break;
-      case 'referral': router.push('/invita'); break;
-      case 'club': router.push('/club'); break;
-      case 'challenge': router.push('/per-te'); break;
-      default: router.push('/prenota');
-    }
-  };
-
   if (!dati && !errore) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.centro}><ActivityIndicator color={colors.primary} /></View>
       </SafeAreaView>
     );
   }
 
   const nome = dati?.user.nome ?? user?.nome ?? '';
-  const prima = dati?.proposte[0];
-  const altre = dati?.proposte.slice(1) ?? [];
+  const app = dati?.prossimoAppuntamento;
+  const proposte = dati?.proposte ?? [];
+  const urgente = piuUrgente(proposte);
+  const altre = (dati?.proposteTotali ?? 0) - (urgente ? 1 : 0);
+  const percorso = dati?.percorsi?.[0];
+
+  // I numeri che non sono urgenze stanno in una riga sola, e si aprono toccandola
+  const vita = [
+    `${dati?.punti ?? 0} punti`,
+    dati?.wallet ? `${eur(dati.wallet.totale)} di credito` : null,
+  ].filter(Boolean).join(' · ');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -113,120 +117,79 @@ export default function HomeScreen() {
         contentContainerStyle={styles.contenuto}
         refreshControl={<RefreshControl refreshing={aggiornando} onRefresh={aggiorna} tintColor={colors.primary} />}
       >
-        {/* ── Saluto ── */}
         <Text style={styles.saluto}>Ciao {nome}</Text>
-        {dati?.messaggio ? <Text style={styles.messaggio}>{dati.messaggio}</Text> : null}
 
-        {errore ? <Card tone="urgent"><Text style={styles.errore}>{errore}</Text></Card> : null}
+        {errore ? <Text style={styles.errore}>{errore}</Text> : null}
 
-        {/* ── Prossimo appuntamento ── */}
-        {dati?.prossimoAppuntamento ? (
-          <Card tone="primary" onPress={() => router.push('/appuntamenti')} style={styles.spazio}>
-            <Text style={styles.etichetta}>Il tuo prossimo appuntamento</Text>
-            <Text style={styles.appQuando}>
-              {maiuscolaIniziale(quando(dati.prossimoAppuntamento.date))} alle {dati.prossimoAppuntamento.startTime}
+        {/* ── Il fatto grande ── */}
+        {app ? (
+          <Pressable style={styles.hero} onPress={() => router.push('/appuntamenti')}>
+            <Text style={styles.occhiello}>Il tuo prossimo appuntamento</Text>
+            <Text style={styles.heroQuando}>{quando(app.date)}{'\n'}alle {app.startTime}</Text>
+            <Text style={styles.heroCosa}>
+              {app.treatmentName}
+              {app.operatorName ? <Text style={styles.tenue}>{`  con ${app.operatorName}`}</Text> : null}
             </Text>
-            <Text style={styles.appTratt}>{dati.prossimoAppuntamento.treatmentName}</Text>
-            <Text style={styles.appOperatrice}>con {dati.prossimoAppuntamento.operatorName}</Text>
-          </Card>
+          </Pressable>
         ) : (
-          <Card onPress={() => router.push('/prenota')} style={styles.spazio}>
-            <Text style={styles.etichetta}>Nessun appuntamento in programma</Text>
-            <View style={styles.rigaAzione}>
-              <Text style={styles.azioneTesto}>Prenota il prossimo</Text>
-              <Ionicons name="arrow-forward" size={18} color={colors.primary} />
-            </View>
-          </Card>
+          <Pressable style={styles.hero} onPress={() => router.push('/prenota')}>
+            <Text style={styles.occhiello}>Nessun appuntamento in programma</Text>
+            <Text style={styles.heroQuando}>Quando{'\n'}ci vediamo?</Text>
+            <Text style={styles.heroCosa}>Tocca per prenotare</Text>
+          </Pressable>
         )}
 
-        {/* ── Punti, credito, livello ── */}
-        <View style={styles.trioRiga}>
-          <Card style={styles.trio} onPress={() => router.push('/wallet')}>
-            <Text style={styles.trioNumero}>{dati?.punti ?? 0}</Text>
-            <Text style={styles.trioEtichetta}>Beauty Points</Text>
-          </Card>
-          {dati?.wallet ? (
-            <Card style={styles.trio} onPress={() => router.push('/wallet')}>
-              <Text style={styles.trioNumero}>{eur(dati.wallet.totale)}</Text>
-              <Text style={styles.trioEtichetta}>Beauty Credit</Text>
-            </Card>
-          ) : null}
-          {dati?.club?.attuale ? (
-            <Card style={styles.trio} onPress={() => router.push('/club')}>
-              <View style={[styles.pallino, { backgroundColor: dati.club.attuale.color }]} />
-              <Text style={styles.trioEtichetta}>{dati.club.attuale.name}</Text>
-            </Card>
-          ) : null}
-        </View>
-
-        {/* ── Avanzamento verso il livello successivo ── */}
-        {dati?.club?.prossimo ? (
-          <Card style={styles.spazio} onPress={() => router.push('/club')}>
-            <View style={styles.rigaTraSpazi}>
-              <Text style={styles.etichetta}>Verso {dati.club.prossimo.name}</Text>
-              <Text style={styles.piccolo}>{dati.club.avanzamento}%</Text>
-            </View>
-            <View style={styles.spazioMini}>
-              <Progress percentuale={dati.club.avanzamento} colore={dati.club.prossimo.color} alta />
-            </View>
-            <Text style={styles.piccolo}>
-              Ti mancano {eur(dati.club.prossimo.mancaSpesa)} per {dati.club.prossimo.name}
-            </Text>
-          </Card>
-        ) : null}
-
-        {/* ── Cosa posso fare oggi ── */}
-        {(dati?.proposteTotali ?? 0) > 0 ? (
-          <Pressable onPress={() => router.push('/per-te')} style={styles.cta}>
-            <Text style={styles.ctaTitolo}>✨ Cosa posso fare oggi?</Text>
-            <Text style={styles.ctaSotto}>
-              Abbiamo trovato {dati!.proposteTotali} {dati!.proposteTotali === 1 ? 'opportunità' : 'opportunità'} per te
+        {/* ── I numeri, piccoli ── */}
+        {vita ? (
+          <Pressable onPress={() => router.push('/wallet')}>
+            <Text style={styles.vita}>
+              {vita}
+              {dati?.club?.attuale ? <Text style={styles.livello}>{` · ${dati.club.attuale.name}`}</Text> : null}
             </Text>
           </Pressable>
         ) : null}
 
-        {/* ── Per te oggi ── */}
-        {prima ? (
-          <>
-            <Text style={styles.titoloSezione}>Per te oggi</Text>
-            {[prima, ...altre].map(p => {
-              const v = vestito(p.tipo);
-              return (
-                <Card key={p.id} tone={v.tone} onPress={() => apri(p)} style={styles.spazioMini}>
-                  <View style={styles.propostaRiga}>
-                    <Text style={styles.propostaIcona}>{p.icona}</Text>
-                    <View style={styles.propostaTesti}>
-                      <Text style={styles.propostaTitolo}>{p.titolo}</Text>
-                      <Text style={styles.propostaSotto}>{p.sottotitolo}</Text>
-                      <Text style={[styles.propostaAzione, { color: v.colore }]}>{p.azione.label} →</Text>
-                    </View>
-                  </View>
-                </Card>
-              );
-            })}
-          </>
+        {/* ── L'unico accento: quello che si perde se non lo guardi ── */}
+        {urgente ? (
+          <Pressable
+            style={[styles.avviso, { borderLeftColor: urgente.colore }]}
+            onPress={() => router.push('/per-te')}
+          >
+            <Text style={[styles.avvisoTitolo, { color: urgente.colore }]}>{urgente.p.titolo}</Text>
+            <Text style={styles.piccolo}>{urgente.p.sottotitolo}</Text>
+          </Pressable>
         ) : null}
 
-        {/* ── Percorsi aperti ── */}
-        {dati?.percorsi.length ? (
-          <>
-            <Text style={styles.titoloSezione}>I tuoi percorsi</Text>
-            {dati.percorsi.map(p => (
-              <Card key={p.id} onPress={() => router.push('/percorsi')} style={styles.spazioMini}>
-                <View style={styles.rigaTraSpazi}>
-                  <Text style={styles.percorsoNome}>{p.nome}</Text>
-                  <Chip testo={`${p.residue} ${p.residue === 1 ? 'rimasta' : 'rimaste'}`} />
-                </View>
-                <View style={styles.spazioMini}>
-                  <Progress percentuale={(p.fatte / Math.max(p.totali, 1)) * 100} colore={p.colore} />
-                </View>
-                <Text style={styles.piccolo}>{p.fatte} di {p.totali} sedute</Text>
-              </Card>
-            ))}
-          </>
+        {/* ── Tutto il resto sta in "Per te" ── */}
+        {altre > 0 ? (
+          <Pressable style={styles.riga} onPress={() => router.push('/per-te')}>
+            <View style={styles.rigaSinistra}>
+              <Text style={styles.rigaTesto}>Per te oggi</Text>
+              <View style={styles.conta}><Text style={styles.contaNumero}>{altre}</Text></View>
+            </View>
+            <Icona nome="freccia" misura={19} colore={colors.textMuted} />
+          </Pressable>
         ) : null}
 
-        <View style={styles.fondo} />
+        {/* ── Il percorso aperto: uno, il primo ── */}
+        {percorso ? (
+          <Pressable style={styles.blocco} onPress={() => router.push('/percorsi')}>
+            <View style={styles.rigaTraSpazi}>
+              <Text style={styles.forte}>{percorso.nome}</Text>
+              <Text style={styles.piccolo}>{percorso.fatte} di {percorso.totali}</Text>
+            </View>
+            <View style={styles.barra}>
+              <Progress percentuale={(percorso.fatte / Math.max(percorso.totali, 1)) * 100} colore={percorso.colore} />
+            </View>
+          </Pressable>
+        ) : null}
+
+        {/* ── L'azione, in fondo e in punta di piedi ── */}
+        {app ? (
+          <Pressable style={styles.bottoneLinea} onPress={() => router.push('/prenota')}>
+            <Text style={styles.bottoneLineaTesto}>Prenota</Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -235,52 +198,45 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   centro: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  contenuto: { padding: spacing.md, paddingBottom: spacing.xxl },
+  contenuto: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
 
-  saluto: { ...typography.title, color: colors.textPrimary, marginTop: spacing.sm },
-  messaggio: { ...typography.body, color: colors.textSecondary, marginTop: 2 },
-  errore: { ...typography.label, color: colors.error },
+  saluto: { ...typography.title, fontSize: 22, color: colors.textSecondary, marginTop: spacing.sm },
+  errore: { ...typography.label, color: colors.error, marginTop: spacing.sm },
 
-  spazio: { marginTop: spacing.md },
-  spazioMini: { marginTop: spacing.sm },
+  hero: { paddingTop: spacing.lg, paddingBottom: spacing.lg + 4, borderBottomWidth: 1, borderBottomColor: colors.border },
+  occhiello: { ...typography.occhiello, color: colors.textSecondary },
+  // 40px: è l'unica cosa grande della schermata, e va letta con lo sguardo di
+  // chi tiene il telefono in una mano sola mentre esce di casa.
+  heroQuando: { fontFamily: fonts.serif600, fontSize: 40, lineHeight: 44, letterSpacing: -0.8, color: colors.textPrimary, marginTop: spacing.sm },
+  heroCosa: { ...typography.bodyForte, color: colors.textPrimary, marginTop: spacing.md },
+  tenue: { ...typography.body, color: colors.textSecondary },
 
-  etichetta: { ...typography.caption, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, fontFamily: fonts.w700 },
-  appQuando: { ...typography.subtitle, color: colors.primaryDark, marginTop: spacing.xs },
-  appTratt: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w600 },
-  appOperatrice: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  vita: { ...typography.caption, fontSize: 13, color: colors.textSecondary, marginTop: spacing.md },
+  livello: { fontFamily: fonts.w600, color: colors.primaryDark },
 
-  rigaAzione: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
-  azioneTesto: { ...typography.body, color: colors.primary, fontFamily: fonts.w700 },
+  avviso: { marginTop: spacing.lg, paddingVertical: spacing.sm + 2, paddingLeft: spacing.md, borderLeftWidth: 2 },
+  avvisoTitolo: { ...typography.bodyForte },
 
-  trioRiga: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
-  trio: { flex: 1, alignItems: 'center', paddingVertical: spacing.md },
-  // Cifra, non titolo: Montserrat tabellare, così non balla quando cambia.
-  trioNumero: { ...typography.numero, color: colors.textPrimary },
-  trioEtichetta: { ...typography.caption, color: colors.textSecondary, marginTop: 2, textAlign: 'center' },
-  pallino: { width: 18, height: 18, borderRadius: 9, marginBottom: 4 },
-
-  rigaTraSpazi: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  piccolo: { ...typography.caption, color: colors.textSecondary },
-
-  cta: {
-    marginTop: spacing.lg,
-    backgroundColor: colors.primary,
-    borderRadius: radius.lg,
-    padding: spacing.md,
+  riga: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginTop: spacing.lg, paddingVertical: spacing.md,
+    borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border,
   },
-  ctaTitolo: { ...typography.subtitle, color: colors.white },
-  ctaSotto: { ...typography.caption, color: colors.primaryLight, marginTop: 2 },
+  rigaSinistra: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  rigaTesto: { ...typography.body, fontSize: 16, color: colors.textPrimary },
+  conta: { width: 19, height: 19, borderRadius: radius.full, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  contaNumero: { ...typography.captionForte, fontSize: 11, color: colors.white },
 
-  titoloSezione: { ...typography.subtitle, color: colors.textPrimary, marginTop: spacing.lg },
+  blocco: { marginTop: spacing.lg },
+  rigaTraSpazi: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  forte: { ...typography.bodyForte, color: colors.textPrimary, flex: 1 },
+  piccolo: { ...typography.caption, color: colors.textSecondary },
+  barra: { marginTop: spacing.sm },
 
-  propostaRiga: { flexDirection: 'row', gap: spacing.sm },
-  propostaIcona: { fontSize: 22 },
-  propostaTesti: { flex: 1 },
-  propostaTitolo: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w700 },
-  propostaSotto: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
-  propostaAzione: { ...typography.label, fontFamily: fonts.w700, marginTop: spacing.sm },
-
-  percorsoNome: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w600, flex: 1 },
-
-  fondo: { height: spacing.xl },
+  // Contornato e non pieno: se l'oro se lo prendono tre elementi, non tira più.
+  bottoneLinea: {
+    marginTop: spacing.xl, paddingVertical: spacing.md,
+    borderRadius: radius.lg, borderWidth: 1, borderColor: colors.primary, alignItems: 'center',
+  },
+  bottoneLineaTesto: { ...typography.labelForte, color: colors.primaryDark },
 });

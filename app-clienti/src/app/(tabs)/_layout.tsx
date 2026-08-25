@@ -6,46 +6,47 @@
  * (Home), si prenota, si guardano le occasioni, i premi, e in fondo il resto.
  */
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 
+import { IconaScheda } from '@/components/ui/Icona';
 import { colors, fonts, typography } from '@/theme';
+
+/** Le schede in ordine: il primo è quello che si apre all'avvio. */
+const SCHEDE = [
+  { name: 'index', title: 'Home', icona: 'home' },
+  { name: 'prenota', title: 'Prenota', icona: 'prenota' },
+  { name: 'per-te', title: 'Per te', icona: 'perTe' },
+  { name: 'premi', title: 'Premi', icona: 'premi' },
+  { name: 'profilo', title: 'Profilo', icona: 'profilo' },
+] as const;
 
 export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: colors.primaryDark,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: colors.surface,
+          // Stesso fondo delle schermate: una barra bianca su avorio disegna
+          // una riga netta in fondo allo schermo che non serve a niente.
+          backgroundColor: colors.background,
           borderTopColor: colors.border,
           height: 88,
-          paddingTop: 6,
+          paddingTop: 8,
         },
-        tabBarLabelStyle: { ...typography.caption, fontFamily: fonts.w600 },
+        tabBarLabelStyle: { ...typography.caption, fontFamily: fonts.w600, fontSize: 10 },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{ title: 'Home', tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} /> }}
-      />
-      <Tabs.Screen
-        name="prenota"
-        options={{ title: 'Prenota', tabBarIcon: ({ color, size }) => <Ionicons name="add-circle" size={size} color={color} /> }}
-      />
-      <Tabs.Screen
-        name="per-te"
-        options={{ title: 'Per te', tabBarIcon: ({ color, size }) => <Ionicons name="sparkles" size={size} color={color} /> }}
-      />
-      <Tabs.Screen
-        name="premi"
-        options={{ title: 'Premi', tabBarIcon: ({ color, size }) => <Ionicons name="gift" size={size} color={color} /> }}
-      />
-      <Tabs.Screen
-        name="profilo"
-        options={{ title: 'Profilo', tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} /> }}
-      />
+      {SCHEDE.map(s => (
+        <Tabs.Screen
+          key={s.name}
+          name={s.name}
+          options={{
+            title: s.title,
+            tabBarIcon: ({ focused }) => <IconaScheda nome={s.icona} attiva={focused} />,
+          }}
+        />
+      ))}
     </Tabs>
   );
 }
