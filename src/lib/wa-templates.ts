@@ -361,6 +361,31 @@ export const WA_TEMPLATES = {
       'il campo nel modulo dice di chiederlo. Se l\'invio fallisce il buono resta valido: si ' +
       'consegna il codice a voce o su carta, come si è sempre fatto.',
   },
+  /**
+   * Il listino col bottone che punta dove vogliamo noi.
+   *
+   * Il primo template (`listino_prezzi`) ha l'indirizzo scritto dentro
+   * all'approvazione: qualunque cosa si scegliesse al banco, il bottone
+   * apriva sempre il listino intero — e chi aveva chiesto solo i pacchetti si
+   * ritrovava centoquattordici trattamenti da scorrere.
+   *
+   * Qui la coda dell'indirizzo è un segnaposto ({{1}} → "?v=pacchetti"),
+   * quindi un'approvazione sola basta per tutte le viste, anche quelle che
+   * inventeremo dopo.
+   */
+  listinoV2: {
+    name: 'listino_link_v2',
+    category: 'MARKETING',
+    language: 'it',
+    params: ['nome cliente'],
+    body:
+      'Ciao {{1}}, come richiesto ecco il listino di RevoBeauty: trattamenti, pacchetti e prezzi aggiornati.\n' +
+      'Tocca il bottone qui sotto per aprirlo. Se vuoi un consiglio o vuoi prenotare, rispondi pure a questo messaggio.',
+    buttons: [{ type: 'URL', text: 'Vedi il listino', link: 'listino' }],
+    note:
+      'Come listino_prezzi, ma il bottone porta alla parte scelta (tutto, solo trattamenti, solo ' +
+      'pacchetti). Finché Meta non lo approva si continua col vecchio, che manda il listino intero.',
+  },
   listino: {
     name: 'listino_prezzi',
     category: 'MARKETING',

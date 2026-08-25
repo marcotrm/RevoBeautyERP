@@ -60,7 +60,7 @@ export default function MandaListino({ phone, nome, className = '', soloIcona = 
       .slice(0, 6);
   }, [cercaCliente, clienti]);
   const [inviando, setInviando] = useState(false);
-  const [esito, setEsito] = useState<{ ok: boolean; testo: string } | null>(null);
+  const [esito, setEsito] = useState<{ ok: boolean; testo: string; avviso?: boolean } | null>(null);
   const [link, setLink] = useState('');
   const [copiato, setCopiato] = useState(false);
   /*
@@ -94,9 +94,16 @@ export default function MandaListino({ phone, nome, className = '', soloIcona = 
     const r = await mandaListino({ phone: numeroDaUsare, nome: nome || nomeScritto, vista })
       .catch(() => ({ ok: false, error: 'Invio fallito' }));
     setInviando(false);
+    /*
+      Riuscito ma con un avvertimento: fuori dalle 24 ore il messaggio
+      approvato porta a tutto il listino, quindi la scelta "solo pacchetti"
+      non arriva. Meglio dirlo che lasciar credere il contrario.
+    */
+    const avviso = r.ok && 'error' in r && r.error ? r.error : null;
     setEsito({
       ok: Boolean(r.ok),
-      testo: r.ok ? 'Listino mandato su WhatsApp.' : (('error' in r && r.error) || 'Invio fallito'),
+      avviso: Boolean(avviso),
+      testo: avviso || (r.ok ? 'Listino mandato su WhatsApp.' : (('error' in r && r.error) || 'Invio fallito')),
     });
   };
 
@@ -204,8 +211,8 @@ export default function MandaListino({ phone, nome, className = '', soloIcona = 
                         <Send className="w-4 h-4" /> {inviando ? 'Sto mandando…' : phone ? `Manda su WhatsApp al ${phone}` : 'Manda il listino'}
                       </button>
                       {esito && (
-                        <p className={`text-[11px] mt-2 ${esito.ok ? 'text-success' : 'text-error'}`}>
-                          {esito.ok ? <><Check className="w-3 h-3 inline mr-1" />{esito.testo}</> : esito.testo}
+                        <p className={`text-[11px] mt-2 ${esito.avviso ? 'text-warning' : esito.ok ? 'text-success' : 'text-error'}`}>
+                          {esito.ok && !esito.avviso ? <><Check className="w-3 h-3 inline mr-1" />{esito.testo}</> : esito.testo}
                         </p>
                       )}
                     </div>

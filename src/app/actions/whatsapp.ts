@@ -269,6 +269,7 @@ export async function creaTemplateRecensione(): Promise<{ ok: boolean; status?: 
  */
 const ESEMPI_PARAMETRI: Record<TemplateKey, string[]> = {
   listino: ['Maria'],
+  listinoV2: ['Maria'],
   confirm: ['Maria', 'pulizia viso', 'domani', '15:30'],
   spostato: ['Maria', 'pulizia viso', 'domani', '15:45'],
   reminder: ['Maria', 'pulizia viso', 'domani', '15:30'],

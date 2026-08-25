@@ -58,6 +58,29 @@ export async function mandaListino(params: {
     prima qui ci si fermava con un errore che sembrava un guasto del
     gestionale.
   */
+  /*
+    Col template comanda l'indirizzo approvato.
+
+    `listino_prezzi` ha il link scritto dentro all'approvazione e porta sempre
+    al listino intero: chi aveva chiesto solo i pacchetti si ritrovava
+    centoquattordici trattamenti. `listino_link_v2` invece ha la coda
+    dell'indirizzo come segnaposto, quindi apre esattamente la parte scelta.
+    Si usa quello appena Meta lo approva; nel frattempo si manda il vecchio, e
+    si dice a chi sta al banco che è partito il listino completo.
+  */
+  const v2 = await statoTemplate(WA_TEMPLATES.listinoV2.name);
+  if (v2 === 'APPROVED') {
+    const res = await sendWhatsAppTemplate(params.phone, 'listinoV2', {
+      bodyParams: [nome || 'ciao'],
+      buttonUrlSuffix: vista === 'tutto' ? '?v=tutto' : `?v=${vista}`,
+      fallbackText: testo,
+      source: 'manual',
+    });
+    return res.ok
+      ? { ok: true, testo, conTemplate: true }
+      : { ok: false, error: res.error || 'Invio fallito', testo };
+  }
+
   const tpl = WA_TEMPLATES.listino;
   const stato = await statoTemplateListino();
   if (stato.stato !== 'APPROVED') {
@@ -75,9 +98,27 @@ export async function mandaListino(params: {
     fallbackText: testo,
     source: 'manual',
   });
+  // Il vecchio template porta al listino intero: chi ha scelto una parte deve
+  // saperlo, se no crede di aver mandato i pacchetti e ha mandato tutto.
+  if (res.ok && vista !== 'tutto') {
+    return {
+      ok: true,
+      conTemplate: true,
+      testo,
+      error: 'Mandato il listino COMPLETO: fuori dalle 24 ore vale il messaggio approvato da Meta, che porta a tutto il listino. Il messaggio coi soli pacchetti è in approvazione.',
+    };
+  }
   return res.ok
     ? { ok: true, testo: `${tpl.body.replace('{{1}}', nome || '')}\n[${tpl.buttons?.[0]?.text}] ${resolveButtonUrl('listino')}`, conTemplate: true }
     : { ok: false, error: res.error || 'Invio fallito', testo };
+}
+
+/** Lo stato su Meta di un template, per nome. */
+async function statoTemplate(nome: string): Promise<string> {
+  const remote = await listD360Templates();
+  if (!remote.ok) return 'SCONOSCIUTO';
+  const trovato = remote.templates.find(t => t.name === nome && t.language.toLowerCase().startsWith('it'));
+  return trovato ? trovato.status.toUpperCase() : 'ASSENTE';
 }
 
 /** Se il template del listino esiste su Meta e a che punto è. */
