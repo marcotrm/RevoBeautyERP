@@ -191,15 +191,46 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     const packageItems = packages.map(p => ({
       id: p.id, name: `📦 ${p.name}`, price: p.price, duration: 0, color: p.color, type: 'service' as const, isPackage: true,
     }));
+    /*
+      I prodotti si cercano anche per codice a barre e per codice interno.
+
+      Al banco il lettore non scrive il nome: spara le cifre del codice a
+      barre e va a capo. Cercando solo per nome non trovava mai niente, e la
+      crema finiva battuta a mano — o non battuta affatto, col magazzino che
+      resta pieno di roba già venduta.
+    */
     const productItems = products.map(p => ({
       id: p.id, name: `🧴 ${p.name}`, price: p.price, duration: 0, color: '#F59E0B', type: 'product' as const, isPackage: false,
+      barcode: (p.barcode || '').trim(),
+      cerca: `${p.name} ${p.barcode || ''} ${p.sku || ''}`.toLowerCase(),
     }));
-    return [...treatmentItems, ...packageItems, ...productItems];
+    return [
+      ...treatmentItems.map(t => ({ ...t, barcode: '', cerca: t.name.toLowerCase() })),
+      ...packageItems.map(t => ({ ...t, barcode: '', cerca: t.name.toLowerCase() })),
+      ...productItems,
+    ];
   }, [packages, treatments, products]);
 
-  const filteredServices = serviceSearch.trim()
-    ? allSellableItems.filter(t => t.name.toLowerCase().includes(serviceSearch.toLowerCase())).slice(0, 10)
+  const cercato = serviceSearch.trim().toLowerCase();
+  const filteredServices = cercato
+    ? allSellableItems.filter(t => t.cerca.includes(cercato)).slice(0, 10)
     : allSellableItems.slice(0, 10);
+
+  /*
+    Il lettore di codici a barre finisce con l'invio.
+
+    Se quello che è stato digitato è esattamente un codice a barre, il prodotto
+    entra nel carrello e il campo si svuota, pronto per il pezzo dopo: è così
+    che si batte una spesa senza staccare la mano dal lettore. Se non è un
+    codice ma la ricerca ha lasciato una sola riga, si prende quella.
+  */
+  const suInvio = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter' || !cercato) return;
+    e.preventDefault();
+    const perCodice = allSellableItems.find(t => t.barcode && t.barcode.toLowerCase() === cercato);
+    const scelto = perCodice || (filteredServices.length === 1 ? filteredServices[0] : null);
+    if (scelto) addToCart(scelto);
+  };
 
   const addToCart = (t: typeof allSellableItems[0]) => {
     setCart(prev => {
@@ -378,7 +409,8 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                   <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Aggiungi Servizi / Prodotti</label>
                   <div className="relative mb-2">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                    <input type="text" value={serviceSearch} onChange={e => setServiceSearch(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca trattamento..."
+                    <input type="text" value={serviceSearch} onChange={e => setServiceSearch(e.target.value)} onKeyDown={suInvio} {...NO_AUTOFILL}
+                      placeholder="Cerca trattamento, prodotto o codice a barre…"
                       className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto">
