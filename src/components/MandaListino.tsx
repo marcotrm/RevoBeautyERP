@@ -16,6 +16,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Receipt, X, Send, Check, Copy, QrCode } from 'lucide-react';
 import { mandaListino, urlListino, statoTemplateListino, creaTemplateListino } from '@/app/actions/listino';
+import { useClientStore } from '@/stores/useClientStore';
 
 export default function MandaListino({ phone, nome, className = '', soloIcona = false, chiediNumero = false }: {
   phone?: string | null; nome?: string; className?: string;
@@ -33,6 +34,24 @@ export default function MandaListino({ phone, nome, className = '', soloIcona = 
   const [aperto, setAperto] = useState(false);
   const [numero, setNumero] = useState('');
   const [nomeScritto, setNomeScritto] = useState('');
+  /*
+    Chi è già in rubrica non si ribatte.
+
+    Il numero a mano serve per chi cliente non è ancora; per tutte le altre
+    è tempo perso al banco e un rischio in più di sbagliare una cifra.
+  */
+  const [cercaCliente, setCercaCliente] = useState('');
+  const clienti = useClientStore(s => s.clients);
+  const caricaClienti = useClientStore(s => s.fetchClients);
+  const trovati = React.useMemo(() => {
+    const q = cercaCliente.trim().toLowerCase();
+    if (!q) return [];
+    const cifre = q.replace(/\D/g, '');
+    return clienti
+      .filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q)
+        || (cifre.length >= 3 && (c.phone || '').replace(/\D/g, '').includes(cifre)))
+      .slice(0, 6);
+  }, [cercaCliente, clienti]);
   const [inviando, setInviando] = useState(false);
   const [esito, setEsito] = useState<{ ok: boolean; testo: string } | null>(null);
   const [link, setLink] = useState('');
@@ -50,6 +69,9 @@ export default function MandaListino({ phone, nome, className = '', soloIcona = 
 
   useEffect(() => {
     if (!aperto) return;
+    // La rubrica può non essere ancora in memoria: nella pagina WhatsApp
+    // nessuno l'ha chiesta, e senza clienti la ricerca sembrerebbe rotta.
+    if (clienti.length === 0) caricaClienti().catch(() => {});
     urlListino().then(setLink).catch(() => {});
     statoTemplateListino().then(r => setTpl(r.stato)).catch(() => {});
   }, [aperto]);
@@ -109,10 +131,40 @@ export default function MandaListino({ phone, nome, className = '', soloIcona = 
                   {/* Il numero scritto a mano: per chi in rubrica non c'è. */}
                   {!phone && chiediNumero && (
                     <div className="space-y-2">
+                      {/* Prima si cerca in rubrica: un tocco e numero e nome sono a posto. */}
+                      <div className="relative">
+                        <label className="block text-[11px] font-semibold text-text-secondary mb-1">Cerca una cliente già registrata</label>
+                        <input value={cercaCliente} onChange={e => { setCercaCliente(e.target.value); setEsito(null); }}
+                          placeholder="Nome o numero…" autoFocus
+                          className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
+                        {trovati.length > 0 && (
+                          <div className="absolute left-0 right-0 mt-1 z-10 rounded-xl border border-border bg-bg-secondary shadow-xl overflow-hidden max-h-44 overflow-y-auto">
+                            {trovati.map(c => (
+                              <button key={c.id} type="button"
+                                onClick={() => {
+                                  setNumero(c.phone || '');
+                                  setNomeScritto(c.firstName || '');
+                                  setCercaCliente('');
+                                }}
+                                className="w-full px-3 py-2 text-left hover:bg-bg-hover flex items-center justify-between gap-2">
+                                <span className="text-sm text-text-primary truncate">{c.firstName} {c.lastName}</span>
+                                <span className="text-[11px] text-text-muted font-mono flex-shrink-0">{c.phone}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="h-px flex-1 bg-border" />
+                        <span className="text-[10px] text-text-muted uppercase tracking-wider">oppure scrivi il numero</span>
+                        <span className="h-px flex-1 bg-border" />
+                      </div>
+
                       <div>
                         <label className="block text-[11px] font-semibold text-text-secondary mb-1">Numero di WhatsApp</label>
                         <input value={numero} onChange={e => { setNumero(e.target.value); setEsito(null); }}
-                          inputMode="tel" placeholder="Es. 333 1234567" autoFocus
+                          inputMode="tel" placeholder="Es. 333 1234567"
                           className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
                       </div>
                       <div>
