@@ -12,6 +12,17 @@ import React, { useMemo, useState } from 'react';
 import { getCategoryLabel } from '@/lib/helpers';
 import type { Centro } from '@/lib/centro';
 
+export interface VocePacchetto {
+  id: string;
+  nome: string;
+  sedute: number;
+  prezzo: number;
+  trattamento: string;
+  aSeduta: number;
+  /** Quanto costa in meno rispetto alle stesse sedute pagate singole. */
+  risparmio: number | null;
+}
+
 export interface VoceListino {
   id: string;
   nome: string;
@@ -31,7 +42,9 @@ export interface VoceListino {
 */
 const euro = (n: number) => (n > 0 ? `${n.toFixed(2).replace('.', ',')} €` : 'su richiesta');
 
-export default function ListinoClient({ voci, centro }: { voci: VoceListino[]; centro: Centro }) {
+export default function ListinoClient({ voci, pacchetti, centro }: {
+  voci: VoceListino[]; pacchetti: VocePacchetto[]; centro: Centro;
+}) {
   const [uomo, setUomo] = useState(false);
   const [cerca, setCerca] = useState('');
 
@@ -88,6 +101,30 @@ export default function ListinoClient({ voci, centro }: { voci: VoceListino[]; c
           </section>
         ))}
 
+        {/* I pacchetti: quello che conviene davvero, col risparmio scritto. */}
+        {pacchetti.length > 0 && (
+          <section style={s.sezione}>
+            <h2 style={s.categoria}>Pacchetti</h2>
+            <p style={s.introPacchetti}>
+              Più sedute insieme costano meno. Si pagano una volta e si usano quando vuoi, fino a esaurimento.
+            </p>
+            <div>
+              {pacchetti.map(p => (
+                <div key={p.id} style={s.riga}>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={s.nome}>{p.nome}</p>
+                    <p style={s.minuti}>
+                      {p.sedute} sedute · {euro(p.aSeduta)} a seduta
+                      {p.risparmio ? <span style={s.risparmio}> · risparmi {euro(p.risparmio)}</span> : null}
+                    </p>
+                  </div>
+                  <p style={s.prezzo}>{euro(p.prezzo)}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/*
           Qui non si prenota.
 
@@ -129,6 +166,8 @@ const s: Record<string, React.CSSProperties> = {
   prezzo: { margin: 0, fontSize: 16, fontWeight: 800, color: '#5b2a67', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' },
   chiusura: { marginTop: 10, padding: '16px 14px', borderRadius: 16, background: '#fff', border: '1px solid #ece3ef', textAlign: 'center' },
   chiusuraTitolo: { margin: 0, fontSize: 15, fontWeight: 700, color: '#5b2a67' },
+  introPacchetti: { fontSize: 12, color: '#8b7a92', margin: '0 0 6px', lineHeight: 1.5 },
+  risparmio: { color: '#2e7d32', fontWeight: 700 },
   nota: { fontSize: 12, color: '#8b7a92', textAlign: 'center', marginTop: 8, lineHeight: 1.5, marginBottom: 0 },
   vuoto: { textAlign: 'center', color: '#8b7a92', padding: '30px 0' },
 };
