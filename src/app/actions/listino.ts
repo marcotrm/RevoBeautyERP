@@ -20,20 +20,30 @@ import { sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { listD360Templates, createD360Template } from '@/lib/whatsapp360';
 import { WA_TEMPLATES, resolveButtonUrl } from '@/lib/wa-templates';
 
-export async function urlListino(): Promise<string> {
+/** Cosa si manda: tutto il listino, solo i trattamenti o solo i pacchetti. */
+export type VistaListino = 'tutto' | 'trattamenti' | 'pacchetti';
+
+export async function urlListino(vista: VistaListino = 'tutto'): Promise<string> {
   // Stessa origine dei QR degli affiliati: un indirizzo pubblico solo.
-  return `${publicOrigin() || 'https://erp.revobeauty.it'}/listino`;
+  const base = `${publicOrigin() || 'https://erp.revobeauty.it'}/listino`;
+  return vista === 'tutto' ? base : `${base}?v=${vista}`;
 }
 
 export async function mandaListino(params: {
   phone: string;
   nome?: string;
+  vista?: VistaListino;
 }): Promise<{ ok: boolean; error?: string; testo?: string; conTemplate?: boolean }> {
-  const link = await urlListino();
+  const vista = params.vista || 'tutto';
+  const link = await urlListino(vista);
   const nome = (params.nome || '').trim().split(' ')[0];
   const testo = [
     nome ? `Ciao ${nome}!` : 'Ciao!',
-    `Ecco il nostro listino aggiornato: ${link}`,
+    vista === 'pacchetti'
+      ? `Ecco i nostri pacchetti, con quanto si risparmia: ${link}`
+      : vista === 'trattamenti'
+        ? `Ecco il nostro listino trattamenti aggiornato: ${link}`
+        : `Ecco il nostro listino aggiornato: ${link}`,
     `Se ti serve un consiglio o vuoi prenotare, rispondi pure a questo messaggio. ${CENTRO.nome}`,
   ].join('\n');
 

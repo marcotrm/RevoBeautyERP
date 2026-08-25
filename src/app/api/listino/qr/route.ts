@@ -18,7 +18,10 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const svg = url.searchParams.get('f') === 'svg';
-  const target = `${publicOrigin(request.url)}/listino`;
+  // Il QR può portare a tutto il listino o solo a una parte: ?v=pacchetti
+  const vista = url.searchParams.get('v');
+  const coda = vista === 'pacchetti' || vista === 'trattamenti' ? `?v=${vista}` : '';
+  const target = `${publicOrigin(request.url)}/listino${coda}`;
 
   const opzioni = {
     errorCorrectionLevel: 'M' as const,

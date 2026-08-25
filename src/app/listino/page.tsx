@@ -23,7 +23,21 @@ export const metadata = {
   description: 'Trattamenti, durate e prezzi aggiornati.',
 };
 
-export default async function ListinoPage() {
+/*
+  Trattamenti e pacchetti si possono mandare separati.
+
+  Chi al banco chiede "quanto viene la ceretta" non ha bisogno di scorrere
+  quindici pacchetti, e a chi si sta convincendo del pacchetto i prezzi
+  singoli non servono. Il link porta con sé cosa mostrare: ?v=trattamenti,
+  ?v=pacchetti, o niente per tutto il listino.
+*/
+export type VistaListino = 'tutto' | 'trattamenti' | 'pacchetti';
+
+export default async function ListinoPage({ searchParams }: {
+  searchParams: Promise<{ v?: string }>;
+}) {
+  const { v } = await searchParams;
+  const vista: VistaListino = v === 'pacchetti' ? 'pacchetti' : v === 'trattamenti' ? 'trattamenti' : 'tutto';
   const treatments = await prisma.treatment.findMany({
     where: { isActive: true },
     orderBy: [{ category: 'asc' }, { name: 'asc' }],
@@ -71,5 +85,12 @@ export default async function ListinoPage() {
     minutiUomo: t.durationMale ?? t.durationFemale ?? t.duration,
   }));
 
-  return <ListinoClient voci={voci} pacchetti={pacchetti} centro={CENTRO} />;
+  return (
+    <ListinoClient
+      voci={vista === 'pacchetti' ? [] : voci}
+      pacchetti={vista === 'trattamenti' ? [] : pacchetti}
+      vista={vista}
+      centro={CENTRO}
+    />
+  );
 }

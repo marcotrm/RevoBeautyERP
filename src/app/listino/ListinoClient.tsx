@@ -42,8 +42,9 @@ export interface VoceListino {
 */
 const euro = (n: number) => (n > 0 ? `${n.toFixed(2).replace('.', ',')} €` : 'su richiesta');
 
-export default function ListinoClient({ voci, pacchetti, centro }: {
+export default function ListinoClient({ voci, pacchetti, centro, vista = 'tutto' }: {
   voci: VoceListino[]; pacchetti: VocePacchetto[]; centro: Centro;
+  vista?: 'tutto' | 'trattamenti' | 'pacchetti';
 }) {
   const [uomo, setUomo] = useState(false);
   const [cerca, setCerca] = useState('');
@@ -64,11 +65,14 @@ export default function ListinoClient({ voci, pacchetti, centro }: {
     <main style={s.page}>
       <div style={s.wrap}>
         <header style={s.header}>
-          <p style={s.occhiello}>Listino</p>
+          <p style={s.occhiello}>
+            {vista === 'pacchetti' ? 'Pacchetti' : vista === 'trattamenti' ? 'Listino trattamenti' : 'Listino'}
+          </p>
           <h1 style={s.titolo}>{centro.nome}</h1>
           {centro.indirizzo && <p style={s.indirizzo}>{centro.indirizzo}</p>}
         </header>
 
+        {voci.length > 0 && (
         <div style={s.controlli}>
           <div style={s.switch}>
             {[['Donna', false], ['Uomo', true]].map(([lab, val]) => (
@@ -81,8 +85,9 @@ export default function ListinoClient({ voci, pacchetti, centro }: {
           <input value={cerca} onChange={e => setCerca(e.target.value)}
             placeholder="Cerca un trattamento…" style={s.cerca} />
         </div>
+        )}
 
-        {gruppi.length === 0 && <p style={s.vuoto}>Nessun trattamento con questo nome.</p>}
+        {voci.length > 0 && gruppi.length === 0 && <p style={s.vuoto}>Nessun trattamento con questo nome.</p>}
 
         {gruppi.map(([categoria, lista]) => (
           <section key={categoria} style={s.sezione}>

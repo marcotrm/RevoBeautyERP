@@ -15,7 +15,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Receipt, X, Send, Check, Copy, QrCode } from 'lucide-react';
-import { mandaListino, urlListino, statoTemplateListino, creaTemplateListino } from '@/app/actions/listino';
+import { mandaListino, urlListino, statoTemplateListino, creaTemplateListino, type VistaListino } from '@/app/actions/listino';
 import { useClientStore } from '@/stores/useClientStore';
 
 export default function MandaListino({ phone, nome, className = '', soloIcona = false, chiediNumero = false }: {
@@ -32,6 +32,13 @@ export default function MandaListino({ phone, nome, className = '', soloIcona = 
   chiediNumero?: boolean;
 }) {
   const [aperto, setAperto] = useState(false);
+  /*
+    Cosa si manda: tutto, solo i trattamenti o solo i pacchetti.
+
+    Chi chiede "quanto viene la ceretta" non deve scorrere quindici pacchetti,
+    e a chi si sta convincendo del pacchetto i prezzi singoli non servono.
+  */
+  const [vista, setVista] = useState<VistaListino>('tutto');
   const [numero, setNumero] = useState('');
   const [nomeScritto, setNomeScritto] = useState('');
   /*
@@ -84,7 +91,7 @@ export default function MandaListino({ phone, nome, className = '', soloIcona = 
     if (!pronto) return;
     setInviando(true);
     setEsito(null);
-    const r = await mandaListino({ phone: numeroDaUsare, nome: nome || nomeScritto })
+    const r = await mandaListino({ phone: numeroDaUsare, nome: nome || nomeScritto, vista })
       .catch(() => ({ ok: false, error: 'Invio fallito' }));
     setInviando(false);
     setEsito({
@@ -128,6 +135,17 @@ export default function MandaListino({ phone, nome, className = '', soloIcona = 
                 </div>
 
                 <div className="p-5 space-y-4">
+                  {/* Le tre linguette: cambiano il link, il messaggio e il QR. */}
+                  <div className="flex rounded-xl border border-border overflow-hidden text-xs">
+                    {([['tutto', 'Tutto'], ['trattamenti', 'Trattamenti'], ['pacchetti', 'Pacchetti']] as const).map(([val, lab]) => (
+                      <button key={val} type="button" onClick={() => { setVista(val); setEsito(null); }}
+                        className={`flex-1 py-2 font-semibold transition-colors ${
+                          vista === val ? 'bg-accent text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
+                        {lab}
+                      </button>
+                    ))}
+                  </div>
+
                   {/* Il numero scritto a mano: per chi in rubrica non c'è. */}
                   {!phone && chiediNumero && (
                     <div className="space-y-2">
@@ -223,7 +241,7 @@ export default function MandaListino({ phone, nome, className = '', soloIcona = 
                       <QrCode className="w-3.5 h-3.5" /> Oppure faglielo inquadrare: funziona sempre, anche senza WhatsApp.
                     </p>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/api/listino/qr" alt="QR del listino"
+                    <img src={vista === 'tutto' ? '/api/listino/qr' : `/api/listino/qr?v=${vista}`} alt="QR del listino"
                       className="w-44 h-44 mx-auto rounded-xl bg-white p-2" />
                   </div>
 
