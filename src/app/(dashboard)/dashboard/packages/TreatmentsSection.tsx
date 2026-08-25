@@ -34,13 +34,15 @@ function ChiLoFa({ trattamento, staff }: { trattamento: Treatment; staff: Operat
   const [salvando, setSalvando] = useState(false);
   const scelte = trattamento.operatorSkills || [];
   const accesa = (id: string) => scelte.some(k => k.operatorId === id);
+  /*
+    "Tutte" vuol dire nessuna scelta fra le persone.
 
-  const cambia = async (id: string) => {
-    if (salvando) return;
-    // La durata personale, se c'è, non si perde spegnendo e riaccendendo.
-    const nuove = accesa(id)
-      ? scelte.filter(k => k.operatorId !== id)
-      : [...scelte, { operatorId: id }];
+    Le cabine, se un trattamento ne ha una, non contano in questo conto e non
+    si toccano: sono la stanza, non una scelta fra colleghe.
+  */
+  const nessuna = !staff.some(o => accesa(o.id));
+
+  const salva = async (nuove: OperatorSkill[]) => {
     setSalvando(true);
     try {
       await updateTreatment(trattamento.id, { operatorSkills: nuove });
@@ -50,6 +52,20 @@ function ChiLoFa({ trattamento, staff }: { trattamento: Treatment; staff: Operat
     } finally {
       setSalvando(false);
     }
+  };
+
+  const cambia = (id: string) => {
+    if (salvando) return;
+    // La durata personale, se c'è, non si perde spegnendo e riaccendendo.
+    return salva(accesa(id)
+      ? scelte.filter(k => k.operatorId !== id)
+      : [...scelte, { operatorId: id }]);
+  };
+
+  /** Torna a "lo fanno tutte": si spengono le persone, le cabine restano. */
+  const tornaATutte = () => {
+    if (salvando || nessuna) return;
+    return salva(scelte.filter(k => !staff.some(o => o.id === k.operatorId)));
   };
 
   return (
@@ -76,11 +92,24 @@ function ChiLoFa({ trattamento, staff }: { trattamento: Treatment; staff: Operat
           </button>
         );
       })}
-      {scelte.length === 0 && (
-        <span className="text-[10px] text-text-muted ml-0.5" title="Nessuna scelta: in prenotazione lo propone a chiunque sia libera">
-          tutte
-        </span>
-      )}
+      {/*
+        "Tutte" è un tasto, non una scritta.
+
+        Prima compariva soltanto quando non c'era nessuna accesa — cioè
+        esattamente quando non serviva — e per tornare indietro bisognava
+        spegnere le operatrici una per una. Ora c'è sempre: acceso dice come
+        sta messo il trattamento adesso, premuto lo riporta a "lo fanno tutte".
+      */}
+      <button type="button" onClick={tornaATutte} disabled={salvando || nessuna}
+        title={nessuna
+          ? 'Lo fanno tutte: in prenotazione lo propone a chiunque sia libera'
+          : 'Torna a "lo fanno tutte": toglie tutte le scelte'}
+        className={`h-7 px-2 rounded-full text-[10px] font-bold transition-all ${
+          nessuna
+            ? 'bg-accent/15 text-accent cursor-default'
+            : 'bg-bg-tertiary border border-border text-text-muted hover:border-accent/40 hover:text-accent'}`}>
+        tutte
+      </button>
     </div>
   );
 }
