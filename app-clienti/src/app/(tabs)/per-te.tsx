@@ -2,18 +2,25 @@
  * "Cosa posso fare oggi": tutte le occasioni realmente disponibili.
  *
  * A differenza della Home, qui non si taglia niente: le proposte ci sono
- * tutte, con in cima i Flash Slot, che hanno un conto alla rovescia e vanno
- * presi al volo.
+ * tutte. Ma non pesano uguale.
+ *
+ * I Flash Slot sono l'unica cosa che scade davvero mentre la guardi — hanno un
+ * conto alla rovescia — quindi sono gli unici a prendersi il colore, e non come
+ * riquadro pieno ma come barretta a lato. Tutto il resto è una lista con righe
+ * sottili: si scorre, si legge, si tocca.
+ *
+ * Prima erano tutte carte con bordo e ombra, ognuna col suo fondo colorato:
+ * l'occasione da prendere al volo e il promemoria del pacchetto sembravano la
+ * stessa cosa.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError, homeService, type DatiHome, type FlashSlotApp } from '@/api';
+import { ApiError, homeService, type DatiHome, type FlashSlotApp, type Proposta } from '@/api';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { Chip } from '@/components/ui/Chip';
+import { Icona } from '@/components/ui/Icona';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, fonts, spacing, typography } from '@/theme';
 
@@ -26,6 +33,12 @@ function conto(secondi: number): string {
   const s = secondi % 60;
   if (m >= 60) return `${Math.floor(m / 60)}h ${m % 60}m`;
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/** "Oggi" o "28/08": in una riga stretta la data lunga non ci sta. */
+function giorno(data: string): string {
+  if (data === new Date().toISOString().slice(0, 10)) return 'Oggi';
+  return `${data.slice(8, 10)}/${data.slice(5, 7)}`;
 }
 
 export default function PerTeScreen() {
@@ -76,6 +89,14 @@ export default function PerTeScreen() {
     }
   };
 
+  const apri = (p: Proposta) => {
+    if (p.azione.tipo === 'percorso') router.push('/percorsi');
+    else if (p.azione.tipo === 'referral') router.push('/invita');
+    else if (p.azione.tipo === 'club') router.push('/club');
+    else if (p.azione.tipo === 'wallet') router.push('/wallet');
+    else router.push('/prenota');
+  };
+
   const aggiorna = async () => { setAggiornando(true); await carica(); setAggiornando(false); };
 
   if (!dati) {
@@ -87,7 +108,7 @@ export default function PerTeScreen() {
   }
 
   const vivi = slots.filter(s => s.restanoSecondi - tick > 0);
-  const niente = !vivi.length && !dati.proposte.length;
+  const quante = vivi.length + dati.proposte.length;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -97,82 +118,60 @@ export default function PerTeScreen() {
       >
         <Text style={styles.titolo}>Per te</Text>
         <Text style={styles.sottotitolo}>
-          {niente
-            ? 'Al momento non c\'è niente in sospeso: sei in pari!'
-            : `${vivi.length + dati.proposte.length} cose che puoi fare adesso`}
+          {quante === 0
+            ? 'Al momento non c\'è niente in sospeso: sei in pari.'
+            : `${quante} ${quante === 1 ? 'cosa che puoi fare' : 'cose che puoi fare'} adesso.`}
         </Text>
 
-        {/* ── Flash Slot ── */}
-        {vivi.length ? (
-          <>
-            <Text style={styles.sezione}>⚡ Si è appena liberato</Text>
-            {vivi.map(s => {
-              const restano = s.restanoSecondi - tick;
-              return (
-                <Card key={s.id} tone="flash" style={styles.spazio}>
-                  <View style={styles.rigaTop}>
-                    <Text style={styles.flashOra}>
-                      {s.date === new Date().toISOString().slice(0, 10) ? 'Oggi' : s.date.slice(8, 10) + '/' + s.date.slice(5, 7)} · {s.startTime}
-                    </Text>
-                    <Chip testo={`ancora ${conto(restano)}`} colore={colors.flash} sfondo={colors.white} />
-                  </View>
-                  <Text style={styles.flashTratt}>{s.treatmentName}</Text>
-                  <Text style={styles.flashOp}>con {s.operatorName}</Text>
-                  <View style={styles.prezzi}>
-                    <Text style={styles.prezzoVecchio}>{eur(s.fullPrice)}</Text>
-                    <Text style={styles.prezzoNuovo}>{eur(s.price)}</Text>
-                    <Text style={styles.risparmio}>risparmi {eur(s.risparmio)}</Text>
-                  </View>
-                  <View style={styles.spazio}>
-                    <Button
-                      title={occupato === s.id ? 'Prenoto…' : 'Prenota ora'}
-                      onPress={() => prendi(s)}
-                      loading={occupato === s.id}
-                    />
-                  </View>
-                </Card>
-              );
-            })}
-          </>
-        ) : null}
+        {/* ── I posti liberati: l'unica cosa che scade mentre la guardi ── */}
+        {vivi.map(s => {
+          const restano = s.restanoSecondi - tick;
+          return (
+            <View key={s.id} style={styles.occasione}>
+              <View style={styles.rigaTop}>
+                <Text style={styles.occhielloFlash}>Si è appena liberato</Text>
+                <Text style={styles.conto}>{conto(restano)}</Text>
+              </View>
+              <Text style={styles.occQuando}>{giorno(s.date)} alle {s.startTime}</Text>
+              <Text style={styles.forte}>
+                {s.treatmentName}
+                {s.operatorName ? <Text style={styles.tenue}>{`  con ${s.operatorName}`}</Text> : null}
+              </Text>
+              <View style={styles.prezzi}>
+                <Text style={styles.prezzoVecchio}>{eur(s.fullPrice)}</Text>
+                <Text style={styles.prezzoNuovo}>{eur(s.price)}</Text>
+                <Text style={styles.risparmio}>risparmi {eur(s.risparmio)}</Text>
+              </View>
+              <Button
+                title={occupato === s.id ? 'Prenoto…' : 'Prendi questo posto'}
+                onPress={() => prendi(s)}
+                loading={occupato === s.id}
+                style={styles.bottone}
+              />
+            </View>
+          );
+        })}
 
-        {/* ── Le altre occasioni ── */}
+        {/* ── Tutto il resto: una lista, non una pila di riquadri ── */}
         {dati.proposte.length ? (
-          <>
-            <Text style={styles.sezione}>Le tue occasioni</Text>
+          <View style={styles.lista}>
             {dati.proposte.map(p => (
-              <Card key={p.id} style={styles.spazio}>
-                <View style={styles.propostaRiga}>
-                  <Text style={styles.icona}>{p.icona}</Text>
-                  <View style={styles.testi}>
-                    <Text style={styles.pTitolo}>{p.titolo}</Text>
-                    <Text style={styles.pSotto}>{p.sottotitolo}</Text>
-                  </View>
+              <Pressable key={p.id} style={styles.riga} onPress={() => apri(p)}>
+                <View style={styles.testi}>
+                  <Text style={styles.forte}>{p.titolo}</Text>
+                  <Text style={styles.piccolo}>{p.sottotitolo}</Text>
                 </View>
-                <View style={styles.spazio}>
-                  <Button
-                    title={p.azione.label}
-                    variant="secondary"
-                    onPress={() => {
-                      if (p.azione.tipo === 'percorso') router.push('/percorsi');
-                      else if (p.azione.tipo === 'referral') router.push('/invita');
-                      else if (p.azione.tipo === 'club') router.push('/club');
-                      else router.push('/prenota');
-                    }}
-                  />
-                </View>
-              </Card>
+                <Icona nome="freccia" misura={19} colore={colors.textMuted} />
+              </Pressable>
             ))}
-          </>
+          </View>
         ) : null}
 
-        {niente ? (
-          <Card style={styles.spazio}>
-            <Text style={styles.pSotto}>
-              Quando si libera un posto in agenda, scade un credito o ti avvicini a un premio,
-              lo trovi qui.
-            </Text>
-          </Card>
+        {quante === 0 ? (
+          <Text style={styles.vuoto}>
+            Quando si libera un posto in agenda, scade un credito o ti avvicini a un premio,
+            lo trovi qui.
+          </Text>
         ) : null}
       </ScrollView>
     </SafeAreaView>
@@ -182,22 +181,42 @@ export default function PerTeScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   centro: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  contenuto: { padding: spacing.md, paddingBottom: spacing.xxl },
-  titolo: { ...typography.title, color: colors.textPrimary },
-  sottotitolo: { ...typography.body, color: colors.textSecondary, marginTop: 2 },
-  sezione: { ...typography.subtitle, color: colors.textPrimary, marginTop: spacing.lg },
-  spazio: { marginTop: spacing.sm },
+  contenuto: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
+
+  titolo: { ...typography.title, color: colors.textPrimary, marginTop: spacing.sm },
+  sottotitolo: { ...typography.body, fontSize: 14, color: colors.textSecondary, marginTop: 3 },
+
+  // Barretta a lato invece del fondo pieno: si vede che è un'altra cosa senza
+  // che la schermata diventi una vetrina di Natale.
+  occasione: {
+    marginTop: spacing.lg,
+    paddingLeft: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.flash,
+  },
   rigaTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  flashOra: { ...typography.label, color: colors.flash, fontFamily: fonts.w700, textTransform: 'capitalize' },
-  flashTratt: { ...typography.subtitle, color: colors.textPrimary, marginTop: spacing.xs },
-  flashOp: { ...typography.caption, color: colors.textSecondary },
+  occhielloFlash: { ...typography.occhiello, color: colors.flash },
+  conto: { ...typography.captionForte, color: colors.flash, fontVariant: ['tabular-nums'] },
+  occQuando: { fontFamily: fonts.serif600, fontSize: 24, color: colors.textPrimary, marginTop: spacing.xs },
+  bottone: { marginTop: spacing.md },
+
+  forte: { ...typography.bodyForte, color: colors.textPrimary, marginTop: 3 },
+  tenue: { ...typography.body, color: colors.textSecondary },
+  piccolo: { ...typography.caption, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
+
   prezzi: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm, marginTop: spacing.sm },
   prezzoVecchio: { ...typography.body, color: colors.textMuted, textDecorationLine: 'line-through' },
   prezzoNuovo: { ...typography.numero, fontSize: 20, color: colors.textPrimary },
-  risparmio: { ...typography.caption, color: colors.success, fontFamily: fonts.w700 },
-  propostaRiga: { flexDirection: 'row', gap: spacing.sm },
-  icona: { fontSize: 22 },
+  risparmio: { ...typography.captionForte, color: colors.success },
+
+  lista: { marginTop: spacing.lg },
+  riga: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
   testi: { flex: 1 },
-  pTitolo: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w700 },
-  pSotto: { ...typography.caption, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
+
+  vuoto: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xl, lineHeight: 24 },
 });
