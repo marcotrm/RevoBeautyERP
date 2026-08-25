@@ -37,9 +37,16 @@ const LOGO = path.join(QUI, '..', 'assets', 'images', 'logo-oro.png');
  * l'ordine è quello in cui contano: prima cosa risolve, poi cosa ci guadagni.
  */
 const TAVOLE = [
-  { file: 'prenota.png', titolo: ['Prenoti quando', 'ti fa comodo'], sotto: 'Vedi solo i posti davvero liberi' },
-  { file: 'home.png', titolo: ['I tuoi appuntamenti,', 'sempre con te'], sotto: 'Sposti o disdici senza telefonare' },
-  { file: 'profilo.png', titolo: ['Ogni visita', 'vale qualcosa'], sotto: 'Punti, credito e livelli del Beauty Club' },
+  { file: 'preview1.jpg', titolo: ['Prenoti quando', 'ti fa comodo'], sotto: 'Vedi solo i posti davvero liberi' },
+  { file: 'preview3.jpg', titolo: ['I tuoi appuntamenti,', 'sempre con te'], sotto: 'Sposti o disdici senza telefonare' },
+  {
+    file: 'preview2.jpg',
+    titolo: ['Tutto quello che', 'hai con noi'],
+    sotto: 'Percorsi, credito, premi e inviti',
+    // Il numero di telefono della cliente non va su una pagina pubblica.
+    // Si offusca il dato personale: la schermata resta quella vera.
+    oscura: { left: 222, top: 142, width: 210, height: 62 },
+  },
 ];
 
 const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -100,7 +107,16 @@ async function componi(tavola) {
   const LARGHEZZA_TEL = 880;
   const CIMA_TEL = 830;
 
-  const tel = await angoliTondi(fs.readFileSync(sorgente), LARGHEZZA_TEL, 58);
+  let cattura = fs.readFileSync(sorgente);
+  if (tavola.oscura) {
+    const z = tavola.oscura;
+    const sfocato = await sharp(cattura).extract(z).blur(18).png().toBuffer();
+    cattura = await sharp(cattura)
+      .composite([{ input: sfocato, top: z.top, left: z.left }])
+      .png().toBuffer();
+  }
+
+  const tel = await angoliTondi(cattura, LARGHEZZA_TEL, 58);
   const sinistra = Math.round((L - tel.width) / 2);
 
   // Un filo d'oro intorno alla cattura: senza, su fondo nero il telefono non
@@ -127,7 +143,7 @@ async function componi(tavola) {
     .toBuffer();
 
   fs.mkdirSync(FUORI, { recursive: true });
-  const uscita = path.join(FUORI, tavola.file.replace('.png', '-1242x2688.png'));
+  const uscita = path.join(FUORI, tavola.file.replace(/\.(png|jpg|jpeg)$/i, '') + '-1242x2688.png');
   await sharp(finale).toFile(uscita);
   const m = await sharp(uscita).metadata();
   console.log(`  ${path.basename(uscita)} — ${m.width}x${m.height}  (logo alto ${logoAlt}px)`);
