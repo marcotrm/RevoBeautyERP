@@ -62,10 +62,24 @@ function ChiLoFa({ trattamento, staff }: { trattamento: Treatment; staff: Operat
       : [...scelte, { operatorId: id }]);
   };
 
-  /** Torna a "lo fanno tutte": si spengono le persone, le cabine restano. */
-  const tornaATutte = () => {
-    if (salvando || nessuna) return;
-    return salva(scelte.filter(k => !staff.some(o => o.id === k.operatorId)));
+  /** Vero quando sono accese tutte le persone dell'elenco. */
+  const tutteAccese = staff.length > 0 && staff.every(o => accesa(o.id));
+
+  /**
+   * Il tasto "tutte" le accende tutte, e ripremuto le spegne.
+   *
+   * Spente vuol dire comunque "lo fanno tutte" — è così che il gestionale si
+   * comporta da sempre con l'elenco vuoto — ma lasciare il tasto morto dopo
+   * averlo premuto era un vicolo cieco: si spegneva e non si tornava indietro.
+   */
+  const tutte = () => {
+    if (salvando) return;
+    if (tutteAccese) {
+      // Si spengono solo le persone: una cabina impostata resta dov'è.
+      return salva(scelte.filter(k => !staff.some(o => o.id === k.operatorId)));
+    }
+    const mancanti = staff.filter(o => !accesa(o.id)).map(o => ({ operatorId: o.id }));
+    return salva([...scelte, ...mancanti]);
   };
 
   return (
@@ -100,14 +114,18 @@ function ChiLoFa({ trattamento, staff }: { trattamento: Treatment; staff: Operat
         spegnere le operatrici una per una. Ora c'è sempre: acceso dice come
         sta messo il trattamento adesso, premuto lo riporta a "lo fanno tutte".
       */}
-      <button type="button" onClick={tornaATutte} disabled={salvando || nessuna}
-        title={nessuna
-          ? 'Lo fanno tutte: in prenotazione lo propone a chiunque sia libera'
-          : 'Torna a "lo fanno tutte": toglie tutte le scelte'}
-        className={`h-7 px-2 rounded-full text-[10px] font-bold transition-all ${
-          nessuna
-            ? 'bg-accent/15 text-accent cursor-default'
-            : 'bg-bg-tertiary border border-border text-text-muted hover:border-accent/40 hover:text-accent'}`}>
+      <button type="button" onClick={tutte} disabled={salvando}
+        title={tutteAccese
+          ? 'Sono accese tutte: premi per spegnerle'
+          : nessuna
+            ? 'Nessuna scelta: lo propone già a chiunque sia libera. Premi per accenderle tutte.'
+            : 'Accendi tutte'}
+        className={`h-7 px-2 rounded-full text-[10px] font-bold transition-all disabled:opacity-50 ${
+          tutteAccese
+            ? 'bg-accent text-white shadow-sm'
+            : nessuna
+              ? 'bg-accent/15 text-accent hover:bg-accent/25'
+              : 'bg-bg-tertiary border border-border text-text-muted hover:border-accent/40 hover:text-accent'}`}>
         tutte
       </button>
     </div>
