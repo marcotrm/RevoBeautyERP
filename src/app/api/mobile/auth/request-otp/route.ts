@@ -21,7 +21,7 @@
  *     Finché la verifica non c'è, questa seconda strada non è percorribile.
  */
 
-import { preparaCodice, OTP_DURATA_MIN } from '@/lib/mobileAuth';
+import { preparaCodice, eNumeroDiProva, OTP_DURATA_MIN } from '@/lib/mobileAuth';
 import { sendD360Template, sendD360Text } from '@/lib/whatsapp360';
 import { WA_TEMPLATES } from '@/lib/wa-templates';
 import { conversationWindow, logOutbound } from '@/lib/wa-conversations';
@@ -44,6 +44,13 @@ export async function POST(req: Request) {
   if (!esito.ok) {
     const status = esito.code === 'USER_NOT_FOUND' ? 404 : esito.code === 'TOO_MANY' ? 429 : 400;
     return Response.json({ error: esito.error, code: esito.code, attesa: esito.attesa }, { status });
+  }
+
+  // Il numero della verifica Apple: il codice e' gia' quello fisso, e non deve
+  // partire nessun messaggio. Chi rivede l'app lo legge dalla scheda su App
+  // Store Connect, non dal telefono.
+  if (eNumeroDiProva(esito.phone)) {
+    return Response.json({ ok: true, inviato: false, scadeTraMinuti: OTP_DURATA_MIN, nome: esito.nome });
   }
 
   // Senza WhatsApp configurato (sviluppo) il codice si legge dai log del

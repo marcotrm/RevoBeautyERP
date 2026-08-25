@@ -28,6 +28,33 @@ export const OTP_MAX_TENTATIVI = 5;
 /** Secondi da aspettare fra un invio e il successivo, per numero. */
 export const OTP_ATTESA_SEC = 60;
 
+/**
+ * Il numero riservato alla verifica di Apple.
+ *
+ * Chi rivede l'app per Apple deve poterci entrare, ma non ha un numero
+ * nell'anagrafica del centro e non riceverebbe comunque il codice su WhatsApp:
+ * senza una via d'accesso l'app viene respinta con "impossibile completare la
+ * verifica", che è il motivo di rifiuto più comune per le app riservate ai
+ * clienti.
+ *
+ * Per QUEL SOLO numero il codice è fisso e non parte nessun messaggio. Vale
+ * solo se entrambe le variabili sono impostate, quindi si spegne togliendone
+ * una — e la scheda cliente collegata va marcata `interno`, o le sue prove
+ * finiscono nelle statistiche del centro.
+ */
+function numeroDiProva(): { phone: string; codice: string } | null {
+  const phone = normalizePhone(String(process.env.DEMO_PHONE || ''));
+  const codice = String(process.env.DEMO_OTP || '').replace(/\D/g, '');
+  if (!phone || codice.length !== 6) return null;
+  return { phone, codice };
+}
+
+/** Vero se questo numero è quello della verifica Apple. */
+export function eNumeroDiProva(phone: string): boolean {
+  const p = numeroDiProva();
+  return Boolean(p && p.phone === phone);
+}
+
 const sha = (v: string) => createHash('sha256').update(v).digest('hex');
 
 /** Come il token di sessione viene salvato: mai in chiaro. */
@@ -92,7 +119,9 @@ export async function preparaCodice(telefonoGrezzo: string): Promise<EsitoRichie
   const adesso = new Date();
   const account = perNumero ?? await prisma.mobileAccount.findUnique({ where: { clientId: cliente.id } });
 
-  if (account?.otpSentAt) {
+  // Il numero di prova non aspetta: se il revisore chiede due codici di fila
+  // e si becca un errore, chiude l'app e scrive che non funziona.
+  if (account?.otpSentAt && !eNumeroDiProva(phone)) {
     const passati = (adesso.getTime() - Date.parse(account.otpSentAt)) / 1000;
     if (passati < OTP_ATTESA_SEC) {
       return {
@@ -104,7 +133,7 @@ export async function preparaCodice(telefonoGrezzo: string): Promise<EsitoRichie
     }
   }
 
-  const codice = nuovoCodice();
+  const codice = numeroDiProva()?.phone === phone ? numeroDiProva()!.codice : nuovoCodice();
   const dati = {
     otpHash: sha(codice),
     otpExpiresAt: new Date(adesso.getTime() + OTP_DURATA_MIN * 60_000).toISOString(),
