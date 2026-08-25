@@ -144,6 +144,16 @@ export async function getAnalytics(periodo?: PeriodoReport | null) {
   });
   const topSold = [...allTr].sort((a, b) => b.count - a.count).slice(0, 5).map(mapTr);
   const leastSold = [...allTr].sort((a, b) => a.count - b.count).slice(0, 5).map(mapTr);
+  /*
+    La classifica intera, non solo le prime cinque.
+
+    Cinque righe dicono quali vanno forte e cinque quali no, ma non dicono
+    dove sta il resto del listino — che è la domanda vera quando si decide
+    cosa spingere o cosa togliere.
+  */
+  const classifica = [...allTr]
+    .sort((a, b) => b.count - a.count || b.revenue - a.revenue)
+    .map(mapTr);
 
   // ---------- PACCHETTI ----------
   const pkgSold = clientPackages.length;
@@ -234,7 +244,7 @@ export async function getAnalytics(periodo?: PeriodoReport | null) {
   return {
     revenue: { daily, weekly, monthly, total, avgTicket, prevMonth: prevMonthlyRev, growthPercentage },
     revenueByMonth, revenueByPayment,
-    treatments: { topSold, leastSold },
+    treatments: { topSold, leastSold, classifica },
     packages: { sold: pkgSold, usedSessions, expiring, residualValue },
     agenda: { totalAppointments: totalApts, completed, cancelled, noShow, cancelRate, completionRate },
     staff, staffHours,
