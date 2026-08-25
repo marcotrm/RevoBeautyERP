@@ -41,3 +41,28 @@ export function omonimiDi<T extends PersonaConNome>(clienti: T[], clientId: stri
   const k = chiaveNome(scelta);
   return clienti.filter(c => c.id !== clientId && chiaveNome(c) === k);
 }
+
+/**
+ * Un'altra scheda con lo stesso nome, cercata sul database.
+ *
+ * Serve dove il cliente non lo sceglie nessuno dal banco — la prenotazione dal
+ * sito, l'app, l'assistente vocale — e la scheda nasce da sola dal numero di
+ * telefono. Lì lo scambio di persona non può succedere (il numero è la
+ * chiave), ma può nascere il doppione: la stessa persona che prenota da un
+ * numero diverso, o due persone che si chiamano davvero uguale. In tutti e due
+ * i casi conviene saperlo subito, non fra sei mesi quando lo storico è diviso
+ * in due.
+ */
+export async function omonimoInRubrica(
+  db: { client: { findMany: (args: { select: Record<string, boolean> }) => Promise<unknown> } },
+  clientId: string,
+): Promise<{ id: string; nome: string; phone: string }[]> {
+  const tutti = await db.client.findMany({
+    select: { id: true, firstName: true, lastName: true, phone: true },
+  }) as { id: string; firstName: string; lastName: string; phone: string }[];
+  return omonimiDi(tutti, clientId).map(c => ({
+    id: c.id,
+    nome: `${c.firstName} ${c.lastName}`.trim(),
+    phone: c.phone,
+  }));
+}

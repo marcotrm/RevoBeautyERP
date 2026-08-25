@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { notifyNuovoAppuntamento } from '@/lib/telegram';
 import { eClienteNuova } from '@/lib/clienteNuova';
+import { omonimoInRubrica } from '@/lib/omonimi';
 import { sendAppointmentConfirmation } from '@/lib/wa-appointments';
 import {
   isAuthorized,
@@ -95,8 +96,16 @@ export async function POST(request: Request) {
   sendAppointmentConfirmation(appointment.id).catch(() => {});
 
   // Notifica Telegram del nuovo appuntamento (non blocca la prenotazione)
-  eClienteNuova(appointment.clientId, appointment.id)
-    .then(nuova => notifyNuovoAppuntamento({
+  /*
+    Chi prenota da fuori non sceglie una scheda: la sua nasce dal numero. Se
+    però quel nome in rubrica c'è già con un altro numero, è un possibile
+    doppione e va detto stasera, non fra sei mesi.
+  */
+  Promise.all([
+    eClienteNuova(appointment.clientId, appointment.id),
+    omonimoInRubrica(prisma, appointment.clientId),
+  ])
+    .then(([nuova, omonimi]) => notifyNuovoAppuntamento({
       client: appointment.clientName,
       treatment: appointment.treatmentName,
       operator: appointment.operatorName,
@@ -105,6 +114,7 @@ export async function POST(request: Request) {
       price: appointment.price,
       source: 'assistente vocale',
       nuova,
+      omonima: omonimi.length > 0 ? omonimi.map(o => o.phone).join(', ') : null,
     }))
     .catch(() => {});
 

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { notifyNuovoAppuntamento } from '@/lib/telegram';
 import { eClienteNuova } from '@/lib/clienteNuova';
+import { omonimoInRubrica } from '@/lib/omonimi';
 import { getAccountFromRequest, unauthorized } from '@/lib/mobile';
 import { todayInItaly } from '@/lib/voice';
 import { slotDisponibili, type ServizioRichiesto } from '@/lib/bookingEngine';
@@ -110,8 +111,16 @@ export async function POST(request: Request) {
   })().catch(e => console.error('[app] premi prenotazione non assegnati:', e));
 
   // Notifica Telegram del nuovo appuntamento (non blocca la prenotazione)
-  eClienteNuova(appointment.clientId, appointment.id)
-    .then(nuova => notifyNuovoAppuntamento({
+  /*
+    Chi prenota da fuori non sceglie una scheda: la sua nasce dal numero. Se
+    però quel nome in rubrica c'è già con un altro numero, è un possibile
+    doppione e va detto stasera, non fra sei mesi.
+  */
+  Promise.all([
+    eClienteNuova(appointment.clientId, appointment.id),
+    omonimoInRubrica(prisma, appointment.clientId),
+  ])
+    .then(([nuova, omonimi]) => notifyNuovoAppuntamento({
       client: appointment.clientName,
       treatment: appointment.treatmentName,
       operator: appointment.operatorName,
@@ -120,6 +129,7 @@ export async function POST(request: Request) {
       price: appointment.price,
       source: 'app clienti',
       nuova,
+      omonima: omonimi.length > 0 ? omonimi.map(o => o.phone).join(', ') : null,
     }))
     .catch(() => {});
 

@@ -128,6 +128,14 @@ export async function notifyNuovoAppuntamento(params: {
   date?: string; time?: string; price?: number; source?: string;
   /** Prima volta da noi: la scheda è nata insieme all'appuntamento. */
   nuova?: boolean;
+  /**
+   * In rubrica c'è già qualcuno con lo stesso nome e cognome.
+   *
+   * Dal sito la scheda nasce dal numero di telefono, quindi lo scambio di
+   * persona non può succedere; il doppione sì — ed è quello che poi spacca in
+   * due lo storico di una cliente. Meglio accorgersene la sera stessa.
+   */
+  omonima?: string | null;
 }): Promise<void> {
   const cfg = await getTelegramConfig();
   if (!cfg.enabled) return;
@@ -139,6 +147,7 @@ export async function notifyNuovoAppuntamento(params: {
   const lines = [
     `📅 <b>Nuovo appuntamento</b>`,
     params.client ? `👤 ${params.client}${params.nuova ? ' — 🆕 <b>NEW</b>' : ''}` : '',
+    params.omonima ? `⚠️ <b>Stesso nome</b> di una scheda già in rubrica (${params.omonima}): controlla se è un doppione` : '',
     params.treatment ? `🧾 ${params.treatment}` : '',
     params.operator ? `💇‍♀️ ${params.operator}` : '',
     when ? `🗓 ${when}` : '',
