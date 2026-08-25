@@ -98,6 +98,25 @@ export async function createAppointment(data: Omit<Appointment, 'id' | 'createdA
   return appointment as unknown as Appointment;
 }
 
+/**
+ * L'ora che riguarda la cliente: quando deve essere qui.
+ *
+ * Non è per forza l'ora del blocco in agenda. Quando i trattamenti di una
+ * seduta vengono divisi fra due operatrici, uno dei due si porta dietro un
+ * orario suo e il blocco principale si sposta più avanti: in agenda cambia
+ * tutto, ma per chi deve venire l'appuntamento comincia sempre alla stessa
+ * ora — la più presta fra tutte.
+ */
+function inizioPerLaCliente(a: {
+  startTime: string;
+  services?: unknown;
+}): string {
+  const orari: string[] = [a.startTime].filter(Boolean);
+  const sv = Array.isArray(a.services) ? (a.services as { startTime?: string }[]) : [];
+  for (const s of sv) if (s?.startTime) orari.push(s.startTime);
+  return orari.sort()[0] || a.startTime;
+}
+
 export async function updateAppointmentAction(id: string, updates: Partial<Appointment>) {
   const { services, ...rest } = updates;
   // Lo stato precedente serve in due casi: per notificare l'annullamento una
@@ -109,11 +128,11 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
   // cambia il giorno o l'ora, alla cliente va detto il nuovo orario.
   const guardaPrima = updates.status === 'cancelled' || updates.status === 'completed'
     || updates.discountAmount !== undefined
-    || updates.date !== undefined || updates.startTime !== undefined;
+    || updates.date !== undefined || updates.startTime !== undefined || services !== undefined;
   const prev = guardaPrima
     ? await prisma.appointment.findUnique({
         where: { id },
-        select: { status: true, clientId: true, discountAmount: true, price: true, date: true, startTime: true },
+        select: { status: true, clientId: true, discountAmount: true, price: true, date: true, startTime: true, services: true },
       })
     : null;
   const appointment = await prisma.appointment.update({
@@ -133,9 +152,26 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
     (trascinando il blocco o modificando l'appuntamento); quando è la cliente a
     spostarlo da WhatsApp passa da un'altra strada, che le risponde già in chat.
   */
-  if (prev && ((updates.date !== undefined && updates.date !== prev.date)
-    || (updates.startTime !== undefined && updates.startTime !== prev.startTime))) {
-    sendAppointmentMoved(appointment.id).catch(() => {});
+  /*
+    Uno spostamento interno non è affare della cliente.
+
+    È successo davvero: due trattamenti della stessa seduta sono stati divisi
+    fra Michela e Rosaria, il blocco in agenda si è spostato di mezz'ora per
+    far posto e alla cliente è partito "abbiamo spostato il tuo appuntamento"
+    — mentre per lei non era cambiato niente. Un messaggio così fa richiamare
+    il centro e toglie fiducia alle conferme vere.
+
+    Quindi il confronto si fa sull'ora in cui lei deve essere qui, non su
+    quella del blocco: se resta la stessa, in chat non parte niente.
+  */
+  if (prev) {
+    const primaDate = prev.date;
+    const dopoDate = appointment.date;
+    const primaOra = inizioPerLaCliente(prev);
+    const dopoOra = inizioPerLaCliente(appointment);
+    if (primaDate !== dopoDate || primaOra !== dopoOra) {
+      sendAppointmentMoved(appointment.id).catch(() => {});
+    }
   }
 
   /*

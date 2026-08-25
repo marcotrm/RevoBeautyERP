@@ -24,6 +24,19 @@ import { listD360Templates } from '@/lib/whatsapp360';
 import { getWaAutomationsConfig } from '@/lib/wa-automations';
 import { avviaSpostamento } from '@/lib/wa-spostamento';
 
+/**
+ * L'ora che si dice alla cliente: quando deve essere qui.
+ *
+ * Se un trattamento della seduta è affidato a un'altra operatrice e comincia
+ * prima, l'inizio del blocco principale non è l'inizio vero della sua visita.
+ */
+function oraPerLaCliente(appt: { startTime: string; services?: unknown }): string {
+  const orari = [appt.startTime].filter(Boolean);
+  const servizi = Array.isArray(appt.services) ? (appt.services as { startTime?: string }[]) : [];
+  for (const sv of servizi) if (sv?.startTime) orari.push(sv.startTime);
+  return orari.sort()[0] || appt.startTime;
+}
+
 /** Un appuntamento già passato o annullato non si conferma né si sposta. */
 const OPEN_STATUSES = ['confirmed', 'pending', 'scheduled', 'booked'];
 
@@ -188,7 +201,7 @@ export async function sendAppointmentConfirmation(appointmentId: string): Promis
       sanitizeParam(appt.client?.firstName || appt.clientName.split(' ')[0]),
       sanitizeParam(appt.treatmentName, 'il tuo trattamento'),
       sanitizeParam(humanDate(appt.date)),
-      sanitizeParam(appt.startTime),
+      sanitizeParam(oraPerLaCliente(appt)),
     ];
     const preview = WA_TEMPLATES.confirm.body.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1] ?? '');
 
@@ -259,7 +272,8 @@ export async function sendAppointmentMoved(appointmentId: string): Promise<{ sen
       appuntamento e la cliente li riceve entrambi, ma salvare due volte la
       stessa modifica non le manda niente.
     */
-    const rowId = `wa:spostato:${appt.id}:${appt.date}:${appt.startTime}`;
+    const oraDaDire = oraPerLaCliente(appt);
+    const rowId = `wa:spostato:${appt.id}:${appt.date}:${oraDaDire}`;
     const existing = await prisma.adminEntry.findUnique({ where: { rowId } });
     if ((existing?.data as { ok?: boolean } | null)?.ok) return { sent: false, reason: 'già inviato' };
 
