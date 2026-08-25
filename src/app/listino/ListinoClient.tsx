@@ -88,11 +88,22 @@ export default function ListinoClient({ voci, centro }: { voci: VoceListino[]; c
           </section>
         ))}
 
-        <a href="/prenota" style={s.prenota}>Prenota il tuo appuntamento</a>
-        <p style={s.nota}>
-          I prezzi sono aggiornati a oggi. Alcuni trattamenti cambiano in base alla zona o alla durata:
-          al banco te lo diciamo prima di cominciare.
-        </p>
+        {/*
+          Qui non si prenota.
+
+          C'era il tasto che portava alla prenotazione online, ma il listino
+          gira su WhatsApp e finisce a gente che non è ancora cliente: si
+          riempirebbe l'agenda di appuntamenti presi senza che nessuno del
+          centro ci abbia parlato. Il listino serve a far sapere quanto costa,
+          punto — l'appuntamento si prende parlando con qualcuno.
+        */}
+        <div style={s.chiusura}>
+          <p style={s.chiusuraTitolo}>Per prenotare, scrivici o passa a trovarci</p>
+          <p style={s.nota}>
+            I prezzi sono aggiornati a oggi. Alcuni trattamenti cambiano in base alla zona o alla durata:
+            te lo diciamo prima di cominciare.
+          </p>
+        </div>
       </div>
     </main>
   );
@@ -116,7 +127,8 @@ const s: Record<string, React.CSSProperties> = {
   nome: { margin: 0, fontSize: 15, fontWeight: 600 },
   minuti: { margin: '2px 0 0', fontSize: 12, color: '#8b7a92' },
   prezzo: { margin: 0, fontSize: 16, fontWeight: 800, color: '#5b2a67', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' },
-  prenota: { display: 'block', textAlign: 'center', marginTop: 8, padding: '15px 0', borderRadius: 16, background: '#5b2a67', color: '#fff', fontSize: 16, fontWeight: 700, textDecoration: 'none' },
-  nota: { fontSize: 12, color: '#8b7a92', textAlign: 'center', marginTop: 14, lineHeight: 1.5 },
+  chiusura: { marginTop: 10, padding: '16px 14px', borderRadius: 16, background: '#fff', border: '1px solid #ece3ef', textAlign: 'center' },
+  chiusuraTitolo: { margin: 0, fontSize: 15, fontWeight: 700, color: '#5b2a67' },
+  nota: { fontSize: 12, color: '#8b7a92', textAlign: 'center', marginTop: 8, lineHeight: 1.5, marginBottom: 0 },
   vuoto: { textAlign: 'center', color: '#8b7a92', padding: '30px 0' },
 };
