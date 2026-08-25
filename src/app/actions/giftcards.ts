@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { emettiScontrinoElettronico } from '@/lib/scontrino';
 import { notifyIncasso } from '@/lib/telegram';
+import { sendBuonoRegalo } from '@/lib/wa-buoni';
 import type { GiftCard, GiftCardTransaction } from '@/stores/useGiftCardStore';
 
 function toGiftCard(gc: {
@@ -75,6 +76,13 @@ export async function createGiftCard(data: {
     qualcun altro lo spende.
   */
   await registraVenditaInCassa(created);
+
+  /*
+    L'avviso a chi riceve il regalo, se al banco hanno scritto il suo numero.
+    Non blocca la vendita: se WhatsApp non parte, il buono è comunque emesso e
+    il codice si consegna come sempre.
+  */
+  sendBuonoRegalo(created.id).catch(() => {});
 
   return toGiftCard(created);
 }

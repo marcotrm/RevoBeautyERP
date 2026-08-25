@@ -23,6 +23,14 @@ function CreateGiftCardModal({ onClose, onCreate }: {
   const [buyerSearch, setBuyerSearch] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [recipientSearch, setRecipientSearch] = useState('');
+  /*
+    Il numero di chi riceve il regalo.
+
+    Serve a mandarle l'avviso su WhatsApp: senza, il buono lo sa solo chi
+    l'ha comprato, e il codice resta su un biglietto che si perde. Non è
+    obbligatorio — se non ce l'hanno, il buono si fa lo stesso.
+  */
+  const [recipientPhone, setRecipientPhone] = useState('');
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
   const [validityMonths, setValidityMonths] = useState('12');
@@ -52,12 +60,14 @@ function CreateGiftCardModal({ onClose, onCreate }: {
   const handleConfirm = () => {
     if (!purchasedBy || !recipientName || amountNum <= 0) return;
     const gc = (window as unknown as { __gcCreate: typeof onCreate }).__gcCreate?.({
-      purchasedBy, recipientName, amount: amountNum, paymentMethod, operator,
+      purchasedBy, recipientName, recipientPhone: recipientPhone.trim() || undefined,
+      amount: amountNum, paymentMethod, operator,
       validityMonths: Number(validityMonths), message: message || undefined,
     });
     // We pass through the parent
     onCreate({
-      purchasedBy, recipientName, amount: amountNum, paymentMethod, operator,
+      purchasedBy, recipientName, recipientPhone: recipientPhone.trim() || undefined,
+      amount: amountNum, paymentMethod, operator,
       validityMonths: Number(validityMonths), message: message || undefined,
     });
     setStep('done');
@@ -134,13 +144,33 @@ function CreateGiftCardModal({ onClose, onCreate }: {
                               className="w-full px-3 py-2 hover:bg-bg-hover text-left text-sm text-pink-400 font-medium">+ Usa &quot;{recipientSearch}&quot;</button>
                           )}
                           {filteredRecipients.map(c => (
-                            <button key={c.id} onClick={() => { setRecipientName(`${c.firstName} ${c.lastName}`); setShowRecipientDrop(false); setRecipientSearch(''); }}
+                            <button key={c.id} onClick={() => {
+                              setRecipientName(`${c.firstName} ${c.lastName}`);
+                              // Se è già in rubrica il numero ce l'abbiamo: non si richiede.
+                              if (c.phone) setRecipientPhone(c.phone);
+                              setShowRecipientDrop(false); setRecipientSearch('');
+                            }}
                               className="w-full px-3 py-2 hover:bg-bg-hover text-left text-sm text-text-primary">{c.firstName} {c.lastName}</button>
                           ))}
                         </div>
                       )}
                     </>
                   )}
+                </div>
+
+                {/* Il numero di chi riceve: è quello che fa partire l'avviso. */}
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                    Numero WhatsApp di chi riceve <span className="text-text-muted font-normal">(facoltativo)</span>
+                  </label>
+                  <input type="tel" inputMode="tel" value={recipientPhone}
+                    onChange={e => setRecipientPhone(e.target.value)} {...NO_AUTOFILL}
+                    placeholder="Es. 333 1234567"
+                    className="w-full px-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
+                  <p className="text-[11px] text-text-muted mt-1">
+                    Se lo metti, le arriva un messaggio con il codice e la scadenza appena crei il buono.
+                    Chiedi a chi compra se può darlo — è il numero di un&apos;altra persona.
+                  </p>
                 </div>
 
                 {/* Amount */}

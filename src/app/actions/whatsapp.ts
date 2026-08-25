@@ -282,6 +282,7 @@ const ESEMPI_PARAMETRI: Record<TemplateKey, string[]> = {
   review: ['Maria', 'pulizia viso'],
   omaggio: ['Maria', 'pressoterapia'],
   codiceApp: ['123456'],
+  buonoRegalo: ['Maria', 'Giulia', '50,00 €', 'RB-2026-AB12', '31/12/2027'],
 };
 
 /**

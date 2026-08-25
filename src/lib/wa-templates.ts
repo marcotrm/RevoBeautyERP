@@ -324,6 +324,43 @@ export const WA_TEMPLATES = {
    * resta pulito. Non promette sconti né offerte: dice solo dove sono i
    * prezzi, che è esattamente quello che la cliente ha chiesto.
    */
+  /**
+   * L'annuncio del buono regalo a CHI LO RICEVE.
+   *
+   * Tre scelte da spiegare, perché nessuna è ovvia.
+   *
+   * 1. È UTILITY e non MARKETING. Non promuove nulla: comunica a una persona
+   *    che esiste un titolo di credito intestato a lei, con il codice per
+   *    usarlo. È la stessa natura di una conferma d'ordine.
+   *    ⚠️ Meta potrebbe comunque riclassificarlo o rifiutarlo: chi riceve non
+   *    è mai stato nostro cliente. Se succede, l'alternativa è farlo approvare
+   *    come MARKETING e mandarlo solo dove c'è consenso — ma allora buona
+   *    parte dei regali resterebbe senza avviso.
+   *
+   * 2. Il nome di chi regala sta nel messaggio. Senza, arriva un buono da
+   *    sconosciuti e sembra spam; con il nome, il destinatario capisce in due
+   *    secondi di cosa si tratta.
+   *
+   * 3. Non c'è nessun invito a prenotare. Sarebbe la riga più naturale da
+   *    aggiungere ed è proprio quella che sposta il messaggio da UTILITY a
+   *    MARKETING agli occhi di Meta. Chi vuole prenotare risponde: la finestra
+   *    di 24 ore si apre da sola e da lì si parla liberamente.
+   */
+  buonoRegalo: {
+    name: 'buono_regalo_ricevuto',
+    category: 'UTILITY',
+    language: 'it',
+    params: ['nome destinatario', 'nome di chi regala', 'importo', 'codice del buono', 'data di scadenza'],
+    body:
+      'Ciao {{1}}, {{2}} ti ha regalato un buono RevoBeauty da {{3}}.\n' +
+      'Il tuo codice è {{4}} e puoi usarlo entro il {{5}}, anche in più volte.\n' +
+      'Ti aspettiamo in Via Caudina 30, Maddaloni. Per qualsiasi cosa rispondi pure a questo messaggio.',
+    note:
+      'Parte alla creazione del buono, solo se è stato indicato il numero di chi lo riceve. ' +
+      'Il numero lo fornisce chi compra: va chiesto il consenso a passarlo, ed è per questo che ' +
+      'il campo nel modulo dice di chiederlo. Se l\'invio fallisce il buono resta valido: si ' +
+      'consegna il codice a voce o su carta, come si è sempre fatto.',
+  },
   listino: {
     name: 'listino_prezzi',
     category: 'MARKETING',
