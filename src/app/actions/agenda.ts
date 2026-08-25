@@ -128,7 +128,8 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
   // cambia il giorno o l'ora, alla cliente va detto il nuovo orario.
   const guardaPrima = updates.status === 'cancelled' || updates.status === 'completed'
     || updates.discountAmount !== undefined
-    || updates.date !== undefined || updates.startTime !== undefined || services !== undefined;
+    || updates.date !== undefined || updates.startTime !== undefined || services !== undefined
+    || updates.clientId !== undefined;
   const prev = guardaPrima
     ? await prisma.appointment.findUnique({
         where: { id },
@@ -172,6 +173,19 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
     if (primaDate !== dopoDate || primaOra !== dopoOra) {
       sendAppointmentMoved(appointment.id).catch(() => {});
     }
+  }
+
+  /*
+    Appuntamento passato a un'altra cliente: la conferma va a lei.
+
+    Capita quando al banco si sbaglia persona — con due omonime succede — e
+    l'appuntamento si sposta sulla scheda giusta. Da quel momento la conferma
+    che era partita non vale più per nessuno: la vecchia l'ha ricevuta per
+    sbaglio, la nuova non sa di avere un posto. Qui gliela si manda, con lo
+    stesso controllo di sempre che impedisce i doppioni.
+  */
+  if (prev && updates.clientId !== undefined && updates.clientId !== prev.clientId && appointment.clientId) {
+    sendAppointmentConfirmation(appointment.id).catch(() => {});
   }
 
   /*
