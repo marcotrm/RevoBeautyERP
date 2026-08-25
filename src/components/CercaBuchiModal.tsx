@@ -14,6 +14,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
+import { daSfondo } from '@/lib/chiusuraModale';
 import { motion } from 'framer-motion';
 import { Search, X, Sparkles, Clock, Euro, Loader2, CalendarPlus, Users } from 'lucide-react';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
@@ -220,7 +221,7 @@ export default function CercaBuchiModal({ onClose, onPrenota, dataIniziale }: Pr
       <motion.div initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 16 }}
         transition={{ type: 'spring', damping: 30, stiffness: 400 }}
         className="fixed inset-0 z-[61] flex items-center justify-center sm:p-4"
-        onClick={e => e.target === e.currentTarget && onClose()}>
+        onClick={e => daSfondo(e) && onClose()}>
         <div className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-lg bg-bg-secondary sm:border sm:border-border sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
             <div>

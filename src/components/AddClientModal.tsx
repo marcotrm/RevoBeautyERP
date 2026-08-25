@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { daSfondo } from '@/lib/chiusuraModale';
 import { motion } from 'framer-motion';
 import { X, CheckCircle, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -101,7 +102,7 @@ export default function AddClientModal({
     <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center sm:p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+        transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center sm:p-4" onClick={e => daSfondo(e) && onClose()}>
         <div className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-lg bg-bg-secondary sm:border sm:border-border sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
             <h3 className="text-lg font-display font-semibold text-text-primary">{initialData ? 'Modifica Cliente' : 'Nuovo Cliente'}</h3>

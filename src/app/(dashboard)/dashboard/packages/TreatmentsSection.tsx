@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, X, CheckCircle, Upload, Loader2, Trash2 } from 'lucide-react';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
@@ -9,6 +9,7 @@ import { useOperatorStore } from '@/stores/useOperatorStore';
 import { formatCurrency } from '@/lib/helpers';
 import { getCategoryLabel } from '@/lib/helpers';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
+import { daSfondo } from '@/lib/chiusuraModale';
 
 export const CATEGORIES = [
   { value: 'facial', label: 'Viso' }, { value: 'body', label: 'Corpo' }, { value: 'laser', label: 'Laser' },
@@ -209,7 +210,7 @@ export function TreatmentsSection() {
       ? { ...x, ...(minuti === '' ? { duration: undefined } : { duration: Math.round(Number(minuti)) }) }
       : x)
   );
-  const closeModal = () => { setShowModal(false); setEditing(null); };
+  const closeModal = useCallback(() => { setShowModal(false); setEditing(null); }, []);
 
   const handleSave = async () => {
     if (!name.trim() || !wPrice) return;
@@ -418,7 +419,8 @@ export function TreatmentsSection() {
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" onClick={closeModal} />
             <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center p-4" onClick={e => e.target === e.currentTarget && closeModal()}>
+              transition={{ type: 'spring', damping: 30, stiffness: 400 }} className="fixed inset-0 z-[61] flex items-center justify-center p-4"
+              onClick={e => daSfondo(e) && closeModal()}>
               {/* Alta al massimo quanto lo schermo, e con il corpo che scorre:
                   aggiungendo campi la scheda superava il video e i tasti Salva
                   e Annulla restavano sotto il bordo, irraggiungibili. */}

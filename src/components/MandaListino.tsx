@@ -13,6 +13,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { daSfondo } from '@/lib/chiusuraModale';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Receipt, X, Send, Check, Copy, QrCode } from 'lucide-react';
 import { mandaListino, urlListino, statoTemplateListino, creaTemplateListino, type VistaListino } from '@/app/actions/listino';
@@ -132,7 +133,7 @@ export default function MandaListino({ phone, nome, className = '', soloIcona = 
               className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm" onClick={() => setAperto(false)} />
             <motion.div initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 16 }}
               className="fixed inset-0 z-[81] flex items-center justify-center p-4"
-              onClick={e => e.target === e.currentTarget && setAperto(false)}>
+              onClick={e => daSfondo(e) && setAperto(false)}>
               <div className="w-full max-w-sm bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                   <h3 className="text-base font-display font-semibold text-text-primary">Manda il listino</h3>
