@@ -122,7 +122,18 @@ export default function TabellaClienti({ righe, caricando }: { righe: ClientRow[
               </thead>
               <tbody>
                 {ordinate.slice(0, quante).map((r, i) => (
-                  <tr key={r.id} className="border-b border-border/30 hover:bg-bg-hover transition-colors">
+                  /*
+                    Tutta la riga si preme, non solo il nome.
+
+                    Il nome è largo due centimetri e il resto della riga —
+                    spesa, visite, disdette — è proprio quello che si stava
+                    guardando quando viene la domanda "e questi soldi da dove
+                    vengono?". Costringere a tornare sul nome è una piccola
+                    seccatura ripetuta cento volte al giorno.
+                  */
+                  <tr key={r.id} onClick={() => setConto(r.id)}
+                    title="Vedi come è arrivata a questa cifra"
+                    className="border-b border-border/30 hover:bg-bg-hover transition-colors cursor-pointer">
                     <td className="py-2.5 pr-3 text-text-muted tabular-nums">{i + 1}</td>
                     <td className="py-2.5 pr-3">
                       {/*
@@ -140,6 +151,7 @@ export default function TabellaClienti({ righe, caricando }: { righe: ClientRow[
                         {r.nome}
                       </button>
                       <Link href={`/dashboard/clients/${r.id}`} title="Apri la scheda"
+                        onClick={e => e.stopPropagation()}
                         className="ml-1.5 text-text-muted hover:text-accent align-middle inline-block">
                         <ExternalLink className="w-3 h-3" />
                       </Link>

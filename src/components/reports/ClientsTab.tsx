@@ -51,7 +51,9 @@ export default function ClientsTab({ data }: { data: Analytics }) {
               </thead>
               <tbody className="divide-y divide-border/50">
                 {CLIENTS_DATA.topSpenders.map((c, i) => (
-                  <tr key={c.id} className="hover:bg-bg-tertiary/50 transition-colors">
+                  <tr key={c.id} onClick={() => setConto(c.id)}
+                    title="Vedi come è arrivata a questa cifra"
+                    className="hover:bg-bg-tertiary/50 transition-colors cursor-pointer">
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-bold text-text-muted w-4">{i + 1}.</span>
