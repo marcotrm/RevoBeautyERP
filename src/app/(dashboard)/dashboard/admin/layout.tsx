@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Receipt, ShoppingCart, TrendingUp,
-  Target, FileBarChart, Wallet, Flag, FileSpreadsheet,
+  Target, FileBarChart, Wallet, Flag, FileSpreadsheet, Landmark,
 } from 'lucide-react';
 import { useFixedCostStore } from '@/stores/useFixedCostStore';
 import { useVariableCostStore } from '@/stores/useVariableCostStore';
@@ -17,6 +17,7 @@ import { useFinancialStore } from '@/stores/useFinancialStore';
 
 const adminNav = [
   { href: '/dashboard/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/dashboard/admin/conto-economico', label: 'Conto economico', icon: Landmark },
   { href: '/dashboard/admin/fixed-costs', label: 'Costi Fissi', icon: Receipt },
   { href: '/dashboard/admin/variable-costs', label: 'Costi Variabili', icon: ShoppingCart },
   { href: '/dashboard/admin/investments', label: 'Investimenti', icon: TrendingUp },
