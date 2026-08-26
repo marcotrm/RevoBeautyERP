@@ -22,6 +22,36 @@ export function formatDate(dateStr: string): string {
   });
 }
 
+/**
+ * Una data di nascita, con gli anni.
+ *
+ * `formatDate` è fatta per gli appuntamenti: dice "mer 12 giu", perché di un
+ * appuntamento interessa il giorno della settimana e l'anno è sempre questo.
+ * Su una nascita quelle stesse regole tolgono l'unica cosa che serve — l'anno
+ * — e ci mettono l'unica che non serve: che il 12 giugno 1991 fosse un
+ * mercoledì non lo usa nessuno.
+ *
+ * Insieme alla data c'è l'età, che è poi il motivo per cui la si guarda.
+ */
+export function formatBirthDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  const data = d.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
+  const anni = etaDa(dateStr);
+  return anni === null ? data : `${data} · ${anni} anni`;
+}
+
+/** Gli anni compiuti oggi, o null se la data non si capisce. */
+export function etaDa(dateStr: string): number | null {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  const oggi = new Date();
+  let anni = oggi.getFullYear() - d.getFullYear();
+  const compiuti = new Date(oggi.getFullYear(), d.getMonth(), d.getDate());
+  if (oggi < compiuti) anni -= 1;
+  return anni >= 0 && anni < 130 ? anni : null;
+}
+
 export function formatDateLong(dateStr: string): string {
   const date = new Date(dateStr);
   return date.toLocaleDateString('it-IT', {

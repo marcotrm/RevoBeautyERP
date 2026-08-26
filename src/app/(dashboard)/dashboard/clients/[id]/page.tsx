@@ -14,7 +14,7 @@ import {
   Edit, MoreHorizontal, Shield, AlertTriangle,
   CheckCircle, User, Cake, Tag, Settings, Plus, Trash2, Bell, Frown,
 } from 'lucide-react';
-import { formatCurrency, getInitials, formatDate, getStatusLabel, getStatusColor, getCategoryLabel, generateId } from '@/lib/helpers';
+import { formatCurrency, getInitials, formatDate, getStatusLabel, getStatusColor, getCategoryLabel, generateId, formatBirthDate } from '@/lib/helpers';
 import Link from 'next/link';
 import AddClientModal from '@/components/AddClientModal';
 import BuonoCompleannoBadge from '@/components/BuonoCompleanno';
@@ -263,7 +263,7 @@ export default function ClientDetailPage() {
                 {client.birthDate && (
                   <span className="flex items-center gap-1.5 text-sm font-medium text-text-secondary">
                     <div className="p-1.5 rounded-md bg-bg-tertiary text-text-muted"><Cake className="w-3.5 h-3.5" /></div>
-                    {formatDate(client.birthDate)}
+                    {formatBirthDate(client.birthDate)}
                   </span>
                 )}
               </div>
@@ -442,7 +442,7 @@ export default function ClientDetailPage() {
                   { label: 'Nome', value: `${client.firstName} ${client.lastName}` },
                   { label: 'Telefono', value: client.phone },
                   { label: 'Email', value: client.email || '—' },
-                  { label: 'Data di Nascita', value: client.birthDate ? formatDate(client.birthDate) : '—' },
+                  { label: 'Data di Nascita', value: client.birthDate ? formatBirthDate(client.birthDate) : '—' },
                   { label: 'Città', value: client.city || '—' },
                   { label: 'Genere', value: client.gender === 'F' ? 'Donna' : client.gender === 'M' ? 'Uomo' : '—' },
                 ].map((field) => (
