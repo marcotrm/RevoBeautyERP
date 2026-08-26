@@ -10,6 +10,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { dataApertura } from '@/lib/apertura';
 import { soloClientiVeri, TAG_INTERNO } from '@/lib/clientiInterni';
 
 const norm = (s: string | null | undefined) =>
@@ -63,17 +64,24 @@ export async function getClientRanking(from: string, to: string): Promise<Client
   const escluse = tutteLeSchede
     .filter(c => !clients.includes(c))
     .map(c => `${c.firstName} ${c.lastName}`.trim());
+  /*
+    Anche il periodo parte dall'apertura: prima il centro era chiuso e quelle
+    righe sono prove del gestionale, non clienti.
+  */
+  const apertura = await dataApertura();
+  const daQuando = start > apertura ? start : apertura;
+
   const apptsPeriodo = await prisma.appointment.findMany({
-    where: { date: { gte: start, lte: end } },
+    where: { date: { gte: daQuando, lte: end } },
     select: { clientId: true, date: true, status: true, treatmentName: true },
   });
   const txs = await prisma.posTransaction.findMany({
-    where: { date: { gte: start, lte: end }, isRefund: false, total: { gt: 0 } },
+    where: { date: { gte: daQuando, lte: end }, isRefund: false, total: { gt: 0 } },
     select: { clientName: true, total: true, date: true },
   });
   // Serve solo per sapere se, nel periodo, la cliente era alla sua prima volta
   const primeVisite = await prisma.appointment.findMany({
-    where: { status: 'completed' },
+    where: { status: 'completed', date: { gte: apertura } },
     select: { clientId: true, date: true },
   });
 

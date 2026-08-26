@@ -14,6 +14,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { dataApertura } from '@/lib/apertura';
 
 export interface SedutaTrattamento {
   appointmentId: string;
@@ -89,7 +90,10 @@ export async function storicoTrattamento(
   const raggruppa = opzioni.raggruppa || 'mese';
   const da = new Date();
   da.setMonth(da.getMonth() - (opzioni.mesi ?? 12));
-  const dal = opzioni.dal || da.toISOString().slice(0, 10);
+  const apertura = await dataApertura();
+  const chiesto = opzioni.dal || da.toISOString().slice(0, 10);
+  // Prima dell'apertura erano prove: non entrano nemmeno se si chiede più indietro.
+  const dal = chiesto > apertura ? chiesto : apertura;
   const al = opzioni.al || '9999-12-31';
 
   const [appuntamenti, tuttiDellaCliente] = await Promise.all([
@@ -361,7 +365,10 @@ export async function storicoProdotto(nome: string, mesi = 12): Promise<StoricoP
 
   const [prodotto, transazioni] = await Promise.all([
     prisma.product.findFirst({ where: { name: pulito } }),
-    prisma.posTransaction.findMany({ where: { date: { gte: dal } }, orderBy: [{ date: 'desc' }, { time: 'desc' }] }),
+    dataApertura().then(apertura => prisma.posTransaction.findMany({
+      where: { date: { gte: dal > apertura ? dal : apertura } },
+      orderBy: [{ date: 'desc' }, { time: 'desc' }],
+    })),
   ]);
 
   const vendite: VenditaProdotto[] = [];
@@ -559,13 +566,25 @@ export async function contoCliente(clientId: string): Promise<ContoCliente> {
   }
 
   const nomeCompleto = `${cliente.firstName} ${cliente.lastName}`.trim();
+  const apertura = await dataApertura();
   const [transazioni, appuntamenti, pacchetti] = await Promise.all([
     prisma.posTransaction.findMany({
-      where: { clientName: nomeCompleto, isRefund: false },
+      where: { clientName: nomeCompleto, isRefund: false, date: { gte: apertura } },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
     }),
-    prisma.appointment.findMany({ where: { clientId }, orderBy: [{ date: 'asc' }] }),
-    prisma.clientPackage.findMany({ where: { clientId } }),
+    prisma.appointment.findMany({ where: { clientId, date: { gte: apertura } }, orderBy: [{ date: 'asc' }] }),
+    /*
+      I pacchetti si cercano per id E per nome.
+
+      Cinque pacchetti su centotto non hanno il collegamento alla scheda —
+      nascono così quando il pacchetto viene venduto scrivendo il nome invece
+      di scegliere la cliente dall'elenco. Cercandoli solo per id, il debito
+      di Giovanna De Rosa (cento euro sullo Slimsphere) risultava zero: e un
+      debito che non si vede non si incassa.
+    */
+    prisma.clientPackage.findMany({
+      where: { OR: [{ clientId }, { clientId: null, clientName: nomeCompleto }] },
+    }),
   ]);
 
   /*

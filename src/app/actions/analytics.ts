@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { filtroInterni } from '@/lib/clientiInterni';
+import { dataApertura } from '@/lib/apertura';
 
 const MONTHS_IT = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
 const PAYMENT_COLORS: Record<string, string> = {
@@ -58,7 +59,10 @@ export async function getAnalytics(periodo?: PeriodoReport | null) {
     fatturato, e falsano ogni classifica.
   */
   const prova = await filtroInterni(prisma);
-  const dentro = (data: string) => !periodo || (data >= periodo.dal && data <= periodo.al);
+  // Prima dell'apertura erano prove: fuori da tutto, sempre.
+  const apertura = await dataApertura();
+  const dentro = (data: string) =>
+    data >= apertura && (!periodo || (data >= periodo.dal && data <= periodo.al));
   const transactions = tutteTransazioni.filter(t => dentro(t.date) && !prova.daEscludere(t));
   const appointments = tuttiAppuntamenti.filter(a => dentro(a.date) && !prova.daEscludere(a));
   const clientPackages = tuttiPacchetti.filter(cp => dentro((cp.purchaseDate || '').slice(0, 10)) && !prova.daEscludere(cp));
@@ -67,7 +71,7 @@ export async function getAnalytics(periodo?: PeriodoReport | null) {
   const sum = (arr: { total: number }[]) => arr.reduce((s, t) => s + t.total, 0);
   // Oggi, la settimana e il mese sono finestre loro: non seguono il filtro,
   // se no scegliendo "Ieri" l'incasso di oggi diventerebbe zero.
-  const storiche = tutteTransazioni.filter(t => !prova.daEscludere(t));
+  const storiche = tutteTransazioni.filter(t => t.date >= apertura && !prova.daEscludere(t));
   const daily = sum(storiche.filter(t => t.date === today));
   const weekly = sum(storiche.filter(t => t.date >= sevenAgoStr));
   const monthly = sum(storiche.filter(t => t.date.startsWith(ym)));
@@ -183,7 +187,7 @@ export async function getAnalytics(periodo?: PeriodoReport | null) {
   // "Da quanto non si vede" si misura su tutta la storia: col filtro attivo
   // sarebbero tutte perse tranne quelle venute nel periodo.
   const lastVisitByClient: Record<string, string> = {};
-  tuttiAppuntamenti.filter(a => a.status === 'completed' && !prova.daEscludere(a)).forEach(a => {
+  tuttiAppuntamenti.filter(a => a.status === 'completed' && a.date >= apertura && !prova.daEscludere(a)).forEach(a => {
     if (!lastVisitByClient[a.clientId] || a.date > lastVisitByClient[a.clientId]) lastVisitByClient[a.clientId] = a.date;
   });
   const clientLast = (c: { id: string; lastVisit: string | null }) => lastVisitByClient[c.id] || (c.lastVisit ? c.lastVisit.slice(0, 10) : null);

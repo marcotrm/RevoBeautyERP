@@ -15,6 +15,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { filtroInterni } from '@/lib/clientiInterni';
+import { dataApertura } from '@/lib/apertura';
 
 const norm = (s: string | null | undefined) =>
   (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
@@ -123,13 +124,20 @@ export async function getTrends(mesiIndietro = 12): Promise<Trends> {
     scheda finta ha "fatto" tre volte.
   */
   const prova = await filtroInterni(prisma);
+  /*
+    Prima dell'apertura il centro era chiuso: quelle righe sono prove.
+    Si tagliano qui, una volta sola, invece di inseguirle in ogni conto.
+  */
+  const apertura = await dataApertura();
+  const daContare = (r: { date?: string; clientId?: string | null; clientName?: string | null }) =>
+    (!r.date || r.date >= apertura) && !prova.daEscludere(r);
   const pacchettiVenduti = (await prisma.clientPackage.findMany({
     where: { purchaseDate: { gte: inizioPeriodo } },
     select: { packageName: true, totalPaid: true, pricePaid: true, clientId: true, clientName: true },
   }));
 
-  const income = txs.filter(t => !t.isRefund && t.total > 0 && !prova.daEscludere(t));
-  const completati = appts.filter(a => a.status === 'completed' && !prova.daEscludere(a));
+  const income = txs.filter(t => !t.isRefund && t.total > 0 && daContare(t));
+  const completati = appts.filter(a => a.status === 'completed' && daContare(a));
 
   // ---------- Mese per mese ----------
   const mesi = Array.from({ length: mesiIndietro }, (_, i) => mesePrecedente(anno, meseCorrente, mesiIndietro - 1 - i));

@@ -21,6 +21,8 @@
 
 import { prisma } from '@/lib/prisma';
 import { getReceiptVatRate } from '@/app/actions/c95';
+import { dataApertura } from '@/lib/apertura';
+import { filtroInterni } from '@/lib/clientiInterni';
 
 export interface PeriodoConti {
   dal: string;
@@ -108,13 +110,22 @@ function mesiCoperti(dal: string, al: string): number {
 }
 
 export async function contoEconomico(periodo: PeriodoConti): Promise<ContoEconomico> {
-  const [aliquota, transazioni, righeAdmin, spese, movimenti] = await Promise.all([
+  const [aliquota, apertura, interni, righeGrezze, righeAdmin, spese, movimenti] = await Promise.all([
     getReceiptVatRate(),
+    dataApertura(),
+    filtroInterni(prisma),
     prisma.posTransaction.findMany({ where: { date: { gte: periodo.dal, lte: periodo.al } } }),
     prisma.adminEntry.findMany({ where: { kind: { in: ['fixed_cost', 'investment'] } } }),
     prisma.partnerExpense.findMany(),
     prisma.cassaMovement.findMany(),
   ]);
+
+  /*
+    Fuori le prove: quelle di prima dell'apertura e quelle battute sulle
+    schede di casa. Sono incassi che non sono mai entrati, e in un conto
+    economico contano doppio — gonfiano i ricavi e falsano l'IVA da versare.
+  */
+  const transazioni = righeGrezze.filter(t => t.date >= apertura && !interni.daEscludere(t));
 
   // ---------- Incassi ----------
   const ivato = Math.round(transazioni.reduce((s, t) => s + t.total, 0) * 100) / 100;
@@ -185,9 +196,9 @@ export async function contoEconomico(periodo: PeriodoConti): Promise<ContoEconom
   // ---------- Mese per mese (ultimi 12, sempre, per vedere la tendenza) ----------
   const oggi = new Date();
   const mesi: RigaMese[] = [];
-  const tutteTx = await prisma.posTransaction.findMany({
+  const tutteTx = (await prisma.posTransaction.findMany({
     where: { date: { gte: new Date(oggi.getFullYear(), oggi.getMonth() - 11, 1).toISOString().slice(0, 10) } },
-  });
+  })).filter(t => t.date >= apertura && !interni.daEscludere(t));
   for (let i = 11; i >= 0; i--) {
     const d = new Date(oggi.getFullYear(), oggi.getMonth() - i, 1);
     const chiave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
