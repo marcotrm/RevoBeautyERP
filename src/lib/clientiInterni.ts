@@ -21,3 +21,45 @@ export function isInterno(c: { tags?: string[] | null }): boolean {
 export function soloClientiVeri<T extends { tags?: string[] | null }>(clients: T[]): T[] {
   return clients.filter(c => !isInterno(c));
 }
+
+/* ============================================================
+   Il filtro pronto per le statistiche.
+   ============================================================ */
+
+/**
+ * Chi va tolto dai conti, riconosciuto sia per id sia per nome.
+ *
+ * Serve perché le righe di cassa non portano l'id della cliente ma solo il
+ * nome scritto: senza il confronto sul nome, gli incassi delle prove
+ * resterebbero dentro al fatturato anche dopo aver marcato la scheda.
+ */
+export async function filtroInterni(db: {
+  client: { findMany: (args: { select: Record<string, boolean> }) => Promise<unknown> };
+}): Promise<{
+  ids: Set<string>;
+  nomi: Set<string>;
+  daEscludere: (r: { clientId?: string | null; clientName?: string | null }) => boolean;
+}> {
+  const norm = (s: string) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  let schede: { id: string; firstName: string; lastName: string; tags: string[] | null }[] = [];
+  try {
+    schede = await db.client.findMany({
+      select: { id: true, firstName: true, lastName: true, tags: true },
+    }) as typeof schede;
+  } catch {
+    schede = [];
+  }
+
+  const interne = schede.filter(isInterno);
+  const ids = new Set(interne.map(c => c.id));
+  const nomi = new Set(interne.map(c => norm(`${c.firstName} ${c.lastName}`)));
+
+  return {
+    ids, nomi,
+    daEscludere: (r) => {
+      if (r.clientId && ids.has(r.clientId)) return true;
+      const n = norm(r.clientName || '');
+      return Boolean(n) && nomi.has(n);
+    },
+  };
+}

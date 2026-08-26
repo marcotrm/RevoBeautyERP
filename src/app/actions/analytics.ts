@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { filtroInterni } from '@/lib/clientiInterni';
 
 const MONTHS_IT = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
 const PAYMENT_COLORS: Record<string, string> = {
@@ -27,7 +28,7 @@ export async function getAnalytics(periodo?: PeriodoReport | null) {
   const sevenDaysAgo = new Date(now); sevenDaysAgo.setDate(now.getDate() - 7);
   const sevenAgoStr = sevenDaysAgo.toISOString().split('T')[0];
 
-  const [tutteTransazioni, tuttiAppuntamenti, clients, operators, tuttiPacchetti] = await Promise.all([
+  const [tutteTransazioni, tuttiAppuntamenti, tuttiClienti, operators, tuttiPacchetti] = await Promise.all([
     prisma.posTransaction.findMany(),
     prisma.appointment.findMany(),
     prisma.client.findMany(),
@@ -51,19 +52,26 @@ export async function getAnalytics(periodo?: PeriodoReport | null) {
     dire, scegliendo "Oggi", far sparire il grafico e dichiarare perse tutte
     le clienti che non sono venute stamattina.
   */
+  /*
+    Le schede di prova restano fuori da tutto: appuntamenti creati per provare
+    una funzione e incassi battuti per vedere lo scontrino non sono lavoro né
+    fatturato, e falsano ogni classifica.
+  */
+  const prova = await filtroInterni(prisma);
   const dentro = (data: string) => !periodo || (data >= periodo.dal && data <= periodo.al);
-  const transactions = tutteTransazioni.filter(t => dentro(t.date));
-  const appointments = tuttiAppuntamenti.filter(a => dentro(a.date));
-  const clientPackages = tuttiPacchetti.filter(cp => dentro((cp.purchaseDate || '').slice(0, 10)));
+  const transactions = tutteTransazioni.filter(t => dentro(t.date) && !prova.daEscludere(t));
+  const appointments = tuttiAppuntamenti.filter(a => dentro(a.date) && !prova.daEscludere(a));
+  const clientPackages = tuttiPacchetti.filter(cp => dentro((cp.purchaseDate || '').slice(0, 10)) && !prova.daEscludere(cp));
 
   // ---------- FATTURATO (dalla cassa) ----------
   const sum = (arr: { total: number }[]) => arr.reduce((s, t) => s + t.total, 0);
   // Oggi, la settimana e il mese sono finestre loro: non seguono il filtro,
   // se no scegliendo "Ieri" l'incasso di oggi diventerebbe zero.
-  const daily = sum(tutteTransazioni.filter(t => t.date === today));
-  const weekly = sum(tutteTransazioni.filter(t => t.date >= sevenAgoStr));
-  const monthly = sum(tutteTransazioni.filter(t => t.date.startsWith(ym)));
-  const prevMonthlyRev = sum(tutteTransazioni.filter(t => t.date.startsWith(prevYm)));
+  const storiche = tutteTransazioni.filter(t => !prova.daEscludere(t));
+  const daily = sum(storiche.filter(t => t.date === today));
+  const weekly = sum(storiche.filter(t => t.date >= sevenAgoStr));
+  const monthly = sum(storiche.filter(t => t.date.startsWith(ym)));
+  const prevMonthlyRev = sum(storiche.filter(t => t.date.startsWith(prevYm)));
   const total = sum(transactions);
   const avgTicket = transactions.length > 0 ? Math.round(total / transactions.length) : 0;
   const growthPercentage = prevMonthlyRev > 0 ? Math.round(((monthly - prevMonthlyRev) / prevMonthlyRev) * 1000) / 10 : 0;
@@ -82,7 +90,7 @@ export async function getAnalytics(periodo?: PeriodoReport | null) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     // Il grafico è una serie storica: sempre gli ultimi sei mesi veri.
-    revenueByMonth.push({ month: MONTHS_IT[d.getMonth()], revenue: sum(tutteTransazioni.filter(t => t.date.startsWith(key))), costs: 0 });
+    revenueByMonth.push({ month: MONTHS_IT[d.getMonth()], revenue: sum(storiche.filter(t => t.date.startsWith(key))), costs: 0 });
   }
 
   // ---------- APPUNTAMENTI ----------
@@ -175,10 +183,12 @@ export async function getAnalytics(periodo?: PeriodoReport | null) {
   // "Da quanto non si vede" si misura su tutta la storia: col filtro attivo
   // sarebbero tutte perse tranne quelle venute nel periodo.
   const lastVisitByClient: Record<string, string> = {};
-  tuttiAppuntamenti.filter(a => a.status === 'completed').forEach(a => {
+  tuttiAppuntamenti.filter(a => a.status === 'completed' && !prova.daEscludere(a)).forEach(a => {
     if (!lastVisitByClient[a.clientId] || a.date > lastVisitByClient[a.clientId]) lastVisitByClient[a.clientId] = a.date;
   });
   const clientLast = (c: { id: string; lastVisit: string | null }) => lastVisitByClient[c.id] || (c.lastVisit ? c.lastVisit.slice(0, 10) : null);
+  // Anche nell'anagrafica: una scheda di prova non è una cliente.
+  const clients = tuttiClienti.filter(c => !prova.ids.has(c.id));
   const newClients = clients.filter(c => (c.createdAt || '').slice(0, 7) === ym).length;
   const activeClients = clients.filter(c => { const lv = clientLast(c); return lv && lv >= d60; }).length;
   const inactiveClients = clients.filter(c => { const lv = clientLast(c); return lv && lv < d30 && lv >= d90; }).length;

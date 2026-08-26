@@ -14,6 +14,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { filtroInterni } from '@/lib/clientiInterni';
 
 const norm = (s: string | null | undefined) =>
   (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
@@ -112,13 +113,23 @@ export async function getTrends(mesiIndietro = 12): Promise<Trends> {
       select: { clientName: true, total: true, date: true, paymentMethod: true, isRefund: true, productLines: true },
     });
   const products = await prisma.product.findMany({ select: { id: true, name: true, price: true } });
-  const pacchettiVenduti = await prisma.clientPackage.findMany({
-    where: { purchaseDate: { gte: inizioPeriodo } },
-    select: { packageName: true, totalPaid: true, pricePaid: true },
-  });
 
-  const income = txs.filter(t => !t.isRefund && t.total > 0);
-  const completati = appts.filter(a => a.status === 'completed');
+  /*
+    Fuori le schede di prova.
+
+    Un appuntamento creato per vedere se una funzione andava non è lavoro
+    fatto, e un incasso battuto per provare lo scontrino non è fatturato: se
+    restano dentro, il trattamento più caro del centro risulta quello che una
+    scheda finta ha "fatto" tre volte.
+  */
+  const prova = await filtroInterni(prisma);
+  const pacchettiVenduti = (await prisma.clientPackage.findMany({
+    where: { purchaseDate: { gte: inizioPeriodo } },
+    select: { packageName: true, totalPaid: true, pricePaid: true, clientId: true, clientName: true },
+  }));
+
+  const income = txs.filter(t => !t.isRefund && t.total > 0 && !prova.daEscludere(t));
+  const completati = appts.filter(a => a.status === 'completed' && !prova.daEscludere(a));
 
   // ---------- Mese per mese ----------
   const mesi = Array.from({ length: mesiIndietro }, (_, i) => mesePrecedente(anno, meseCorrente, mesiIndietro - 1 - i));
@@ -140,6 +151,8 @@ export async function getTrends(mesiIndietro = 12): Promise<Trends> {
     else if (a.status === 'cancelled' || a.status === 'no_show') p.disdette += 1;
   }
   for (const c of clients) {
+    // Le schede di prova non sono clienti nuove.
+    if (prova.ids.has(c.id)) continue;
     const p = perMese.get((c.createdAt || '').slice(0, 7));
     if (p) p.nuoveClienti += 1;
   }
@@ -219,6 +232,7 @@ export async function getTrends(mesiIndietro = 12): Promise<Trends> {
   */
   const perPacchetto = new Map<string, { valore: number; extra: number }>();
   for (const cp of pacchettiVenduti) {
+    if (prova.daEscludere(cp)) continue;
     const nome = (cp.packageName || '').trim();
     if (!nome) continue;
     const v = perPacchetto.get(nome) || { valore: 0, extra: 0 };
