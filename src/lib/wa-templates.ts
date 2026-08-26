@@ -188,6 +188,33 @@ export const WA_TEMPLATES = {
       'messaggio suo, non propone niente.',
   },
 
+  /**
+   * La richiesta recensione che dice GOOGLE.
+   *
+   * Le prime due versioni chiedevano "ci lasci una recensione?" e mettevano il
+   * link nel bottone. Il bottone la gente lo tocca — duecentotrentaquattro
+   * aperture in tre settimane — ma chi non lo tocca non capisce dove andrebbe
+   * a scrivere: una cliente ha risposto in chat "100", convinta che le
+   * stessimo chiedendo un voto.
+   *
+   * Qui la parola Google sta nel testo, insieme a cosa succede toccando il
+   * bottone: si apre la scheda del centro, si scelgono le stelle, si scrivono
+   * due righe. Meta l'ha accettato come UTILITY, quindi continua a partire a
+   * chi è venuta ieri senza toccare il consenso marketing.
+   */
+  reviewV3: {
+    name: 'recensione_google_v3',
+    category: 'UTILITY',
+    language: 'it',
+    params: ['nome cliente', 'trattamento'],
+    body:
+      'Ciao {{1}}, grazie per la tua visita da RevoBeauty per {{2}}.\n' +
+      'Ci lasci una recensione su Google? Tocca il bottone qui sotto: si apre la scheda Google del centro, scegli le stelle e scrivi due righe. Bastano 30 secondi e per noi conta molto.',
+    buttons: [{ type: 'URL', text: 'Scrivi su Google', link: 'review-redirect' }],
+    note:
+      'Sostituisce richiesta_recensione appena Meta la approva: stessa categoria, stesso bottone, ' +
+      'ma nel testo c\'è scritto Google. Le altre due restano approvate e fanno da rete.',
+  },
   review: {
     name: 'richiesta_recensione',
     category: 'UTILITY',

@@ -498,11 +498,26 @@ export async function chiaveRichiestaRecensione(): Promise<{ chiave: TemplateKey
   // Elenco illeggibile: si prova comunque, meglio un tentativo che il silenzio.
   if (!remote.ok) return { chiave: 'reviewV2', marketing: false };
 
-  const scelta = scegliRecensione(remote.templates, [WA_TEMPLATES.review.name, WA_TEMPLATES.reviewV2.name]);
+  /*
+    L'ordine conta: la versione che nomina Google viene per prima.
+
+    Le altre due chiedono "ci lasci una recensione?" col link solo nel
+    bottone, e chi il bottone non lo tocca non sa dove dovrebbe scrivere —
+    una cliente ha risposto "100" in chat, credendo fosse un voto da dare.
+    Restano dietro come rete: se Meta un giorno blocca la nuova, il messaggio
+    parte lo stesso.
+  */
+  const perNome: Record<string, TemplateKey> = {
+    [WA_TEMPLATES.reviewV3.name]: 'reviewV3',
+    [WA_TEMPLATES.reviewV2.name]: 'reviewV2',
+    [WA_TEMPLATES.review.name]: 'review',
+  };
+  const scelta = scegliRecensione(remote.templates, [
+    WA_TEMPLATES.reviewV3.name, WA_TEMPLATES.review.name, WA_TEMPLATES.reviewV2.name,
+  ]);
   if (!scelta.nome) return { chiave: 'reviewV2', marketing: false };
 
-  const chiave: TemplateKey = scelta.nome === WA_TEMPLATES.reviewV2.name ? 'reviewV2' : 'review';
-  return { chiave, marketing: scelta.promozionale };
+  return { chiave: perNome[scelta.nome] ?? 'review', marketing: scelta.promozionale };
 }
 
 // ---- Richiesta recensione (giorno dopo la visita) -----------

@@ -281,6 +281,7 @@ const ESEMPI_PARAMETRI: Record<TemplateKey, string[]> = {
   affiliatoIncasso: ['Raffaele', '50,00 €', '5,00 €'],
   affiliatoMese: ['Raffaele', 'luglio', '48,50 €', '4 persone'],
   review: ['Maria', 'pulizia viso'],
+  reviewV3: ['Maria', 'pulizia viso'],
   omaggio: ['Maria', 'pressoterapia'],
   codiceApp: ['123456'],
   buonoRegalo: ['Maria', 'Giulia', '50,00 €', 'RB-2026-AB12', '31/12/2027'],
