@@ -13,7 +13,7 @@ import { formatCurrency } from '@/lib/helpers';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { useStaffNames } from '@/hooks/useStaffNames';
-import { avvisaDestinatario } from '@/app/actions/giftcards';
+import { avvisaDestinatario, provaBuonoRegalo } from '@/app/actions/giftcards';
 
 /* ========== CREATE GIFT CARD MODAL ========== */
 function CreateGiftCardModal({ onClose, onCreate }: {
@@ -455,6 +455,23 @@ function RedeemModal({ gc, onClose, onRedeem }: {
 /* ========== MAIN PAGE ========== */
 export default function GiftCardsPage() {
   const { giftCards, createGiftCard, redeemGiftCard, deleteGiftCard, getTotalActiveBalance, fetchGiftCards } = useGiftCardStore();
+  /* La prova del messaggio del buono, su un numero scelto. */
+  const [numeroProva, setNumeroProva] = useState('');
+  const [provaInCorso, setProvaInCorso] = useState(false);
+  const [esitoProva, setEsitoProva] = useState<{ ok: boolean; testo: string } | null>(null);
+
+  const mandaProva = async () => {
+    setProvaInCorso(true);
+    setEsitoProva(null);
+    const r = await provaBuonoRegalo(numeroProva).catch(() => ({ ok: false, error: 'Invio fallito' }));
+    setProvaInCorso(false);
+    setEsitoProva({
+      ok: Boolean(r.ok),
+      testo: r.ok
+        ? `Messaggio di prova mandato al ${numeroProva}. Se non arriva entro un minuto è Meta che non l'ha consegnato.`
+        : (('error' in r && r.error) || 'Invio fallito'),
+    });
+  };
   const fetchClients = useClientStore(s => s.fetchClients);
   const [showCreate, setShowCreate] = useState(false);
 
@@ -509,8 +526,31 @@ export default function GiftCardsPage() {
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div><h2 className="text-xl font-display font-bold text-text-primary flex items-center gap-2"><Gift className="w-5 h-5 text-accent" /> Buoni Regalo</h2><p className="text-sm text-text-secondary">Vendi e gestisci buoni regalo e gift card</p></div>
-        <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105"><Plus className="w-4 h-4" /> Nuovo Buono</button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/*
+            La prova del messaggio.
+
+            L'avviso vero parte una volta sola e va a chi riceve il regalo:
+            non si può provare creando un buono finto, perché poi resterebbe
+            in cassa e nei conti. Qui parte lo stesso testo con dati di
+            esempio, senza creare niente.
+          */}
+          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl border border-border bg-bg-secondary">
+            <input value={numeroProva} onChange={e => setNumeroProva(e.target.value)} inputMode="tel"
+              placeholder="Il tuo numero" {...NO_AUTOFILL}
+              className="w-32 px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
+            <button type="button" onClick={mandaProva} disabled={provaInCorso || numeroProva.replace(/\D/g, '').length < 9}
+              className="px-2.5 py-1 rounded-lg bg-bg-tertiary border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover disabled:opacity-40">
+              {provaInCorso ? '…' : 'Manda una prova'}
+            </button>
+          </div>
+          <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105"><Plus className="w-4 h-4" /> Nuovo Buono</button>
+        </div>
       </div>
+
+      {esitoProva && (
+        <p className={`text-xs ${esitoProva.ok ? 'text-success' : 'text-error'}`}>{esitoProva.testo}</p>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

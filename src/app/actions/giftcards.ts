@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { emettiScontrinoElettronico } from '@/lib/scontrino';
 import { notifyIncasso } from '@/lib/telegram';
 import { sendBuonoRegalo } from '@/lib/wa-buoni';
+import { sendWhatsAppTemplate, normalizePhone } from '@/lib/whatsapp';
+import { sanitizeParam, WA_TEMPLATES } from '@/lib/wa-templates';
 import type { GiftCard, GiftCardTransaction } from '@/stores/useGiftCardStore';
 
 function toGiftCard(gc: {
@@ -156,4 +158,33 @@ export async function avvisaDestinatario(gcId: string, phone?: string): Promise<
     await prisma.giftCard.update({ where: { id: gcId }, data: { recipientPhone: numero } });
   }
   return sendBuonoRegalo(gcId, true);
+}
+
+/**
+ * Una prova del messaggio del buono, sul numero che si vuole.
+ *
+ * Il messaggio parte una volta sola per buono e va a chi riceve il regalo:
+ * non è una cosa che si può provare "creando un buono finto", perché poi
+ * resterebbe in cassa e nei conti. Qui si manda lo stesso testo con dati di
+ * esempio, senza creare niente.
+ */
+export async function provaBuonoRegalo(phone: string, nome?: string): Promise<{ ok: boolean; error?: string }> {
+  const numero = (phone || '').trim();
+  if (numero.replace(/\D/g, '').length < 9) return { ok: false, error: 'Numero non valido' };
+
+  const params = [
+    sanitizeParam(nome?.trim() || 'Maria'),
+    'Giulia',
+    '50,00 €',
+    `RB-${new Date().getFullYear()}-PROVA`,
+    new Date(Date.now() + 30 * 86_400_000).toLocaleDateString('it-IT'),
+  ];
+  const testo = WA_TEMPLATES.buonoRegalo.body.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1] ?? '');
+
+  const res = await sendWhatsAppTemplate(normalizePhone(numero), 'buonoRegalo', {
+    bodyParams: params,
+    fallbackText: testo,
+    source: 'manual',
+  });
+  return res.ok ? { ok: true } : { ok: false, error: res.error || 'Invio fallito' };
 }
