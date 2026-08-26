@@ -125,10 +125,17 @@ export default function TabellaClienti({ righe, caricando }: { righe: ClientRow[
                   <tr key={r.id} className="border-b border-border/30 hover:bg-bg-hover transition-colors">
                     <td className="py-2.5 pr-3 text-text-muted tabular-nums">{i + 1}</td>
                     <td className="py-2.5 pr-3">
-                      {/* Premendo il nome si apre da dove viene la cifra: la
-                          scheda intera resta a un tocco, con l'iconcina. */}
-                      <button onClick={() => setConto(r.id)}
-                        className="text-text-primary font-medium hover:text-accent transition-colors text-left"
+                      {/*
+                        Premendo il nome si apre da dove viene la cifra; la
+                        scheda intera resta a un tocco, con l'iconcina.
+
+                        `type="button"` non è un vezzo: dentro a una pagina con
+                        un form intorno, un bottone senza tipo fa "invia" e
+                        ricarica tutto — il popup non si apre e sembra che il
+                        clic non funzioni.
+                      */}
+                      <button type="button" onClick={() => setConto(r.id)}
+                        className="text-text-primary font-medium hover:text-accent hover:underline transition-colors text-left cursor-pointer"
                         title="Vedi come è arrivata a questa cifra">
                         {r.nome}
                       </button>

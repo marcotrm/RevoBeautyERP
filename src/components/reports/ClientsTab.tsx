@@ -57,7 +57,7 @@ export default function ClientsTab({ data }: { data: Analytics }) {
                         <span className="text-xs font-bold text-text-muted w-4">{i + 1}.</span>
                         {/* Anche qui la cifra si apre: si preme il nome e si
                             vede da dove viene, come nella classifica clienti. */}
-                        <button onClick={() => setConto(c.id)}
+                        <button type="button" onClick={() => setConto(c.id)}
                           className="text-sm font-bold text-text-primary hover:text-accent transition-colors text-left"
                           title="Vedi come è arrivata a questa cifra">
                           {c.name}
