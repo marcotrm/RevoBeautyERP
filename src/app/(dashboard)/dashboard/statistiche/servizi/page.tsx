@@ -1,11 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   StatsHeader, KpiGrid, Card, Caricamento, Classifica, GraficoTorta, Vuoto, eur,
 } from '@/components/stats/StatsUI';
 import ClassificaUpsell from '@/components/stats/ClassificaUpsell';
+import DettaglioTrattamento from '@/components/stats/DettaglioTrattamento';
 import { useKpiGroups, useTrends, kpiDelGruppo } from '@/components/stats/useStats';
 import type { OperatorPerf } from '@/app/actions/statsTrends';
 
@@ -47,6 +48,12 @@ function TabellaOperatrici({ righe }: { righe: OperatorPerf[] }) {
 export default function ServiziPage() {
   const { groups, errore } = useKpiGroups();
   const { trends } = useTrends();
+  /*
+    Il trattamento su cui si è premuto: le classifiche dicono quanto e quante
+    volte, il dettaglio dice quando, a chi e con chi — che è la domanda che
+    viene subito dopo aver letto il numero.
+  */
+  const [dettaglio, setDettaglio] = useState<string | null>(null);
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -57,14 +64,14 @@ export default function ServiziPage() {
         <Card titolo="Trattamenti che fatturano di più"
           spiega="Valore dei trattamenti completati negli ultimi 12 mesi. Non è la stessa classifica del numero: un servizio fatto poco ma caro può valere più di uno fatto sempre.">
           {trends
-            ? <Classifica righe={trends.topTrattamentiFatturato} formato={eur} etichettaExtra={n => `${n} ${n === 1 ? 'volta' : 'volte'}`} />
+            ? <Classifica righe={trends.topTrattamentiFatturato} formato={eur} onScegli={setDettaglio} etichettaExtra={n => `${n} ${n === 1 ? 'volta' : 'volte'}`} />
             : <Caricamento />}
         </Card>
 
         <Card titolo="Trattamenti più richiesti"
           spiega="Gli stessi servizi contati per numero di volte. Quelli in alto qui ma non nella classifica a fianco sono i candidati a un ritocco di prezzo.">
           {trends
-            ? <Classifica righe={trends.topTrattamentiNumero} formato={numero} etichettaExtra={n => eur(n)} />
+            ? <Classifica righe={trends.topTrattamentiNumero} formato={numero} onScegli={setDettaglio} etichettaExtra={n => eur(n)} />
             : <Caricamento />}
         </Card>
       </div>
@@ -85,6 +92,8 @@ export default function ServiziPage() {
         <h3 className="text-base font-display font-semibold text-text-primary">Costi e redditività</h3>
         {groups ? <KpiGrid kpis={kpiDelGruppo(groups, 'Costi e redditività')} /> : <Caricamento />}
       </div>
+
+      {dettaglio && <DettaglioTrattamento nome={dettaglio} onClose={() => setDettaglio(null)} />}
     </motion.div>
   );
 }

@@ -290,17 +290,22 @@ export function Imbuto({ kpis }: { kpis: Kpi[] }) {
 }
 
 /** Classifica a barre orizzontali: si legge meglio di un grafico quando i nomi sono lunghi. */
-export function Classifica({ righe, formato = eur, etichettaExtra }: {
+export function Classifica({ righe, formato = eur, etichettaExtra, onScegli }: {
   righe: { nome: string; valore: number; extra?: number }[];
   formato?: (n: number) => string;
   etichettaExtra?: (extra: number) => string;
+  /** Se c'è, ogni riga diventa premibile: serve ad aprire il dettaglio. */
+  onScegli?: (nome: string) => void;
 }) {
   if (!righe.length) return <Vuoto testo="Nessun dato nel periodo." />;
   const max = Math.max(...righe.map(r => r.valore), 1);
   return (
     <div className="space-y-2">
       {righe.map((r, i) => (
-        <div key={r.nome + i} className="flex items-center gap-3">
+        <div key={r.nome + i}
+          onClick={onScegli ? () => onScegli(r.nome) : undefined}
+          title={onScegli ? `Vedi quando è stato fatto: date, clienti e operatrici` : undefined}
+          className={`flex items-center gap-3 ${onScegli ? 'cursor-pointer rounded-lg -mx-2 px-2 py-1 hover:bg-bg-hover transition-colors' : ''}`}>
           <span className="text-[11px] text-text-muted w-5 text-right flex-shrink-0">{i + 1}</span>
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline justify-between gap-2">
