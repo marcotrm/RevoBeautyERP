@@ -3303,11 +3303,27 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
         {showAddClientModal && (
           <AddClientModal 
             onClose={() => setShowAddClientModal(false)}
-            onSave={(data) => {
-              addClient(data).catch(avvisaErroreCliente);
+            onSave={async (data) => {
+              /*
+                Appena creata, la cliente è già scelta.
+
+                Da qui si apre la scheda nuova solo perché si sta prendendo un
+                appuntamento: chiudere e farla ricercare per nome — che è
+                quello che succedeva — vuol dire far riscrivere due volte la
+                stessa cosa, con la persona davanti che aspetta.
+              */
               setShowAddClientModal(false);
-              // We could automatically select the new client here, but since the mock ID isn't returned, 
-              // the user can just search for them. In a real app we'd get the ID back and set it.
+              try {
+                const creata = await addClient(data);
+                if (creata?.id) {
+                  setSelectedClientId(creata.id);
+                  setSelectedClientName(`${creata.firstName} ${creata.lastName}`.trim());
+                  setClientSearch('');
+                  setShowClientDropdown(false);
+                }
+              } catch (e) {
+                avvisaErroreCliente(e);
+              }
             }}
           />
         )}

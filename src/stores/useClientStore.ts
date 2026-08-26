@@ -21,7 +21,14 @@ interface ClientStore {
   setActiveFilter: (filter: string) => void;
   selectClient: (client: Client | null) => void;
 
-  addClient: (client: Omit<Client, 'id' | 'createdAt' | 'totalSpent' | 'visitCount' | 'avgTicket' | 'loyaltyPoints' | 'cashback'>) => Promise<void>;
+  /**
+   * Crea la scheda e restituisce quella salvata.
+   *
+   * Torna il cliente creato perché chi lo ha appena inserito quasi sempre lo
+   * deve usare subito — nella prenotazione, in cassa — e senza l'id in mano
+   * bisognava cercarlo di nuovo per nome.
+   */
+  addClient: (client: Omit<Client, 'id' | 'createdAt' | 'totalSpent' | 'visitCount' | 'avgTicket' | 'loyaltyPoints' | 'cashback'>) => Promise<Client>;
   updateClient: (id: string, updates: Partial<Client>) => Promise<void>;
   deleteClient: (id: string) => Promise<void>;
 
@@ -54,6 +61,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     try {
       const newClient = await createClient(clientData);
       set((state) => ({ clients: [...state.clients, newClient] }));
+      return newClient;
     } catch (error) {
       console.error('Failed to add client', error);
       throw error;
