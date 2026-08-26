@@ -1,12 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Users, UserCheck, UserMinus, UserX, Crown } from 'lucide-react';
 import type { Analytics } from '@/app/actions/analytics';
+import DettaglioCliente from '@/components/stats/DettaglioCliente';
 import { formatCurrency } from '@/lib/helpers';
 
 export default function ClientsTab({ data }: { data: Analytics }) {
+  /* La cliente su cui si è premuto: si apre l'estratto conto. */
+  const [conto, setConto] = useState<string | null>(null);
   const CLIENTS_DATA = data.clients;
   const maxSeg = Math.max(1, ...CLIENTS_DATA.segments.map(s => s.count));
   return (
@@ -52,7 +55,13 @@ export default function ClientsTab({ data }: { data: Analytics }) {
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-bold text-text-muted w-4">{i + 1}.</span>
-                        <p className="text-sm font-bold text-text-primary">{c.name}</p>
+                        {/* Anche qui la cifra si apre: si preme il nome e si
+                            vede da dove viene, come nella classifica clienti. */}
+                        <button onClick={() => setConto(c.id)}
+                          className="text-sm font-bold text-text-primary hover:text-accent transition-colors text-left"
+                          title="Vedi come è arrivata a questa cifra">
+                          {c.name}
+                        </button>
                       </div>
                     </td>
                     <td className="px-5 py-4 text-sm font-bold text-text-primary text-right">{formatCurrency(c.totalSpent)}</td>
@@ -89,6 +98,8 @@ export default function ClientsTab({ data }: { data: Analytics }) {
           </div>
         </div>
       </div>
+
+      {conto && <DettaglioCliente clientId={conto} onClose={() => setConto(null)} />}
     </motion.div>
   );
 }
