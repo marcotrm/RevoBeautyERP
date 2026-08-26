@@ -36,6 +36,31 @@ function salvaSnooze(fino: number) {
 }
 const POLL_MS = 20_000;
 
+/*
+  Le ore in cui il centro è chiuso.
+
+  Dopo le otto di sera al gestionale ci lavora chi lo sta costruendo, non chi
+  risponde alle clienti: un modale che si prende lo schermo mentre si fa
+  altro è solo un fastidio, e a quell'ora non c'è nessuno da far aspettare.
+  Il pallino rosso sul menu resta: quando si riapre la mattina, i messaggi da
+  rispondere si vedono lo stesso.
+
+  La finestra è quella del centro chiuso: dalle 20:00 alle 8:30.
+*/
+const SILENZIO_DA = 20 * 60;        // 20:00
+const SILENZIO_A = 8 * 60 + 30;     // 08:30
+
+/** Vero se adesso, in Italia, il centro è chiuso. */
+function oreDiSilenzio(): boolean {
+  const parti = new Intl.DateTimeFormat('it-IT', {
+    timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date());
+  const num = (t: string) => Number(parti.find(p => p.type === t)?.value || 0);
+  const minuti = num('hour') * 60 + num('minute');
+  // La finestra passa la mezzanotte: è "dopo le 20 OPPURE prima delle 8:30".
+  return minuti >= SILENZIO_DA || minuti < SILENZIO_A;
+}
+
 /** Due bip con la Web Audio API (nessun file audio da caricare). */
 function playPing() {
   try {
@@ -100,6 +125,10 @@ export default function WhatsAppAlert() {
     prevTotal.current = total;
     if (before === null || total <= before) return;
 
+    // A centro chiuso niente bip e niente notifiche: il messaggio resta
+    // segnato, ma nessuno deve saltare sulla sedia alle undici di sera.
+    if (oreDiSilenzio()) return;
+
     playPing();
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       try {
@@ -123,7 +152,9 @@ export default function WhatsAppAlert() {
     [chats, now]
   );
 
-  const show = overdue.length > 0 && now >= snoozeUntil;
+  // `now` cambia ogni quindici secondi, quindi il silenzio si accende e si
+  // spegne da solo allo scoccare delle 20 e delle 8:30, senza ricaricare.
+  const show = overdue.length > 0 && now >= snoozeUntil && !oreDiSilenzio();
 
   if (!mounted) return null;
 
