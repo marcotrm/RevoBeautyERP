@@ -29,9 +29,36 @@ export interface SedutaTrattamento {
   stato: string;
 }
 
+export interface ConteggioPeriodo {
+  /** L'etichetta già pronta: "12/08", "sett. del 10/08", "ago 26". */
+  etichetta: string;
+  chiave: string;
+  volte: number;
+  incasso: number;
+}
+
+export interface Ritorno {
+  /**
+   * Sedute dopo le quali la cliente ha preso un altro appuntamento LO STESSO
+   * GIORNO: è la riprenotazione al banco, quella che tiene in piedi l'agenda.
+   */
+  riprenotateSubito: number;
+  /** Sedute dopo le quali la cliente è tornata, prima o poi. */
+  tornate: number;
+  /** Sedute dopo le quali non risulta più nessun appuntamento. */
+  nonTornate: number;
+  /** Giorni medi fra la seduta e la visita successiva, quando c'è stata. */
+  giorniMedi: number;
+  percentualeRiprenotate: number;
+  percentualeTornate: number;
+}
+
 export interface StoricoTrattamento {
   nome: string;
   sedute: SedutaTrattamento[];
+  /** Quante volte è stato fatto, raggruppato come chiesto. */
+  perPeriodo: ConteggioPeriodo[];
+  ritorno: Ritorno;
   volte: number;
   incasso: number;
   prezzoMedio: number;
@@ -46,15 +73,32 @@ export interface StoricoTrattamento {
 
 const norm = (s: string) => (s || '').trim().toLowerCase();
 
-export async function storicoTrattamento(nome: string, mesi = 12): Promise<StoricoTrattamento> {
-  const da = new Date();
-  da.setMonth(da.getMonth() - mesi);
-  const dal = da.toISOString().slice(0, 10);
+export type Raggruppa = 'giorno' | 'settimana' | 'mese';
 
-  const appuntamenti = await prisma.appointment.findMany({
-    where: { date: { gte: dal }, status: 'completed' },
-    orderBy: [{ date: 'desc' }, { startTime: 'desc' }],
-  });
+export async function storicoTrattamento(
+  nome: string,
+  opzioni: { dal?: string; al?: string; mesi?: number; raggruppa?: Raggruppa } = {},
+): Promise<StoricoTrattamento> {
+  const raggruppa = opzioni.raggruppa || 'mese';
+  const da = new Date();
+  da.setMonth(da.getMonth() - (opzioni.mesi ?? 12));
+  const dal = opzioni.dal || da.toISOString().slice(0, 10);
+  const al = opzioni.al || '9999-12-31';
+
+  const [appuntamenti, tuttiDellaCliente] = await Promise.all([
+    prisma.appointment.findMany({
+      where: { date: { gte: dal, lte: al }, status: 'completed' },
+      orderBy: [{ date: 'desc' }, { startTime: 'desc' }],
+    }),
+    /*
+      Serve tutto lo storico degli appuntamenti, non solo quelli nel periodo:
+      per sapere se dopo una seduta la cliente è tornata bisogna guardare
+      avanti, anche fuori dall'intervallo scelto.
+    */
+    prisma.appointment.findMany({
+      select: { clientId: true, date: true, status: true, createdAt: true },
+    }),
+  ]);
 
   const cercato = norm(nome);
   const sedute: SedutaTrattamento[] = [];
@@ -100,6 +144,92 @@ export async function storicoTrattamento(nome: string, mesi = 12): Promise<Stori
     }
   }
 
+  /*
+    Ritorno e riprenotazione.
+
+    Per ogni seduta si guarda cosa è successo dopo, per quella cliente:
+
+    - se ha preso un altro appuntamento LO STESSO GIORNO della seduta (la data
+      di creazione dell'appuntamento coincide col giorno in cui era qui),
+      allora ha riprenotato al banco prima di uscire — è il gesto che tiene in
+      piedi l'agenda, e vale molto più di una che "poi richiama";
+    - se comunque è tornata più avanti, si conta come ritorno e si misura
+      quanti giorni ci ha messo;
+    - se dopo quella seduta non risulta più niente, non è tornata.
+
+    L'ultima seduta di ognuna è esclusa dal conto delle non tornate solo se è
+    recente: se è di ieri, dire "non è tornata" non vuol dire niente.
+  */
+  const perCliente = new Map<string, { date: string; creato: string; stato: string }[]>();
+  for (const a of tuttiDellaCliente) {
+    if (!a.clientId) continue;
+    const lista = perCliente.get(a.clientId) || [];
+    lista.push({ date: a.date, creato: (a.createdAt || '').slice(0, 10), stato: a.status });
+    perCliente.set(a.clientId, lista);
+  }
+
+  const oggi = new Date().toISOString().slice(0, 10);
+  const giorniFra = (a: string, b: string) =>
+    Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
+
+  let riprenotateSubito = 0, tornate = 0, nonTornate = 0;
+  const attese: number[] = [];
+  for (const s of sedute) {
+    const suoi = s.clientId ? (perCliente.get(s.clientId) || []) : [];
+    const dopo = suoi.filter(x => x.date > s.data && x.stato !== 'cancelled' && x.stato !== 'no_show');
+
+    // Preso mentre era qui: l'appuntamento è nato lo stesso giorno della seduta.
+    if (dopo.some(x => x.creato === s.data)) riprenotateSubito += 1;
+
+    if (dopo.length > 0) {
+      tornate += 1;
+      const prossima = dopo.map(x => x.date).sort()[0];
+      attese.push(giorniFra(s.data, prossima));
+    } else if (giorniFra(s.data, oggi) > 30) {
+      // Sotto il mese non si può ancora dire che non è tornata.
+      nonTornate += 1;
+    }
+  }
+
+  const ritorno: Ritorno = {
+    riprenotateSubito, tornate, nonTornate,
+    giorniMedi: attese.length ? Math.round(attese.reduce((a, b) => a + b, 0) / attese.length) : 0,
+    percentualeRiprenotate: sedute.length ? Math.round((riprenotateSubito / sedute.length) * 100) : 0,
+    percentualeTornate: sedute.length ? Math.round((tornate / sedute.length) * 100) : 0,
+  };
+
+  /* Quante volte è stato fatto, raggruppato per giorno, settimana o mese. */
+  const lunediDi = (ymd: string) => {
+    const d = new Date(`${ymd}T12:00:00Z`);
+    const g = d.getUTCDay();
+    d.setUTCDate(d.getUTCDate() + (g === 0 ? -6 : 1 - g));
+    return d.toISOString().slice(0, 10);
+  };
+  const MESI_BREVI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+  const etichettaDi = (chiave: string): string => {
+    if (raggruppa === 'mese') {
+      const [a, m] = chiave.split('-');
+      return `${MESI_BREVI[Number(m) - 1]} ${a.slice(2)}`;
+    }
+    const [a, m, g] = chiave.split('-');
+    return raggruppa === 'settimana' ? `sett. del ${g}/${m}` : `${g}/${m}/${a.slice(2)}`;
+  };
+  const perPeriodoMappa = new Map<string, { volte: number; incasso: number }>();
+  for (const s of sedute) {
+    const chiave = raggruppa === 'mese' ? s.data.slice(0, 7)
+      : raggruppa === 'settimana' ? lunediDi(s.data)
+      : s.data;
+    const c = perPeriodoMappa.get(chiave) || { volte: 0, incasso: 0 };
+    c.volte += 1; c.incasso += s.prezzo;
+    perPeriodoMappa.set(chiave, c);
+  }
+  const perPeriodo: ConteggioPeriodo[] = [...perPeriodoMappa.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([chiave, v]) => ({
+      chiave, etichetta: etichettaDi(chiave),
+      volte: v.volte, incasso: Math.round(v.incasso * 100) / 100,
+    }));
+
   const incasso = Math.round(sedute.reduce((s, x) => s + x.prezzo, 0) * 100) / 100;
   const pagate = sedute.filter(s => s.prezzo > 0);
 
@@ -117,6 +247,8 @@ export async function storicoTrattamento(nome: string, mesi = 12): Promise<Stori
   return {
     nome,
     sedute,
+    perPeriodo,
+    ritorno,
     volte: sedute.length,
     incasso,
     prezzoMedio: pagate.length > 0 ? Math.round((pagate.reduce((s, x) => s + x.prezzo, 0) / pagate.length) * 100) / 100 : 0,

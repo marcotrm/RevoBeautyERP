@@ -14,9 +14,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, Users, Euro, Repeat } from 'lucide-react';
+import { X, Calendar, Users, Euro, Repeat, RotateCcw, CalendarCheck, Info } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
-import { storicoTrattamento, type StoricoTrattamento } from '@/app/actions/seduteTrattamento';
+import { storicoTrattamento, type StoricoTrattamento, type Raggruppa } from '@/app/actions/seduteTrattamento';
 import { daSfondo } from '@/lib/chiusuraModale';
 
 const MESI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
@@ -34,14 +34,26 @@ export function mese(chiave: string): string {
 export default function DettaglioTrattamento({ nome, onClose }: { nome: string; onClose: () => void }) {
   const [dati, setDati] = useState<StoricoTrattamento | null>(null);
   const [caricando, setCaricando] = useState(true);
+  /* Come contare le volte: per giorno, per settimana o per mese. */
+  const [raggruppa, setRaggruppa] = useState<Raggruppa>('mese');
+  /* L'intervallo: vuoto = ultimi 12 mesi. */
+  const [dal, setDal] = useState('');
+  const [al, setAl] = useState('');
+  const [legenda, setLegenda] = useState(false);
 
   useEffect(() => {
     let vivo = true;
-    storicoTrattamento(nome)
-      .then(d => { if (vivo) { setDati(d); setCaricando(false); } })
-      .catch(() => { if (vivo) setCaricando(false); });
-    return () => { vivo = false; };
-  }, [nome]);
+    // Fuori dal disegno: dentro l'effetto si scriverebbe nello stato mentre
+    // React sta ancora componendo la finestra.
+    const avvio = setTimeout(() => {
+      if (!vivo) return;
+      setCaricando(true);
+      storicoTrattamento(nome, { raggruppa, dal: dal || undefined, al: al || undefined })
+        .then(d => { if (vivo) { setDati(d); setCaricando(false); } })
+        .catch(() => { if (vivo) setCaricando(false); });
+    }, 0);
+    return () => { vivo = false; clearTimeout(avvio); };
+  }, [nome, raggruppa, dal, al]);
 
   return (
     <AnimatePresence>
@@ -85,6 +97,80 @@ export default function DettaglioTrattamento({ nome, onClose }: { nome: string; 
                     <Numero icona={Users} titolo="Clienti diverse" valore={String(dati.clientiDiverse)} />
                   </div>
 
+                  {/* Ritorno e riprenotazione: il dato che dice se il
+                      trattamento tiene la cliente o la fa sparire. */}
+                  <div className="rounded-xl border border-accent/30 bg-accent/5 p-4">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <p className="text-sm font-display font-bold text-text-primary">Ritorno e riprenotazione</p>
+                      <button onClick={() => setLegenda(v => !v)}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-accent hover:underline">
+                        <Info className="w-3.5 h-3.5" /> {legenda ? 'nascondi' : 'cosa vuol dire'}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      <Numero icona={CalendarCheck} titolo="Riprenotate subito"
+                        valore={`${dati.ritorno.riprenotateSubito} · ${dati.ritorno.percentualeRiprenotate}%`}
+                        nota="ha fissato prima di uscire" />
+                      <Numero icona={RotateCcw} titolo="Tornate"
+                        valore={`${dati.ritorno.tornate} · ${dati.ritorno.percentualeTornate}%`}
+                        nota="è tornata, prima o poi" />
+                      <Numero icona={Users} titolo="Non tornate" valore={String(dati.ritorno.nonTornate)}
+                        nota="e sono passati più di 30 giorni" />
+                      <Numero icona={Calendar} titolo="Attesa media"
+                        valore={dati.ritorno.giorniMedi ? `${dati.ritorno.giorniMedi} gg` : '—'}
+                        nota="fra una visita e la successiva" />
+                    </div>
+                    {legenda && (
+                      <div className="mt-3 pt-3 border-t border-accent/20 space-y-1.5 text-[11px] text-text-secondary leading-relaxed">
+                        <p><b className="text-text-primary">Riprenotate subito</b>: dopo quella seduta la cliente ha
+                          fissato un altro appuntamento <b>lo stesso giorno</b>, cioè al banco prima di uscire. È il
+                          numero che tiene in piedi l&apos;agenda: chi esce senza data spesso non torna.</p>
+                        <p><b className="text-text-primary">Tornate</b>: dopo quella seduta è tornata, anche se ha
+                          chiamato giorni dopo. Comprende le riprenotate subito.</p>
+                        <p><b className="text-text-primary">Non tornate</b>: dopo quella seduta non risulta più nessun
+                          appuntamento, ed è passato più di un mese. Le sedute delle ultime settimane non si contano
+                          qui: sarebbe presto per dirlo.</p>
+                        <p><b className="text-text-primary">Attesa media</b>: quanti giorni passano fra la seduta e la
+                          visita successiva. Su un trattamento che si ripete (unghie, ceretta) dice se il ritmo tiene.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quante volte, nel tempo: si sceglie come contarle. */}
+                  <div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+                        Quante volte è stato fatto
+                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex rounded-lg border border-border overflow-hidden text-[11px]">
+                          {([['giorno', 'Giorno'], ['settimana', 'Settimana'], ['mese', 'Mese']] as const).map(([v, lab]) => (
+                            <button key={v} onClick={() => setRaggruppa(v)}
+                              className={`px-2.5 py-1 font-semibold transition-colors ${
+                                raggruppa === v ? 'bg-accent text-white' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'}`}>
+                              {lab}
+                            </button>
+                          ))}
+                        </div>
+                        <input type="date" value={dal} onChange={e => setDal(e.target.value)}
+                          className="px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-[11px] text-text-primary" />
+                        <input type="date" value={al} onChange={e => setAl(e.target.value)}
+                          className="px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-[11px] text-text-primary" />
+                        {(dal || al) && (
+                          <button onClick={() => { setDal(''); setAl(''); }}
+                            className="text-[11px] text-text-muted hover:text-text-primary">azzera</button>
+                        )}
+                      </div>
+                    </div>
+                    <Blocco titolo="">
+                      {dati.perPeriodo.slice().reverse().map(p => (
+                        <Riga key={p.chiave} sinistra={p.etichetta}
+                          destra={`${p.volte} ${p.volte === 1 ? 'volta' : 'volte'}`}
+                          nota={formatCurrency(p.incasso)} />
+                      ))}
+                    </Blocco>
+                  </div>
+
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <Blocco titolo="Chi lo fa">
                       {dati.perOperatrice.map(o => (
@@ -97,14 +183,6 @@ export default function DettaglioTrattamento({ nome, onClose }: { nome: string; 
                       ))}
                     </Blocco>
                   </div>
-
-                  {dati.perMese.length > 1 && (
-                    <Blocco titolo="Mese per mese">
-                      {dati.perMese.map(m => (
-                        <Riga key={m.mese} sinistra={mese(m.mese)} destra={`${m.volte} ${m.volte === 1 ? 'volta' : 'volte'}`} nota={formatCurrency(m.incasso)} />
-                      ))}
-                    </Blocco>
-                  )}
 
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-2 flex items-center gap-1.5">
