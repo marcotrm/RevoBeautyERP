@@ -53,12 +53,19 @@ export interface Ritorno {
   percentualeTornate: number;
 }
 
+/** Il ritorno visto per operatrice: chi fa tornare le clienti e chi no. */
+export interface RitornoOperatrice extends Ritorno {
+  nome: string;
+  sedute: number;
+}
+
 export interface StoricoTrattamento {
   nome: string;
   sedute: SedutaTrattamento[];
   /** Quante volte è stato fatto, raggruppato come chiesto. */
   perPeriodo: ConteggioPeriodo[];
   ritorno: Ritorno;
+  ritornoPerOperatrice: RitornoOperatrice[];
   volte: number;
   incasso: number;
   prezzoMedio: number;
@@ -198,6 +205,48 @@ export async function storicoTrattamento(
     percentualeTornate: sedute.length ? Math.round((tornate / sedute.length) * 100) : 0,
   };
 
+  /*
+    Lo stesso conto, ma per chi l'ha fatto.
+
+    È la domanda che sta dietro a tutte: c'è un'operatrice dopo la quale le
+    clienti non riprenotano? Il numero da solo non condanna nessuno — chi fa
+    più lampade avrà sempre percentuali più basse di chi fa le unghie — ma
+    sullo STESSO trattamento il confronto è alla pari, ed è per questo che sta
+    dentro alla scheda del trattamento e non in una classifica generale.
+  */
+  const perOp = new Map<string, { sedute: SedutaTrattamento[] }>();
+  for (const s of sedute) {
+    const c = perOp.get(s.operatrice) || { sedute: [] };
+    c.sedute.push(s);
+    perOp.set(s.operatrice, c);
+  }
+
+  const ritornoPerOperatrice: RitornoOperatrice[] = [...perOp.entries()].map(([nome, v]) => {
+    let subito = 0, tornateOp = 0, nonTornateOp = 0;
+    const atteseOp: number[] = [];
+    for (const s of v.sedute) {
+      const suoi = s.clientId ? (perCliente.get(s.clientId) || []) : [];
+      const dopo = suoi.filter(x => x.date > s.data && x.stato !== 'cancelled' && x.stato !== 'no_show');
+      if (dopo.some(x => x.creato === s.data)) subito += 1;
+      if (dopo.length > 0) {
+        tornateOp += 1;
+        atteseOp.push(giorniFra(s.data, dopo.map(x => x.date).sort()[0]));
+      } else if (giorniFra(s.data, oggi) > 30) {
+        nonTornateOp += 1;
+      }
+    }
+    return {
+      nome,
+      sedute: v.sedute.length,
+      riprenotateSubito: subito,
+      tornate: tornateOp,
+      nonTornate: nonTornateOp,
+      giorniMedi: atteseOp.length ? Math.round(atteseOp.reduce((a, b) => a + b, 0) / atteseOp.length) : 0,
+      percentualeRiprenotate: v.sedute.length ? Math.round((subito / v.sedute.length) * 100) : 0,
+      percentualeTornate: v.sedute.length ? Math.round((tornateOp / v.sedute.length) * 100) : 0,
+    };
+  }).sort((a, b) => b.sedute - a.sedute);
+
   /* Quante volte è stato fatto, raggruppato per giorno, settimana o mese. */
   const lunediDi = (ymd: string) => {
     const d = new Date(`${ymd}T12:00:00Z`);
@@ -249,6 +298,7 @@ export async function storicoTrattamento(
     sedute,
     perPeriodo,
     ritorno,
+    ritornoPerOperatrice,
     volte: sedute.length,
     incasso,
     prezzoMedio: pagate.length > 0 ? Math.round((pagate.reduce((s, x) => s + x.prezzo, 0) / pagate.length) * 100) / 100 : 0,

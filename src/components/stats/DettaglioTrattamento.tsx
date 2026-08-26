@@ -120,6 +120,52 @@ export default function DettaglioTrattamento({ nome, onClose }: { nome: string; 
                         valore={dati.ritorno.giorniMedi ? `${dati.ritorno.giorniMedi} gg` : '—'}
                         nota="fra una visita e la successiva" />
                     </div>
+                    {/* Lo stesso conto per chi l'ha fatto: sullo stesso
+                        trattamento il confronto è alla pari, ed è l'unico modo
+                        onesto per vedere se dopo qualcuno le clienti spariscono. */}
+                    {dati.ritornoPerOperatrice.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-accent/20">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-2">
+                          Chi l&apos;ha fatto, e chi fa riprenotare
+                        </p>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="text-[10px] uppercase tracking-wider text-text-muted">
+                                <th className="py-1 pr-2 font-bold">Operatrice</th>
+                                <th className="py-1 px-2 font-bold text-right">Sedute</th>
+                                <th className="py-1 px-2 font-bold text-right">Riprenota subito</th>
+                                <th className="py-1 px-2 font-bold text-right">Torna</th>
+                                <th className="py-1 pl-2 font-bold text-right">Attesa</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/30">
+                              {dati.ritornoPerOperatrice.map(o => (
+                                <tr key={o.nome}>
+                                  <td className="py-1.5 pr-2 text-sm text-text-primary truncate max-w-[150px]">{o.nome}</td>
+                                  <td className="py-1.5 px-2 text-sm text-text-secondary text-right tabular-nums">{o.sedute}</td>
+                                  <td className={`py-1.5 px-2 text-sm text-right tabular-nums font-semibold ${
+                                    o.sedute < 5 ? 'text-text-muted'
+                                      : o.percentualeRiprenotate >= dati.ritorno.percentualeRiprenotate ? 'text-success' : 'text-warning'}`}>
+                                    {o.percentualeRiprenotate}%
+                                    <span className="text-text-muted font-normal"> ({o.riprenotateSubito})</span>
+                                  </td>
+                                  <td className="py-1.5 px-2 text-sm text-text-secondary text-right tabular-nums">{o.percentualeTornate}%</td>
+                                  <td className="py-1.5 pl-2 text-sm text-text-secondary text-right tabular-nums">
+                                    {o.giorniMedi ? `${o.giorniMedi} gg` : '—'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <p className="text-[10px] text-text-muted mt-1.5">
+                          Verde e arancione sono rispetto alla media di questo trattamento ({dati.ritorno.percentualeRiprenotate}%).
+                          Sotto le cinque sedute il colore non compare: sono troppo poche per dire qualcosa.
+                        </p>
+                      </div>
+                    )}
+
                     {legenda && (
                       <div className="mt-3 pt-3 border-t border-accent/20 space-y-1.5 text-[11px] text-text-secondary leading-relaxed">
                         <p><b className="text-text-primary">Riprenotate subito</b>: dopo quella seduta la cliente ha
@@ -132,6 +178,10 @@ export default function DettaglioTrattamento({ nome, onClose }: { nome: string; 
                           qui: sarebbe presto per dirlo.</p>
                         <p><b className="text-text-primary">Attesa media</b>: quanti giorni passano fra la seduta e la
                           visita successiva. Su un trattamento che si ripete (unghie, ceretta) dice se il ritmo tiene.</p>
+                        <p><b className="text-text-primary">Chi l&apos;ha fatto</b>: gli stessi numeri divisi per operatrice.
+                          Confrontarle qui è onesto perché il trattamento è lo stesso — chi fa lampade avrà sempre
+                          percentuali più basse di chi fa unghie, e paragonarle fra trattamenti diversi non vuol dire
+                          niente. Con poche sedute il dato non è un giudizio: è un campione troppo piccolo.</p>
                       </div>
                     )}
                   </div>
