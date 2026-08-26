@@ -13,9 +13,26 @@ import { Platform } from 'react-native';
 
 const GESTIONALE_DEV_PORT = 3000;
 
+/**
+ * Il gestionale in produzione. È scritto qui e non solo in eas.json perché
+ * l'app deve saperlo da sola.
+ *
+ * Il ripiego di prima era `http://localhost:3000`: giusto sul Mac di chi
+ * sviluppa, morte certa su un telefono. Reggeva solo perché EXPO_PUBLIC_API_URL
+ * viene iniettata dal profilo di build — ma quella variabile la mette
+ * `eas build`, non `eas update`: un aggiornamento via etere mandato senza
+ * `--environment production` avrebbe prodotto un'app che cerca il gestionale
+ * dentro al telefono e non prenota più niente.
+ */
+const GESTIONALE = 'https://erp.revobeauty.it';
+
 function resolveBaseUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL;
   if (fromEnv) return fromEnv.replace(/\/$/, '');
+
+  // Fuori dallo sviluppo non esiste nessun "stesso host che serve il bundle":
+  // il gestionale è quello vero.
+  if (!__DEV__) return GESTIONALE;
 
   // Sul web l'app è servita dallo stesso Mac del gestionale: usiamo l'host
   // della pagina (funziona sia da localhost sia dal telefono via IP di rete)
