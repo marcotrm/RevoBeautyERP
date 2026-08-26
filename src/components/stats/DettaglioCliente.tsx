@@ -94,38 +94,51 @@ export default function DettaglioCliente({ clientId, onClose }: { clientId: stri
                     </p>
                   )}
 
-                  {dati.voci.length > 0 && (
+                  {dati.visite2.length > 0 && (
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-2">
-                        Da dove viene la cifra — dal più recente
+                        Ogni volta che è venuta — dalla più recente
                       </p>
                       <div className="rounded-xl border border-border overflow-hidden">
                         <table className="w-full text-left border-collapse">
                           <thead className="bg-bg-tertiary/40">
                             <tr>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Giorno</th>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Cosa ha preso</th>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase hidden sm:table-cell">Pagato con</th>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-right">Importo</th>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-right">Totale</th>
+                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Quando</th>
+                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Cosa ha fatto</th>
+                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Con chi</th>
+                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-right">Speso</th>
+                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-right hidden sm:table-cell">Totale</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border/40">
-                            {dati.voci.map((v, i) => (
-                              <tr key={i} className="hover:bg-bg-hover/50">
+                            {dati.visite2.map((v, i) => (
+                              <tr key={i} className="hover:bg-bg-hover/50 align-top">
                                 <td className="px-3 py-2 text-sm text-text-primary whitespace-nowrap">
                                   {giorno(v.data)} <span className="text-text-muted">{v.ora}</span>
                                 </td>
-                                <td className="px-3 py-2 text-sm text-text-secondary truncate max-w-[220px]" title={v.descrizione}>
-                                  {v.descrizione}
+                                <td className="px-3 py-2 text-sm text-text-secondary">
+                                  {v.trattamenti.length > 0
+                                    ? v.trattamenti.map((t, k) => (
+                                        <span key={k} className="block truncate max-w-[220px]">{t.nome}</span>
+                                      ))
+                                    : <span className="text-text-muted italic">solo passaggio in cassa</span>}
                                 </td>
-                                <td className="px-3 py-2 text-sm text-text-secondary hidden sm:table-cell">{v.metodo}</td>
-                                <td className="px-3 py-2 text-sm font-semibold text-text-primary text-right tabular-nums">
-                                  {formatCurrency(v.importo)}
+                                <td className="px-3 py-2 text-sm text-text-secondary">
+                                  {v.trattamenti.length > 0
+                                    ? v.trattamenti.map((t, k) => (
+                                        <span key={k} className="block truncate max-w-[150px]">{t.operatrice}</span>
+                                      ))
+                                    : <span className="text-text-muted">—</span>}
                                 </td>
-                                {/* La colonna che risponde alla domanda: seguendola
-                                    si vede come si arriva al totale in classifica. */}
-                                <td className="px-3 py-2 text-sm text-accent text-right tabular-nums">
+                                <td className="px-3 py-2 text-sm text-right tabular-nums whitespace-nowrap">
+                                  {/* Zero non vuol dire gratis: quel giorno non è
+                                      passata in cassa (pacchetto, omaggio, o non
+                                      incassato). Scriverlo evita la domanda. */}
+                                  {v.senzaIncasso
+                                    ? <span className="text-[11px] text-accent">niente in cassa</span>
+                                    : <span className="font-semibold text-text-primary">{formatCurrency(v.speso)}</span>}
+                                </td>
+                                <td className="px-3 py-2 text-sm text-accent text-right tabular-nums hidden sm:table-cell">
                                   {formatCurrency(v.progressivo)}
                                 </td>
                               </tr>
@@ -133,7 +146,9 @@ export default function DettaglioCliente({ clientId, onClose }: { clientId: stri
                           </tbody>
                           <tfoot>
                             <tr className="bg-bg-tertiary/40 border-t border-border">
-                              <td colSpan={3} className="px-3 py-2 text-sm font-semibold text-text-primary">Totale speso</td>
+                              <td colSpan={3} className="px-3 py-2 text-sm font-semibold text-text-primary">
+                                {dati.visite2.length} {dati.visite2.length === 1 ? 'volta' : 'volte'} · totale speso
+                              </td>
                               <td colSpan={2} className="px-3 py-2 text-sm font-bold text-accent text-right tabular-nums">
                                 {formatCurrency(dati.totale)}
                               </td>
@@ -142,8 +157,10 @@ export default function DettaglioCliente({ clientId, onClose }: { clientId: stri
                         </table>
                       </div>
                       <p className="text-[10px] text-text-muted mt-2">
-                        La colonna <b>Totale</b> è la somma che cresce riga dopo riga: l&apos;ultima in basso è la
-                        prima volta che è venuta, quella in alto è il totale che vedi in classifica.
+                        La colonna <b>Totale</b> è la somma che cresce riga dopo riga: l&apos;ultima in basso è la prima
+                        volta che è venuta, quella in alto è la cifra che leggi in classifica. Dove c&apos;è scritto
+                        &laquo;niente in cassa&raquo; la seduta è stata scalata da un pacchetto, era omaggio, o non è
+                        stata incassata.
                       </p>
                     </div>
                   )}

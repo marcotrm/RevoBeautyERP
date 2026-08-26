@@ -503,8 +503,24 @@ export interface VoceConto {
   progressivo: number;
 }
 
+export interface VisitaCliente {
+  data: string;
+  ora: string;
+  /** Cosa ha fatto quel giorno, e chi gliel'ha fatto. */
+  trattamenti: { nome: string; operatrice: string; prezzo: number }[];
+  operatrici: string[];
+  /** Quanto ha lasciato in cassa quel giorno (se ha pagato). */
+  speso: number;
+  /** La somma dalle prime volte fino a questa. */
+  progressivo: number;
+  /** Vero se quel giorno non è passata in cassa: pacchetto, omaggio o non incassato. */
+  senzaIncasso: boolean;
+}
+
 export interface ContoCliente {
   nome: string;
+  /** Ogni volta che è venuta: data, cosa ha fatto, con chi, quanto ha speso. */
+  visite2: VisitaCliente[];
   telefono: string | null;
   voci: VoceConto[];
   totale: number;
@@ -537,7 +553,7 @@ export async function contoCliente(clientId: string): Promise<ContoCliente> {
   const cliente = await prisma.client.findUnique({ where: { id: clientId } });
   if (!cliente) {
     return {
-      nome: '', telefono: null, voci: [], totale: 0, scontrini: 0, scontrinoMedio: 0,
+      nome: '', visite2: [], telefono: null, voci: [], totale: 0, scontrini: 0, scontrinoMedio: 0,
       primaVolta: null, ultimaVolta: null, visite: 0, daIncassare: 0, seduteDaFare: 0, perTrattamento: [],
     };
   }
@@ -551,6 +567,73 @@ export async function contoCliente(clientId: string): Promise<ContoCliente> {
     prisma.appointment.findMany({ where: { clientId }, orderBy: [{ date: 'asc' }] }),
     prisma.clientPackage.findMany({ where: { clientId } }),
   ]);
+
+  /*
+    Ogni volta che è venuta.
+
+    È il modo in cui la domanda si fa davvero: "è venuta dieci volte e ha
+    speso cento euro — quando, cosa ha fatto, con chi?". Le righe di cassa da
+    sole non bastano, perché non dicono chi ha lavorato; gli appuntamenti da
+    soli nemmeno, perché non dicono quanto ha pagato. Qui si mettono insieme
+    per giornata: i trattamenti fatti quel giorno con la loro operatrice, e i
+    soldi lasciati in cassa quello stesso giorno.
+  */
+  const incassiPerGiorno = new Map<string, number>();
+  for (const t of transazioni) {
+    incassiPerGiorno.set(t.date, Math.round(((incassiPerGiorno.get(t.date) || 0) + t.total) * 100) / 100);
+  }
+
+  const completatiPerVisita = appuntamenti
+    .filter(a => a.status === 'completed')
+    .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+
+  const perGiorno = new Map<string, VisitaCliente>();
+  for (const a of completatiPerVisita) {
+    const servizi = Array.isArray(a.services) ? (a.services as unknown as {
+      treatmentName?: string; price?: number; operatorName?: string;
+    }[]) : [];
+    const righe = servizi.length > 0
+      ? servizi.map(sv => ({
+          nome: sv.treatmentName || a.treatmentName,
+          operatrice: sv.operatorName || a.operatorName,
+          prezzo: sv.price ?? 0,
+        }))
+      : [{ nome: a.treatmentName, operatrice: a.operatorName, prezzo: a.price }];
+
+    const v = perGiorno.get(a.date) || {
+      data: a.date, ora: a.startTime, trattamenti: [], operatrici: [],
+      speso: 0, progressivo: 0, senzaIncasso: false,
+    };
+    if (a.startTime < v.ora) v.ora = a.startTime;
+    v.trattamenti.push(...righe);
+    perGiorno.set(a.date, v);
+  }
+
+  // I giorni in cui ha pagato senza avere un appuntamento (un prodotto, una
+  // rata di pacchetto) sono comunque volte in cui è passata di qui.
+  for (const [data, importo] of incassiPerGiorno) {
+    if (perGiorno.has(data)) continue;
+    perGiorno.set(data, {
+      data, ora: transazioni.find(t => t.date === data)?.time || '',
+      trattamenti: [], operatrici: [], speso: importo, progressivo: 0, senzaIncasso: false,
+    });
+  }
+
+  let sommaVisite = 0;
+  const visite2: VisitaCliente[] = [...perGiorno.values()]
+    .sort((a, b) => a.data.localeCompare(b.data))
+    .map(v => {
+      const speso = incassiPerGiorno.get(v.data) ?? 0;
+      sommaVisite = Math.round((sommaVisite + speso) * 100) / 100;
+      return {
+        ...v,
+        speso,
+        progressivo: sommaVisite,
+        senzaIncasso: speso === 0,
+        operatrici: [...new Set(v.trattamenti.map(t => t.operatrice).filter(Boolean))],
+      };
+    })
+    .reverse();
 
   let progressivo = 0;
   const voci: VoceConto[] = transazioni.map(t => {
@@ -585,6 +668,7 @@ export async function contoCliente(clientId: string): Promise<ContoCliente> {
 
   return {
     nome: nomeCompleto,
+    visite2,
     telefono: cliente.phone,
     voci: voci.reverse(), // in tabella si legge dalla più recente
     totale,
