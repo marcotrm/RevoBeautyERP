@@ -21,12 +21,12 @@ import { daSfondo } from '@/lib/chiusuraModale';
 
 const MESI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
 
-function giorno(ymd: string): string {
+export function giorno(ymd: string): string {
   const [a, m, g] = (ymd || '').split('-');
   return a && m && g ? `${g}/${m}/${a.slice(2)}` : ymd;
 }
 
-function mese(chiave: string): string {
+export function mese(chiave: string): string {
   const [a, m] = chiave.split('-');
   return `${MESI[Number(m) - 1]} ${a.slice(2)}`;
 }
@@ -149,7 +149,7 @@ export default function DettaglioTrattamento({ nome, onClose }: { nome: string; 
   );
 }
 
-function Numero({ icona: Icona, titolo, valore, nota }: {
+export function Numero({ icona: Icona, titolo, valore, nota }: {
   icona: React.ComponentType<{ className?: string }>; titolo: string; valore: string; nota?: string;
 }) {
   return (
@@ -163,7 +163,7 @@ function Numero({ icona: Icona, titolo, valore, nota }: {
   );
 }
 
-function Blocco({ titolo, children }: { titolo: string; children: React.ReactNode }) {
+export function Blocco({ titolo, children }: { titolo: string; children: React.ReactNode }) {
   return (
     <div>
       <p className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-2">{titolo}</p>
@@ -172,7 +172,7 @@ function Blocco({ titolo, children }: { titolo: string; children: React.ReactNod
   );
 }
 
-function Riga({ sinistra, destra, nota }: { sinistra: string; destra: string; nota?: string }) {
+export function Riga({ sinistra, destra, nota }: { sinistra: string; destra: string; nota?: string }) {
   return (
     <div className="flex items-center justify-between gap-2 px-3 py-2">
       <span className="text-sm text-text-primary truncate">{sinistra}</span>

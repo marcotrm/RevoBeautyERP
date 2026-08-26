@@ -1,12 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { StatsHeader, KpiGrid, Card, Caricamento, Classifica, eur } from '@/components/stats/StatsUI';
+import DettaglioProdotto from '@/components/stats/DettaglioProdotto';
 import { useKpiGroups, useTrends, kpiDelGruppo } from '@/components/stats/useStats';
 
 export default function MagazzinoStatsPage() {
   const { groups, errore } = useKpiGroups();
+  /* Si preme un prodotto e si vede quando è stato venduto, e a chi. */
+  const [dettaglio, setDettaglio] = useState<string | null>(null);
   const { trends } = useTrends();
 
   return (
@@ -20,9 +23,11 @@ export default function MagazzinoStatsPage() {
       <Card titolo="Prodotti più venduti"
         spiega="Fatturato e pezzi usciti dalla cassa negli ultimi 12 mesi. Chi sta in fondo alla lista occupa scaffale e soldi senza restituirli: o lo si spinge, o lo si smette di riordinare.">
         {trends
-          ? <Classifica righe={trends.topProdotti} formato={eur} etichettaExtra={n => `${n} pz`} />
+          ? <Classifica righe={trends.topProdotti} formato={eur} onScegli={setDettaglio} etichettaExtra={n => `${n} pz`} />
           : <Caricamento />}
       </Card>
+
+      {dettaglio && <DettaglioProdotto nome={dettaglio} onClose={() => setDettaglio(null)} />}
     </motion.div>
   );
 }

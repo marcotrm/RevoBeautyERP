@@ -53,6 +53,8 @@ export interface Trends {
   topTrattamentiNumero: NamedValue[];
   topCategorie: NamedValue[];
   topProdotti: NamedValue[];
+  /** Pacchetti più venduti: valore incassato, extra = quanti ne sono stati venduti. */
+  topPacchetti: NamedValue[];
   topClienti: NamedValue[];
   operatrici: OperatorPerf[];
   /** Quante clienti hanno fatto 1, 2-3, 4-9, 10+ visite. */
@@ -110,6 +112,10 @@ export async function getTrends(mesiIndietro = 12): Promise<Trends> {
       select: { clientName: true, total: true, date: true, paymentMethod: true, isRefund: true, productLines: true },
     });
   const products = await prisma.product.findMany({ select: { id: true, name: true, price: true } });
+  const pacchettiVenduti = await prisma.clientPackage.findMany({
+    where: { purchaseDate: { gte: inizioPeriodo } },
+    select: { packageName: true, totalPaid: true, pricePaid: true },
+  });
 
   const income = txs.filter(t => !t.isRefund && t.total > 0);
   const completati = appts.filter(a => a.status === 'completed');
@@ -205,6 +211,22 @@ export async function getTrends(mesiIndietro = 12): Promise<Trends> {
     }
   }
   const topProdotti = classifica(perProdotto, 10);
+
+  /*
+    Pacchetti più venduti: si contano i pacchetti delle clienti, non quelli a
+    catalogo. Il valore è quello davvero incassato, che con le rate non è il
+    prezzo pieno — e sui pacchetti la differenza è proprio il punto.
+  */
+  const perPacchetto = new Map<string, { valore: number; extra: number }>();
+  for (const cp of pacchettiVenduti) {
+    const nome = (cp.packageName || '').trim();
+    if (!nome) continue;
+    const v = perPacchetto.get(nome) || { valore: 0, extra: 0 };
+    v.valore += cp.totalPaid ?? cp.pricePaid ?? 0;
+    v.extra += 1;
+    perPacchetto.set(nome, v);
+  }
+  const topPacchetti = classifica(perPacchetto, 12);
 
   // ---------- Clienti che spendono di più ----------
   const perCliente = new Map<string, { valore: number; extra: number }>();
@@ -345,6 +367,7 @@ export async function getTrends(mesiIndietro = 12): Promise<Trends> {
     topTrattamentiNumero,
     topCategorie,
     topProdotti,
+    topPacchetti,
     topClienti,
     operatrici,
     frequenzaVisite,
