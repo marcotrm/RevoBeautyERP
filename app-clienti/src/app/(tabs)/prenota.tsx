@@ -5,13 +5,14 @@
  * account: non gli si chiede né come si chiama né se è uomo o donna, il
  * listino giusto lo sceglie l'app dalla sua scheda.
  *
- * Le categorie sono riquadri con l'icona, non una fila di pillole: si guarda
- * "Unghie" e si tocca. E per "Con chi" si vedono le facce, non i cognomi —
- * solo le operatrici che quel lavoro lo sanno fare davvero (il collegamento
- * categoria/operatrice si imposta nel gestionale, in Staff).
+ * La regola di tutta la schermata è una sola: quello che hai già scelto si
+ * chiude e diventa una riga, quello che devi scegliere adesso sta in cima.
+ * Prima le tre domande stavano una sotto l'altra e restavano aperte: con
+ * quarantatré trattamenti nel Laser, per arrivare a "Con chi" bisognava
+ * scorrere tutto il listino — e per confermare l'orario, scorrere di nuovo.
  */
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
@@ -22,24 +23,31 @@ import {
   GiornoDisponibile, bookingService,
 } from '@/api';
 import { Button } from '@/components/ui/Button';
+import { Icona, NomeIcona } from '@/components/ui/Icona';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, fonts, radius, spacing, typography } from '@/theme';
 import { formatPrice } from '@/utils/format';
 
-/** Nome e faccina di ogni categoria, nell'ordine in cui il centro le usa. */
-const CATEGORIE: { key: string; label: string; emoji: string }[] = [
-  { key: 'nails', label: 'Unghie', emoji: '💅' },
-  { key: 'laser', label: 'Laser', emoji: '✨' },
-  { key: 'waxing', label: 'Ceretta', emoji: '🪒' },
-  { key: 'facial', label: 'Viso', emoji: '🧖' },
-  { key: 'body', label: 'Corpo', emoji: '🌿' },
-  { key: 'massage', label: 'Massaggi', emoji: '💆' },
-  { key: 'makeup', label: 'Trucco', emoji: '💄' },
-  { key: 'consultation', label: 'Consulenza', emoji: '📋' },
-  { key: 'hair', label: 'Capelli', emoji: '💇' },
+/**
+ * Nome e icona di ogni categoria, nell'ordine in cui il centro le usa.
+ *
+ * Le emoji di prima erano quelle del telefono: cambiano faccia su ogni
+ * sistema e non hanno niente a che vedere col marchio. Queste sono disegnate
+ * nella stessa famiglia delle icone delle schede.
+ */
+const CATEGORIE: { key: string; label: string; icona: NomeIcona }[] = [
+  { key: 'nails', label: 'Unghie', icona: 'unghie' },
+  { key: 'laser', label: 'Laser', icona: 'laser' },
+  { key: 'waxing', label: 'Ceretta', icona: 'ceretta' },
+  { key: 'facial', label: 'Viso', icona: 'viso' },
+  { key: 'body', label: 'Corpo', icona: 'corpo' },
+  { key: 'massage', label: 'Massaggi', icona: 'massaggi' },
+  { key: 'makeup', label: 'Trucco', icona: 'trucco' },
+  { key: 'consultation', label: 'Consulenza', icona: 'consulenza' },
+  { key: 'hair', label: 'Capelli', icona: 'capelli' },
 ];
-const metaCategoria = (c: string) =>
-  CATEGORIE.find(x => x.key === c) || { key: c, label: c, emoji: '•' };
+const metaCategoria = (c: string): { key: string; label: string; icona: NomeIcona } =>
+  CATEGORIE.find(x => x.key === c) || { key: c, label: c, icona: 'generico' };
 
 const GIORNI = [
   { n: 1, label: 'Lun' }, { n: 2, label: 'Mar' }, { n: 3, label: 'Mer' },
@@ -83,6 +91,12 @@ export default function PrenotaScreen() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<BookingResult | null>(null);
 
+  const scrollRef = useRef<ScrollView>(null);
+  /** Numero della ricerca in corso: le risposte vecchie non scrivono più. */
+  const ricercaId = useRef(0);
+
+  const suSu = useCallback(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), []);
+
   useEffect(() => {
     bookingService.treatments().then(setTreatments).catch(() => {});
     bookingService.operators().then(setOperatrici).catch(() => {});
@@ -102,6 +116,12 @@ export default function PrenotaScreen() {
     return [...note, ...altre].map(k => ({ ...metaCategoria(k), quante: conteggio.get(k) || 0 }));
   }, [treatments]);
 
+  /** Chi sa fare una certa categoria: sotto le due, non c'è niente da scegliere. */
+  const operatriciDi = useCallback(
+    (cat: string) => operatrici.filter(o => o.categorie.includes(cat)),
+    [operatrici],
+  );
+
   const sceltePiene = scelte.filter(s => s.treatmentId);
   const totaleDurata = sceltePiene.reduce((s, x) => {
     const t = treatments.find(t => t.id === x.treatmentId); return s + (t ? durOf(t) : 0);
@@ -111,24 +131,59 @@ export default function PrenotaScreen() {
   }, 0);
 
   /** Toccati i trattamenti, gli orari trovati prima non valgono più. */
-  const invalida = () => { setGiorni(null); setScelto(null); };
+  const invalida = () => { ricercaId.current++; setGiorni(null); setScelto(null); };
 
   const aggiorna = (i: number, patch: Partial<Scelta>) => {
     const ns = [...scelte]; ns[i] = { ...ns[i], ...patch }; setScelte(ns); invalida();
   };
 
-  const cerca = async () => {
+  /**
+   * La ricerca degli orari.
+   *
+   * Prima stava dietro al tasto "Cerca gli orari liberi" e i filtri non la
+   * rifacevano: si sceglieva "dalle 15:00" e sotto restavano gli orari della
+   * mattina, cercati all'ingresso nel passo con il filtro di partenza. Adesso
+   * ogni cambio di filtro la rilancia, e la risposta vecchia che arriva tardi
+   * viene buttata invece di sovrascrivere quella giusta.
+   */
+  const cerca = useCallback(async (da: string, gg: number[], servizi: Scelta[]) => {
+    if (servizi.length === 0 || gg.length === 0) { setGiorni(null); return; }
+    const mio = ++ricercaId.current;
     setCercando(true); setError(null); setScelto(null);
     try {
       const g = await bookingService.search({
-        services: sceltePiene.map(s => ({ treatmentId: s.treatmentId, operatorId: s.operatorId || null })),
-        gender, giorniSettimana: giorniOk, from: oraDa, giorni: 21,
+        services: servizi.map(s => ({ treatmentId: s.treatmentId, operatorId: s.operatorId || null })),
+        gender, giorniSettimana: gg, from: da, giorni: 21,
       });
+      if (mio !== ricercaId.current) return;
       setGiorni(g);
     } catch (e) {
+      if (mio !== ricercaId.current) return;
       setError(e instanceof ApiError ? e.message : 'Ricerca non riuscita. Riprova.');
-    } finally { setCercando(false); }
-  };
+      setGiorni([]);
+    } finally {
+      if (mio === ricercaId.current) setCercando(false);
+    }
+  }, [gender]);
+
+  /** Cambiata la fascia oraria, si ricerca subito con quella. */
+  const cambiaOra = (o: string) => { setOraDa(o); void cerca(o, giorniOk, sceltePiene); };
+  /** Idem per i giorni della settimana. */
+  const cambiaGiorni = (gg: number[]) => { setGiorniOk(gg); void cerca(oraDa, gg, sceltePiene); };
+
+  /**
+   * Rete di sicurezza sulla fascia oraria.
+   *
+   * Il motore del gestionale la rispetta già; questo filtro serve perché in
+   * nessun caso — risposta lenta, orario di apertura cambiato mentre si
+   * guardava — la cliente veda le 09:30 sotto "dalle 15:00".
+   */
+  const giorniMostrati = useMemo(() => {
+    if (!giorni) return null;
+    return giorni
+      .map(g => ({ ...g, slots: g.slots.filter(sl => sl.time >= oraDa) }))
+      .filter(g => g.slots.length > 0);
+  }, [giorni, oraDa]);
 
   const submit = async () => {
     if (!scelto || !token) return;
@@ -154,7 +209,7 @@ export default function PrenotaScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.center}>
-          <View style={styles.check}><Text style={styles.checkTxt}>✓</Text></View>
+          <View style={styles.check}><Icona nome="spunta" colore={colors.white} misura={30} /></View>
           <Text style={styles.doneTitle}>Prenotazione confermata!</Text>
           <View style={styles.summary}>
             <Row k="Quando" v={`${dataLunga(done.date)} · ${done.startTime}`} />
@@ -173,7 +228,7 @@ export default function PrenotaScreen() {
   // ------------------------------------------------------------ wizard
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Prenota</Text>
         {!!user?.nome && <Text style={styles.sottotitolo}>Ciao {user.nome}, cosa ti prepariamo?</Text>}
 
@@ -193,12 +248,14 @@ export default function PrenotaScreen() {
               const t = treatments.find(x => x.id === sc.treatmentId);
               const chiuso = apertoIdx !== i && !!t;
               const op = operatrici.find(o => o.id === sc.operatorId);
+              const opsCat = operatriciDi(cat);
+              const meta = metaCategoria(cat);
 
               // Riga già compilata e chiusa: si mostra il riassunto
               if (chiuso && t) {
                 return (
-                  <Pressable key={i} style={styles.rigaChiusa} onPress={() => setApertoIdx(i)}>
-                    <Text style={styles.rigaEmoji}>{metaCategoria(t.category).emoji}</Text>
+                  <Pressable key={i} style={styles.rigaChiusa} onPress={() => { setApertoIdx(i); suSu(); }}>
+                    <Icona nome={metaCategoria(t.category).icona} colore={colors.primaryDark} misura={24} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.selName}>{t.name}</Text>
                       <Text style={styles.muted}>
@@ -225,63 +282,95 @@ export default function PrenotaScreen() {
                     </View>
                   )}
 
-                  {/* ------- categoria: riquadri, due per riga ------- */}
-                  <Text style={styles.label}>Che cosa vuoi fare</Text>
-                  <View style={styles.catGriglia}>
-                    {categorieDisponibili.map(c => {
-                      const on = cat === c.key;
-                      return (
-                        <Pressable key={c.key} style={[styles.catCard, on && styles.catCardOn]}
-                          onPress={() => {
-                            const nc = [...categorie]; nc[i] = on ? '' : c.key; setCategorie(nc);
-                            aggiorna(i, { treatmentId: '', operatorId: '' });
-                          }}>
-                          <Text style={styles.catEmoji}>{c.emoji}</Text>
-                          <Text style={[styles.catLabel, on && styles.catLabelOn]} numberOfLines={1}>{c.label}</Text>
-                          <Text style={styles.catQuante}>{c.quante} trattament{c.quante === 1 ? 'o' : 'i'}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
+                  {/* ------- 1. categoria: riquadri, due per riga ------- */}
+                  {!cat ? (
+                    <>
+                      <Text style={styles.label}>Che cosa vuoi fare</Text>
+                      <View style={styles.catGriglia}>
+                        {categorieDisponibili.map(c => (
+                          <Pressable key={c.key} style={styles.catCard}
+                            onPress={() => {
+                              const nc = [...categorie]; nc[i] = c.key; setCategorie(nc);
+                              aggiorna(i, { treatmentId: '', operatorId: '' });
+                              suSu();
+                            }}>
+                            <Icona nome={c.icona} colore={colors.textSecondary} misura={26} />
+                            <Text style={styles.catLabel} numberOfLines={1}>{c.label}</Text>
+                            <Text style={styles.catQuante}>{c.quante} trattament{c.quante === 1 ? 'o' : 'i'}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </>
+                  ) : (
+                    /*
+                      Scelta la categoria, la griglia sparisce e resta una riga.
+                      Tenerla aperta voleva dire nove riquadri fra la cliente e
+                      il trattamento, ogni volta.
+                    */
+                    <Pressable style={styles.sceltaFatta} onPress={() => {
+                      const nc = [...categorie]; nc[i] = ''; setCategorie(nc);
+                      aggiorna(i, { treatmentId: '', operatorId: '' });
+                      suSu();
+                    }}>
+                      <Icona nome={meta.icona} colore={colors.primaryDark} misura={22} />
+                      <Text style={styles.sceltaFattaTxt} numberOfLines={1}>{meta.label}</Text>
+                      <Text style={styles.change}>Cambia</Text>
+                    </Pressable>
+                  )}
 
-                  {/* ------- trattamento ------- */}
-                  {!!cat && (
+                  {/* ------- 2. trattamento ------- */}
+                  {!!cat && !t && (
                     <>
                       <Text style={styles.label}>Scegli il trattamento</Text>
-                      {treatments.filter(x => x.category === cat).map(x => {
-                        const on = sc.treatmentId === x.id;
-                        return (
-                          <Pressable key={x.id} style={[styles.treatItem, on && styles.treatItemOn]}
-                            onPress={() => aggiorna(i, { treatmentId: x.id, operatorId: '' })}>
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.treatName}>{x.name}</Text>
-                              <Text style={styles.muted}>{durOf(x)} min</Text>
-                            </View>
-                            <Text style={[styles.treatPrezzo, on && styles.treatPrezzoOn]}>{formatPrice(priceOf(x))}</Text>
-                          </Pressable>
-                        );
-                      })}
+                      {treatments.filter(x => x.category === cat).map(x => (
+                        <Pressable key={x.id} style={styles.treatItem}
+                          onPress={() => {
+                            /*
+                              Se quel lavoro lo sa fare una sola persona, non
+                              c'è niente da scegliere: la domanda si salta e si
+                              va dritti all'orario.
+                            */
+                            aggiorna(i, { treatmentId: x.id, operatorId: '' });
+                            if (operatriciDi(cat).length < 2) setApertoIdx(-1);
+                            suSu();
+                          }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.treatName}>{x.name}</Text>
+                            <Text style={styles.muted}>{durOf(x)} min</Text>
+                          </View>
+                          <Text style={styles.treatPrezzo}>{formatPrice(priceOf(x))}</Text>
+                        </Pressable>
+                      ))}
                     </>
                   )}
 
-                  {/* ------- con chi: le facce ------- */}
-                  {!!sc.treatmentId && (
+                  {/* ------- 3. con chi: le facce ------- */}
+                  {!!t && (
                     <>
-                      <Text style={styles.label}>Con chi</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.facce}>
-                        <Faccia scelta={!sc.operatorId} nome="Chiunque" sottotitolo="la prima libera"
-                          onPress={() => aggiorna(i, { operatorId: '' })} />
-                        {operatrici.filter(o => o.categorie.includes(cat)).map(o => (
-                          <Faccia key={o.id} scelta={sc.operatorId === o.id} nome={o.nomeBreve}
-                            avatar={o.avatar} colore={o.colore}
-                            onPress={() => aggiorna(i, { operatorId: o.id })} />
-                        ))}
-                      </ScrollView>
-
-                      <Pressable style={styles.fatto} onPress={() => setApertoIdx(-1)}>
-                        <Text style={styles.fattoTxt}>Fatto</Text>
+                      <Pressable style={styles.sceltaFatta}
+                        onPress={() => { aggiorna(i, { treatmentId: '', operatorId: '' }); suSu(); }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.sceltaFattaTxt} numberOfLines={1}>{t.name}</Text>
+                          <Text style={styles.muted}>{durOf(t)} min · {formatPrice(priceOf(t))}</Text>
+                        </View>
+                        <Text style={styles.change}>Cambia</Text>
                       </Pressable>
+
+                      {opsCat.length >= 2 && (
+                        <>
+                          <Text style={styles.label}>Con chi</Text>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.facce}>
+                            <Faccia scelta={!sc.operatorId} nome="Chiunque" sottotitolo="la prima libera"
+                              onPress={() => aggiorna(i, { operatorId: '' })} />
+                            {opsCat.map(o => (
+                              <Faccia key={o.id} scelta={sc.operatorId === o.id} nome={o.nomeBreve}
+                                avatar={o.avatar} colore={o.colore}
+                                onPress={() => aggiorna(i, { operatorId: o.id })} />
+                            ))}
+                          </ScrollView>
+                        </>
+                      )}
                     </>
                   )}
                 </View>
@@ -292,7 +381,7 @@ export default function PrenotaScreen() {
               setScelte([...scelte, { treatmentId: '', operatorId: '' }]);
               setCategorie([...categorie, '']);
               setApertoIdx(scelte.length);
-              invalida();
+              invalida(); suSu();
             }}>
               <Text style={styles.aggiungiTxt}>+ Aggiungi un altro trattamento</Text>
             </Pressable>
@@ -309,7 +398,9 @@ export default function PrenotaScreen() {
                   const on = giorniOk.includes(g.n);
                   return (
                     <Pressable key={g.n} style={[styles.chip, on && styles.chipOn]}
-                      onPress={() => setGiorniOk(on ? giorniOk.filter(x => x !== g.n) : [...giorniOk, g.n])}>
+                      onPress={() => cambiaGiorni(on
+                        ? giorniOk.filter(x => x !== g.n)
+                        : [...giorniOk, g.n].sort((a, b) => a - b))}>
                       <Text style={[styles.chipTxt, on && styles.chipTxtOn]}>{g.label}</Text>
                     </Pressable>
                   );
@@ -319,22 +410,20 @@ export default function PrenotaScreen() {
               <Text style={styles.label}>Da che ora</Text>
               <View style={styles.chips}>
                 {ORE.map(o => (
-                  <Pressable key={o} style={[styles.chip, oraDa === o && styles.chipOn]} onPress={() => setOraDa(o)}>
+                  <Pressable key={o} style={[styles.chip, oraDa === o && styles.chipOn]} onPress={() => cambiaOra(o)}>
                     <Text style={[styles.chipTxt, oraDa === o && styles.chipTxtOn]}>dalle {o}</Text>
                   </Pressable>
                 ))}
               </View>
-
-              <Button title={cercando ? 'Cerco…' : 'Cerca gli orari liberi'}
-                onPress={cerca} disabled={cercando || giorniOk.length === 0}
-                style={{ marginTop: spacing.md }} />
             </View>
 
             {cercando ? (
               <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.lg }} />
-            ) : giorni === null ? null : giorni.length === 0 ? (
-              <Text style={styles.muted}>Nessun orario libero con questi filtri. Prova ad allargare i giorni o la fascia oraria.</Text>
-            ) : giorni.map(g => (
+            ) : giorniMostrati === null ? null : giorniMostrati.length === 0 ? (
+              <Text style={styles.vuoto}>
+                Nessun orario libero dalle {oraDa} nei giorni che hai scelto. Prova ad allargare i giorni o ad anticipare la fascia.
+              </Text>
+            ) : giorniMostrati.map(g => (
               <View key={g.date} style={{ marginTop: spacing.md }}>
                 <Text style={styles.giornoTitolo}>{dataLunga(g.date)}</Text>
                 <View style={styles.slots}>
@@ -351,34 +440,16 @@ export default function PrenotaScreen() {
               </View>
             ))}
 
-            {scelto && (
-              <View style={styles.riepilogo}>
-                <Text style={styles.riepilogoTitolo}>
-                  {dataLunga(scelto.date)} · {scelto.slot.time}
-                </Text>
-                {(scelto.slot.assegnazioni || []).map((a, i) => (
-                  <Text key={i} style={styles.muted}>{a.startTime} · {a.treatmentName} con {a.operatorName}</Text>
-                ))}
-              </View>
-            )}
-
             {error && <Text style={styles.error}>{error}</Text>}
-
-            <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg }}>
-              <Button title="← Indietro" variant="secondary" onPress={() => setPasso(1)} style={{ flex: 1 }} />
-              <Button
-                title={submitting ? 'Prenotazione…' : `Conferma · ${formatPrice(totalePrezzo)}`}
-                onPress={submit} disabled={!scelto || submitting} style={{ flex: 2 }} />
-            </View>
           </>
         )}
       </ScrollView>
 
       {/*
-        La barra resta incollata in fondo appena c'e' qualcosa di scelto.
-        Prima il riepilogo e il tasto stavano in coda alla lista: con
-        quarantatre trattamenti nella categoria Laser, per confermare il primo
-        della lista bisognava scorrere fino in fondo e tornare su.
+        La barra resta incollata in fondo: è lì che si va avanti, in tutti e
+        due i passi. Prima il tasto stava in coda alla lista — scelto l'orario
+        del primo giorno utile bisognava scorrere tre settimane di proposte per
+        arrivare a "Conferma".
       */}
       {passo === 1 && sceltePiene.length > 0 && (
         <View style={styles.barra}>
@@ -390,7 +461,35 @@ export default function PrenotaScreen() {
             </Text>
             <Text style={styles.muted}>{totaleDurata} min · {formatPrice(totalePrezzo)}</Text>
           </View>
-          <Button title="Avanti" onPress={() => { setPasso(2); if (!giorni) void cerca(); }} />
+          <Button title="Avanti" onPress={() => {
+            setPasso(2); suSu(); void cerca(oraDa, giorniOk, sceltePiene);
+          }} />
+        </View>
+      )}
+
+      {passo === 2 && (
+        <View style={styles.barra}>
+          <Pressable hitSlop={10} style={styles.indietro}
+            onPress={() => { setPasso(1); setApertoIdx(-1); suSu(); }}>
+            <Text style={styles.indietroTxt}>Indietro</Text>
+          </Pressable>
+          <View style={styles.barraTesti}>
+            {scelto ? (
+              <>
+                <Text style={styles.barraCosa} numberOfLines={1}>
+                  {dataLunga(scelto.date)} · {scelto.slot.time}
+                </Text>
+                <Text style={styles.muted} numberOfLines={1}>
+                  {(scelto.slot.assegnazioni || []).map(a => a.operatorName).join(', ') || `${totaleDurata} min`}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.muted}>Scegli un orario qui sopra</Text>
+            )}
+          </View>
+          <Button
+            title={submitting ? 'Prenotazione…' : `Conferma · ${formatPrice(totalePrezzo)}`}
+            onPress={submit} disabled={!scelto || submitting} />
         </View>
       )}
     </SafeAreaView>
@@ -411,9 +510,9 @@ function Faccia({ scelta, nome, sottotitolo, avatar, colore, onPress }: {
       <View style={[styles.facciaCerchio, { backgroundColor: colore || colors.backgroundAlt }, scelta && styles.facciaCerchioOn]}>
         {avatar
           ? <Image source={{ uri: avatar }} style={styles.facciaFoto} contentFit="cover" />
-          : <Text style={[styles.facciaIniziali, !colore && { color: colors.textSecondary }]}>
-              {colore ? iniziali(nome) : '✦'}
-            </Text>}
+          : colore
+            ? <Text style={styles.facciaIniziali}>{iniziali(nome)}</Text>
+            : <Icona nome="chiunque" colore={colors.textSecondary} misura={28} />}
       </View>
       <Text style={[styles.facciaNome, scelta && styles.facciaNomeOn]} numberOfLines={1}>{nome}</Text>
       {!!sottotitolo && <Text style={styles.facciaSotto} numberOfLines={1}>{sottotitolo}</Text>}
@@ -443,7 +542,9 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   barraTesti: { flex: 1 },
-  barraCosa: { ...typography.bodyForte, color: colors.textPrimary },
+  barraCosa: { ...typography.bodyForte, color: colors.textPrimary, textTransform: 'capitalize' },
+  indietro: { paddingVertical: spacing.sm },
+  indietroTxt: { ...typography.caption, color: colors.textSecondary, fontFamily: fonts.w700 },
 
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
@@ -463,27 +564,31 @@ const styles = StyleSheet.create({
   togli: { ...typography.caption, color: colors.error, fontFamily: fonts.w700 },
 
   rigaChiusa: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.surface, marginTop: spacing.md },
-  rigaEmoji: { fontSize: 22 },
   selName: { ...typography.body, fontFamily: fonts.w700, color: colors.textPrimary },
   change: { ...typography.caption, color: colors.primary, fontFamily: fonts.w700 },
+
+  /** La domanda già risposta: una riga sola, con l'icona e "Cambia". */
+  sceltaFatta: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
+    borderRadius: radius.md, backgroundColor: colors.primarySoft,
+    marginTop: spacing.xs,
+  },
+  sceltaFattaTxt: { ...typography.body, fontFamily: fonts.w700, color: colors.primaryDark, flexShrink: 1 },
 
   label: { ...typography.label, color: colors.primary, marginTop: spacing.md, marginBottom: spacing.sm, textTransform: 'uppercase' },
 
   // categorie a riquadri
   catGriglia: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  catCard: { width: '47.5%', flexGrow: 1, paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, alignItems: 'center', gap: 2 },
-  catCardOn: { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primarySoft },
-  catEmoji: { fontSize: 24 },
+  catCard: { width: '47.5%', flexGrow: 1, paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, alignItems: 'center', gap: 4 },
   catLabel: { ...typography.body, fontFamily: fonts.w700, color: colors.textPrimary },
-  catLabelOn: { color: colors.primaryDark },
   catQuante: { ...typography.caption, color: colors.textMuted, fontSize: 11 },
 
   treatItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.xs, backgroundColor: colors.background },
-  treatItemOn: { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primarySoft },
   treatName: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w600 },
   treatPrezzo: { ...typography.body, fontFamily: fonts.w800, color: colors.textSecondary },
-  treatPrezzoOn: { color: colors.primaryDark },
   muted: { ...typography.caption, color: colors.textSecondary },
+  vuoto: { ...typography.body, color: colors.textSecondary, marginTop: spacing.lg, textAlign: 'center' },
 
   // "con chi": la fila delle facce
   facce: { gap: spacing.md, paddingVertical: spacing.xs, paddingRight: spacing.md },
@@ -502,13 +607,8 @@ const styles = StyleSheet.create({
   chipTxt: { ...typography.caption, color: colors.textSecondary, fontFamily: fonts.w600 },
   chipTxtOn: { color: '#fff' },
 
-  fatto: { marginTop: spacing.md, alignSelf: 'flex-start', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.lg, backgroundColor: colors.primary },
-  fattoTxt: { ...typography.caption, color: '#fff', fontFamily: fonts.w700 },
-
   aggiungi: { marginTop: spacing.md, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.primary, alignItems: 'center' },
   aggiungiTxt: { ...typography.body, color: colors.primary, fontFamily: fonts.w700 },
-  totale: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.md, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  totaleVal: { ...typography.body, fontFamily: fonts.w800, color: colors.textPrimary },
 
   giornoTitolo: { ...typography.body, fontFamily: fonts.w800, color: colors.textPrimary, textTransform: 'capitalize', marginBottom: spacing.sm },
   slots: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
@@ -517,12 +617,8 @@ const styles = StyleSheet.create({
   slotTxt: { ...typography.body, color: colors.textPrimary, fontFamily: fonts.w600 },
   slotTxtActive: { color: '#fff' },
 
-  riepilogo: { marginTop: spacing.md, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.primary, backgroundColor: colors.surface, gap: 2 },
-  riepilogoTitolo: { ...typography.body, fontFamily: fonts.w800, color: colors.textPrimary, textTransform: 'capitalize', marginBottom: 4 },
-
   error: { ...typography.caption, color: colors.error, marginTop: spacing.md },
   check: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' },
-  checkTxt: { color: '#fff', fontSize: 30 },
   doneTitle: { ...typography.title, color: colors.textPrimary, textAlign: 'center' },
   summary: { alignSelf: 'stretch', backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm, borderWidth: 1, borderColor: colors.border },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
