@@ -3486,6 +3486,44 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     } : s));
   };
 
+  /**
+   * Il cronometro del singolo trattamento.
+   *
+   * Con due trattamenti nella stessa seduta il tempo in cabina dice solo
+   * quanto è durata tutta la visita: non si sa se il semipermanente ha preso
+   * quaranta minuti o settanta, e senza quel dato le durate a listino restano
+   * quelle che qualcuno ha immaginato il primo giorno — con l'agenda che
+   * slitta ogni pomeriggio.
+   *
+   * Si preme "Inizia" quando si comincia e "Fine" quando si finisce. Nessuno
+   * è obbligato: quello che non viene cronometrato resta senza tempi, e al
+   * check-out si legge comunque la durata dell'intera seduta.
+   */
+  const iniziaServizio = (i: number) => {
+    const adesso = new Date().toISOString();
+    saveServices(services.map((s, idx) => idx === i ? { ...s, checkInAt: adesso, checkOutAt: undefined } : s));
+  };
+
+  const fermaServizio = (i: number) => {
+    const adesso = new Date().toISOString();
+    saveServices(services.map((s, idx) => idx === i ? {
+      ...s,
+      // Se qualcuno preme "Fine" senza aver premuto "Inizia", si prende come
+      // inizio il check-in della cliente: meglio un tempo approssimato che
+      // nessun tempo.
+      checkInAt: s.checkInAt || appointment.checkInAt || adesso,
+      checkOutAt: adesso,
+    } : s));
+  };
+
+  /** I minuti veri di un trattamento cronometrato, se ci sono. */
+  const minutiServizio = (s: { checkInAt?: string; checkOutAt?: string }): number | null => {
+    if (!s.checkInAt || !s.checkOutAt) return null;
+    const da = Date.parse(s.checkInAt), a = Date.parse(s.checkOutAt);
+    if (Number.isNaN(da) || Number.isNaN(a) || a < da) return null;
+    return Math.max(1, Math.round((a - da) / 60000));
+  };
+
   const cambiaOperatriceServizio = (i: number, operatorId: string) => {
     const op = operators.find(o => o.id === operatorId);
     saveServices(services.map((s, idx) => idx === i ? {
@@ -4004,6 +4042,52 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                         Alle {s.startTime}{s.operatorName ? ` con ${s.operatorName}` : ''} — non di seguito agli altri
                       </p>
                     )}
+
+                    {/* Il cronometro del singolo trattamento: con due
+                        trattamenti nella stessa seduta, il tempo in cabina da
+                        solo non dice quale dei due ha preso più tempo. */}
+                    {!s.productId && (() => {
+                      const minuti = minutiServizio(s);
+                      const inCorso = Boolean(s.checkInAt && !s.checkOutAt);
+                      if (appointment.status === 'completed') {
+                        return minuti !== null ? (
+                          <p className="text-[10px] text-text-muted mt-1">
+                            Durato <strong className="text-text-primary">{minuti} min</strong>
+                            {s.duration ? ` (previsti ${s.duration})` : ''}
+                          </p>
+                        ) : null;
+                      }
+                      return (
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          {minuti !== null ? (
+                            <span className="text-[10px] text-success font-semibold">
+                              ✓ finito in {minuti} min
+                            </span>
+                          ) : inCorso ? (
+                            <>
+                              <span className="text-[10px] text-accent font-semibold">
+                                in corso da {Math.max(0, Math.round((Date.now() - Date.parse(s.checkInAt!)) / 60000))} min
+                              </span>
+                              <button onClick={() => fermaServizio(i)} disabled={busySvc}
+                                className="px-2 py-0.5 rounded-lg bg-success/15 text-success text-[10px] font-bold hover:bg-success/25 disabled:opacity-50">
+                                Fine
+                              </button>
+                            </>
+                          ) : (
+                            <button onClick={() => iniziaServizio(i)} disabled={busySvc}
+                              title="Segna quando comincia questo trattamento: al check-out saprai quanto è durato"
+                              className="px-2 py-0.5 rounded-lg bg-bg-tertiary border border-border text-[10px] font-semibold text-text-secondary hover:border-accent/40 hover:text-accent disabled:opacity-50">
+                              ▶ Inizia
+                            </button>
+                          )}
+                          {minuti !== null && (
+                            <button onClick={() => iniziaServizio(i)} disabled={busySvc}
+                              title="Ricomincia il conteggio di questo trattamento"
+                              className="text-[10px] text-text-muted hover:text-text-primary">rifai</button>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {s.productId === undefined && s.operatorId && s.operatorId !== appointment.operatorId && appointment.status === 'completed' && (
                       <p className="text-xs text-accent">{s.operatorName || 'altra operatrice'}</p>
                     )}
@@ -4267,6 +4351,36 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 {cabinMinutes !== null && (
                   <p className="mt-2 text-sm font-bold text-text-primary">⏱️ {cabinMinutes} min effettivi <span className="text-xs font-normal text-text-muted">(previsti {appointment.duration} min)</span></p>
                 )}
+
+                {/* Il dettaglio per trattamento, quando è stato cronometrato:
+                    è la risposta a "quanto ci è voluto per cosa", che il tempo
+                    complessivo della seduta non dà. */}
+                {(() => {
+                  const cronometrati = services
+                    .map(s => ({ nome: s.treatmentName, minuti: minutiServizio(s), previsti: s.duration }))
+                    .filter((x): x is { nome: string; minuti: number; previsti: number } => x.minuti !== null);
+                  if (cronometrati.length === 0) return null;
+                  const somma = cronometrati.reduce((t, x) => t + x.minuti, 0);
+                  return (
+                    <div className="mt-2 pt-2 border-t border-pink-500/15 space-y-1">
+                      {cronometrati.map((x, k) => (
+                        <div key={k} className="flex items-center justify-between gap-2 text-[11px]">
+                          <span className="text-text-secondary truncate">{x.nome}</span>
+                          <span className="text-text-primary font-semibold tabular-nums flex-shrink-0">
+                            {x.minuti} min
+                            {x.previsti ? <span className="text-text-muted font-normal"> su {x.previsti}</span> : null}
+                          </span>
+                        </div>
+                      ))}
+                      {cronometrati.length > 1 && (
+                        <div className="flex items-center justify-between gap-2 text-[11px] pt-1 border-t border-pink-500/10">
+                          <span className="text-text-secondary font-semibold">Trattamenti cronometrati</span>
+                          <span className="text-text-primary font-bold tabular-nums">{somma} min</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
