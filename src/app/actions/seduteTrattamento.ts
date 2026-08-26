@@ -437,3 +437,118 @@ export async function storicoPacchetto(nome: string): Promise<StoricoPacchetto> 
     ultimaVolta: vendite.length ? vendite[0].acquistato : null,
   };
 }
+
+/* ============================================================
+   IL CONTO DI UNA CLIENTE: come si arriva a quella cifra.
+   ============================================================ */
+
+export interface VoceConto {
+  data: string;
+  ora: string;
+  descrizione: string;
+  metodo: string;
+  operatrice: string;
+  importo: number;
+  /** La somma dalla prima riga fino a questa: si legge come un estratto conto. */
+  progressivo: number;
+}
+
+export interface ContoCliente {
+  nome: string;
+  telefono: string | null;
+  voci: VoceConto[];
+  totale: number;
+  scontrini: number;
+  scontrinoMedio: number;
+  primaVolta: string | null;
+  ultimaVolta: string | null;
+  /** Visite fatte davvero (appuntamenti completati), che sono un'altra cosa dagli scontrini. */
+  visite: number;
+  /** Quello che ha ancora da pagare sui pacchetti. */
+  daIncassare: number;
+  /** Sedute già pagate e non ancora fatte: lavoro che le dobbiamo. */
+  seduteDaFare: number;
+  perTrattamento: { nome: string; volte: number; spesa: number }[];
+}
+
+/**
+ * Come una cliente è arrivata a quella cifra.
+ *
+ * Nella classifica si legge "100 €" e non si sa da dove vengano: tre visite da
+ * trenta o una da cento cambiano tutto — la prima è un'abitudine, la seconda
+ * un episodio. Qui c'è l'estratto conto: ogni passaggio in cassa con la data,
+ * cosa ha preso, come ha pagato, e la somma che cresce riga dopo riga fino al
+ * totale che si vede in classifica.
+ *
+ * Si cerca per nome perché è così che le righe di cassa sono scritte: la
+ * transazione non porta l'id della cliente.
+ */
+export async function contoCliente(clientId: string): Promise<ContoCliente> {
+  const cliente = await prisma.client.findUnique({ where: { id: clientId } });
+  if (!cliente) {
+    return {
+      nome: '', telefono: null, voci: [], totale: 0, scontrini: 0, scontrinoMedio: 0,
+      primaVolta: null, ultimaVolta: null, visite: 0, daIncassare: 0, seduteDaFare: 0, perTrattamento: [],
+    };
+  }
+
+  const nomeCompleto = `${cliente.firstName} ${cliente.lastName}`.trim();
+  const [transazioni, appuntamenti, pacchetti] = await Promise.all([
+    prisma.posTransaction.findMany({
+      where: { clientName: nomeCompleto, isRefund: false },
+      orderBy: [{ date: 'asc' }, { time: 'asc' }],
+    }),
+    prisma.appointment.findMany({ where: { clientId }, orderBy: [{ date: 'asc' }] }),
+    prisma.clientPackage.findMany({ where: { clientId } }),
+  ]);
+
+  let progressivo = 0;
+  const voci: VoceConto[] = transazioni.map(t => {
+    progressivo = Math.round((progressivo + t.total) * 100) / 100;
+    const righe = Array.isArray(t.items) ? (t.items as string[]) : [];
+    return {
+      data: t.date,
+      ora: t.time,
+      descrizione: righe.join(', ') || 'Incasso',
+      metodo: t.paymentMethod,
+      operatrice: t.operator || '—',
+      importo: Math.round(t.total * 100) / 100,
+      progressivo,
+    };
+  });
+
+  const completati = appuntamenti.filter(a => a.status === 'completed');
+  const perTratt = new Map<string, { volte: number; spesa: number }>();
+  for (const a of completati) {
+    const servizi = Array.isArray(a.services) ? (a.services as unknown as { treatmentName?: string; price?: number }[]) : [];
+    const righe = servizi.length > 0
+      ? servizi.map(s => ({ nome: s.treatmentName || a.treatmentName, prezzo: s.price ?? 0 }))
+      : [{ nome: a.treatmentName, prezzo: a.price }];
+    for (const r of righe) {
+      const c = perTratt.get(r.nome) || { volte: 0, spesa: 0 };
+      c.volte += 1; c.spesa += r.prezzo || 0;
+      perTratt.set(r.nome, c);
+    }
+  }
+
+  const totale = Math.round(transazioni.reduce((s, t) => s + t.total, 0) * 100) / 100;
+
+  return {
+    nome: nomeCompleto,
+    telefono: cliente.phone,
+    voci: voci.reverse(), // in tabella si legge dalla più recente
+    totale,
+    scontrini: transazioni.length,
+    scontrinoMedio: transazioni.length ? Math.round((totale / transazioni.length) * 100) / 100 : 0,
+    primaVolta: transazioni.length ? transazioni[0].date : (completati[0]?.date ?? null),
+    ultimaVolta: transazioni.length ? transazioni[transazioni.length - 1].date : (completati[completati.length - 1]?.date ?? null),
+    visite: new Set(completati.map(a => a.date)).size,
+    daIncassare: Math.round(pacchetti.reduce((s, p) => s + (p.remainingBalance || 0), 0) * 100) / 100,
+    seduteDaFare: pacchetti
+      .filter(p => p.status === 'active' || p.status === 'expiring')
+      .reduce((s, p) => s + Math.max(0, p.totalSessions - p.usedSessions), 0),
+    perTrattamento: [...perTratt.entries()]
+      .sort((a, b) => b[1].spesa - a[1].spesa)
+      .map(([nome, v]) => ({ nome, volte: v.volte, spesa: Math.round(v.spesa * 100) / 100 })),
+  };
+}

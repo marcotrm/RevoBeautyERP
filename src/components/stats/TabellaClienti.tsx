@@ -11,7 +11,8 @@
 
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Search, ArrowUpDown, Download } from 'lucide-react';
+import DettaglioCliente from './DettaglioCliente';
+import { Search, ArrowUpDown, Download, ExternalLink } from 'lucide-react';
 import type { ClientRow } from '@/app/actions/clientStats';
 import { Vuoto, eur } from './StatsUI';
 
@@ -44,6 +45,8 @@ function scarica(righe: ClientRow[]) {
 
 export default function TabellaClienti({ righe, caricando }: { righe: ClientRow[]; caricando: boolean }) {
   const [criterio, setCriterio] = useState<Chiave>('spesa');
+  /* La cliente su cui si è premuto: si apre l'estratto conto. */
+  const [conto, setConto] = useState<string | null>(null);
   const [cerca, setCerca] = useState('');
   const [quante, setQuante] = useState(15);
 
@@ -122,8 +125,16 @@ export default function TabellaClienti({ righe, caricando }: { righe: ClientRow[
                   <tr key={r.id} className="border-b border-border/30 hover:bg-bg-hover transition-colors">
                     <td className="py-2.5 pr-3 text-text-muted tabular-nums">{i + 1}</td>
                     <td className="py-2.5 pr-3">
-                      <Link href={`/dashboard/clients/${r.id}`} className="text-text-primary font-medium hover:text-accent transition-colors">
+                      {/* Premendo il nome si apre da dove viene la cifra: la
+                          scheda intera resta a un tocco, con l'iconcina. */}
+                      <button onClick={() => setConto(r.id)}
+                        className="text-text-primary font-medium hover:text-accent transition-colors text-left"
+                        title="Vedi come è arrivata a questa cifra">
                         {r.nome}
+                      </button>
+                      <Link href={`/dashboard/clients/${r.id}`} title="Apri la scheda"
+                        className="ml-1.5 text-text-muted hover:text-accent align-middle inline-block">
+                        <ExternalLink className="w-3 h-3" />
                       </Link>
                       {r.nuova && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-md bg-success/10 text-success align-middle">nuova</span>}
                     </td>
@@ -150,6 +161,7 @@ export default function TabellaClienti({ righe, caricando }: { righe: ClientRow[
           )}
         </>
       )}
+      {conto && <DettaglioCliente clientId={conto} onClose={() => setConto(null)} />}
     </div>
   );
 }
