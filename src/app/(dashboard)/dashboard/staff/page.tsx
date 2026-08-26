@@ -5,7 +5,7 @@ import { daSfondo } from '@/lib/chiusuraModale';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Clock, Plus, Euro, X, CheckCircle, Trash2, ChevronLeft, ChevronRight, Smartphone,
-  Sparkles, Wand2, AlertTriangle, Sun, Pencil, UserMinus, RotateCcw,
+  Sparkles, Wand2, AlertTriangle, Sun, Pencil, UserMinus, RotateCcw, Copy, LayoutTemplate,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTimeClockStore } from '@/stores/useTimeClockStore';
@@ -13,7 +13,11 @@ import { useOperatorStore } from '@/stores/useOperatorStore';
 import { getInitials } from '@/lib/helpers';
 import { Operator, TreatmentCategory } from '@/types';
 import { generateShifts, type AgentConfig, type ShiftEntry, type WeekShifts } from '@/lib/shiftAgent';
-import { getWeekShifts, saveWeekShift, saveWeekShiftsBulk, type WeekScheduleMap } from '@/app/actions/weekShifts';
+import {
+  getWeekShifts, saveWeekShift, saveWeekShiftsBulk,
+  elencoModelliTurni, salvaModelloTurni, eliminaModelloTurni,
+  type WeekScheduleMap, type ModelloTurni,
+} from '@/app/actions/weekShifts';
 import { mondayISO } from '@/lib/weekSchedule';
 import { mettiInServizio, type AppuntamentoInSospeso } from '@/app/actions/operators';
 import { maiuscoleNome } from '@/lib/nomiPropri';
@@ -743,6 +747,49 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
 
   const weekIsEmpty = !loadingWeek && operators.every(op => !weekMap[op.id] || Object.keys(weekMap[op.id]).length === 0);
 
+  /*
+    I modelli di settimana.
+
+    Sei giorni per tre operatrici sono diciotto caselle: ricompilarle ogni
+    lunedì per riscrivere quello che c'era già è il genere di lavoro che si
+    smette di fare dopo un mese — e allora l'agenda va avanti coi turni
+    sbagliati.
+  */
+  const [modelli, setModelli] = useState<ModelloTurni[]>([]);
+  const [menuModelli, setMenuModelli] = useState(false);
+  const caricaModelli = () => { elencoModelliTurni().then(setModelli).catch(() => {}); };
+  useEffect(() => {
+    let vivo = true;
+    elencoModelliTurni().then(m => { if (vivo) setModelli(m); }).catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+
+  /** Applica un modello alla settimana mostrata. Non tocca le altre settimane. */
+  const applicaModello = (m: ModelloTurni) => {
+    // Solo le operatrici che ci sono ancora: chi se n'è andata resta fuori.
+    const validi: Record<string, WeekScheduleMap> = {};
+    for (const op of operators) {
+      const suo = m.turni[op.id];
+      if (suo && Object.keys(suo).length > 0) validi[op.id] = suo;
+    }
+    if (Object.keys(validi).length === 0) {
+      alert('Questo modello è stato salvato con altre operatrici: non c\'è niente da applicare.');
+      return;
+    }
+    setWeekMap(prev => ({ ...prev, ...validi }));
+    saveWeekShiftsBulk(weekStart, validi);
+    setMenuModelli(false);
+  };
+
+  const salvaSettimanaComeModello = async () => {
+    const nome = prompt('Come si chiama questo modello?\nEs. "settimana normale", "agosto ridotto"');
+    if (!nome) return;
+    const r = await salvaModelloTurni(nome, weekMap);
+    if (!r.ok) { alert(r.error || 'Non salvato'); return; }
+    caricaModelli();
+    setMenuModelli(false);
+  };
+
   const editingOp = editModal ? operators.find(o => o.id === editModal.operatorId) : null;
 
   // Stats
@@ -779,12 +826,61 @@ function WeeklyShiftPlanner({ operators }: { operators: Operator[] }) {
             <span className="text-text-muted">•</span>
             <span>Ore settimana: {totalHoursWeek.toFixed(0)}h</span>
           </div>
-          {weekIsEmpty && (
-            <button onClick={copyPreviousWeek} title="Copia i turni dalla settimana precedente"
+          {/* Copiare la settimana prima è la cosa che si fa nove volte su
+              dieci: prima compariva solo a griglia vuota, cioè quasi mai. */}
+          <button onClick={() => {
+            if (!weekIsEmpty && !confirm('Questa settimana ha già dei turni: copiando quella precedente li sostituisci. Vai avanti?')) return;
+            copyPreviousWeek();
+          }} title="Copia i turni dalla settimana precedente"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+            <Copy className="w-3.5 h-3.5" /> Copia sett. precedente
+          </button>
+
+          {/* I modelli: si salva una settimana buona e la si riusa. */}
+          <div className="relative">
+            <button onClick={() => setMenuModelli(v => !v)}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors">
-              <Calendar className="w-3.5 h-3.5" /> Copia sett. precedente
+              <LayoutTemplate className="w-3.5 h-3.5" /> Modelli
+              {modelli.length > 0 && <span className="text-[10px] text-text-muted">({modelli.length})</span>}
             </button>
-          )}
+            {menuModelli && (
+              <>
+                <div className="fixed inset-0 z-[40]" onClick={() => setMenuModelli(false)} />
+                <div className="absolute right-0 mt-1 z-[41] w-72 rounded-xl border border-border bg-bg-secondary shadow-2xl overflow-hidden">
+                  <div className="px-3 py-2 border-b border-border/60">
+                    <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Modelli di settimana</p>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto divide-y divide-border/40">
+                    {modelli.length === 0 && (
+                      <p className="px-3 py-4 text-xs text-text-muted">
+                        Nessun modello. Compila una settimana come ti piace e salvala qui sotto: dopo la
+                        riapplichi in un tocco.
+                      </p>
+                    )}
+                    {modelli.map(m => (
+                      <div key={m.id} className="flex items-center gap-2 px-3 py-2 hover:bg-bg-hover">
+                        <button onClick={() => applicaModello(m)} className="flex-1 min-w-0 text-left">
+                          <span className="block text-sm text-text-primary truncate">{m.nome}</span>
+                          <span className="block text-[10px] text-text-muted">{m.ore}h in tutto</span>
+                        </button>
+                        <button onClick={async () => {
+                          if (!confirm(`Elimino il modello "${m.nome}"?`)) return;
+                          await eliminaModelloTurni(m.id);
+                          caricaModelli();
+                        }} className="p-1 rounded-lg text-text-muted hover:text-error" title="Elimina il modello">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={salvaSettimanaComeModello} disabled={weekIsEmpty}
+                    className="w-full px-3 py-2.5 text-xs font-semibold text-accent hover:bg-accent/10 border-t border-border/60 disabled:opacity-40 disabled:hover:bg-transparent">
+                    + Salva questa settimana come modello
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <div className="flex items-center gap-1">
             <button onClick={() => setWeekOffset(p => p - 1)} className="p-1.5 rounded-lg hover:bg-bg-hover border border-border text-text-secondary transition-colors"><ChevronLeft className="w-4 h-4" /></button>
             <button onClick={() => setWeekOffset(0)} className="px-2.5 py-1.5 rounded-lg hover:bg-bg-hover border border-border text-xs font-medium text-text-primary transition-colors">Oggi</button>
