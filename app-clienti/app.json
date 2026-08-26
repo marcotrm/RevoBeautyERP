@@ -7,6 +7,12 @@
     "icon": "./assets/images/icon.png",
     "scheme": "revobeautyclienti",
     "userInterfaceStyle": "automatic",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/61e21c08-cd92-4f98-8a77-54327b714c0d"
+    },
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.torna.quisvapoclienti",
