@@ -21,7 +21,7 @@ export default function MagazzinoStatsPage() {
       {groups ? <KpiGrid kpis={kpiDelGruppo(groups, 'Magazzino')} /> : <Caricamento />}
 
       <Card titolo="Prodotti più venduti"
-        spiega="Fatturato e pezzi usciti dalla cassa negli ultimi 12 mesi. Chi sta in fondo alla lista occupa scaffale e soldi senza restituirli: o lo si spinge, o lo si smette di riordinare.">
+        spiega="Fatturato e pezzi usciti dalla cassa negli ultimi 12 mesi. Chi sta in fondo alla lista occupa scaffale e soldi senza restituirli: o lo si spinge, o lo si smette di riordinare. Premi una riga per vedere ogni vendita: giorno, cliente, pezzi.">
         {trends
           ? <Classifica righe={trends.topProdotti} formato={eur} onScegli={setDettaglio} etichettaExtra={n => `${n} pz`} />
           : <Caricamento />}

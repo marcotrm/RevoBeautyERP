@@ -62,14 +62,14 @@ export default function ServiziPage() {
 
       <div className="grid lg:grid-cols-2 gap-4">
         <Card titolo="Trattamenti che fatturano di più"
-          spiega="Valore dei trattamenti completati negli ultimi 12 mesi. Non è la stessa classifica del numero: un servizio fatto poco ma caro può valere più di uno fatto sempre.">
+          spiega="Valore dei trattamenti completati negli ultimi 12 mesi. Non è la stessa classifica del numero: un servizio fatto poco ma caro può valere più di uno fatto sempre. Premi una riga per vedere quando è stato fatto, a chi, e quante clienti hanno riprenotato subito.">
           {trends
             ? <Classifica righe={trends.topTrattamentiFatturato} formato={eur} onScegli={setDettaglio} etichettaExtra={n => `${n} ${n === 1 ? 'volta' : 'volte'}`} />
             : <Caricamento />}
         </Card>
 
         <Card titolo="Trattamenti più richiesti"
-          spiega="Gli stessi servizi contati per numero di volte. Quelli in alto qui ma non nella classifica a fianco sono i candidati a un ritocco di prezzo.">
+          spiega="Gli stessi servizi contati per numero di volte. Quelli in alto qui ma non nella classifica a fianco sono i candidati a un ritocco di prezzo. Premi una riga per il dettaglio: date, clienti, riprenotazioni.">
           {trends
             ? <Classifica righe={trends.topTrattamentiNumero} formato={numero} onScegli={setDettaglio} etichettaExtra={n => eur(n)} />
             : <Caricamento />}

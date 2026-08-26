@@ -309,7 +309,12 @@ export function Classifica({ righe, formato = eur, etichettaExtra, onScegli }: {
           <span className="text-[11px] text-text-muted w-5 text-right flex-shrink-0">{i + 1}</span>
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm text-text-primary truncate">{r.nome}</span>
+              <span className="text-sm text-text-primary truncate">
+                {r.nome}
+                {/* Un segno che la riga si apre: senza, il dettaglio non lo
+                    trova nessuno — nessuno prova a premere una classifica. */}
+                {onScegli && <span className="text-accent text-[10px] font-semibold ml-1.5 opacity-60">apri ›</span>}
+              </span>
               <span className="text-sm font-semibold text-text-primary flex-shrink-0">
                 {formato(r.valore)}
                 {r.extra !== undefined && etichettaExtra && (
