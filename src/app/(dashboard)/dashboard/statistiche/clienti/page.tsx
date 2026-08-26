@@ -7,6 +7,8 @@ import {
 } from '@/components/stats/StatsUI';
 import FiltroPeriodo, { periodoPreset, type Periodo } from '@/components/stats/FiltroPeriodo';
 import TabellaClienti from '@/components/stats/TabellaClienti';
+import Demografia from '@/components/stats/Demografia';
+import { demografiaClienti, type Demografia as DatiDemografia } from '@/app/actions/demografia';
 import { useKpiGroups, useTrends, kpiDelGruppo } from '@/components/stats/useStats';
 import { getClientRanking, type ClientRow } from '@/app/actions/clientStats';
 
@@ -47,6 +49,18 @@ export default function ClientiPage() {
   const [righe, setRighe] = useState<ClientRow[] | null>(null);
   /** Le schede di casa tenute fuori dai conti: si dicono, non si nascondono. */
   const [escluse, setEscluse] = useState<string[]>([]);
+  /*
+    Chi frequenta il centro non dipende dal periodo scelto sotto: è la
+    fotografia di chi è venuto da quando il centro ha aperto.
+  */
+  const [demografia, setDemografia] = useState<DatiDemografia | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    const avvio = setTimeout(() => {
+      demografiaClienti().then(d => { if (vivo) setDemografia(d); }).catch(() => {});
+    }, 0);
+    return () => { vivo = false; clearTimeout(avvio); };
+  }, []);
 
   useEffect(() => {
     let vivo = true;
@@ -63,6 +77,9 @@ export default function ClientiPage() {
       {errore && <div className="p-4 rounded-xl bg-error/10 border border-error/20 text-error text-sm">{errore}</div>}
 
       {groups ? <KpiGrid kpis={kpiDelGruppo(groups, 'Clienti')} /> : <Caricamento />}
+
+      {/* ===== Chi frequenta il centro (età, genere, città) ===== */}
+      <Demografia dati={demografia} />
 
       {/* ===== Analisi per periodo ===== */}
       <div className="space-y-4 pt-2">
