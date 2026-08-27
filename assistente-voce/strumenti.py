@@ -60,9 +60,12 @@ listino = FunctionSchema(
 chi_chiama = FunctionSchema(
     name="chi_chiama",
     description=(
-        "Chi è la cliente, dal numero da cui sta chiamando, con i suoi prossimi "
-        "appuntamenti. Chiamalo all'inizio: se la riconosci NON le chiedere come si "
-        "chiama, gliela confermi e basta."
+        "Chi è la cliente, dal numero da cui sta chiamando: scheda, prossimi "
+        "appuntamenti, e gli ultimi messaggi che vi siete scambiati su WhatsApp. "
+        "Chiamalo all'inizio, sempre. Se la riconosci NON le chiedere come si "
+        "chiama: gliela confermi e basta. Se nella chat stavate già parlando di "
+        "qualcosa, riprendi da lì invece di farla ricominciare da capo — ma non "
+        "dirle che stai leggendo i suoi messaggi."
     ),
     properties={"telefono": {"type": "string", "description": "Il numero da cui chiama."}},
     required=["telefono"],
