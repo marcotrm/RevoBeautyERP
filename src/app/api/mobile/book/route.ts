@@ -42,7 +42,18 @@ export async function POST(request: Request) {
 
   // Ricontrollo della disponibilità al momento della conferma: rispetta turni,
   // pause e appuntamenti già presi (stesso motore della pagina web).
-  const { slots } = await slotDisponibili({ date: b.date, services: richiesti, gender });
+  /*
+    Il ricontrollo parte DALL'ORARIO CHIESTO, non dall'apertura.
+
+    Senza `oraDa` la griglia degli orari possibili riparte dall'apertura del
+    centro, e con un passo che non divide la giornata in modo tondo cade su
+    minuti diversi da quelli che la cliente ha visto: la ricerca dalle 15:00
+    offriva le 18:45, il ricontrollo dall'apertura conosceva solo le 18:50, e
+    la prenotazione moriva con "questo orario non e' piu' disponibile" su un
+    orario che era liberissimo. Ancorando la griglia all'ora richiesta, quel
+    momento viene sempre valutato per quello che e'.
+  */
+  const { slots } = await slotDisponibili({ date: b.date, services: richiesti, gender, oraDa: b.startTime });
   const slot = slots.find(s => s.time === b.startTime);
   if (!slot) return Response.json({ error: 'Questo orario non è più disponibile.', code: 'NOT_CANCELLABLE' }, { status: 409 });
 
