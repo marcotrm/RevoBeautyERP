@@ -67,6 +67,22 @@ export async function POST(request: Request) {
       aperto: !eChiuso(centro, oggi),
       apre: orarioOggi?.apre ?? null,
       chiude: orarioOggi?.chiude ?? null,
+      /*
+        Aperto ADESSO, non «aperto oggi».
+
+        Sono due cose diverse e la differenza conta per una sola decisione, ma
+        pesante: se passare la chiamata a una persona. Alle nove di sera di un
+        martedi' «aperto oggi» e' vero e in negozio non c'e' nessuno; girarle
+        la telefonata vuol dire farle sentire squillare a vuoto dopo che
+        l'assistente le ha detto «ti passo una collega».
+      */
+      adessoAperto: !eChiuso(centro, oggi) && (() => {
+        if (!orarioOggi) return false;
+        const adesso = new Intl.DateTimeFormat('it-IT', {
+          timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit', hour12: false,
+        }).format(new Date()).replace('.', ':');
+        return adesso >= orarioOggi.apre && adesso < orarioOggi.chiude;
+      })(),
     },
     /** Solo quelle che devono ancora arrivare: le ferie del mese scorso non servono. */
     chiusure: (centro.chiusure || []).filter(d => d >= oggi).sort(),
