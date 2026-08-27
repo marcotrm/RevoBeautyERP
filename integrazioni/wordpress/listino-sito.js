@@ -93,6 +93,10 @@
   };
 
   function euro(n) {
+    // Zero non e' gratis: il gestionale lo mostra come «su richiesta», e la
+    // pagina pubblica del listino fa gia' cosi'. «0,00 €» in vetrina e' un'altra
+    // cosa, e non e' quella che il centro vuole dire.
+    if (!n || n <= 0) return 'su richiesta';
     return n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
   }
 
