@@ -27,12 +27,31 @@ export function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '').slice(-9);
 }
 
+/**
+ * Chi sta chiamando, cercato dalle ultime nove cifre del numero.
+ *
+ * Prima si tirava dentro l'intera rubrica a ogni chiamata e si filtrava in
+ * JavaScript: funziona, ma sta sul percorso critico di ogni telefonata e
+ * cresce con il centro. Adesso si prova prima la strada corta — il numero
+ * salvato così com'è finisce quasi sempre con quelle nove cifre — e solo se
+ * non trova niente si ripiega sul confronto normalizzato, che è l'unico che
+ * regge i numeri scritti con spazi, punti o il prefisso attaccato.
+ */
+const CAMPI_CLIENTE = {
+  id: true, firstName: true, lastName: true, phone: true, gender: true,
+} as const;
+
 export async function findClientByPhone(phone: string) {
   const normalized = normalizePhone(phone);
   if (normalized.length < 6) return null;
-  const clients = await prisma.client.findMany({
-    select: { id: true, firstName: true, lastName: true, phone: true },
+
+  const diretto = await prisma.client.findFirst({
+    where: { phone: { endsWith: normalized } },
+    select: CAMPI_CLIENTE,
   });
+  if (diretto) return diretto;
+
+  const clients = await prisma.client.findMany({ select: CAMPI_CLIENTE });
   return clients.find((c) => normalizePhone(c.phone) === normalized) || null;
 }
 
@@ -55,6 +74,16 @@ export function todayInItaly(): string {
 const BLOCKING_STATUSES = ['confirmed', 'pending', 'in_progress', 'in_cabin', 'completed'];
 
 // Slot liberi di un'operatrice in una data, a passi di 30 minuti
+/**
+ * @deprecated Guarda solo apertura e chiusura del centro: ignora il turno vero
+ * dell'operatrice, la pausa, la settimana personalizzata di Staff → Turni, le
+ * fasce bloccate in agenda e chi quel lavoro lo sa fare. Proponeva le 15:00 a
+ * chi è in pausa e le 16:00 a chi stacca alle 14.
+ *
+ * Usa `slotDisponibili` o `cercaSlot` di `lib/bookingEngine`, che è il motore
+ * di tutto il resto — app clienti, pagina /prenota e assistente al telefono.
+ * Resta qui finché non è certo che nessuno la chiami più.
+ */
 export async function getFreeSlots(date: string, operatorId: string, duration: number): Promise<string[]> {
   const appointments = await prisma.appointment.findMany({
     where: { date, operatorId, status: { in: BLOCKING_STATUSES } },

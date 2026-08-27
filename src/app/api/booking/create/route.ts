@@ -75,7 +75,7 @@ export async function POST(request: Request) {
         createdAt: new Date().toISOString(),
         marketingConsent: !!b.marketingConsent,
       },
-      select: { id: true, firstName: true, lastName: true, phone: true },
+      select: { id: true, firstName: true, lastName: true, phone: true, gender: true },
     });
   }
 
