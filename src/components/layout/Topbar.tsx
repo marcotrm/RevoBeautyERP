@@ -9,8 +9,9 @@ import { useRolesStore } from '@/stores/useRolesStore';
 import { mockNotifications } from '@/lib/mock-data';
 import {
   Search, Bell, Menu, ChevronDown,
-  Command, LogOut, User as UserIcon, BookUser, CheckSquare
+  Command, LogOut, User as UserIcon, BookUser, CheckSquare, Sun, Moon
 } from 'lucide-react';
+import { useThemeStore } from '@/stores/useThemeStore';
 import { getInitials, getRelativeTime } from '@/lib/helpers';
 import ClientChat from '@/components/chat/ClientChat';
 import RubricaModal from '@/components/RubricaModal';
@@ -40,6 +41,7 @@ export default function Topbar() {
   const [showNotifications, setShowNotifications] = React.useState(false);
   const [showUserMenu, setShowUserMenu] = React.useState(false);
   const [showRubrica, setShowRubrica] = React.useState(false);
+  const toggleTheme = useThemeStore(s => s.toggleTheme);
   const router = useRouter();
   
   const handleLogout = () => {
@@ -116,6 +118,30 @@ export default function Topbar() {
         >
           <BookUser className="w-4.5 h-4.5" />
           <span className="hidden lg:inline">Rubrica</span>
+        </button>
+
+        {/*
+          Chiaro e scuro, da qualunque pagina.
+
+          Stava in Impostazioni → Aspetto, che pero' e' una scheda che vedono
+          solo gli account con i permessi pieni: alle ragazze del centro
+          l'interruttore non era proprio raggiungibile, e a fine turno con la
+          luce del negozio abbassata il bianco acceca. Qui non dipende dai
+          permessi e non ruba una riga al menu.
+
+          L'icona non guarda lo stato salvato ma la classe `dark` sul
+          documento, quindi al primo caricamento e' gia' quella giusta: sole
+          quando lo sfondo e' scuro (premi e schiarisce), luna quando e'
+          chiaro.
+        */}
+        <button
+          onClick={toggleTheme}
+          title="Sfondo chiaro o scuro"
+          aria-label="Cambia fra sfondo chiaro e scuro"
+          className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary transition-colors"
+        >
+          <Sun className="w-5 h-5 hidden dark:block" />
+          <Moon className="w-5 h-5 dark:hidden" />
         </button>
 
         {/* Notifications */}
