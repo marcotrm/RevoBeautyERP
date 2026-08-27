@@ -25,6 +25,13 @@
  * dall'app mentre la conversazione è aperta, il posto risulta occupato al
  * messaggio dopo.
  *
+ * ── Su chi ha davanti ───────────────────────────────────────────────────
+ * Legge la scheda vera: cosa ha fatto le ultime volte, da chi ci va di solito,
+ * che pacchetti ha già pagato, che prezzo riservato ha. Serve a tre cose che
+ * separano una segretaria da un centralino — capire «il solito», non proporre
+ * un'altra operatrice come se niente fosse, e non chiedere soldi a chi quella
+ * seduta l'ha già pagata.
+ *
  * ── Sul mandare un messaggio solo ───────────────────────────────────────
  * Il turno finisce con UNA chiamata a `rispondiUnaVolta`, mai con due. Il testo
  * che il modello produce fra una chiamata di strumento e l'altra non parte:
@@ -43,10 +50,14 @@ import { cercaSlot, type ServizioRichiesto } from './bookingEngine';
 import { preparaPrenotazione, scriviAppuntamento, type DatiPrenotazione } from './vocePrenota';
 import { spostaAppuntamento, disdiciAppuntamento, prossimiAppuntamenti } from './agendaAgente';
 import { firmaConferma, leggiConferma } from './conferma';
-import { findClientByPhone, todayInItaly, PREAVVISO_ORE } from './voice';
+import { todayInItaly, PREAVVISO_ORE } from './voice';
 import { dataParlata, quandoParlato } from './parlato';
 import { sendTelegram } from './telegram';
 import { avanzaLead, leadDaTelefono } from './lead';
+import { schedaDiChiScrive, type SchedaInChat } from './clienteInChat';
+import { packageCoreName } from './packageTreatment';
+import { fetchD360Media } from './whatsapp360';
+import type { WaMedia } from './wa-conversations';
 import {
   registraArrivo, attendiSilenzio, prendiTurno, rilasciaTurno, rispondiUnaVolta,
 } from './wa-antiflood';
@@ -89,6 +100,8 @@ interface StatoChat {
   giorno: string;
   /** Messaggi arrivati e non ancora letti dal modello (la raffica). */
   pendenti: string[];
+  /** Foto arrivate nella stessa raffica, da guardare insieme al testo. */
+  fotoPendenti?: Array<{ id: string; mime?: string }>;
   /** Fino a quando la segretaria sta zitta perché ha passato la palla a una persona. */
   mutoFino?: string;
 }
@@ -106,6 +119,7 @@ async function leggiStato(phone: string): Promise<StatoChat> {
     risposteOggi: s?.giorno === oggi ? s.risposteOggi || 0 : 0,
     giorno: oggi,
     pendenti: s?.pendenti || [],
+    fotoPendenti: s?.fotoPendenti || [],
     mutoFino: s?.mutoFino,
   };
 }
@@ -127,7 +141,9 @@ const STRUMENTI: Anthropic.Tool[] = [
   {
     name: 'chi_e',
     description:
-      'Chi sta scrivendo, riconosciuto dal numero, con i suoi prossimi appuntamenti. '
+      'La scheda di chi sta scrivendo, riconosciuta dal numero: prossimi appuntamenti, ultimi '
+      + 'trattamenti fatti (serve per capire «il solito»), operatrice abituale, pacchetti già '
+      + 'pagati con le sedute che restano, credito e buoni. '
       + 'Chiamalo SEMPRE per primo: se la persona è già in rubrica non devi chiederle come si chiama.',
     input_schema: { type: 'object', properties: {} },
   },
@@ -141,8 +157,11 @@ const STRUMENTI: Anthropic.Tool[] = [
   {
     name: 'listino',
     description:
-      'I trattamenti con prezzo e durata veri, separati donna e uomo. '
-      + 'Cerca per nome ("ceretta", "baffetto") o per categoria. Torna anche gli id, che servono per prenotare.',
+      'I trattamenti con prezzo e durata veri, separati donna e uomo, PIÙ il prezzo che paga '
+      + 'davvero questa cliente (`perQuestaCliente`): zero se ha una seduta dentro un pacchetto '
+      + 'aperto, il suo prezzo riservato se ne ha uno in scheda. Quando c\'è, quella è la cifra '
+      + 'da dire — il listino no. Cerca per nome ("ceretta", "baffetto") o per categoria. '
+      + 'Torna anche gli id, che servono per prenotare.',
     input_schema: {
       type: 'object',
       properties: {
@@ -155,7 +174,9 @@ const STRUMENTI: Anthropic.Tool[] = [
     name: 'quando_c_e_posto',
     description:
       'Gli orari davvero liberi, guardando i turni veri delle operatrici, le pause e quello che è già in agenda '
-      + '(comprese le prenotazioni arrivate dall\'app). Non proporre MAI un orario che non sia uscito da qui.',
+      + '(comprese le prenotazioni arrivate dall\'app). Non proporre MAI un orario che non sia uscito da qui. '
+      + 'Se il giorno chiesto è pieno ti dà già i primi utili in `maCiSarebbe`: proponili subito, '
+      + 'nello stesso messaggio, invece di rispondere solo che non c\'è posto.',
     input_schema: {
       type: 'object',
       properties: {
@@ -273,19 +294,62 @@ interface Contesto {
   passata: string | null;
   /** Riempita da "prenota": serve a far avanzare il contatto e a non chiedere due volte. */
   prenotato: { id: string; clientId: string } | null;
+  /** `undefined` = non ancora letta, `null` = numero non in rubrica. */
+  scheda?: SchedaInChat | null;
+}
+
+/**
+ * La scheda della cliente, letta una volta per turno.
+ *
+ * La chiedono tre strumenti diversi — chi è, quanto costa, quando c'è posto —
+ * e rileggerla ogni volta significa tre giri di query identiche mentre la
+ * cliente aspetta.
+ */
+async function scheda(ctx: Contesto): Promise<SchedaInChat | null> {
+  if (ctx.scheda === undefined) {
+    ctx.scheda = await schedaDiChiScrive(ctx.phone).catch(() => null);
+    if (ctx.scheda) ctx.clienteId = ctx.scheda.id;
+  }
+  return ctx.scheda;
+}
+
+/**
+ * Il pacchetto attivo che copre questo trattamento, se c'è.
+ *
+ * Il legame nel database non esiste: si confrontano i nomi ripuliti dalle
+ * parole di servizio ("pacchetto", "10 sedute", "x5"). Se non combacia niente
+ * non si indovina — dire «è già pagato» a chi poi si vede chiedere i soldi in
+ * cassa è peggio che non dirlo.
+ */
+function pacchettoCheCopre(sch: SchedaInChat | null, nomeTrattamento: string) {
+  if (!sch?.pacchetti.length) return null;
+  const t = packageCoreName(nomeTrattamento);
+  if (!t) return null;
+  return sch.pacchetti.find(p => {
+    const n = packageCoreName(p.nome);
+    return n && (n === t || n.includes(t) || t.includes(n));
+  }) || null;
 }
 
 /** Esegue uno strumento e torna il testo che il modello leggerà. */
 async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<string> {
   const dati = (input || {}) as Record<string, unknown>;
   const oggi = todayInItaly();
-  const sesso: 'male' | 'female' = dati.uomo === true ? 'male' : 'female';
+
+  /*
+    Il sesso decide prezzo e durata su quasi tutto il listino. Se la persona è
+    in rubrica lo sa il gestionale, e vale più di quello che ha dedotto il
+    modello dal nome: `uomo` nell'input serve solo per chi in rubrica non c'è.
+  */
+  const inRubrica = await scheda(ctx);
+  const sesso: 'male' | 'female' = inRubrica
+    ? (inRubrica.uomo ? 'male' : 'female')
+    : (dati.uomo === true ? 'male' : 'female');
 
   switch (nome) {
     case 'chi_e': {
-      const cliente = await findClientByPhone(ctx.phone);
-      const lead = await leadDaTelefono(ctx.phone);
-      if (!cliente) {
+      const [sch, lead] = await Promise.all([scheda(ctx), leadDaTelefono(ctx.phone)]);
+      if (!sch) {
         return JSON.stringify({
           inRubrica: false,
           nota: 'Numero non in rubrica: chiedi nome e cognome quando arrivi a prenotare, non prima.',
@@ -294,13 +358,15 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
             : null,
         });
       }
-      ctx.clienteId = cliente.id;
-      const appuntamenti = await prossimiAppuntamenti(cliente.id);
+
+      const appuntamenti = await prossimiAppuntamenti(sch.id);
       return JSON.stringify({
         inRubrica: true,
-        nome: cliente.firstName,
-        nomeCompleto: `${cliente.firstName} ${cliente.lastName}`.trim(),
-        uomo: cliente.gender === 'M',
+        nome: sch.nome,
+        nomeCompleto: sch.nomeCompleto,
+        uomo: sch.uomo,
+        quanteVolte: sch.quanteVolte,
+        ultimaVisita: sch.ultimaVisita,
         prossimiAppuntamenti: appuntamenti.map(a => ({
           id: a.id,
           quando: quandoParlato(a.date, a.startTime, oggi),
@@ -309,6 +375,22 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
           trattamento: a.treatmentName,
           con: a.operatorName.split(' ')[0],
         })),
+        /* Serve per capire «il solito»: è la domanda più frequente che c'è, e
+           senza storico la risposta è «cosa intendi?». */
+        ultimiTrattamenti: sch.storico,
+        operatriceAbituale: sch.operatriceAbituale,
+        nota: sch.operatriceAbituale
+          ? `Va quasi sempre da ${sch.operatriceAbituale}: se proponi un orario con un'altra, dillo invece di darlo per scontato.`
+          : undefined,
+        /* Sedute già pagate. Chiedere i soldi a chi ha un pacchetto aperto è
+           l'errore che al banco non succede mai. */
+        pacchettiAperti: sch.pacchetti.map(p => ({
+          nome: p.nome, sedute: p.rimaste, su: p.totali, omaggio: p.omaggio, scade: p.scade,
+        })),
+        prezziSuMisura: sch.suMisura.length,
+        creditoEuro: sch.creditoEuro || undefined,
+        buoniRegaloEuro: sch.buoniEuro || undefined,
+        punti: sch.punti || undefined,
         dalSito: lead ? { chiesto: lead.service || null, quando: lead.createdAt.slice(0, 10) } : null,
       });
     }
@@ -356,15 +438,45 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
       if (trattamenti.length === 0) {
         return JSON.stringify({ trovati: 0, nota: 'Niente con questo nome. Non inventare: chiedi alla cliente di dirlo con parole sue, o passa al centro.' });
       }
+
+      /*
+        Il prezzo che conta è quello DI QUESTA CLIENTE, non quello del cartello.
+        Tre casi, in quest'ordine: una seduta già pagata dentro un pacchetto
+        aperto, un prezzo scritto su misura nella sua scheda, e solo per ultimo
+        il listino. Rispondere «sono 60 euro» a chi ha tre sedute prepagate è
+        un errore che al banco non succede mai.
+      */
+      const sch = await scheda(ctx);
+
       return JSON.stringify({
         trovati: trattamenti.length,
-        trattamenti: trattamenti.map(t => ({
-          id: t.id,
-          nome: t.name,
-          categoria: t.category,
-          donna: { prezzo: t.priceFemale ?? t.price, durata: t.durationFemale ?? t.duration },
-          uomo: { prezzo: t.priceMale ?? t.priceFemale ?? t.price, durata: t.durationMale ?? t.durationFemale ?? t.duration },
-        })),
+        trattamenti: trattamenti.map(t => {
+          const misura = sch?.suMisura.find(m => m.treatmentId === t.id);
+          const pacchetto = pacchettoCheCopre(sch, t.name);
+          const listinoDonna = t.priceFemale ?? t.price;
+          const listinoUomo = t.priceMale ?? t.priceFemale ?? t.price;
+
+          return {
+            id: t.id,
+            nome: t.name,
+            categoria: t.category,
+            donna: { prezzo: listinoDonna, durata: t.durationFemale ?? t.duration },
+            uomo: { prezzo: listinoUomo, durata: t.durationMale ?? t.durationFemale ?? t.duration },
+            perQuestaCliente: pacchetto
+              ? {
+                  daPagare: 0,
+                  perche: `già pagato: ${pacchetto.nome}, ${pacchetto.rimaste} ${pacchetto.rimaste === 1 ? 'seduta' : 'sedute'} ancora da fare`,
+                  nota: 'Diglielo: non chiedere soldi per una seduta che ha già pagato.',
+                }
+              : misura
+                ? {
+                    daPagare: misura.price,
+                    perche: 'prezzo riservato, scritto nella sua scheda',
+                    nota: 'Di\' solo la cifra. Non dire che è un prezzo speciale e non paragonarlo al listino.',
+                  }
+                : undefined,
+          };
+        }),
       });
     }
 
@@ -380,37 +492,63 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         quanti = 1;
       }
 
-      const { giorni, durataTotale, prezzoTotale } = await cercaSlot({
-        dateFrom,
-        giorni: quanti,
-        services,
-        gender: sesso,
-        oraDa: typeof dati.dalle === 'string' ? dati.dalle : null,
-        oraA: typeof dati.alle === 'string' ? dati.alle : null,
-        maxPerGiorno: 5,
+      const dillo = (g: { date: string; slots: Array<{ time: string; assegnazioni: Array<{ operatorName: string }> }> }) => ({
+        data: g.date,
+        giorno: dataParlata(g.date, oggi),
+        orari: g.slots.slice(0, 5).map(s => ({
+          ora: s.time,
+          con: [...new Set(s.assegnazioni.map(a => a.operatorName.split(' ')[0]))].join(' e '),
+        })),
       });
 
-      if (giorni.length === 0) {
+      const fascia = {
+        oraDa: typeof dati.dalle === 'string' ? dati.dalle : null,
+        oraA: typeof dati.alle === 'string' ? dati.alle : null,
+      };
+
+      const { giorni, durataTotale, prezzoTotale } = await cercaSlot({
+        dateFrom, giorni: quanti, services, gender: sesso, ...fascia, maxPerGiorno: 5,
+      });
+
+      if (giorni.length > 0) {
         return JSON.stringify({
-          trovato: false,
+          trovato: true,
           durataMinuti: durataTotale,
           prezzo: prezzoTotale,
-          nota: 'Niente posto con questi criteri. Chiedi alla cliente se va bene un altro giorno o un\'altra fascia oraria.',
+          giorni: giorni.slice(0, 4).map(dillo),
         });
       }
 
+      /*
+        Niente posto nel giorno chiesto: si guarda avanti PRIMA di rispondere.
+
+        Un «quel giorno non c'è posto» secco costringe la cliente a chiedere di
+        nuovo, e a ogni giro se ne perde un pezzo per strada. Al banco nessuno
+        risponde così: si dice subito qual è il primo giorno buono. Qui la
+        seconda ricerca costa una query e fa la differenza fra un bot e una
+        segretaria.
+      */
+      if (quanti === 1) {
+        const vicini = await cercaSlot({
+          dateFrom, giorni: 14, services, gender: sesso, ...fascia, maxPerGiorno: 4,
+        });
+        if (vicini.giorni.length > 0) {
+          return JSON.stringify({
+            trovato: false,
+            quelGiornoNo: dataParlata(dateFrom, oggi),
+            durataMinuti: vicini.durataTotale,
+            prezzo: vicini.prezzoTotale,
+            maCiSarebbe: vicini.giorni.slice(0, 3).map(dillo),
+            nota: 'Dille che quel giorno è pieno e proponi subito il primo utile, in un messaggio solo.',
+          });
+        }
+      }
+
       return JSON.stringify({
-        trovato: true,
+        trovato: false,
         durataMinuti: durataTotale,
         prezzo: prezzoTotale,
-        giorni: giorni.slice(0, 4).map(g => ({
-          data: g.date,
-          giorno: dataParlata(g.date, oggi),
-          orari: g.slots.slice(0, 5).map(s => ({
-            ora: s.time,
-            con: [...new Set(s.assegnazioni.map(a => a.operatorName.split(' ')[0]))].join(' e '),
-          })),
-        })),
+        nota: 'Niente posto con questi criteri, nemmeno allargando. Chiedi alla cliente se va bene un\'altra fascia oraria, o passa al centro.',
       });
     }
 
@@ -490,8 +628,8 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
     case 'passa_a_persona': {
       const motivo = String(dati.motivo || 'senza motivo indicato').slice(0, 400);
       ctx.passata = motivo;
-      const cliente = await findClientByPhone(ctx.phone);
-      const chi = cliente ? `${cliente.firstName} ${cliente.lastName}`.trim() : ctx.phone;
+      const sch = await scheda(ctx);
+      const chi = sch ? sch.nomeCompleto : ctx.phone;
       sendTelegram(
         `🙋 *Serve una persona su WhatsApp*\n\n${chi} (${ctx.phone})\n\n${motivo}`
       ).catch(() => {});
@@ -504,6 +642,50 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
     default:
       return JSON.stringify({ errore: `Strumento sconosciuto: ${nome}` });
   }
+}
+
+/**
+ * Le foto che la cliente manda.
+ *
+ * Prima finivano nel vuoto: il webhook lasciava cadere qualunque allegato
+ * senza didascalia, quindi chi mandava la foto delle unghie che vuole rifare
+ * — che è il modo normale di chiedere quella cosa — non riceveva risposta.
+ *
+ * Adesso la segretaria le guarda. Con un limite che non è tecnico ma di
+ * mestiere, e sta nelle istruzioni: qui è medicina estetica, e da una foto non
+ * si valuta niente. Una foto di unghie serve a capire che modello vuole; una
+ * foto di pelle serve solo a fissare la visita.
+ */
+const MIME_GUARDABILI = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+
+/** Quante foto guardare in un turno, e quanto grandi. */
+const MAX_FOTO = 2;
+const MAX_BYTE_FOTO = 3_500_000;
+
+async function scaricaFoto(
+  foto: Array<{ id: string; mime?: string }>
+): Promise<Anthropic.ImageBlockParam[]> {
+  const blocchi: Anthropic.ImageBlockParam[] = [];
+
+  for (const f of foto.slice(-MAX_FOTO)) {
+    const scaricata = await fetchD360Media(f.id).catch(() => null);
+    if (!scaricata?.ok) continue;
+    if (scaricata.body.byteLength > MAX_BYTE_FOTO) continue;
+
+    const tipo = (scaricata.mimeType || f.mime || '').split(';')[0].trim();
+    if (!MIME_GUARDABILI.has(tipo)) continue;
+
+    blocchi.push({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: tipo as Anthropic.Base64ImageSource['media_type'],
+        data: Buffer.from(scaricata.body).toString('base64'),
+      },
+    });
+  }
+
+  return blocchi;
 }
 
 // ============================================================
@@ -536,7 +718,12 @@ async function contestoDiChat(phone: string): Promise<string> {
 
 interface EsitoTurno { risposto: boolean; motivo?: string }
 
-async function turno(phone: string, messaggi: string[], stato: StatoChat): Promise<EsitoTurno> {
+async function turno(
+  phone: string,
+  messaggi: string[],
+  foto: Array<{ id: string; mime?: string }>,
+  stato: StatoChat
+): Promise<EsitoTurno> {
   const client = new Anthropic();
 
   const [istruzioni, contesto] = await Promise.all([
@@ -554,9 +741,20 @@ async function turno(phone: string, messaggi: string[], stato: StatoChat): Promi
   */
   const domanda = messaggi.join('\n').trim();
 
+  /*
+    Le foto viaggiano solo in questo turno. In memoria resta la riga di testo:
+    tenersi le immagini in tutta la conversazione costerebbe a ogni battuta,
+    e quello che conta — che cosa si sono detti guardandola — sta già nelle
+    parole.
+  */
+  const immagini = foto.length > 0 ? await scaricaFoto(foto) : [];
+  const contenuto: Anthropic.ContentBlockParam[] = immagini.length > 0
+    ? [...immagini, { type: 'text', text: domanda || 'Ti ha mandato questa foto, senza scriverci niente.' }]
+    : [{ type: 'text', text: domanda }];
+
   const conversazione: Anthropic.MessageParam[] = [
     ...stato.turni.map(t => ({ role: t.role, content: t.text })),
-    { role: 'user' as const, content: domanda },
+    { role: 'user' as const, content: contenuto },
   ];
 
   let testoFinale = '';
@@ -618,9 +816,14 @@ async function turno(phone: string, messaggi: string[], stato: StatoChat): Promi
   // conversazione non deve risultare andata avanti.
   await scriviStato({
     ...stato,
-    turni: [...stato.turni, { role: 'user', text: domanda }, { role: 'assistant', text: testoFinale }],
+    turni: [
+      ...stato.turni,
+      { role: 'user', text: immagini.length > 0 ? `[foto] ${domanda}`.trim() : domanda },
+      { role: 'assistant', text: testoFinale },
+    ],
     risposteOggi: stato.risposteOggi + 1,
     pendenti: [],
+    fotoPendenti: [],
     mutoFino: ctx.passata
       ? new Date(Date.now() + MUTO_ORE * 3_600_000).toISOString()
       : stato.mutoFino,
@@ -658,18 +861,51 @@ export async function handleSegretariaMessage(params: {
   text: string;
   messageId?: string;
   contactName?: string;
+  /** Allegato, se il messaggio ne aveva uno. */
+  media?: WaMedia;
 }): Promise<EsitoSegretaria> {
-  const { phone, text, messageId } = params;
+  const { phone, text, messageId, media } = params;
 
   try {
     const cfg = await getWaAutomationsConfig();
     if (!cfg.segretaria) return { handled: false, reason: 'segretaria spenta' };
     if (!process.env.ANTHROPIC_API_KEY) return { handled: false, reason: 'manca ANTHROPIC_API_KEY' };
-    if (!text.trim()) return { handled: false, reason: 'messaggio vuoto' };
+    if (!text.trim() && !media) return { handled: false, reason: 'messaggio vuoto' };
 
     // Riconsegna di Meta: già letto, già risposto.
     if (!(await registraArrivo(phone, messageId))) {
       return { handled: true, reason: 'messaggio già elaborato' };
+    }
+
+    /*
+      Vocali, video e documenti: qui il modello non li apre.
+
+      Prima cadevano nel silenzio, ed è la cosa peggiore: la cliente ha
+      mandato un vocale di quaranta secondi e non riceve niente, quindi lo
+      rimanda, poi scrive «ci sei?». Adesso riceve una riga sola che le dice
+      cosa fare, e il centro riceve l'avviso. Il vocale poi lo ascolta una
+      persona, che è comunque meglio di una trascrizione sbagliata su un nome
+      o su un orario.
+
+      La riga parte una volta sola: `rispondiUnaVolta` rifiuta lo stesso testo
+      se è già uscito da meno di dieci minuti, quindi tre vocali di fila non
+      diventano tre risposte identiche.
+    */
+    if (media && media.kind !== 'image' && !media.caption) {
+      if (media.kind === 'sticker') return { handled: true, reason: 'sticker: niente da rispondere' };
+
+      const cosa = media.kind === 'audio' ? 'il vocale' : 'quello che hai mandato';
+      const esito = await rispondiUnaVolta(
+        phone,
+        `Scusa, ${cosa} non riesco ad aprirlo da qui. Me lo scrivi in due righe? `
+        + 'Così ti rispondo subito. Altrimenti ci risente una collega dal centro.',
+        'assistant'
+      );
+      sendTelegram(
+        `🎤 *Allegato su WhatsApp da leggere*\n\n${phone} ha mandato ${media.kind === 'audio' ? 'un vocale' : `un ${media.kind}`}. `
+        + 'La segretaria non lo apre: guardalo dalla chat nel gestionale.'
+      ).catch(() => {});
+      return esito.inviato ? { handled: true } : { handled: false, reason: esito.motivo };
     }
 
     let stato = await leggiStato(phone);
@@ -682,8 +918,14 @@ export async function handleSegretariaMessage(params: {
     }
 
     // Il messaggio entra in coda PRIMA dell'attesa: chi risponderà per tutti
-    // deve trovarci dentro anche questo.
-    await scriviStato({ ...stato, pendenti: [...stato.pendenti, text].slice(-12) });
+    // deve trovarci dentro anche questo, foto compresa.
+    await scriviStato({
+      ...stato,
+      pendenti: [...stato.pendenti, text].filter(Boolean).slice(-12),
+      fotoPendenti: media?.kind === 'image'
+        ? [...(stato.fotoPendenti || []), { id: media.id, mime: media.mimeType }].slice(-4)
+        : stato.fotoPendenti,
+    });
 
     /*
       Si aspetta che la cliente abbia finito di scrivere. Se nel frattempo
@@ -701,8 +943,8 @@ export async function handleSegretariaMessage(params: {
 
     try {
       stato = await leggiStato(phone);
-      const messaggi = stato.pendenti.length > 0 ? stato.pendenti : [text];
-      const esito = await turno(phone, messaggi, stato);
+      const messaggi = stato.pendenti.length > 0 ? stato.pendenti : [text].filter(Boolean);
+      const esito = await turno(phone, messaggi, stato.fotoPendenti || [], stato);
       return esito.risposto
         ? { handled: true }
         : { handled: false, reason: esito.motivo };

@@ -144,10 +144,10 @@ legge il gestionale nel momento in cui viene chiamato.
 
 | Strumento | A cosa serve |
 |---|---|
-| `chi_e` | Chi scrive, dal numero, con i suoi prossimi appuntamenti e la richiesta lasciata sul sito |
+| `chi_e` | La scheda vera: prossimi appuntamenti, ultimi trattamenti fatti, operatrice abituale, pacchetti già pagati con le sedute residue, credito, buoni, e la richiesta lasciata sul sito |
 | `info_centro` | Orari, indirizzo, chiusure, categorie con fascia di prezzo |
-| `listino` | Trattamenti con prezzo e durata veri, separati donna/uomo |
-| `quando_c_e_posto` | Gli orari liberi davvero (`lib/bookingEngine`) |
+| `listino` | Trattamenti con prezzo e durata veri, separati donna/uomo, **più il prezzo che paga questa cliente** |
+| `quando_c_e_posto` | Gli orari liberi davvero (`lib/bookingEngine`). Se il giorno chiesto è pieno, propone già i primi utili |
 | `verifica_prenotazione` | Riepilogo da scrivere + gettone. Non scrive niente |
 | `prenota` | Scrive in agenda — **solo col gettone** |
 | `sposta_appuntamento` | Sposta, fino a 24 ore prima |
@@ -195,13 +195,52 @@ appena scritto in chat, e un template identico subito dopo è il doppione che fa
 silenziare la conversazione. Al telefono invece parte, perché lì la cliente non
 ha niente di scritto in mano.
 
+## Che cosa sa di chi ha davanti
+
+`lib/clienteInChat.ts` legge la scheda a ogni turno. Non per recitarla — non si
+elenca il saldo punti a nessuno — ma perché senza tre cose la segretaria resta
+un centralino:
+
+- **Il prezzo.** Se quel trattamento è dentro un pacchetto aperto, `listino`
+  risponde `daPagare: 0` con le sedute residue. Dire «sono 60 euro» a chi ne ha
+  tre prepagate è l'errore che al banco non succede mai e che a un bot fa
+  perdere la faccia in una riga. Stesso discorso per i prezzi riservati scritti
+  in scheda (`customTreatments`), che il motore degli orari da solo ignorava.
+- **«Il solito».** Metà delle richieste vere suonano così. Con lo storico degli
+  ultimi trattamenti la risposta è «la ceretta gambe come l'ultima volta?»
+  invece di «cosa intendi?».
+- **L'operatrice.** Chi va sempre dalla stessa persona non lo dice, lo dà per
+  scontato. L'operatrice abituale si calcola solo se è una risposta vera —
+  almeno metà delle visite, e almeno tre visite: una preferenza inventata è
+  peggio di nessuna preferenza.
+
+Anche il sesso viene dalla scheda, non da quello che il modello deduce dal
+nome: su quasi tutto il listino cambia prezzo e durata.
+
+## Foto e vocali
+
+**Le foto le guarda.** Prima cadevano nel vuoto — il webhook lasciava cadere
+ogni allegato senza didascalia — quindi chi mandava la foto delle unghie che
+vuole rifare, che è il modo normale di chiedere quella cosa, non riceveva
+risposta. Il limite non è tecnico ma di mestiere e sta nelle istruzioni: da una
+foto non si valuta pelle, corpo o risultati. Nemmeno «sembrerebbe». Su quelle la
+risposta è una sola, la visita in sede.
+
+**I vocali no.** Il modello non li apre, e una trascrizione sbagliata su un nome
+o su un orario è peggio del silenzio. Ma il silenzio era la cosa peggiore di
+tutte: la cliente rimandava il vocale e poi scriveva «ci sei?». Adesso riceve
+una riga sola — «non riesco ad aprirlo, me lo scrivi?» — e il centro riceve
+l'avviso su Telegram. La riga parte una volta sola anche se i vocali sono tre,
+perché `rispondiUnaVolta` rifiuta lo stesso testo entro dieci minuti.
+
 ## Tetti e limiti
 
 - **45 risposte al giorno** per numero (al telefono non c'è: lì paga il minuto).
 - **8 giri di strumenti** per turno, poi risponde con quello che ha.
 - **4 ore di silenzio** dopo `passa_a_persona`.
-- Foto e vocali senza didascalia non arrivano alla segretaria: restano in chat e
-  li legge una persona. Interpretare «📷 Foto» significherebbe rispondere a caso.
+- **2 foto** per turno, fino a 3,5 MB l'una: oltre, il turno prosegue col testo.
+- Video, documenti e vocali non li apre (vedi sopra). Gli sticker li ignora e
+  basta: non c'è niente a cui rispondere.
 
 ## Configurazione
 

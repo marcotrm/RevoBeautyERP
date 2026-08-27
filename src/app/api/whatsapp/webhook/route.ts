@@ -198,10 +198,19 @@ export async function POST(request: Request) {
         // schermata Conversazioni.
         await logInbound({ phone, text, media, name: contactName, messageId: m.id, at: now });
 
-        // Un vocale o una foto senza didascalia non sono interpretabili: farli
-        // passare ai bot significherebbe rispondere a caso a "📷 Foto".
-        // Restano in chat e li legge una persona.
-        if (media && !media.caption) continue;
+        /*
+          Allegato senza didascalia.
+
+          Per i bot a menù non è interpretabile: farlo passare significherebbe
+          rispondere a caso a "📷 Foto". La segretaria invece la foto la guarda
+          davvero, e a un vocale risponde almeno «me lo scrivi?» invece di
+          lasciare la cliente in silenzio a chiedersi se c'è qualcuno.
+
+          Quindi: con la segretaria accesa va da lei e da nessun altro; spenta,
+          resta in chat e lo legge una persona, come prima.
+        */
+        const soloSegretaria = Boolean(media && !media.caption);
+        if (soloSegretaria && !cfg.segretaria) continue;
 
         // Una reazione (il "cuoricino" su un messaggio) non è una richiesta:
         // resta in chat ma non deve far partire bot, promemoria o assistente.
@@ -221,10 +230,12 @@ export async function POST(request: Request) {
         // Copri buchi: "Lo prendo io" sul posto che si è liberato. Va prima di
         // tutto il resto perché è una corsa — vince chi risponde per prima, e
         // ogni secondo speso a interpretare altro è un secondo perso.
-        const buco = await rispostaCopriBuchi({ phone, text, payloadId });
-        if (buco.gestita) {
-          console.log(`[wa-webhook] ${phone}: copri buchi — ${buco.nota}`);
-          continue;
+        if (!soloSegretaria) {
+          const buco = await rispostaCopriBuchi({ phone, text, payloadId });
+          if (buco.gestita) {
+            console.log(`[wa-webhook] ${phone}: copri buchi — ${buco.nota}`);
+            continue;
+          }
         }
 
         /*
@@ -234,7 +245,7 @@ export async function POST(request: Request) {
           appena scelto il trattamento è peggio di qualunque bot.
         */
         const segretariaOn = cfg.segretaria;
-        const guidateInCorso = segretariaOn
+        const guidateInCorso = segretariaOn || soloSegretaria
           ? await Promise.all([spostamentoInCorso(phone), prenotazioneGuidataInCorso(phone)])
           : [true, true];
 
@@ -242,7 +253,7 @@ export async function POST(request: Request) {
         // aperta ("in che giorno?", "quale orario?"), il numero che arriva
         // adesso è una risposta a quella. Va prima della prenotazione,
         // altrimenti un "2" verrebbe letto come scelta di un trattamento.
-        if (guidateInCorso[0]) {
+        if (guidateInCorso[0] && !soloSegretaria) {
           const spostamento = await handleSpostamentoMessage({ phone, text, origin });
           if (spostamento.handled) {
             console.log(`[wa-webhook] ${phone}: spostamento, passo ${spostamento.passo || 'concluso'}`);
@@ -258,16 +269,18 @@ export async function POST(request: Request) {
           fare a lei: la via vecchia si limita ad avvisare il centro e la
           cliente resterebbe senza risposta fino al giorno dopo.
         */
-        const reply = await handleReminderReply({ phone, text, payloadId, contactName, soloConferme: segretariaOn });
-        if (reply.handled) {
-          console.log(`[wa-webhook] ${phone}: promemoria ${reply.intent} su appuntamento ${reply.appointmentId}`);
-          continue;
+        if (!soloSegretaria) {
+          const reply = await handleReminderReply({ phone, text, payloadId, contactName, soloConferme: segretariaOn });
+          if (reply.handled) {
+            console.log(`[wa-webhook] ${phone}: promemoria ${reply.intent} su appuntamento ${reply.appointmentId}`);
+            continue;
+          }
         }
 
         // Prenotazione guidata: parte su "prenota/appuntamento" e prosegue finché
         // la conversazione è aperta. Se non c'entra, il messaggio resta solo in archivio
         // e risponde una persona.
-        if (guidateInCorso[1]) {
+        if (guidateInCorso[1] && !soloSegretaria) {
           const booking = await handleBookingMessage({ phone, text, contactName, origin });
           if (booking.handled) {
             console.log(`[wa-webhook] ${phone}: prenotazione, passo ${booking.step || 'concluso'}`);
@@ -286,7 +299,9 @@ export async function POST(request: Request) {
           lavorare dopo è l'unico modo di non farlo succedere.
         */
         if (segretariaOn) {
-          const messaggio = { phone, text, contactName, messageId: m.id };
+          // La didascalia è già dentro `text` ("📷 Foto: unghie così"): alla
+          // segretaria serve anche il file, per guardarlo.
+          const messaggio = { phone, text, contactName, messageId: m.id, media };
           after(async () => {
             const esito = await handleSegretariaMessage(messaggio);
             if (!esito.handled && esito.reason) {
