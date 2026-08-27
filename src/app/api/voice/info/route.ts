@@ -55,6 +55,9 @@ export async function POST(request: Request) {
       nome: centro.nome,
       indirizzo: centro.indirizzo,
       telefono: centro.telefono,
+      // Dove passare la chiamata quando non ne viene fuori. Se non e' stato
+      // messo si ripiega sul numero pubblico.
+      telefonoPassaggio: centro.telefonoPassaggio || centro.telefono || '',
       sito: centro.sito,
       orariParlati: orariParlati(centro.orari),
     },

@@ -16,6 +16,7 @@ motivo per cui usiamo Pipecat invece di incollare le tre API a mano.
 import datetime
 import os
 
+import httpx
 from loguru import logger
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
@@ -192,23 +193,78 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
         _registra("disdetto")
         await params.result_callback(esito)
 
+    async def _trasferisci(numero: str) -> bool:
+        """
+        Riscrive il TwiML della chiamata in corso: Twilio chiude lo stream
+        verso di noi e compone il numero.
+
+        Torna vero solo se Twilio ha accettato. Se fallisce — numero scritto
+        male, credenziali scadute, chiamata gia' chiusa — chi chiama deve
+        sentirsi dire che la faremo richiamare, non «ti passo una collega»
+        seguito dal nulla.
+        """
+        twiml = f"<Response><Dial>{numero}</Dial></Response>"
+        url = (
+            f"https://api.twilio.com/2010-04-01/Accounts/"
+            f"{os.environ['TWILIO_ACCOUNT_SID']}/Calls/{call_sid}.json"
+        )
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.post(
+                    url,
+                    data={"Twiml": twiml},
+                    auth=(os.environ["TWILIO_ACCOUNT_SID"], os.environ["TWILIO_AUTH_TOKEN"]),
+                )
+            if r.status_code >= 400:
+                logger.error(f"trasferimento a {numero} rifiutato da Twilio: {r.status_code} {r.text[:300]}")
+                return False
+            logger.info(f"chiamata {call_sid} passata a {numero}")
+            return True
+        except Exception as e:
+            logger.exception(f"trasferimento a {numero} non riuscito: {e}")
+            return False
+
     async def _passa(params):
         """
-        Il trasferimento vero lo fa Twilio; qui si prepara il terreno e si
-        annota il motivo. Se il centro non ha un numero configurato, dirle di
-        richiamare è meglio che trasferirla nel vuoto.
+        Passa la chiamata a una persona. Davvero.
+
+        Qui c'era scritto «il trasferimento vero lo fa Twilio», e non lo faceva
+        nessuno: l'assistente diceva «ti passo una collega» e poi restava in
+        linea da sola. Alla cliente arrivava un silenzio, che è il modo
+        peggiore di finire una telefonata — peggio di sentirsi dire «richiami
+        più tardi», perché sembra che sia caduta la linea per colpa sua.
+
+        Il trasferimento si fa riscrivendo il TwiML della chiamata in corso:
+        Twilio stacca lo stream verso di noi e compone il numero. Da quel
+        momento il bot non c'entra più niente.
         """
         stato["note"] = params.arguments.get("motivo")
         _registra("trasferito")
+
         info = await gestionale.info_centro()
-        numero = (info.get("centro") or {}).get("telefono")
+        centro_info = info.get("centro") or {}
+        # Il numero DEDICATO al passaggio, non quello pubblico: se le chiamate
+        # del pubblico sono deviate qui, trasferircele sopra le rimanda a noi.
+        numero = (centro_info.get("telefonoPassaggio") or centro_info.get("telefono") or "").strip()
+
+        if not numero:
+            await params.result_callback({
+                "trasferimento": False,
+                "istruzione": (
+                    "Non c'è nessuno a cui passarla: scusati, dille che la faremo richiamare, e saluta."
+                ),
+            })
+            return
+
+        fatto = await _trasferisci(numero)
         await params.result_callback({
-            "trasferimento": bool(numero),
-            "numero": numero,
+            "trasferimento": fatto,
+            "numero": numero if fatto else None,
             "istruzione": (
-                "Di' alla cliente che la passi a una collega, poi saluta."
-                if numero else
-                "Non c'è nessuno a cui passarla: scusati, dille che la faremo richiamare, e saluta."
+                "Di' alla cliente in UNA frase che la passi a una collega, e fermati: "
+                "la chiamata sta già passando e quello che dici dopo non lo sente nessuno."
+                if fatto else
+                "Il trasferimento non è riuscito: scusati, dille che la faremo richiamare, e saluta."
             ),
         })
 

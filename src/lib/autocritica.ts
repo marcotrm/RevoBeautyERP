@@ -195,6 +195,7 @@ const SCHEMA = {
           chat: { type: 'string', description: 'Il numero della conversazione.' },
         },
         required: ['gravita', 'cosa', 'esempio', 'chat'],
+        additionalProperties: false,
       },
     },
     proposte: {
@@ -206,10 +207,21 @@ const SCHEMA = {
           perche: { type: 'string' },
         },
         required: ['testo', 'perche'],
+        additionalProperties: false,
       },
     },
   },
   required: ['voto', 'riepilogo', 'problemi', 'proposte'],
+  /*
+    Obbligatorio, e non e' una formalita'.
+
+    Le uscite strutturate dell'API rifiutano uno schema in cui un oggetto non
+    dichiara se ammette campi in piu': risponde 400 e la funzione non parte.
+    Mancava, e sia la rilettura delle chat sia le domande proposte tornavano
+    l'errore a schermo invece del risultato. Va messo su OGNI oggetto dello
+    schema, annidati compresi.
+  */
+  additionalProperties: false,
 };
 
 // ============================================================

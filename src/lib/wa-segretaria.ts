@@ -1358,6 +1358,34 @@ export async function handleSegretariaMessage(params: {
   try {
     const cfg = await getWaAutomationsConfig();
     if (!cfg.segretaria) return { handled: false, reason: 'segretaria spenta' };
+
+    /*
+      La fascia oraria, quando c'e'.
+
+      Fuori fascia non risponde, ma la conversazione resta DA LEGGERE nel
+      gestionale: chi scrive alle nove di sera non deve sparire, deve solo
+      aspettare una persona. Un silenzio senza traccia sarebbe peggio di una
+      risposta tardiva.
+
+      La fascia puo' anche scavalcare la mezzanotte (22:00-02:00): non e' il
+      caso di un centro estetico, ma costa una riga e evita che un giorno
+      qualcuno la imposti cosi' e si ritrovi la segretaria muta sempre.
+    */
+    if (cfg.segretariaDalle || cfg.segretariaAlle) {
+      const adesso = new Intl.DateTimeFormat('it-IT', {
+        timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit', hour12: false,
+      }).format(new Date()).replace('.', ':');
+      const dalle = cfg.segretariaDalle || '00:00';
+      const alle = cfg.segretariaAlle || '23:59';
+      const dentro = dalle <= alle
+        ? adesso >= dalle && adesso <= alle
+        : adesso >= dalle || adesso <= alle;
+
+      if (!dentro) {
+        await markConversationUnread(phone).catch(() => {});
+        return { handled: false, reason: `fuori orario della segretaria (${dalle}-${alle}), sono le ${adesso}` };
+      }
+    }
     if (fuoriDalCollaudo(phone)) return { handled: false, reason: 'collaudo: numero non in elenco' };
     if (!process.env.ANTHROPIC_API_KEY) return { handled: false, reason: 'manca ANTHROPIC_API_KEY' };
     if (!text.trim() && !media) return { handled: false, reason: 'messaggio vuoto' };

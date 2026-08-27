@@ -92,10 +92,14 @@ const SCHEMA = {
           },
         },
         required: ['parole', 'chiedi', 'scelta', 'dalleChat'],
+        additionalProperties: false,
       },
     },
   },
   required: ['chiarimenti'],
+  // Obbligatorio su ogni oggetto dello schema, annidati compresi: senza,
+  // l'API rifiuta la richiesta con un 400 e la funzione non parte.
+  additionalProperties: false,
 };
 
 export interface ChiarimentoProposto extends Chiarimento {

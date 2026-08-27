@@ -578,6 +578,33 @@ export default function WhatsAppAutomationsConfig() {
                   Uno spento non viene sconsigliato: non le viene proprio dato. Non può chiamarlo e non può
                   sbagliarsi — la porta non esiste.
                 </p>
+
+                {/* La fascia oraria. Serve a chi la sta collaudando e non vuole
+                    che scriva alle clienti a mezzanotte senza che nessuno se ne
+                    accorga fino al mattino. */}
+                <div className="pt-3 mt-1 border-t border-border/50">
+                  <p className="text-[11px] font-medium text-text-secondary mb-2">Quando risponde</p>
+                  <div className="flex items-center gap-2">
+                    <input type="time" value={cfg.segretariaDalle || ''}
+                      onChange={e => save({ segretariaDalle: e.target.value })} disabled={saving}
+                      className="px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary" />
+                    <span className="text-[11px] text-text-muted">alle</span>
+                    <input type="time" value={cfg.segretariaAlle || ''}
+                      onChange={e => save({ segretariaAlle: e.target.value })} disabled={saving}
+                      className="px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-xs text-text-primary" />
+                    {(cfg.segretariaDalle || cfg.segretariaAlle) && (
+                      <button onClick={() => save({ segretariaDalle: '', segretariaAlle: '' })} disabled={saving}
+                        className="text-[11px] text-text-muted hover:text-text-secondary underline">
+                        togli
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-text-muted/70 mt-1.5 leading-relaxed">
+                    Vuote: risponde sempre. Fuori fascia non risponde, ma la conversazione resta
+                    <b className="text-text-secondary"> da leggere</b> nel gestionale — chi scrive di sera non si
+                    perde, lo legge una persona.
+                  </p>
+                </div>
               </div>
             )}
 
