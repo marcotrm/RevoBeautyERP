@@ -31,6 +31,41 @@ WhatsApp.
 In tutti e due i casi, dalla pagina va tolto il blocco «Oppure utilizza il
 modulo Contact Form 7:» con lo shortcode sotto.
 
+## E il listino: il gestionale come punto di riferimento
+
+`listino-sito.js` fa scrivere le pagine dei servizi dal gestionale. Si incolla
+come l'altro, e al posto di ogni elenco scritto a mano va una riga:
+
+```html
+<div data-revo-listino="Unghie"></div>
+```
+
+Serve perché oggi i due elenchi non dicono la stessa cosa. Confronto del
+27 agosto 2026, letto dalle pagine vere:
+
+| | Sito | Gestionale |
+|---|---|---|
+| Bendaggi Corpo | 49,90 € | **20,00 €** |
+| Radiofrequenza Corpo 30 minuti | 29,90 € | **60,00 €** |
+| Pressoterapia con Bendaggio | 34,90 € | **25,00 €** |
+| Ricostruzione Acrygel o Gel | 45,00 € | **50,00 €** |
+
+Più una ventina di voci che ballano di dieci centesimi (il sito usa i prezzi
+che finiscono in 90, il gestionale quelli tondi), qualche durata diversa
+(Lampada Total Body 15 contro 25 minuti, Pulizia Viso 50 contro 40, Pedicure
+curativo 60 contro 50) e un «Acrygel» che in gestionale si chiama «Refill
+Acrygel o Gel».
+
+Non è colpa di nessuno: sono due elenchi tenuti da due persone in due posti, e
+nessuno apre WordPress il giorno che cambia un prezzo. Finché restano due,
+torneranno a divergere.
+
+**Una decisione resta al centro**: da quel momento la pagina dice quello che
+dice il gestionale, prezzi tondi compresi. Se sul sito si vogliono tenere i
+39,90, quella scelta va fatta **in gestionale**, sui prezzi veri — è l'unico
+modo perché la cliente legga la stessa cifra che poi le dice la segretaria e
+che trova alla cassa.
+
 ## Che cosa era rotto
 
 Il modulo su `revobeauty.it/contatti` **non inviava niente**. Il codice della
