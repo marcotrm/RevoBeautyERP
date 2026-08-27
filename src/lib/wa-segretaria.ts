@@ -135,6 +135,13 @@ interface StatoChat {
   /** Perché ha passato la palla: è quello che si legge nel gestionale. */
   passataMotivo?: string;
   /**
+   * Spenta a mano su QUESTA conversazione, a tempo indeterminato.
+   *
+   * Diversa dalla pausa: quella scade, questa no. Serve per la cliente che si
+   * vuole seguire di persona senza spegnere la segretaria per tutte le altre.
+   */
+  spenta?: boolean;
+  /**
    * Su quale modello gira questa conversazione.
    *
    * Una volta salita non riscende: se dieci minuti fa stava prendendo un
@@ -159,6 +166,7 @@ async function leggiStato(phone: string): Promise<StatoChat> {
     fotoPendenti: s?.fotoPendenti || [],
     mutoFino: s?.mutoFino,
     passataMotivo: s?.passataMotivo,
+    spenta: s?.spenta,
     // Il livello si azzera con la giornata, come il tetto delle risposte: chi
     // torna a scrivere dopo due giorni comincia da una domanda, non da dove
     // aveva lasciato.
@@ -665,9 +673,30 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         oraA: typeof dati.alle === 'string' ? dati.alle : null,
       };
 
-      const { giorni, durataTotale, prezzoTotale } = await cercaSlot({
+      const { giorni, durataTotale, prezzoTotale, vuoti } = await cercaSlot({
         dateFrom, giorni: quanti, services, gender: sesso, ...fascia, maxPerGiorno: 5,
       });
+
+      /*
+        «Pieno» e «nessuno ha messo i turni» non sono la stessa cosa.
+
+        Finivano nella stessa frase, e quella frase arrivava alla cliente: si e'
+        sentita dire che domani e sabato erano pieni quando il centro era
+        aperto e il problema stava altrove. Un giorno senza turni in agenda non
+        e' un no da dare a una cliente — e' una cosa che al centro devono
+        sapere.
+      */
+      const senzaTurni = vuoti.filter(v => v.motivo === 'nessunTurno').map(v => dataParlata(v.date, oggi));
+      const chiusi = vuoti.filter(v => v.motivo === 'chiuso').map(v => dataParlata(v.date, oggi));
+      const agenda = {
+        ...(chiusi.length ? { centroChiuso: chiusi } : {}),
+        ...(senzaTurni.length ? {
+          senzaTurniInAgenda: senzaTurni,
+          attenzione: 'In quei giorni il centro e\' APERTO ma in agenda non c\'e\' nessuna operatrice in turno. '
+            + 'NON dire alla cliente che e\' pieno: non lo sappiamo. Proponi gli altri giorni, e se lei puo\' '
+            + 'solo in quelli usa "passa_a_persona" dicendo che in agenda mancano i turni.',
+        } : {}),
+      };
 
       if (giorni.length > 0) {
         return JSON.stringify({
@@ -675,6 +704,7 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
           durataMinuti: durataTotale,
           prezzo: prezzoTotale,
           giorni: giorni.slice(0, 4).map(dillo),
+          ...agenda,
         });
       }
 
@@ -698,7 +728,8 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
             durataMinuti: vicini.durataTotale,
             prezzo: vicini.prezzoTotale,
             maCiSarebbe: vicini.giorni.slice(0, 3).map(dillo),
-            nota: 'Dille che quel giorno è pieno e proponi subito il primo utile, in un messaggio solo.',
+            ...agenda,
+            nota: 'Dille che quel giorno non c\'è posto e proponi subito il primo utile, in un messaggio solo.',
           });
         }
       }
@@ -707,6 +738,7 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         trovato: false,
         durataMinuti: durataTotale,
         prezzo: prezzoTotale,
+        ...agenda,
         nota: 'Niente posto con questi criteri, nemmeno allargando. NON chiudere qui la conversazione e non '
           + 'mandarla a telefonare: chiedile se le va bene un\'altra fascia oraria o un altro giorno, e se lei '
           + 'può solo in quei giorni usa "passa_a_persona" — al banco un buco lo trovano quasi sempre, tu no.',
@@ -1335,6 +1367,9 @@ export async function handleSegretariaMessage(params: {
 
     let stato = await leggiStato(phone);
 
+    if (stato.spenta) {
+      return { handled: false, reason: 'segretaria spenta a mano su questa conversazione' };
+    }
     if (stato.mutoFino && stato.mutoFino > new Date().toISOString()) {
       // L'ora serve: nel log «passata a una persona» da solo sembra un blocco
       // definitivo, e invece scade — chi guarda deve sapere quando.
@@ -1413,12 +1448,28 @@ export async function segretariaInConversazione(phone: string): Promise<boolean>
  */
 export async function passaggioInCorso(phone: string): Promise<{
   muta: boolean;
+  spenta: boolean;
   fino?: string;
   motivo?: string;
 }> {
   const stato = await leggiStato(normalizePhone(phone)).catch(() => null);
-  if (!stato?.mutoFino || stato.mutoFino <= new Date().toISOString()) return { muta: false };
-  return { muta: true, fino: stato.mutoFino, motivo: stato.passataMotivo };
+  if (stato?.spenta) return { muta: true, spenta: true };
+  if (!stato?.mutoFino || stato.mutoFino <= new Date().toISOString()) return { muta: false, spenta: false };
+  return { muta: true, spenta: false, fino: stato.mutoFino, motivo: stato.passataMotivo };
+}
+
+/**
+ * Spegne la segretaria su QUESTA conversazione e basta.
+ *
+ * La pausa dopo un passaggio scade da sola; questa no. È per la cliente che
+ * si vuole seguire di persona — una lamentela, una cosa delicata, una prova —
+ * senza togliere la segretaria a tutte le altre.
+ */
+export async function spegniSegretaria(phone: string): Promise<void> {
+  const normalizzato = normalizePhone(phone);
+  const stato = await leggiStato(normalizzato);
+  await scriviStato({ ...stato, spenta: true, passataMotivo: 'spenta a mano dal gestionale' });
+  console.log(`[wa-segretaria] ${normalizzato}: spenta a mano su questa conversazione`);
 }
 
 /**
@@ -1431,7 +1482,7 @@ export async function passaggioInCorso(phone: string): Promise<{
 export async function riprendiSegretaria(phone: string): Promise<void> {
   const normalizzato = normalizePhone(phone);
   const stato = await leggiStato(normalizzato);
-  await scriviStato({ ...stato, mutoFino: undefined, passataMotivo: undefined });
+  await scriviStato({ ...stato, mutoFino: undefined, passataMotivo: undefined, spenta: false });
   console.log(`[wa-segretaria] ${normalizzato}: la segretaria riprende la conversazione`);
 }
 

@@ -12,8 +12,8 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, Loader2, Trash2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X, Search, Smile, BotOff } from 'lucide-react';
-import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione, eliminaConversazione, segnaConversazioneGestita, statoSegretaria, riprendiSegretariaAction } from '@/app/actions/whatsapp';
+import { MessageSquare, Bot as BotOn, Send, Loader2, Trash2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X, Search, Smile, BotOff } from 'lucide-react';
+import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione, eliminaConversazione, segnaConversazioneGestita, statoSegretaria, riprendiSegretariaAction, spegniSegretariaAction } from '@/app/actions/whatsapp';
 import SegniCliente from '@/components/SegniCliente';
 import MandaListino from '@/components/MandaListino';
 import {
@@ -486,7 +486,7 @@ export default function WhatsAppChat() {
     il bot semplicemente non ha niente da dire. Questo è il posto dove si vede,
     ed è anche l'unico posto da cui si può disfare.
   */
-  const [muta, setMuta] = useState<{ muta: boolean; fino?: string; motivo?: string }>({ muta: false });
+  const [muta, setMuta] = useState<{ muta: boolean; spenta: boolean; fino?: string; motivo?: string }>({ muta: false, spenta: false });
   const [riprendendo, setRiprendendo] = useState(false);
   const [clientName, setClientName] = useState<string | undefined>();
   const [clientAvatar, setClientAvatar] = useState<string | undefined>();
@@ -651,7 +651,17 @@ export default function WhatsAppChat() {
     setRiprendendo(true);
     try {
       await riprendiSegretariaAction(phone);
-      setMuta({ muta: false });
+      setMuta({ muta: false, spenta: false });
+    } finally {
+      setRiprendendo(false);
+    }
+  };
+
+  const spegni = async (phone: string) => {
+    setRiprendendo(true);
+    try {
+      await spegniSegretariaAction(phone);
+      setMuta({ muta: true, spenta: true });
     } finally {
       setRiprendendo(false);
     }
@@ -1020,21 +1030,25 @@ export default function WhatsAppChat() {
             {/* Casella di risposta. Fuori dalla finestra 24h Meta rifiuta il testo
                 libero: meglio bloccare qui che far scrivere invano. */}
             <div className="border-t border-border/40 p-3 flex-shrink-0 space-y-2">
-              {/* La segretaria in pausa. Si vede qui, sopra la casella, perché
-                  è qui che si sta per scrivere a mano — ed è qui che serve
-                  sapere che il bot non risponderà da solo. */}
-              {muta.muta && (
+              {/* Chi risponde a questo numero. Si vede qui, sopra la casella,
+                  perché è qui che si sta per scrivere a mano — ed è qui che
+                  serve sapere se il bot risponderà da solo o no. */}
+              {muta.muta ? (
                 <div className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 flex items-start gap-2">
                   <BotOff className="w-4 h-4 text-warning flex-shrink-0 mt-px" />
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] text-text-primary font-medium">
-                      La segretaria non risponde a questo numero{muta.fino ? ` fino alle ${timeLabel(muta.fino)}` : ''}.
+                      {muta.spenta
+                        ? 'Segretaria spenta su questa conversazione.'
+                        : `La segretaria non risponde a questo numero${muta.fino ? ` fino alle ${timeLabel(muta.fino)}` : ''}.`}
                     </p>
-                    {muta.motivo && (
+                    {!muta.spenta && muta.motivo && (
                       <p className="text-[10px] text-text-secondary mt-0.5 break-words">{muta.motivo}</p>
                     )}
                     <p className="text-[10px] text-text-muted/80 mt-0.5">
-                      Ha passato la palla a una persona: finché dura, chi scrive resta senza risposta se non rispondi tu.
+                      {muta.spenta
+                        ? 'Vale solo per questo numero: alle altre clienti risponde come sempre. Finché è spenta, qui rispondi tu.'
+                        : 'Ha passato la palla a una persona: finché dura, chi scrive resta senza risposta se non rispondi tu.'}
                     </p>
                   </div>
                   <button
@@ -1042,7 +1056,19 @@ export default function WhatsAppChat() {
                     disabled={riprendendo}
                     className="text-[11px] px-2.5 py-1.5 rounded-lg border border-warning/40 bg-bg-tertiary
                       text-text-primary hover:border-warning disabled:opacity-40 flex-shrink-0">
-                    {riprendendo ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Falla riprendere'}
+                    {riprendendo ? <Loader2 className="w-3 h-3 animate-spin" /> : (muta.spenta ? 'Riaccendi' : 'Falla riprendere')}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-[10px] text-text-muted/80">
+                  <BotOn className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                  <span className="flex-1">A questo numero risponde la segretaria.</span>
+                  <button
+                    onClick={() => void spegni(active)}
+                    disabled={riprendendo}
+                    className="px-2 py-1 rounded-lg border border-border bg-bg-tertiary text-text-secondary
+                      hover:text-warning hover:border-warning/40 disabled:opacity-40 flex-shrink-0">
+                    {riprendendo ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Spegnila qui'}
                   </button>
                 </div>
               )}

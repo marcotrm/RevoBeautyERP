@@ -422,15 +422,53 @@ rispondeva «dopo le sei non c'e' posto», perche' la fascia della prenotazione
 era rimasta alle 19. E su un giorno di ferie offriva tranquillamente un
 appuntamento, perche' le chiusure il motore non le guardava proprio.
 
-Adesso comanda **Assistente**, per tutti e tre i canali (app, pagina /prenota,
-assistente): apertura e chiusura del giorno, giorno dichiarato chiuso, ferie. La
-fascia unica resta la rete di sicurezza per i giorni che nessuno ha
-configurato.
+Adesso comanda **Assistente**, e comanda da solo: apertura e chiusura del
+giorno, giorno dichiarato chiuso, ferie, per tutti i canali — app, pagina
+/prenota, WhatsApp, telefono. La fascia unica delle impostazioni di
+prenotazione non e' piu' nemmeno una riserva: era una seconda opinione che
+vinceva quando nessuno la guardava, e i due campi sono spariti dalla
+schermata. Quello che non e' scritto in Assistente non e' un giorno aperto
+per un'altra impostazione: e' un giorno chiuso.
+
+Stessa sorte per la domenica, che stava cablata nel codice in due punti — nel
+calcolo dei turni e nella scelta dei giorni da guardare. Se il centro un
+giorno aprisse di domenica, lo direbbe `centro.orari` e basta.
 
 Anche il turno dell'operatrice si ritaglia su quella finestra: prima chi era in
 turno fino alle venti veniva tagliata alle diciannove, e quell'ora sparita non
 si vedeva da nessuna parte — in agenda il turno risultava intero, fra gli orari
 proposti semplicemente non compariva.
+
+### Vuoto non vuol dire pieno
+
+Tre cose diverse finivano nella stessa risposta — «non c'e' posto» — e quella
+risposta arrivava tale e quale alla cliente:
+
+| Cosa e' successo | Cosa vuol dire |
+|---|---|
+| `chiuso` | quel giorno il centro non apre: e' un no vero |
+| `nessunTurno` | il centro e' aperto, ma in agenda nessuna operatrice ha turno |
+| `pieno` | c'e' chi lavora, ma non resta un buco lungo abbastanza |
+
+Solo il primo e' un no da dare a una cliente. Il secondo e' una cosa che al
+centro devono sapere, e la segretaria adesso lo dice: propone gli altri giorni
+e, se la cliente puo' solo in quelli, passa la palla a una collega spiegando
+che in agenda mancano i turni. Il terzo si tratta come sempre.
+
+### La segretaria, chat per chat
+
+Nella schermata WhatsApp, sopra la casella di risposta, c'e' scritto chi
+risponde a quel numero — e si cambia da li'.
+
+- **Attiva**: risponde la segretaria. Accanto, «Spegnila qui».
+- **Spenta a mano**: vale solo per quel numero, a tempo indeterminato. Per la
+  cliente che si vuole seguire di persona senza togliere la segretaria a tutte
+  le altre.
+- **In pausa**: ha passato la palla a una persona e tace quattro ore. Si legge
+  fino a che ora e perche', e «Falla riprendere» la rimette in servizio subito.
+
+La pausa si allunga da sola a ogni risposta scritta a mano: finche' scrive una
+persona, la segretaria sta fuori.
 
 ## A chi passa la palla
 

@@ -15,7 +15,7 @@ import {
   getWaAutomationsConfig, saveWaAutomationsConfig, runWaAutomations,
   type WaAutomationsConfig, type RunResult,
 } from '@/lib/wa-automations';
-import { passaggioInCorso, riprendiSegretaria, zittiscilaPerUnaPersona } from '@/lib/wa-segretaria';
+import { passaggioInCorso, riprendiSegretaria, spegniSegretaria, zittiscilaPerUnaPersona } from '@/lib/wa-segretaria';
 
 export async function loadWaConfig(): Promise<WaAutomationsConfig> {
   return getWaAutomationsConfig();
@@ -223,10 +223,17 @@ export async function sendManualReply(phone: string, text: string): Promise<{ ok
 /** Se la segretaria tace su questo numero, da quando e perché. */
 export async function statoSegretaria(phone: string): Promise<{
   muta: boolean;
+  spenta: boolean;
   fino?: string;
   motivo?: string;
 }> {
   return passaggioInCorso(normalizePhone(phone));
+}
+
+/** Spegne la segretaria su questa conversazione soltanto, finché non la si riaccende. */
+export async function spegniSegretariaAction(phone: string): Promise<{ ok: boolean }> {
+  await spegniSegretaria(normalizePhone(phone));
+  return { ok: true };
 }
 
 /** Ridà la parola alla segretaria su questo numero, senza aspettare la scadenza. */
