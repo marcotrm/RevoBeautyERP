@@ -57,6 +57,7 @@ import { avanzaLead, leadDaTelefono } from './lead';
 import { schedaDiChiScrive, type SchedaInChat } from './clienteInChat';
 import { packageCoreName } from './packageTreatment';
 import { fetchD360Media } from './whatsapp360';
+import { trascriviVocale, archiviaTrascrizione, trascrizioneConfigurata } from './trascrizione';
 import type { WaMedia } from './wa-conversations';
 import {
   registraArrivo, attendiSilenzio, prendiTurno, rilasciaTurno, rispondiUnaVolta,
@@ -878,20 +879,46 @@ export async function handleSegretariaMessage(params: {
     }
 
     /*
-      Vocali, video e documenti: qui il modello non li apre.
+      Il vocale si ascolta.
 
-      Prima cadevano nel silenzio, ed è la cosa peggiore: la cliente ha
-      mandato un vocale di quaranta secondi e non riceve niente, quindi lo
-      rimanda, poi scrive «ci sei?». Adesso riceve una riga sola che le dice
-      cosa fare, e il centro riceve l'avviso. Il vocale poi lo ascolta una
-      persona, che è comunque meglio di una trascrizione sbagliata su un nome
-      o su un orario.
+      In Italia una richiesta su due arriva così, e prima cadeva nel vuoto: la
+      cliente mandava quaranta secondi di audio, non riceveva niente, lo
+      rimandava, poi scriveva «ci sei?».
 
-      La riga parte una volta sola: `rispondiUnaVolta` rifiuta lo stesso testo
-      se è già uscito da meno di dieci minuti, quindi tre vocali di fila non
-      diventano tre risposte identiche.
+      La trascrizione prende il posto del testo e da lì in poi il turno è
+      identico a quello di un messaggio scritto — attesa del silenzio compresa,
+      così «vocale + poi scrivo anche la data» diventa una risposta sola.
+
+      Quello che NON si fa è fidarsi: sotto la soglia di confidenza si torna a
+      chiedere di riscrivere, e la prenotazione passa comunque dal gettone, che
+      obbliga a mettere il riepilogo per iscritto prima di toccare l'agenda. Un
+      cognome storpiato dall'audio si ferma lì, come al telefono.
     */
-    if (media && media.kind !== 'image' && !media.caption) {
+    let testoUtile = text;
+    let daVocale = false;
+
+    if (media?.kind === 'audio' && !media.caption && trascrizioneConfigurata()) {
+      const detto = await trascriviVocale(media);
+      if (detto.ok) {
+        testoUtile = detto.testo;
+        daVocale = true;
+        // In chat, sotto il vocale, resta scritto cosa ha detto: dal gestionale
+        // quel numero su WhatsApp non si apre più, e «🎤 Messaggio vocale» a chi
+        // rilegge la conversazione non dice niente.
+        await archiviaTrascrizione({ phone, messageId, testo: detto.testo });
+      } else {
+        console.log(`[wa-segretaria] ${phone}: vocale non trascritto (${detto.motivo})`);
+      }
+    }
+
+    /*
+      Quello che resta senza parole: vocali non trascritti, video, documenti.
+
+      La riga di risposta parte una volta sola — `rispondiUnaVolta` rifiuta lo
+      stesso testo entro dieci minuti — quindi tre vocali di fila non diventano
+      tre risposte identiche.
+    */
+    if (media && media.kind !== 'image' && !media.caption && !daVocale) {
       if (media.kind === 'sticker') return { handled: true, reason: 'sticker: niente da rispondere' };
 
       const cosa = media.kind === 'audio' ? 'il vocale' : 'quello che hai mandato';
@@ -903,7 +930,7 @@ export async function handleSegretariaMessage(params: {
       );
       sendTelegram(
         `🎤 *Allegato su WhatsApp da leggere*\n\n${phone} ha mandato ${media.kind === 'audio' ? 'un vocale' : `un ${media.kind}`}. `
-        + 'La segretaria non lo apre: guardalo dalla chat nel gestionale.'
+        + 'La segretaria non è riuscita a leggerlo: guardalo dalla chat nel gestionale.'
       ).catch(() => {});
       return esito.inviato ? { handled: true } : { handled: false, reason: esito.motivo };
     }
@@ -921,7 +948,12 @@ export async function handleSegretariaMessage(params: {
     // deve trovarci dentro anche questo, foto compresa.
     await scriviStato({
       ...stato,
-      pendenti: [...stato.pendenti, text].filter(Boolean).slice(-12),
+      pendenti: [
+        ...stato.pendenti,
+        // Il modello deve sapere che quella riga arriva da un vocale: sui nomi
+        // e sugli orari deve chiedere conferma invece di darli per buoni.
+        daVocale ? `(vocale) ${testoUtile}` : testoUtile,
+      ].filter(Boolean).slice(-12),
       fotoPendenti: media?.kind === 'image'
         ? [...(stato.fotoPendenti || []), { id: media.id, mime: media.mimeType }].slice(-4)
         : stato.fotoPendenti,
@@ -943,7 +975,7 @@ export async function handleSegretariaMessage(params: {
 
     try {
       stato = await leggiStato(phone);
-      const messaggi = stato.pendenti.length > 0 ? stato.pendenti : [text].filter(Boolean);
+      const messaggi = stato.pendenti.length > 0 ? stato.pendenti : [testoUtile].filter(Boolean);
       const esito = await turno(phone, messaggi, stato.fotoPendenti || [], stato);
       return esito.risposto
         ? { handled: true }

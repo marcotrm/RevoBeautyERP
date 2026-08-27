@@ -226,12 +226,36 @@ risposta. Il limite non è tecnico ma di mestiere e sta nelle istruzioni: da una
 foto non si valuta pelle, corpo o risultati. Nemmeno «sembrerebbe». Su quelle la
 risposta è una sola, la visita in sede.
 
-**I vocali no.** Il modello non li apre, e una trascrizione sbagliata su un nome
-o su un orario è peggio del silenzio. Ma il silenzio era la cosa peggiore di
-tutte: la cliente rimandava il vocale e poi scriveva «ci sei?». Adesso riceve
-una riga sola — «non riesco ad aprirlo, me lo scrivi?» — e il centro riceve
-l'avviso su Telegram. La riga parte una volta sola anche se i vocali sono tre,
-perché `rispondiUnaVolta` rifiuta lo stesso testo entro dieci minuti.
+**I vocali li ascolta.** In Italia una richiesta su due arriva così — quaranta
+secondi di audio mentre si guida — e prima cadeva nel vuoto: la cliente
+rimandava il vocale e poi scriveva «ci sei?».
+
+Li trascrive Deepgram (`nova-3`, italiano) in `lib/trascrizione.ts`: una
+richiesta sola, i byte nel corpo, meno di mezzo centesimo al minuto. Da lì in
+poi il turno è identico a quello di un messaggio scritto, attesa del silenzio
+compresa — «vocale, poi scrivo anche la data» resta una risposta sola.
+
+La trascrizione finisce anche **in chat, sotto il vocale**: dal gestionale quel
+numero su WhatsApp non si apre più, e «🎤 Messaggio vocale» a chi rilegge la
+conversazione non dice niente. Vale anche a bot spento.
+
+Quello che non si fa è fidarsi. Il senso di una trascrizione è quasi sempre
+giusto, i dettagli no, e un cognome storpiato dall'audio è peggio di un vocale
+non ascoltato perché nessuno se ne accorge finché la cliente non si presenta.
+Tre difese, nessuna delle quali è una riga di prompt:
+
+- sotto **0,6 di confidenza** il testo non si usa: si torna a chiedere di
+  riscrivere;
+- la riga arriva al modello marcata `(vocale)`, e le istruzioni gli impongono
+  di riscrivere nomi, giorni e orari e farseli confermare;
+- la prenotazione passa comunque dal **gettone di conferma**, che obbliga a
+  mettere il riepilogo per iscritto prima di toccare l'agenda.
+
+Senza `DEEPGRAM_API_KEY`, o se la trascrizione fallisce, resta il
+comportamento precedente: una riga sola — «non riesco ad aprirlo, me lo
+scrivi?» — più l'avviso su Telegram. Anche quella parte una volta sola se i
+vocali sono tre, perché `rispondiUnaVolta` rifiuta lo stesso testo entro dieci
+minuti. Video e documenti seguono la stessa via.
 
 ## Tetti e limiti
 
@@ -239,14 +263,18 @@ perché `rispondiUnaVolta` rifiuta lo stesso testo entro dieci minuti.
 - **8 giri di strumenti** per turno, poi risponde con quello che ha.
 - **4 ore di silenzio** dopo `passa_a_persona`.
 - **2 foto** per turno, fino a 3,5 MB l'una: oltre, il turno prosegue col testo.
-- Video, documenti e vocali non li apre (vedi sopra). Gli sticker li ignora e
-  basta: non c'è niente a cui rispondere.
+- **Vocali** fino a 10 MB e 20 secondi di attesa per la trascrizione: oltre,
+  si ripiega sul «me lo scrivi?».
+- Video e documenti non li apre. Gli sticker li ignora e basta: non c'è niente
+  a cui rispondere.
 
 ## Configurazione
 
 - `ANTHROPIC_API_KEY` — obbligatoria.
 - `VOICE_API_SECRET` — serve anche qui: firma il gettone di conferma. Senza,
   la segretaria non può prenotare.
+- `DEEPGRAM_API_KEY` — facoltativa. Senza, i vocali non si trascrivono e la
+  segretaria chiede di riscrivere.
 - `WA_SEGRETARIA_MODEL` — facoltativa, per cambiare modello senza rilasciare.
 
 ## Prove

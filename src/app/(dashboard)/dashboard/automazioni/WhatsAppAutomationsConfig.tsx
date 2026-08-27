@@ -559,7 +559,8 @@ export default function WhatsAppAutomationsConfig() {
                 prenotazione e dell&apos;agente spostamenti: erano tre interlocutori con tre memorie separate nella
                 stessa chat.</>
               )}
-              {' '}Richiede <code className="text-warning">ANTHROPIC_API_KEY</code>.
+              {' '}Guarda le foto e ascolta i vocali. Richiede <code className="text-warning">ANTHROPIC_API_KEY</code>;
+              per i vocali anche <code className="text-warning">DEEPGRAM_API_KEY</code> — senza, chiede di riscriverli.
             </p>
           </div>
 
