@@ -5,7 +5,7 @@ La telefonata: orecchie, cervello, bocca.
                              ↓
                         Claude (capisce, chiama il gestionale, decide cosa dire)
                              ↓
-    Twilio  ◄──audio──  Fish Audio (parla)
+    Twilio  ◄──audio──  Fish Audio o Deepgram Aura (parla)
 
 Le due cose che decidono se sembra una persona non sono la voce: sono
 l'interruzione (se la cliente parla sopra, l'assistente si zittisce) e il
@@ -26,6 +26,7 @@ from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.serializers.twilio import TwilioFrameSerializer
 from pipecat.services.anthropic.llm import AnthropicLLMService
 from pipecat.services.deepgram.stt import DeepgramSTTService
+from pipecat.services.deepgram.tts import DeepgramTTSService
 from pipecat.services.fish.tts import FishAudioTTSService
 from pipecat.transports.websocket.fastapi import (
     FastAPIWebsocketParams,
@@ -88,11 +89,33 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
         live_options={"language": "it", "model": "nova-2", "smart_format": True},
     )
 
-    tts = FishAudioTTSService(
-        api_key=os.environ["FISH_API_KEY"],
-        model=os.environ["FISH_VOICE_ID"],
-        sample_rate=FREQUENZA,
-    )
+    # ------------------------------------------------------------------ voce
+    #
+    # Due strade, e si sceglie con VOCE_TTS. Di partenza resta Fish, perche'
+    # quella e' la voce che il centro ha gia' scelto e sentito.
+    #
+    # Deepgram e' l'alternativa piu' semplice, non la piu' furba: da dicembre
+    # 2025 Aura-2 parla italiano, la chiave e' la stessa che usiamo gia' per
+    # capire (e su WhatsApp per i vocali), e togliere un fornitore dalla catena
+    # toglie anche un posto dove le cose si rompono di notte. In piu' capire e
+    # parlare passano dallo stesso servizio, che sul telefono si sente: ogni
+    # salto fra fornitori diversi e' latenza, e al telefono la latenza e' la
+    # differenza fra una conversazione e un'attesa.
+    if os.getenv("VOCE_TTS", "fish").lower() == "deepgram":
+        tts = DeepgramTTSService(
+            api_key=os.environ["DEEPGRAM_API_KEY"],
+            # I nomi delle voci sono "aura-2-<nome>-<lingua>": per l'italiano
+            # si guarda l'elenco vero con GET https://api.deepgram.com/v1/models
+            # invece di indovinarlo.
+            voice=os.getenv("DEEPGRAM_VOICE_ID", "aura-2-maia-it"),
+            sample_rate=FREQUENZA,
+        )
+    else:
+        tts = FishAudioTTSService(
+            api_key=os.environ["FISH_API_KEY"],
+            model=os.environ["FISH_VOICE_ID"],
+            sample_rate=FREQUENZA,
+        )
 
     llm = AnthropicLLMService(
         api_key=os.environ["ANTHROPIC_API_KEY"],

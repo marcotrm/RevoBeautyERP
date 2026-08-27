@@ -41,7 +41,8 @@ rilasciare questo servizio.
 
 ## Perché Pipecat
 
-Fish Audio dà la voce, Deepgram la trascrizione, Claude il ragionamento. Fra
+Deepgram capisce, Claude ragiona, e a parlare c'è Fish Audio oppure Deepgram
+Aura — si sceglie con `VOCE_TTS`. Fra
 quelle tre e un telefono che squilla manca il pezzo che tiene in piedi la
 conversazione: accettare lo stream, capire quando la cliente ha finito di
 parlare, e **zittire la voce a metà frase quando parla sopra**. Sono le due
@@ -105,3 +106,29 @@ cambia spesso i nomi delle classi fra una versione e l'altra: alla prima
 esecuzione qualche import o qualche parametro andrà quasi certamente
 aggiustato. Il primo `pip install` e il primo `uvicorn` sono parte del lavoro,
 non un dettaglio.
+
+
+## La voce: Fish o Deepgram
+
+Di partenza parla **Fish Audio**, perché quella è la voce che il centro ha già
+scelto e sentito. Con `VOCE_TTS=deepgram` parla invece **Aura-2**, che
+dall'aggiornamento di dicembre 2025 sa l'italiano.
+
+```
+VOCE_TTS=deepgram
+DEEPGRAM_VOICE_ID=aura-2-maia-it     # l'elenco vero: GET https://api.deepgram.com/v1/models
+```
+
+Non è una questione di gusto, è di catena. Con Deepgram la chiave è la stessa
+che usiamo già per capire — e che sul gestionale trascrive i vocali di WhatsApp
+— quindi c'è un fornitore in meno da pagare, da configurare e da vedere cadere
+di notte. E capire e parlare passano dallo stesso servizio: ogni salto fra
+fornitori diversi è latenza, e al telefono la latenza è la differenza fra una
+conversazione e un'attesa.
+
+Il contrario vale se la voce di Fish è quella giusta per il centro: una voce
+che piace batte mezzo secondo di latenza. Per questo si cambia con una
+variabile e non con un rilascio.
+
+Quando `VOCE_TTS=deepgram`, `FISH_API_KEY` e `FISH_VOICE_ID` non servono più e
+il servizio non le chiede.
