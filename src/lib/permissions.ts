@@ -30,6 +30,7 @@ export const MENU_PERMISSIONS: Record<string, string> = {
   settings: 'settings|autoclave',
   inaugurazione: 'settings',
   automazioni: 'admin_automations',
+  assistente: 'admin_automations',
   // Le chat contengono dati personali dei clienti: stesso permesso della rubrica.
   whatsapp: 'clients_view',
 };
@@ -72,6 +73,13 @@ const ROUTE_PERMISSIONS: { prefix: string; permission: string }[] = [
   { prefix: '/dashboard/settings/inaugurazione', permission: 'settings' },
   { prefix: '/dashboard/settings', permission: 'settings|autoclave' },
   { prefix: '/dashboard/automazioni', permission: 'admin_automations' },
+  /*
+    Le impostazioni dell'assistente stanno dietro lo stesso permesso delle
+    automazioni: da lì si cambiano gli orari del centro e si legge tutto quello
+    che l'assistente è autorizzato a dire alle clienti. Una rotta non elencata
+    qui resta aperta a chiunque abbia un accesso — reception ed estetiste comprese.
+  */
+  { prefix: '/dashboard/assistente', permission: 'admin_automations' },
   { prefix: '/dashboard', permission: 'dashboard' },
 ]
   // il match più specifico (prefisso più lungo) vince

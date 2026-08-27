@@ -9,7 +9,7 @@ import WhatsAppAutomationsConfig from './WhatsAppAutomationsConfig';
 interface AgentDef { id: string; name: string; description: string; icon: typeof Bot; color: string; status: 'active' | 'setup' | 'soon' }
 
 const AI_AGENTS: AgentDef[] = [
-  { id: 'federica', name: 'Federica — Assistente vocale', description: 'Risponde alle chiamate, dà info su trattamenti e prezzi e fissa appuntamenti in autonomia (ElevenLabs).', icon: Phone, color: '#A855F7', status: 'setup' },
+  { id: 'federica', name: 'Assistente al telefono', description: "Risponde alle chiamate, dà info su orari, prezzi e trattamenti, e fissa appuntamenti guardando l'agenda vera.", icon: Phone, color: '#A855F7', status: 'setup' },
 ];
 
 const AGENT_STATUS: Record<AgentDef['status'], { label: string; cls: string }> = {
@@ -66,12 +66,14 @@ export default function AutomazioniPage() {
                   </div>
                   <p className="text-xs text-text-muted mt-0.5">{agent.description}</p>
                 </div>
-                <button disabled={agent.status === 'soon'}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${
-                    agent.status === 'soon' ? 'bg-bg-tertiary text-text-muted cursor-not-allowed' : 'bg-accent/10 text-accent hover:bg-accent/20'
-                  }`}>
-                  {agent.status === 'setup' ? 'Configura' : agent.status === 'active' ? 'Gestisci' : 'In arrivo'}
-                </button>
+                {agent.status === 'soon' ? (
+                  <span className="px-3 py-1.5 rounded-lg text-xs font-medium flex-shrink-0 bg-bg-tertiary text-text-muted">In arrivo</span>
+                ) : (
+                  <a href="/dashboard/assistente"
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 bg-accent/10 text-accent hover:bg-accent/20">
+                    {agent.status === 'setup' ? 'Configura' : 'Gestisci'}
+                  </a>
+                )}
               </div>
             );
           })}
