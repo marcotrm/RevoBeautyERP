@@ -1263,6 +1263,19 @@ function MonthView({ selectedDate, allAppointments, operatorColorById, onAppoint
  * La ricerca ignora l'ordine delle parole ("caruso anna" trova "Anna Caruso"),
  * gli accenti e le maiuscole: chi sta al banco scrive di fretta.
  */
+/**
+ * Il nome della cabina in un elenco a tendina.
+ *
+ * In anagrafica possono chiamarsi tutte e due "Cabina Automatica": in un menu
+ * diventano due righe identiche e non si capisce quale si sta scegliendo.
+ * Quando il nome e' ripetuto, prende un numero.
+ */
+function nomeCabina(o: Operator, cabine: Operator[], indice: number): string {
+  const nome = `${o.firstName} ${o.lastName}`.trim();
+  const omonime = cabine.filter(r => `${r.firstName} ${r.lastName}`.trim() === nome).length;
+  return omonime > 1 ? `${nome} ${indice + 1}` : nome;
+}
+
 function normalizza(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 }
@@ -2406,11 +2419,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
    * scegliendo. Qui prendono un numero.
    */
   const risorse = useMemo(() => operators.filter(o => o.isResource), [operators]);
-  const etichettaRisorsa = (o: Operator, indice: number) => {
-    const nome = `${o.firstName} ${o.lastName}`.trim();
-    const omonime = risorse.filter(r => `${r.firstName} ${r.lastName}`.trim() === nome).length;
-    return omonime > 1 ? `${nome} ${indice + 1}` : nome;
-  };
+  const etichettaRisorsa = (o: Operator, indice: number) => nomeCabina(o, risorse, indice);
 
   /**
    * Chi esegue quel trattamento: un'operatrice o una cabina automatica.
@@ -3041,16 +3050,23 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                             </option>
                           );
                         })}
-                        {/* Le cabine automatiche lavorano senza operatrice: la
-                            lampada e la pressoterapia vanno assegnate a loro.
-                            Valgono la stessa regola: se il trattamento dice
-                            chi lo fa, compaiono solo se sono nell'elenco. */}
-                        {risorse.filter(o => {
-                          const abili = chiSaFare(s.treatmentId);
-                          return abili.length === 0 || abili.includes(o.id);
-                        }).map((o, k) => (
-                          <option key={o.id} value={o.id}>{etichettaRisorsa(o, k)}</option>
-                        ))}
+                        {/*
+                          Le cabine automatiche lavorano senza operatrice: la
+                          lampada, la pressoterapia, il Fast Tonic. Ci sono
+                          sempre, qualunque cosa dica il "chi lo fa" del
+                          listino — quelle spunte dicono chi e' capace di fare
+                          un trattamento, e la cabina non e' una che impara: e'
+                          la macchina su cui il trattamento si fa. Tenerla
+                          fuori voleva dire bloccare un'operatrice per un'ora
+                          buona a guardare una lampada accesa.
+                        */}
+                        {risorse.length > 0 && (
+                          <optgroup label="Cabine · senza operatrice">
+                            {risorse.map((o, k) => (
+                              <option key={o.id} value={o.id}>{etichettaRisorsa(o, k)}</option>
+                            ))}
+                          </optgroup>
+                        )}
                       </select>
                       {/* L'ora sua, quando non va di seguito agli altri: la
                           collega che lo fa insieme, o che può solo più tardi. */}
@@ -4054,6 +4070,26 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                           {operators.filter(o => !o.isResource && o.isActive !== false && o.id !== appointment.operatorId).map(o => (
                             <option key={o.id} value={o.id}>Lo fa {o.firstName} {o.lastName}</option>
                           ))}
+                          {/*
+                            E anche le cabine.
+
+                            Il Fast Tonic, una volta acceso, va avanti da solo:
+                            l'operatrice preme il tasto all'inizio e lo ripreme
+                            alla fine. Mettendolo in cabina il tempo lo occupa
+                            la macchina, e l'operatrice in quella fascia resta
+                            libera di lavorare su un'altra cliente.
+                          */}
+                          {(() => {
+                            const cabine = operators.filter(o => o.isResource && o.isActive !== false && o.id !== appointment.operatorId);
+                            if (cabine.length === 0) return null;
+                            return (
+                              <optgroup label="Cabine · senza operatrice">
+                                {cabine.map((o, k) => (
+                                  <option key={o.id} value={o.id}>In {nomeCabina(o, cabine, k)}</option>
+                                ))}
+                              </optgroup>
+                            );
+                          })()}
                         </select>
                         {/* L'ora di questo trattamento. Vuota vuol dire "di
                             seguito agli altri": è il caso normale e resta il
