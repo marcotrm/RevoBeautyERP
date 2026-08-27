@@ -17,6 +17,7 @@ import {
   type Autocritica,
 } from '@/lib/autocritica';
 import { proponiChiarimenti, type ChiarimentoProposto } from '@/lib/chiarimentiProposti';
+import { riscriviNote, type EsitoNote } from '@/lib/noteRiscritte';
 
 export async function caricaCentro(): Promise<Centro> {
   return leggiCentro();
@@ -110,4 +111,17 @@ export async function proponiDomandeTrattamenti(): Promise<
   { ok: true; proposte: ChiarimentoProposto[]; chatLette: number } | { ok: false; motivo: string }
 > {
   return proponiChiarimenti();
+}
+
+// ============================================================
+// Le note, riscritte da chi le userà
+// ============================================================
+
+/**
+ * Prende quello che il centro scrive a braccio e lo fonde con le note che ci
+ * sono già. NON salva: torna una proposta, e la nota cambia solo quando una
+ * persona preme Salva.
+ */
+export async function proponiNote(attuali: string, aggiunta: string): Promise<EsitoNote> {
+  return riscriviNote({ attuali, aggiunta });
 }
