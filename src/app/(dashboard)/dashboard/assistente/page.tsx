@@ -17,6 +17,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Phone, Clock, FileText, CheckCircle2, AlertTriangle, Save, ScanSearch, HelpCircle } from 'lucide-react';
 import Autocritica from './Autocritica';
+import Chiamate from './Chiamate';
 import Chiarimenti from './Chiarimenti';
 
 import {
@@ -189,6 +190,12 @@ export default function AssistentePage() {
         </button>
         {salvato && <span className="text-xs text-success">Salvato. Vale dalla prossima telefonata.</span>}
       </div>
+
+      {/* -------------------------------------------------------- chiamate */}
+      <Sezione icona={Phone} titolo="Le telefonate"
+        sotto="Chi ha chiamato, com'e' finita e cosa si sono detti. Comprese quelle che ha passato a una persona.">
+        <Chiamate />
+      </Sezione>
 
       {/* ------------------------------------------------------ autocritica */}
       <Sezione icona={ScanSearch} titolo="Come è andata"
