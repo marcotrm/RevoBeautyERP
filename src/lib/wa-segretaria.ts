@@ -61,7 +61,7 @@ import { trascriviVocale, archiviaTrascrizione, trascrizioneConfigurata } from '
 import {
   STRUMENTI_DELICATI, modelloPer, parametriRagionamento, livelloDiPartenza, type Livello,
 } from './orchestrazione';
-import type { WaMedia } from './wa-conversations';
+import { listMessages, type WaMedia } from './wa-conversations';
 import {
   registraArrivo, attendiSilenzio, prendiTurno, rilasciaTurno, rispondiUnaVolta,
 } from './wa-antiflood';
@@ -88,6 +88,31 @@ const MAX_GIRI_STRUMENTI = 8;
 const MUTO_ORE = 4;
 
 
+
+/**
+ * Il collaudo: per i primi giorni risponde solo a chi decidi tu.
+ *
+ * Accendere una cosa che scrive in agenda su TUTTE le clienti insieme, la
+ * prima volta, e' una scommessa che non serve fare. Con
+ * `WA_SEGRETARIA_SOLO_NUMERI` la segretaria e' accesa davvero — stessi
+ * strumenti, stessa agenda — ma risponde solo ai numeri elencati. Agli altri
+ * non risponde nessuno, esattamente come ieri: il messaggio resta in chat e lo
+ * legge una persona. Nessun cliente vede niente di diverso finche' non togli
+ * la variabile.
+ */
+function numeriDelCollaudo(): string[] {
+  return (process.env.WA_SEGRETARIA_SOLO_NUMERI || '')
+    .split(',')
+    .map(n => n.replace(/\D/g, ''))
+    .filter(n => n.length >= 6);
+}
+
+function fuoriDalCollaudo(phone: string): boolean {
+  const lista = numeriDelCollaudo();
+  if (lista.length === 0) return false; // nessun collaudo impostato: risponde a tutti
+  const coda = phone.replace(/\D/g, '').slice(-9);
+  return !lista.some(n => n.slice(-9) === coda);
+}
 
 // ============================================================
 // Lo stato della conversazione
@@ -701,6 +726,32 @@ async function scaricaFoto(
   return blocchi;
 }
 
+/**
+ * Quello che il centro e la cliente si sono gia' detti, prima di oggi.
+ *
+ * Senza questo la segretaria comincia da zero con una persona con cui il
+ * centro parla da mesi: le chiede come si chiama, le ripropone una cosa che
+ * aveva gia' rifiutato, le dice «ciao!» a una conversazione aperta da tre
+ * settimane. La scheda cliente dice chi e' e cosa ha fatto in cabina; solo la
+ * chat dice cosa vi siete detti.
+ *
+ * Si legge una volta sola, quando la memoria della segretaria per quel numero
+ * e' vuota: da li' in poi la conversazione se la tiene lei.
+ *
+ * I messaggi in uscita non partiti (`ok: false`) restano fuori: la cliente non
+ * li ha mai letti, e farglieli credere detti e' peggio che non averli.
+ */
+async function storicoDaArchivio(phone: string): Promise<Battuta[]> {
+  const messaggi = await listMessages(phone, 60).catch(() => []);
+  return messaggi
+    .filter(m => m.text?.trim() && (m.direction === 'in' || m.ok !== false))
+    .slice(-14)
+    .map(m => ({
+      role: m.direction === 'in' ? ('user' as const) : ('assistant' as const),
+      text: m.text.trim(),
+    }));
+}
+
 // ============================================================
 // Il turno
 // ============================================================
@@ -884,10 +935,24 @@ async function turno(
   phone: string,
   messaggi: string[],
   foto: Array<{ id: string; mime?: string }>,
-  stato: StatoChat,
+  statoIniziale: StatoChat,
   daVocale: boolean
 ): Promise<EsitoTurno> {
+  let stato = statoIniziale;
   const ctx: Contesto = { phone, clienteId: null, passata: null, prenotato: null };
+
+  /*
+    Prima battuta con questo numero: si recupera dall'archivio quello che il
+    centro e la cliente si sono gia' detti. Non e' un lusso — senza, la
+    segretaria chiede come si chiama a chi scrive da mesi.
+  */
+  if (stato.turni.length === 0) {
+    const storico = await storicoDaArchivio(phone);
+    if (storico.length > 0) {
+      console.log(`[wa-segretaria] ${phone}: ripresa la chat dall'archivio (${storico.length} battute)`);
+      stato = { ...stato, turni: storico };
+    }
+  }
 
   const partenza = livelloDiPartenza({
     conFoto: foto.length > 0,
@@ -975,6 +1040,7 @@ export async function handleSegretariaMessage(params: {
   try {
     const cfg = await getWaAutomationsConfig();
     if (!cfg.segretaria) return { handled: false, reason: 'segretaria spenta' };
+    if (fuoriDalCollaudo(phone)) return { handled: false, reason: 'collaudo: numero non in elenco' };
     if (!process.env.ANTHROPIC_API_KEY) return { handled: false, reason: 'manca ANTHROPIC_API_KEY' };
     if (!text.trim() && !media) return { handled: false, reason: 'messaggio vuoto' };
 

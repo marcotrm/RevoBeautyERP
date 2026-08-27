@@ -144,11 +144,41 @@ export async function register() {
     }
   };
 
+  /**
+   * L'autocritica della segretaria: la sera, a giornata chiusa.
+   *
+   * Alle 21:30 e non alle 20: il centro chiude alle 19 e qualche conversazione
+   * si trascina, e rileggere una giornata mentre è ancora in corso significa
+   * giudicare una prenotazione a metà come se fosse stata abbandonata.
+   *
+   * La difesa contro il doppio giro non sta qui ma nel database: dentro
+   * `autocriticaDelGiorno` c'è una riga per giornata, e se c'è già non si
+   * rifà. Così un riavvio proprio in quel minuto non produce due analisi né
+   * due messaggi su Telegram.
+   */
+  const autocriticaTick = async () => {
+    const { hhmm } = nowRome();
+    if (hhmm !== '21:30') return;
+    try {
+      const { autocriticaDelGiorno } = await import('@/lib/autocritica');
+      const esito = await autocriticaDelGiorno();
+      if (esito.fatta && esito.analisi) {
+        const a = esito.analisi;
+        console.log(`[autocritica] ${a.giorno}: ${a.chatLette} chat, voto ${a.voto}/5, ${a.problemi.length} problemi, ${a.proposte.length} proposte`);
+      } else if (esito.motivo) {
+        console.log(`[autocritica] non fatta: ${esito.motivo}`);
+      }
+    } catch (err) {
+      console.error('[autocritica] scheduler error', err);
+    }
+  };
+
   // Controlla ogni minuto
-  setInterval(() => { void tick(); void waTick(); void buchiTick(); void affiliatiTick(); void recensioniTick(); }, 60 * 1000);
+  setInterval(() => { void tick(); void waTick(); void buchiTick(); void affiliatiTick(); void recensioniTick(); void autocriticaTick(); }, 60 * 1000);
   console.log('[reports] Scheduler report Telegram attivo (invio alle 20:00 Europe/Rome)');
   console.log('[wa] Scheduler automazioni WhatsApp attivo');
   console.log('[copri-buchi] Scheduler copri buchi attivo');
   console.log('[affiliati] Riepilogo mensile attivo (il 1° del mese dalle 10:00)');
   console.log('[recensioni] Controllo Google ogni 30 minuti (8-22), riepilogo positive alle 20:05');
+  console.log('[autocritica] La segretaria si rilegge alle 21:30');
 }

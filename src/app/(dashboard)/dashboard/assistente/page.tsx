@@ -15,7 +15,8 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Phone, Clock, FileText, CheckCircle2, AlertTriangle, Save } from 'lucide-react';
+import { Phone, Clock, FileText, CheckCircle2, AlertTriangle, Save, ScanSearch } from 'lucide-react';
+import Autocritica from './Autocritica';
 
 import {
   caricaCentro, salvaImpostazioniCentro, anteprimaIstruzioni, statoAssistente,
@@ -179,6 +180,12 @@ export default function AssistentePage() {
         </button>
         {salvato && <span className="text-xs text-success">Salvato. Vale dalla prossima telefonata.</span>}
       </div>
+
+      {/* ------------------------------------------------------ autocritica */}
+      <Sezione icona={ScanSearch} titolo="Come è andata"
+        sotto="La segretaria si rilegge ogni sera e dice cosa ha sbagliato. Quello che propone di imparare lo decidi tu.">
+        <Autocritica />
+      </Sezione>
 
       {/* ------------------------------------------------------- istruzioni */}
       <Sezione icona={FileText} titolo="Le regole, come le riceve l'assistente"
