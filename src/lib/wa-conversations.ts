@@ -481,6 +481,11 @@ export async function cancellaConversazione(phone: string): Promise<{ eliminati:
         { rowId: `wa:booking:${tel}` },
         { rowId: `wa:spostamento:${tel}` },
         { rowId: `wa:assistant:${tel}` },
+        // Anche la memoria della segretaria: dentro ci sono le ultime battute
+        // e l'eventuale pausa per il passaggio a una persona. Lasciarla
+        // indietro vuol dire cancellare la chat e ritrovarsi il bot che
+        // riprende da dove aveva lasciato, o che continua a tacere.
+        { rowId: `wa:segretaria:${tel}` },
       ],
     },
   });
