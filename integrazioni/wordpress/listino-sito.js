@@ -31,9 +31,11 @@
 
          <div data-revo-listino="Unghie"></div>
 
-     Il nome fra virgolette è la categoria, scritta come sta in gestionale.
-     Le categorie di oggi sono: Consulenza, Corpo, Depilazione, Laser,
-     Massaggi, Unghie, Viso. Se non sei sicuro del nome, lascia vuoto —
+     Il nome fra virgolette è la categoria. Vanno bene sia i nomi italiani —
+     Corpo, Consulenza, Viso, Laser, Massaggi, Unghie, Depilazione — sia quelli
+     con cui sono scritte in gestionale, che sono in inglese: body,
+     consultation, facial, laser, massage, nails, waxing.
+     Se non sei sicuro del nome, lascia vuoto —
      `<div data-revo-listino=""></div>` — e stampa tutto il listino diviso per
      categoria.
 
@@ -58,6 +60,37 @@
   'use strict';
 
   var FONTE = 'https://erp.revobeauty.it/api/listino/dati';
+
+  /*
+    Le categorie in gestionale hanno il nome in inglese.
+
+    Sono `body`, `consultation`, `facial`, `laser`, `massage`, `nails`,
+    `waxing`. Chi mette mano alle pagine del sito scrive «Unghie», e ha
+    ragione lui: e' il nome che sta nel titolo della pagina. Quindi si accettano
+    tutti e due, e nessuno deve andare a cercare come si chiama dentro il
+    database.
+  */
+  var NOMI = {
+    corpo: 'body',
+    consulenza: 'consultation',
+    viso: 'facial',
+    laser: 'laser',
+    massaggi: 'massage',
+    unghie: 'nails',
+    depilazione: 'waxing',
+    ceretta: 'waxing'
+  };
+
+  /* Come si scrivono in vetrina: i titoli li legge una cliente, non un tecnico. */
+  var IN_ITALIANO = {
+    body: 'Corpo',
+    consultation: 'Consulenza',
+    facial: 'Viso',
+    laser: 'Epilazione Laser',
+    massage: 'Massaggi',
+    nails: 'Unghie',
+    waxing: 'Depilazione'
+  };
 
   function euro(n) {
     return n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
@@ -88,7 +121,8 @@
   }
 
   function disegna(contenitore, dati) {
-    var categoria = (contenitore.getAttribute('data-revo-listino') || '').trim().toLowerCase();
+    var scritta = (contenitore.getAttribute('data-revo-listino') || '').trim().toLowerCase();
+    var categoria = NOMI[scritta] || scritta;
     var sesso = (contenitore.getAttribute('data-revo-sesso') || 'donna').trim().toLowerCase();
 
     var voci = dati.trattamenti.filter(function (v) {
@@ -108,8 +142,8 @@
       var vuoto = document.createElement('p');
       vuoto.style.cssText = 'opacity:.6;font-size:.9em';
       vuoto.textContent = categoria
-        ? 'Nessun trattamento nella categoria «' + categoria + '». Le categorie disponibili sono: '
-          + dati.categorie.join(', ') + '.'
+        ? 'Nessun trattamento nella categoria «' + scritta + '». Le categorie disponibili sono: '
+          + dati.categorie.map(function (c) { return IN_ITALIANO[String(c).toLowerCase()] || c; }).join(', ') + '.'
         : 'Listino non disponibile.';
       contenitore.appendChild(vuoto);
       return;
@@ -125,7 +159,7 @@
     Object.keys(perCategoria).sort().forEach(function (cat) {
       if (!categoria) {
         var titolo = document.createElement('h3');
-        titolo.textContent = cat;
+        titolo.textContent = IN_ITALIANO[String(cat).toLowerCase()] || cat;
         titolo.style.cssText = 'margin:24px 0 8px;font-size:1.1em';
         contenitore.appendChild(titolo);
       }

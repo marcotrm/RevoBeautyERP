@@ -40,6 +40,12 @@ come l'altro, e al posto di ogni elenco scritto a mano va una riga:
 <div data-revo-listino="Unghie"></div>
 ```
 
+Le categorie si possono scrivere in italiano (Corpo, Consulenza, Viso, Laser,
+Massaggi, Unghie, Depilazione) oppure con il nome che hanno in gestionale, che
+e' in inglese (`body`, `consultation`, `facial`, `laser`, `massage`, `nails`,
+`waxing`). Lo script le fa combaciare, e i titoli in pagina li scrive comunque
+in italiano.
+
 Serve perché oggi i due elenchi non dicono la stessa cosa. Confronto del
 27 agosto 2026, letto dalle pagine vere:
 
