@@ -1,5 +1,36 @@
 # Il modulo contatti di revobeauty.it
 
+> **Verificato il 27 agosto 2026, alle 16:10.** Il modulo sul sito è ancora
+> quello finto: `action="#"` e `preventDefault()`, e lo shortcode
+> `[contact-form-7 id="" title="Contatti"]` si legge ancora in chiaro in fondo
+> alla pagina. Nessuna delle due cose è stata installata. Nel frattempo il
+> gestionale è pronto e collaudato: `POST /api/lead` risponde, accetta le
+> richieste da `revobeauty.it` e da `www.revobeauty.it`, e i nomi dei campi
+> del modulo (`nome`, `cognome`, `email`, `telefono`, `servizio`, `messaggio`,
+> `privacy`) sono già esattamente quelli che si aspetta. Manca solo di
+> collegare il modulo.
+
+## Due strade
+
+**`modulo-contatti.js` — due minuti, senza FTP.** Un blocco di JavaScript da
+incollare in fondo alla pagina Contatti (o prima di `</body>` dal tema). Non
+serve wp-config, non serve la cartella `mu-plugins`, non serve un accesso ai
+file. **È la strada da fare oggi**, perché è quella che si può fare da sola
+dalla bacheca di WordPress.
+
+**`revobeauty-contatti.php` — più robusta.** Un must-use plugin che invia da
+PHP, quindi non dipende dal JavaScript del visitatore né da un blocco di
+pubblicità che glielo ferma. Richiede però l'accesso ai file del sito e due
+righe in `wp-config.php`. Vale la pena quando c'è mezz'ora e chi sa dove
+mettere le mani.
+
+Fanno la stessa cosa e **non vanno installate tutte e due insieme**: la
+richiesta partirebbe due volte, e la persona riceverebbe due messaggi su
+WhatsApp.
+
+In tutti e due i casi, dalla pagina va tolto il blocco «Oppure utilizza il
+modulo Contact Form 7:» con lo shortcode sotto.
+
 ## Che cosa era rotto
 
 Il modulo su `revobeauty.it/contatti` **non inviava niente**. Il codice della
