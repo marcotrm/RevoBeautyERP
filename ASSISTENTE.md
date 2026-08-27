@@ -275,7 +275,29 @@ minuti. Video e documenti seguono la stessa via.
   la segretaria non può prenotare.
 - `DEEPGRAM_API_KEY` — facoltativa. Senza, i vocali non si trascrivono e la
   segretaria chiede di riscrivere.
-- `WA_SEGRETARIA_MODEL` — facoltativa, per cambiare modello senza rilasciare.
+- `WA_SEGRETARIA_MODEL` — facoltativa. Di partenza `claude-opus-5`.
+- `WA_SEGRETARIA_EFFORT` — facoltativa. Di partenza `medium`.
+
+## Quanto costa
+
+Il modello si chiama a ogni giro di strumenti, non a ogni messaggio: una
+domanda sul listino sono due o tre chiamate, una prenotazione anche otto. Ogni
+chiamata rimanda istruzioni e strumenti da capo — circa quattromila token che
+non cambiano mai.
+
+Per questo il prompt è in due blocchi con il segnaposto della cache in mezzo:
+istruzioni e strumenti prima (stabili, cacheati, un decimo del prezzo dalla
+seconda chiamata in poi), i dati di questa chat dopo — contengono l'ora, quindi
+cambiano da soli ogni minuto e davanti al segnaposto azzererebbero la cache a
+ogni battuta.
+
+Si controlla che funzioni guardando `usage.cache_read_input_tokens`: se resta a
+zero su chiamate ravvicinate, qualcosa di volatile è finito prima del
+segnaposto.
+
+Lo sforzo è `medium` e non il valore di partenza `high`: qui si risponde a
+«quanto costa la ceretta», e quello che finisce scritto in agenda non lo
+protegge lo sforzo del modello ma il gettone di conferma.
 
 ## Prove
 

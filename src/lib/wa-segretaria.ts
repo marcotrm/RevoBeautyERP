@@ -88,6 +88,20 @@ function modello(): string {
   return process.env.WA_SEGRETARIA_MODEL || 'claude-opus-5';
 }
 
+/**
+ * Quanto a fondo ragionare prima di rispondere.
+ *
+ * `medium` e non `high` (che sarebbe il valore di partenza): qui si risponde a
+ * «quanto costa la ceretta» e «giovedì avete posto», non si progetta niente. E
+ * quello che deve andare per forza bene — quello che finisce scritto in agenda
+ * — non lo protegge lo sforzo del modello: lo protegge il gettone di conferma,
+ * che è una porta, non un consiglio.
+ */
+function sforzo(): 'low' | 'medium' | 'high' | 'xhigh' | 'max' {
+  const scelto = process.env.WA_SEGRETARIA_EFFORT;
+  return scelto === 'low' || scelto === 'high' || scelto === 'xhigh' || scelto === 'max' ? scelto : 'medium';
+}
+
 // ============================================================
 // Lo stato della conversazione
 // ============================================================
@@ -764,8 +778,33 @@ async function turno(
     const risposta = await client.messages.create({
       model: modello(),
       max_tokens: 1200,
-      system: `${istruzioni}\n\n## Questa conversazione\n\n${contesto}`,
+      /*
+        Il prompt è in due blocchi, e la divisione non è estetica.
+
+        La cache è un confronto di prefisso: si paga per intero la prima volta
+        e un decimo dalla seconda, ma un solo byte diverso all'inizio la
+        annulla tutta. Le istruzioni e gli strumenti non cambiano mai da una
+        battuta all'altra: stanno prima, con il segnaposto. I dati di questa
+        chat — che contengono l'ora, quindi cambiano da soli ogni minuto —
+        stanno dopo, dove non possono invalidare niente.
+
+        Non è un dettaglio da centesimi: un turno con gli strumenti sono fino a
+        otto chiamate, e ognuna rimanda istruzioni e strumenti da capo. Senza
+        cache si paga otto volte la stessa pagina.
+      */
+      system: [
+        { type: 'text', text: istruzioni, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: `## Questa conversazione\n\n${contesto}` },
+      ],
       tools: STRUMENTI,
+      /*
+        Pensa quanto serve, ma non è un compito di matematica: è una segretaria
+        che deve rispondere in fretta a «quanto costa la ceretta». Le decisioni
+        delicate — prenotare, spostare, disdire — non le protegge lo sforzo del
+        modello ma il gettone di conferma, che è una porta e non un consiglio.
+      */
+      thinking: { type: 'adaptive' },
+      output_config: { effort: sforzo() },
       messages: conversazione,
     });
 
