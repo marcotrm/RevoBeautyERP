@@ -12,6 +12,10 @@
 import { leggiCentro, salvaCentro, orariParlati, type Centro } from '@/lib/centro';
 import { costruisciIstruzioni } from '@/lib/istruzioniAssistente';
 import { ultimeChiamate, type Chiamata } from '@/lib/voceChiamate';
+import {
+  ultimeAutocritiche, autocriticaDelGiorno, accettaProposta, scartaProposta,
+  type Autocritica,
+} from '@/lib/autocritica';
 
 export async function caricaCentro(): Promise<Centro> {
   return leggiCentro();
@@ -50,4 +54,45 @@ export async function statoAssistente() {
 
 export async function caricaChiamate(quante = 50): Promise<Chiamata[]> {
   return ultimeChiamate(quante);
+}
+
+
+// ============================================================
+// L'autocritica: quello che la segretaria ha sbagliato ieri
+// ============================================================
+
+export async function caricaAutocritiche(quante = 10): Promise<Autocritica[]> {
+  return ultimeAutocritiche(quante);
+}
+
+/**
+ * Rilancia l'analisi a mano, senza aspettare le 21:30.
+ *
+ * Serve la prima volta — per vedere che funziona senza restare un giorno al
+ * buio — e serve il giorno che si vuole rileggere una giornata storta senza
+ * aspettare domani. Se l'analisi di oggi c'è già, non la rifà: costa e
+ * direbbe le stesse cose.
+ */
+export async function rileggiOggi() {
+  const esito = await autocriticaDelGiorno();
+  return {
+    ok: esito.fatta,
+    motivo: esito.motivo,
+    analisi: esito.analisi ?? null,
+  };
+}
+
+/**
+ * Accetta una proposta: da qui, e solo da qui, il testo dell'assistente cambia.
+ *
+ * È il passaggio umano che tiene insieme le due cose: un testo che si riscrive
+ * da solo ogni notte dopo un mese non è più quello che qualcuno ha approvato,
+ * e dentro le chat analizzate ci sono messaggi scritti da estranei.
+ */
+export async function accettaPropostaAssistente(id: string) {
+  return accettaProposta(id);
+}
+
+export async function scartaPropostaAssistente(id: string) {
+  return scartaProposta(id);
 }

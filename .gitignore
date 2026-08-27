@@ -41,3 +41,8 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Wheel Python scaricate per ispezionare le dipendenze del bot vocale:
+# roba di lavoro, non del progetto.
+*.whl
+*.tar.gz

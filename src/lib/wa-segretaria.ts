@@ -58,7 +58,10 @@ import { schedaDiChiScrive, type SchedaInChat } from './clienteInChat';
 import { packageCoreName } from './packageTreatment';
 import { fetchD360Media } from './whatsapp360';
 import { trascriviVocale, archiviaTrascrizione, trascrizioneConfigurata } from './trascrizione';
-import type { WaMedia } from './wa-conversations';
+import {
+  STRUMENTI_DELICATI, modelloPer, parametriRagionamento, livelloDiPartenza, type Livello,
+} from './orchestrazione';
+import { listMessages, markConversationUnread, type WaMedia } from './wa-conversations';
 import {
   registraArrivo, attendiSilenzio, prendiTurno, rilasciaTurno, rispondiUnaVolta,
 } from './wa-antiflood';
@@ -84,22 +87,31 @@ const MAX_GIRI_STRUMENTI = 8;
 /** Per quanto tace la segretaria dopo aver passato la conversazione a una persona. */
 const MUTO_ORE = 4;
 
-function modello(): string {
-  return process.env.WA_SEGRETARIA_MODEL || 'claude-opus-5';
-}
+
 
 /**
- * Quanto a fondo ragionare prima di rispondere.
+ * Il collaudo: per i primi giorni risponde solo a chi decidi tu.
  *
- * `medium` e non `high` (che sarebbe il valore di partenza): qui si risponde a
- * «quanto costa la ceretta» e «giovedì avete posto», non si progetta niente. E
- * quello che deve andare per forza bene — quello che finisce scritto in agenda
- * — non lo protegge lo sforzo del modello: lo protegge il gettone di conferma,
- * che è una porta, non un consiglio.
+ * Accendere una cosa che scrive in agenda su TUTTE le clienti insieme, la
+ * prima volta, e' una scommessa che non serve fare. Con
+ * `WA_SEGRETARIA_SOLO_NUMERI` la segretaria e' accesa davvero — stessi
+ * strumenti, stessa agenda — ma risponde solo ai numeri elencati. Agli altri
+ * non risponde nessuno, esattamente come ieri: il messaggio resta in chat e lo
+ * legge una persona. Nessun cliente vede niente di diverso finche' non togli
+ * la variabile.
  */
-function sforzo(): 'low' | 'medium' | 'high' | 'xhigh' | 'max' {
-  const scelto = process.env.WA_SEGRETARIA_EFFORT;
-  return scelto === 'low' || scelto === 'high' || scelto === 'xhigh' || scelto === 'max' ? scelto : 'medium';
+function numeriDelCollaudo(): string[] {
+  return (process.env.WA_SEGRETARIA_SOLO_NUMERI || '')
+    .split(',')
+    .map(n => n.replace(/\D/g, ''))
+    .filter(n => n.length >= 6);
+}
+
+function fuoriDalCollaudo(phone: string): boolean {
+  const lista = numeriDelCollaudo();
+  if (lista.length === 0) return false; // nessun collaudo impostato: risponde a tutti
+  const coda = phone.replace(/\D/g, '').slice(-9);
+  return !lista.some(n => n.slice(-9) === coda);
 }
 
 // ============================================================
@@ -119,6 +131,13 @@ interface StatoChat {
   fotoPendenti?: Array<{ id: string; mime?: string }>;
   /** Fino a quando la segretaria sta zitta perché ha passato la palla a una persona. */
   mutoFino?: string;
+  /**
+   * Su quale modello gira questa conversazione.
+   *
+   * Una volta salita non riscende: se dieci minuti fa stava prendendo un
+   * appuntamento, la battuta dopo fa parte di quella cosa lì.
+   */
+  livello?: Livello;
 }
 
 const riga = (phone: string) => `wa:segretaria:${phone}`;
@@ -136,6 +155,10 @@ async function leggiStato(phone: string): Promise<StatoChat> {
     pendenti: s?.pendenti || [],
     fotoPendenti: s?.fotoPendenti || [],
     mutoFino: s?.mutoFino,
+    // Il livello si azzera con la giornata, come il tetto delle risposte: chi
+    // torna a scrivere dopo due giorni comincia da una domanda, non da dove
+    // aveva lasciato.
+    livello: s?.giorno === oggi ? s.livello : undefined,
   };
 }
 
@@ -645,12 +668,35 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
       ctx.passata = motivo;
       const sch = await scheda(ctx);
       const chi = sch ? sch.nomeCompleto : ctx.phone;
-      sendTelegram(
-        `🙋 *Serve una persona su WhatsApp*\n\n${chi} (${ctx.phone})\n\n${motivo}`
-      ).catch(() => {});
+
+      /*
+        A chi passa la palla, davvero.
+
+        Telegram è il modo veloce, ma è configurabile: se non lo è —  o se il
+        bot è stato tolto, o il token è scaduto — `sendTelegram` risponde
+        ok:false e non se ne accorge nessuno. Una chiamata d'aiuto che finisce
+        nel vuoto è peggio di non averla fatta: la segretaria ha detto alla
+        cliente «ti fa sapere una collega», e la collega non sa niente.
+
+        Quindi il posto sicuro è il gestionale: la conversazione torna DA
+        LEGGERE nella schermata WhatsApp, con il numerino sul menù. Quello si
+        vede sempre, anche senza Telegram, anche domani mattina.
+      */
+      await markConversationUnread(ctx.phone).catch(() => {});
+
+      const avvisato = await sendTelegram(
+        `🙋 *Serve una persona su WhatsApp*\n\n${chi} (${ctx.phone})\n\n${motivo}\n\n`
+        + `_La chat è segnata da leggere nel gestionale._`
+      ).catch(() => ({ ok: false as const, error: 'errore' }));
+
+      if (!avvisato.ok) {
+        console.log(`[wa-segretaria] ${ctx.phone}: passata a una persona, Telegram non ha avvisato (${avvisato.error}) — resta la chat da leggere`);
+      }
+
       return JSON.stringify({
         ok: true,
-        nota: `Il centro è stato avvisato. Scrivi alla cliente che la fai ricontattare da una collega, in una frase, e fermati.`,
+        nota: 'Il centro è stato avvisato e la chat risulta da leggere. Scrivi alla cliente che la fai '
+          + 'ricontattare da una collega, in una frase, e fermati.',
       });
     }
 
@@ -667,9 +713,9 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
  * — che è il modo normale di chiedere quella cosa — non riceveva risposta.
  *
  * Adesso la segretaria le guarda. Con un limite che non è tecnico ma di
- * mestiere, e sta nelle istruzioni: qui è medicina estetica, e da una foto non
- * si valuta niente. Una foto di unghie serve a capire che modello vuole; una
- * foto di pelle serve solo a fissare la visita.
+ * mestiere, e sta nelle istruzioni: qui non si fa medicina, e da una foto non
+ * si valuta niente comunque. Una foto di unghie serve a capire che modello
+ * vuole; una foto di pelle serve solo a fissare la visita.
  */
 const MIME_GUARDABILI = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
@@ -703,6 +749,32 @@ async function scaricaFoto(
   return blocchi;
 }
 
+/**
+ * Quello che il centro e la cliente si sono gia' detti, prima di oggi.
+ *
+ * Senza questo la segretaria comincia da zero con una persona con cui il
+ * centro parla da mesi: le chiede come si chiama, le ripropone una cosa che
+ * aveva gia' rifiutato, le dice «ciao!» a una conversazione aperta da tre
+ * settimane. La scheda cliente dice chi e' e cosa ha fatto in cabina; solo la
+ * chat dice cosa vi siete detti.
+ *
+ * Si legge una volta sola, quando la memoria della segretaria per quel numero
+ * e' vuota: da li' in poi la conversazione se la tiene lei.
+ *
+ * I messaggi in uscita non partiti (`ok: false`) restano fuori: la cliente non
+ * li ha mai letti, e farglieli credere detti e' peggio che non averli.
+ */
+async function storicoDaArchivio(phone: string): Promise<Battuta[]> {
+  const messaggi = await listMessages(phone, 60).catch(() => []);
+  return messaggi
+    .filter(m => m.text?.trim() && (m.direction === 'in' || m.ok !== false))
+    .slice(-14)
+    .map(m => ({
+      role: m.direction === 'in' ? ('user' as const) : ('assistant' as const),
+      text: m.text.trim(),
+    }));
+}
+
 // ============================================================
 // Il turno
 // ============================================================
@@ -733,20 +805,27 @@ async function contestoDiChat(phone: string): Promise<string> {
 
 interface EsitoTurno { risposto: boolean; motivo?: string }
 
-async function turno(
+/** Come è finito un giro: con una risposta, o con la richiesta di salire di modello. */
+type EsitoGiro =
+  | { tipo: 'risposta'; testo: string }
+  | { tipo: 'niente' }
+  | { tipo: 'sali'; strumento: string };
+
+async function eseguiTurno(
   phone: string,
   messaggi: string[],
   foto: Array<{ id: string; mime?: string }>,
-  stato: StatoChat
-): Promise<EsitoTurno> {
+  stato: StatoChat,
+  livello: Livello,
+  ctx: Contesto
+): Promise<EsitoGiro> {
   const client = new Anthropic();
+  const model = modelloPer(livello);
 
   const [istruzioni, contesto] = await Promise.all([
     costruisciIstruzioni('whatsapp'),
     contestoDiChat(phone),
   ]);
-
-  const ctx: Contesto = { phone, clienteId: null, passata: null, prenotato: null };
 
   /*
     La raffica diventa un messaggio solo. Non è una semplificazione: le tre
@@ -776,7 +855,7 @@ async function turno(
 
   for (let giro = 0; giro < MAX_GIRI_STRUMENTI; giro++) {
     const risposta = await client.messages.create({
-      model: modello(),
+      model,
       max_tokens: 1200,
       /*
         Il prompt è in due blocchi, e la divisione non è estetica.
@@ -803,8 +882,12 @@ async function turno(
         delicate — prenotare, spostare, disdire — non le protegge lo sforzo del
         modello ma il gettone di conferma, che è una porta e non un consiglio.
       */
-      thinking: { type: 'adaptive' },
-      output_config: { effort: sforzo() },
+      /*
+        I parametri di ragionamento non sono uguali per tutti i modelli, e
+        sbagliarli non degrada: rifiuta la richiesta. Li sceglie
+        `parametriRagionamento` insieme al modello, che è la stessa decisione.
+      */
+      ...parametriRagionamento(model),
       messages: conversazione,
     });
 
@@ -818,6 +901,19 @@ async function turno(
       // Fine del ragionamento: questo è quello che la cliente legge.
       testoFinale = testo;
       break;
+    }
+
+    /*
+      Il modello economico ha allungato la mano su qualcosa che scrive.
+
+      Qui non si discute e non si chiede conferma: si butta via il turno e si
+      rifà con la testa buona, dalla stessa conversazione. Continuare — far
+      confermare al modello grosso una decisione già presa dal piccolo — non
+      servirebbe a niente: il giorno e l'ora li ha scelti lui due righe fa.
+    */
+    if (livello === 'lavoro') {
+      const delicato = richieste.find(r => STRUMENTI_DELICATI.has(r.name));
+      if (delicato) return { tipo: 'sali', strumento: delicato.name };
     }
 
     /*
@@ -845,11 +941,68 @@ async function turno(
     if (testo) testoFinale = testo;
   }
 
-  if (!testoFinale) {
+  return testoFinale
+    ? { tipo: 'risposta', testo: testoFinale }
+    : { tipo: 'niente' };
+}
+
+/**
+ * Il turno completo: sceglie chi risponde, semmai lo rifà con la testa buona,
+ * e manda UN messaggio.
+ *
+ * L'invio sta qui e in nessun altro posto. È il motivo per cui una escalation
+ * non produce due messaggi: il giro del modello economico che finisce con
+ * «sali» non ha ancora scritto niente a nessuno.
+ */
+async function turno(
+  phone: string,
+  messaggi: string[],
+  foto: Array<{ id: string; mime?: string }>,
+  statoIniziale: StatoChat,
+  daVocale: boolean
+): Promise<EsitoTurno> {
+  let stato = statoIniziale;
+  const ctx: Contesto = { phone, clienteId: null, passata: null, prenotato: null };
+
+  /*
+    Prima battuta con questo numero: si recupera dall'archivio quello che il
+    centro e la cliente si sono gia' detti. Non e' un lusso — senza, la
+    segretaria chiede come si chiama a chi scrive da mesi.
+  */
+  if (stato.turni.length === 0) {
+    const storico = await storicoDaArchivio(phone);
+    if (storico.length > 0) {
+      console.log(`[wa-segretaria] ${phone}: ripresa la chat dall'archivio (${storico.length} battute)`);
+      stato = { ...stato, turni: storico };
+    }
+  }
+
+  const partenza = livelloDiPartenza({
+    conFoto: foto.length > 0,
+    daVocale,
+    giaSalita: stato.livello === 'testa',
+  });
+
+  let livello = partenza.livello;
+  let esito = await eseguiTurno(phone, messaggi, foto, stato, livello, ctx);
+
+  if (esito.tipo === 'sali') {
+    console.log(`[wa-segretaria] ${phone}: sale sul modello grosso (ha chiesto ${esito.strumento})`);
+    livello = 'testa';
+    // Il contesto si rifà pulito: quello di prima porta dentro le tracce di un
+    // turno che stiamo buttando via.
+    const ctxPulito: Contesto = { phone, clienteId: null, passata: null, prenotato: null };
+    esito = await eseguiTurno(phone, messaggi, foto, stato, livello, ctxPulito);
+    Object.assign(ctx, ctxPulito);
+  } else {
+    console.log(`[wa-segretaria] ${phone}: risponde il modello di ${livello} (${partenza.perche})`);
+  }
+
+  if (esito.tipo !== 'risposta') {
     return { risposto: false, motivo: 'il modello non ha prodotto una risposta' };
   }
 
-  const inviato = await rispondiUnaVolta(phone, testoFinale, 'assistant');
+  const inviato = await rispondiUnaVolta(phone, esito.testo, 'assistant');
   if (!inviato.inviato) return { risposto: false, motivo: inviato.motivo };
 
   // Lo stato si salva DOPO l'invio riuscito: se il messaggio non è partito, la
@@ -858,12 +1011,13 @@ async function turno(
     ...stato,
     turni: [
       ...stato.turni,
-      { role: 'user', text: immagini.length > 0 ? `[foto] ${domanda}`.trim() : domanda },
-      { role: 'assistant', text: testoFinale },
+      { role: 'user', text: foto.length > 0 ? `[foto] ${messaggi.join('\n')}`.trim() : messaggi.join('\n') },
+      { role: 'assistant', text: esito.testo },
     ],
     risposteOggi: stato.risposteOggi + 1,
     pendenti: [],
     fotoPendenti: [],
+    livello,
     mutoFino: ctx.passata
       ? new Date(Date.now() + MUTO_ORE * 3_600_000).toISOString()
       : stato.mutoFino,
@@ -909,6 +1063,7 @@ export async function handleSegretariaMessage(params: {
   try {
     const cfg = await getWaAutomationsConfig();
     if (!cfg.segretaria) return { handled: false, reason: 'segretaria spenta' };
+    if (fuoriDalCollaudo(phone)) return { handled: false, reason: 'collaudo: numero non in elenco' };
     if (!process.env.ANTHROPIC_API_KEY) return { handled: false, reason: 'manca ANTHROPIC_API_KEY' };
     if (!text.trim() && !media) return { handled: false, reason: 'messaggio vuoto' };
 
@@ -1015,7 +1170,7 @@ export async function handleSegretariaMessage(params: {
     try {
       stato = await leggiStato(phone);
       const messaggi = stato.pendenti.length > 0 ? stato.pendenti : [testoUtile].filter(Boolean);
-      const esito = await turno(phone, messaggi, stato.fotoPendenti || [], stato);
+      const esito = await turno(phone, messaggi, stato.fotoPendenti || [], stato, daVocale);
       return esito.risposto
         ? { handled: true }
         : { handled: false, reason: esito.motivo };

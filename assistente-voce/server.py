@@ -32,8 +32,12 @@ async def salute():
     """
     servono = [
         "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "DEEPGRAM_API_KEY",
-        "FISH_API_KEY", "FISH_VOICE_ID", "ANTHROPIC_API_KEY", "VOICE_API_SECRET",
+        "ANTHROPIC_API_KEY", "VOICE_API_SECRET",
     ]
+    # Le chiavi di Fish servono solo se e' Fish a parlare: chiederle a chi ha
+    # scelto Deepgram farebbe risultare "non pronto" un servizio che funziona.
+    if os.getenv("VOCE_TTS", "fish").lower() != "deepgram":
+        servono += ["FISH_API_KEY", "FISH_VOICE_ID"]
     mancano = [v for v in servono if not os.getenv(v)]
     return JSONResponse({
         "servizio": "assistente-voce",
