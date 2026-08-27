@@ -278,7 +278,36 @@ export function TreatmentsSection() {
   const durF = (t: Treatment) => t.durationFemale ?? t.duration;
   const durM = (t: Treatment) => t.durationMale;
 
-  const filtered = search.trim() ? treatments.filter(t => t.name.toLowerCase().includes(search.toLowerCase())) : treatments;
+  /*
+    Il filtro per categoria.
+
+    Centododici trattamenti in un elenco solo: per arrivare a "Corpo" si
+    scorreva, o si andava a memoria del nome. Le linguette qui sotto sono le
+    categorie che nel catalogo esistono davvero — non le nove teoriche — col
+    numero di quante ce ne stanno dentro. Se ne possono tenere accese anche
+    piu' d'una, e "Tutte" le spegne.
+  */
+  const [categorie, setCategorie] = useState<string[]>([]);
+  const toggleCategoria = (v: string) =>
+    setCategorie(prec => (prec.includes(v) ? prec.filter(x => x !== v) : [...prec, v]));
+
+  const perNome = search.trim() ? treatments.filter(t => t.name.toLowerCase().includes(search.toLowerCase())) : treatments;
+  const conteggi = (() => {
+    const m = new Map<string, number>();
+    for (const t of perNome) m.set(t.category, (m.get(t.category) || 0) + 1);
+    return m;
+  })();
+  const linguette = (() => {
+    const ordine = CATEGORIES.map(c => c.value);
+    // Anche una categoria accesa che dopo la ricerca non ha piu' righe resta
+    // in elenco: se sparisse, non ci sarebbe piu' modo di spegnerla.
+    const viste = [...new Set([...perNome.map(t => t.category), ...categorie])];
+    return viste.sort((a, b) => {
+      const ia = ordine.indexOf(a), ib = ordine.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+  })();
+  const filtered = categorie.length ? perNome.filter(t => categorie.includes(t.category)) : perNome;
 
   // --- Selezione multipla e azioni massive ---
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -310,7 +339,7 @@ export function TreatmentsSection() {
     <div className="space-y-4">
       <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
-          <h3 className="text-base font-display font-semibold text-text-primary">Catalogo Trattamenti Base <span className="text-sm font-normal text-text-muted">({treatments.length})</span></h3>
+          <h3 className="text-base font-display font-semibold text-text-primary">Catalogo Trattamenti Base <span className="text-sm font-normal text-text-muted">({filtered.length < treatments.length ? `${filtered.length} di ${treatments.length}` : treatments.length})</span></h3>
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
@@ -328,6 +357,31 @@ export function TreatmentsSection() {
             </button>
           </div>
         </div>
+        {linguette.length > 1 && (
+          <div className="px-6 py-2.5 border-b border-border flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-semibold text-text-muted uppercase mr-1">Categoria</span>
+            <button type="button" onClick={() => setCategorie([])} title="Mostra tutti i trattamenti"
+              className={`h-7 px-2.5 rounded-full text-[11px] font-semibold transition-all ${
+                categorie.length === 0
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'bg-bg-tertiary border border-border text-text-muted hover:border-accent/40 hover:text-accent'}`}>
+              Tutte <span className="opacity-70">{perNome.length}</span>
+            </button>
+            {linguette.map(v => {
+              const on = categorie.includes(v);
+              return (
+                <button key={v} type="button" onClick={() => toggleCategoria(v)}
+                  title={on ? `Togli ${getCategoryLabel(v)} dal filtro` : `Mostra solo ${getCategoryLabel(v)}`}
+                  className={`h-7 px-2.5 rounded-full text-[11px] font-semibold transition-all ${
+                    on
+                      ? 'bg-accent/15 text-accent border border-accent/40'
+                      : 'bg-bg-tertiary border border-border text-text-secondary hover:border-accent/40 hover:text-accent'}`}>
+                  {getCategoryLabel(v)} <span className="opacity-60">{conteggi.get(v) || 0}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         {importMsg && (
           <div className={`px-6 py-2.5 text-xs font-medium border-b border-border ${importMsg.startsWith('✓') ? 'text-green-500 bg-green-500/5' : 'text-error bg-error/5'}`}>
             {importMsg}
@@ -367,7 +421,18 @@ export function TreatmentsSection() {
                 <tr key={t.id} className={`transition-colors group ${selected.has(t.id) ? 'bg-accent/5' : 'hover:bg-bg-hover'}`}>
                   <td className="px-4 py-3 text-center"><input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleOne(t.id)} className="w-4 h-4 rounded border-border accent-accent cursor-pointer" /></td>
                   <td className="px-5 py-3"><div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} /><span className="text-sm font-medium text-text-primary">{t.name}</span></div></td>
-                  <td className="px-5 py-3 hidden sm:table-cell"><span className="text-xs text-text-secondary">{getCategoryLabel(t.category)}</span></td>
+                  {/* La categoria scritta nella riga e' anche il filtro: si tocca
+                      "Corpo" su una riga qualunque e restano solo i corpo. */}
+                  <td className="px-5 py-3 hidden sm:table-cell">
+                    <button type="button" onClick={() => toggleCategoria(t.category)}
+                      title={categorie.includes(t.category) ? `Togli ${getCategoryLabel(t.category)} dal filtro` : `Mostra solo ${getCategoryLabel(t.category)}`}
+                      className={`-mx-1.5 px-1.5 py-0.5 rounded-md text-xs transition-all ${
+                        categorie.includes(t.category)
+                          ? 'text-accent font-semibold bg-accent/10'
+                          : 'text-text-secondary hover:text-accent hover:bg-accent/10'}`}>
+                      {getCategoryLabel(t.category)}
+                    </button>
+                  </td>
                   {/*
                     Chi lo fa, senza aprire niente.
 
@@ -409,7 +474,16 @@ export function TreatmentsSection() {
               ))}
             </tbody>
           </table>
-          {filtered.length === 0 && <div className="text-center py-10"><p className="text-text-muted text-sm">Nessun trattamento trovato</p></div>}
+          {filtered.length === 0 && (
+            <div className="text-center py-10">
+              <p className="text-text-muted text-sm">Nessun trattamento trovato</p>
+              {categorie.length > 0 && (
+                <button type="button" onClick={() => setCategorie([])} className="mt-2 text-xs font-semibold text-accent hover:underline">
+                  Togli il filtro categoria
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
