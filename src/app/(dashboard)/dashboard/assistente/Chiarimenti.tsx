@@ -12,8 +12,10 @@
  * l'unica cosa che le permette di prendere appuntamenti senza indovinare.
  */
 
-import React from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import React, { useState, useTransition } from 'react';
+import { Plus, Trash2, Sparkles, Loader2, Check } from 'lucide-react';
+import { proponiDomandeTrattamenti } from '@/app/actions/assistente';
+import type { ChiarimentoProposto } from '@/lib/chiarimentiProposti';
 import type { Chiarimento } from '@/lib/centro';
 
 const VUOTO: Chiarimento = { parole: [], chiedi: '', scelta: '' };
@@ -26,6 +28,26 @@ export default function Chiarimenti({
 }) {
   const aggiorna = (i: number, patch: Partial<Chiarimento>) =>
     onChange(valore.map((c, k) => (k === i ? { ...c, ...patch } : c)));
+
+  const [proposte, setProposte] = useState<ChiarimentoProposto[] | null>(null);
+  const [nota, setNota] = useState<string | null>(null);
+  const [inCorso, start] = useTransition();
+
+  const chiediProposte = () => start(async () => {
+    setNota(null);
+    const r = await proponiDomandeTrattamenti();
+    if (!r.ok) { setNota(r.motivo); return; }
+    setProposte(r.proposte.filter(p => !p.giaPresente));
+    if (r.proposte.length === 0) setNota('Non ha trovato parole ambigue da chiarire.');
+    else setNota(r.chatLette > 0
+      ? `Ha letto il listino e ${r.chatLette} conversazioni in cui ha risposto una persona.`
+      : 'Ha letto solo il listino: in archivio non c\'erano conversazioni con risposte scritte a mano.');
+  });
+
+  const accetta = (p: ChiarimentoProposto) => {
+    onChange([...valore, { parole: p.parole, chiedi: p.chiedi, scelta: p.scelta }]);
+    setProposte((proposte || []).filter(x => x !== p));
+  };
 
   return (
     <div className="space-y-3">
@@ -97,11 +119,63 @@ export default function Chiarimenti({
         </div>
       ))}
 
-      <button
-        onClick={() => onChange([...valore, { ...VUOTO }])}
-        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-bg-tertiary border border-border text-xs text-text-secondary hover:bg-bg-hover">
-        <Plus className="w-3.5 h-3.5" /> Aggiungi
-      </button>
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => onChange([...valore, { ...VUOTO }])}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-bg-tertiary border border-border text-xs text-text-secondary hover:bg-bg-hover">
+          <Plus className="w-3.5 h-3.5" /> Aggiungi
+        </button>
+
+        {/* Scriverle a mano è il modo giusto ed è anche quello che non si fa
+            mai. Le domande però esistono già: sono nelle chat, ogni volta che
+            una ragazza ha risposto «ce le hai già o partiamo da zero?». */}
+        <button onClick={chiediProposte} disabled={inCorso}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent/10 border border-accent/30 text-xs text-accent hover:bg-accent/15 disabled:opacity-50">
+          {inCorso ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+          Proponile tu, dal listino e dalle chat
+        </button>
+      </div>
+
+      {nota && <p className="text-[11px] text-text-muted">{nota}</p>}
+
+      {proposte && proposte.length > 0 && (
+        <div className="space-y-2 pt-1">
+          <p className="text-[11px] font-medium text-text-secondary">
+            Proposte — entrano solo se le accetti
+          </p>
+          {proposte.map((p, i) => (
+            <div key={i} className="p-3 rounded-xl bg-bg-tertiary border border-accent/20">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs text-text-primary">
+                    <b>{p.parole.join(', ')}</b>
+                    {p.dalleChat && (
+                      <span className="ml-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-success/15 text-success align-middle">
+                        DALLE VOSTRE CHAT
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-text-secondary mt-1">«{p.chiedi}»</p>
+                  {p.scelta && <p className="text-[11px] text-text-muted mt-1">{p.scelta}</p>}
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => accetta(p)} title="Aggiungi"
+                    className="p-1.5 rounded-lg bg-success/15 text-success">
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => setProposte(proposte.filter(x => x !== p))} title="No"
+                    className="p-1.5 rounded-lg bg-bg-hover text-text-muted">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+          <p className="text-[10px] text-text-muted/70 leading-relaxed">
+            Quelle accettate finiscono nell&apos;elenco qui sopra: rileggile e poi <b>Salva</b>.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

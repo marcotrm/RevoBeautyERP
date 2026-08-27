@@ -383,6 +383,18 @@ fare tre domande a un'abituale. Copre la maggior parte dei casi da solo.
 «Quando non e' chiaro quale trattamento»: le parole che le clienti usano, la
 domanda che le distingue, e come si sceglie in base alla risposta.
 
+Scriverle a mano pero' e' anche il lavoro che non si fa mai. Per questo c'e' il
+tasto **«Proponile tu, dal listino e dalle chat»**: legge i trattamenti attivi
+e le conversazioni in cui ha risposto una PERSONA — non la segretaria, che e'
+quello che stiamo migliorando — e propone. Quando in una chat una ragazza aveva
+gia' fatto la domanda giusta, riprende **le sue parole**: e' il modo in cui quel
+centro parla alle sue clienti, e vale piu' di qualunque riformulazione. Le
+proposte che vengono da li' sono marcate.
+
+Propone e basta: entrano quando qualcuno le accetta. Dentro quelle chat ci sono
+messaggi scritti da estranei, e una domanda «suggerita» da una cliente furba non
+deve poter finire in bocca all'assistente.
+
 ```
 Quando dice:  gel, unghie, ricostruzione
 Tu chiedi:    Le hai già fatte o partiamo da zero?
