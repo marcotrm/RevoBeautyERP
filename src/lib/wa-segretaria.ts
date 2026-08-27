@@ -58,6 +58,9 @@ import { schedaDiChiScrive, type SchedaInChat } from './clienteInChat';
 import { packageCoreName } from './packageTreatment';
 import { fetchD360Media } from './whatsapp360';
 import { trascriviVocale, archiviaTrascrizione, trascrizioneConfigurata } from './trascrizione';
+import {
+  STRUMENTI_DELICATI, modelloPer, parametriRagionamento, livelloDiPartenza, type Livello,
+} from './orchestrazione';
 import type { WaMedia } from './wa-conversations';
 import {
   registraArrivo, attendiSilenzio, prendiTurno, rilasciaTurno, rispondiUnaVolta,
@@ -84,23 +87,7 @@ const MAX_GIRI_STRUMENTI = 8;
 /** Per quanto tace la segretaria dopo aver passato la conversazione a una persona. */
 const MUTO_ORE = 4;
 
-function modello(): string {
-  return process.env.WA_SEGRETARIA_MODEL || 'claude-opus-5';
-}
 
-/**
- * Quanto a fondo ragionare prima di rispondere.
- *
- * `medium` e non `high` (che sarebbe il valore di partenza): qui si risponde a
- * «quanto costa la ceretta» e «giovedì avete posto», non si progetta niente. E
- * quello che deve andare per forza bene — quello che finisce scritto in agenda
- * — non lo protegge lo sforzo del modello: lo protegge il gettone di conferma,
- * che è una porta, non un consiglio.
- */
-function sforzo(): 'low' | 'medium' | 'high' | 'xhigh' | 'max' {
-  const scelto = process.env.WA_SEGRETARIA_EFFORT;
-  return scelto === 'low' || scelto === 'high' || scelto === 'xhigh' || scelto === 'max' ? scelto : 'medium';
-}
 
 // ============================================================
 // Lo stato della conversazione
@@ -119,6 +106,13 @@ interface StatoChat {
   fotoPendenti?: Array<{ id: string; mime?: string }>;
   /** Fino a quando la segretaria sta zitta perché ha passato la palla a una persona. */
   mutoFino?: string;
+  /**
+   * Su quale modello gira questa conversazione.
+   *
+   * Una volta salita non riscende: se dieci minuti fa stava prendendo un
+   * appuntamento, la battuta dopo fa parte di quella cosa lì.
+   */
+  livello?: Livello;
 }
 
 const riga = (phone: string) => `wa:segretaria:${phone}`;
@@ -136,6 +130,10 @@ async function leggiStato(phone: string): Promise<StatoChat> {
     pendenti: s?.pendenti || [],
     fotoPendenti: s?.fotoPendenti || [],
     mutoFino: s?.mutoFino,
+    // Il livello si azzera con la giornata, come il tetto delle risposte: chi
+    // torna a scrivere dopo due giorni comincia da una domanda, non da dove
+    // aveva lasciato.
+    livello: s?.giorno === oggi ? s.livello : undefined,
   };
 }
 
@@ -667,9 +665,9 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
  * — che è il modo normale di chiedere quella cosa — non riceveva risposta.
  *
  * Adesso la segretaria le guarda. Con un limite che non è tecnico ma di
- * mestiere, e sta nelle istruzioni: qui è medicina estetica, e da una foto non
- * si valuta niente. Una foto di unghie serve a capire che modello vuole; una
- * foto di pelle serve solo a fissare la visita.
+ * mestiere, e sta nelle istruzioni: qui non si fa medicina, e da una foto non
+ * si valuta niente comunque. Una foto di unghie serve a capire che modello
+ * vuole; una foto di pelle serve solo a fissare la visita.
  */
 const MIME_GUARDABILI = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
@@ -733,20 +731,27 @@ async function contestoDiChat(phone: string): Promise<string> {
 
 interface EsitoTurno { risposto: boolean; motivo?: string }
 
-async function turno(
+/** Come è finito un giro: con una risposta, o con la richiesta di salire di modello. */
+type EsitoGiro =
+  | { tipo: 'risposta'; testo: string }
+  | { tipo: 'niente' }
+  | { tipo: 'sali'; strumento: string };
+
+async function eseguiTurno(
   phone: string,
   messaggi: string[],
   foto: Array<{ id: string; mime?: string }>,
-  stato: StatoChat
-): Promise<EsitoTurno> {
+  stato: StatoChat,
+  livello: Livello,
+  ctx: Contesto
+): Promise<EsitoGiro> {
   const client = new Anthropic();
+  const model = modelloPer(livello);
 
   const [istruzioni, contesto] = await Promise.all([
     costruisciIstruzioni('whatsapp'),
     contestoDiChat(phone),
   ]);
-
-  const ctx: Contesto = { phone, clienteId: null, passata: null, prenotato: null };
 
   /*
     La raffica diventa un messaggio solo. Non è una semplificazione: le tre
@@ -776,7 +781,7 @@ async function turno(
 
   for (let giro = 0; giro < MAX_GIRI_STRUMENTI; giro++) {
     const risposta = await client.messages.create({
-      model: modello(),
+      model,
       max_tokens: 1200,
       /*
         Il prompt è in due blocchi, e la divisione non è estetica.
@@ -803,8 +808,12 @@ async function turno(
         delicate — prenotare, spostare, disdire — non le protegge lo sforzo del
         modello ma il gettone di conferma, che è una porta e non un consiglio.
       */
-      thinking: { type: 'adaptive' },
-      output_config: { effort: sforzo() },
+      /*
+        I parametri di ragionamento non sono uguali per tutti i modelli, e
+        sbagliarli non degrada: rifiuta la richiesta. Li sceglie
+        `parametriRagionamento` insieme al modello, che è la stessa decisione.
+      */
+      ...parametriRagionamento(model),
       messages: conversazione,
     });
 
@@ -818,6 +827,19 @@ async function turno(
       // Fine del ragionamento: questo è quello che la cliente legge.
       testoFinale = testo;
       break;
+    }
+
+    /*
+      Il modello economico ha allungato la mano su qualcosa che scrive.
+
+      Qui non si discute e non si chiede conferma: si butta via il turno e si
+      rifà con la testa buona, dalla stessa conversazione. Continuare — far
+      confermare al modello grosso una decisione già presa dal piccolo — non
+      servirebbe a niente: il giorno e l'ora li ha scelti lui due righe fa.
+    */
+    if (livello === 'lavoro') {
+      const delicato = richieste.find(r => STRUMENTI_DELICATI.has(r.name));
+      if (delicato) return { tipo: 'sali', strumento: delicato.name };
     }
 
     /*
@@ -845,11 +867,54 @@ async function turno(
     if (testo) testoFinale = testo;
   }
 
-  if (!testoFinale) {
+  return testoFinale
+    ? { tipo: 'risposta', testo: testoFinale }
+    : { tipo: 'niente' };
+}
+
+/**
+ * Il turno completo: sceglie chi risponde, semmai lo rifà con la testa buona,
+ * e manda UN messaggio.
+ *
+ * L'invio sta qui e in nessun altro posto. È il motivo per cui una escalation
+ * non produce due messaggi: il giro del modello economico che finisce con
+ * «sali» non ha ancora scritto niente a nessuno.
+ */
+async function turno(
+  phone: string,
+  messaggi: string[],
+  foto: Array<{ id: string; mime?: string }>,
+  stato: StatoChat,
+  daVocale: boolean
+): Promise<EsitoTurno> {
+  const ctx: Contesto = { phone, clienteId: null, passata: null, prenotato: null };
+
+  const partenza = livelloDiPartenza({
+    conFoto: foto.length > 0,
+    daVocale,
+    giaSalita: stato.livello === 'testa',
+  });
+
+  let livello = partenza.livello;
+  let esito = await eseguiTurno(phone, messaggi, foto, stato, livello, ctx);
+
+  if (esito.tipo === 'sali') {
+    console.log(`[wa-segretaria] ${phone}: sale sul modello grosso (ha chiesto ${esito.strumento})`);
+    livello = 'testa';
+    // Il contesto si rifà pulito: quello di prima porta dentro le tracce di un
+    // turno che stiamo buttando via.
+    const ctxPulito: Contesto = { phone, clienteId: null, passata: null, prenotato: null };
+    esito = await eseguiTurno(phone, messaggi, foto, stato, livello, ctxPulito);
+    Object.assign(ctx, ctxPulito);
+  } else {
+    console.log(`[wa-segretaria] ${phone}: risponde il modello di ${livello} (${partenza.perche})`);
+  }
+
+  if (esito.tipo !== 'risposta') {
     return { risposto: false, motivo: 'il modello non ha prodotto una risposta' };
   }
 
-  const inviato = await rispondiUnaVolta(phone, testoFinale, 'assistant');
+  const inviato = await rispondiUnaVolta(phone, esito.testo, 'assistant');
   if (!inviato.inviato) return { risposto: false, motivo: inviato.motivo };
 
   // Lo stato si salva DOPO l'invio riuscito: se il messaggio non è partito, la
@@ -858,12 +923,13 @@ async function turno(
     ...stato,
     turni: [
       ...stato.turni,
-      { role: 'user', text: immagini.length > 0 ? `[foto] ${domanda}`.trim() : domanda },
-      { role: 'assistant', text: testoFinale },
+      { role: 'user', text: foto.length > 0 ? `[foto] ${messaggi.join('\n')}`.trim() : messaggi.join('\n') },
+      { role: 'assistant', text: esito.testo },
     ],
     risposteOggi: stato.risposteOggi + 1,
     pendenti: [],
     fotoPendenti: [],
+    livello,
     mutoFino: ctx.passata
       ? new Date(Date.now() + MUTO_ORE * 3_600_000).toISOString()
       : stato.mutoFino,
@@ -1015,7 +1081,7 @@ export async function handleSegretariaMessage(params: {
     try {
       stato = await leggiStato(phone);
       const messaggi = stato.pendenti.length > 0 ? stato.pendenti : [testoUtile].filter(Boolean);
-      const esito = await turno(phone, messaggi, stato.fotoPendenti || [], stato);
+      const esito = await turno(phone, messaggi, stato.fotoPendenti || [], stato, daVocale);
       return esito.risposto
         ? { handled: true }
         : { handled: false, reason: esito.motivo };

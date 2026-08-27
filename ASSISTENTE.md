@@ -275,8 +275,63 @@ minuti. Video e documenti seguono la stessa via.
   la segretaria non può prenotare.
 - `DEEPGRAM_API_KEY` — facoltativa. Senza, i vocali non si trascrivono e la
   segretaria chiede di riscrivere.
-- `WA_SEGRETARIA_MODEL` — facoltativa. Di partenza `claude-opus-5`.
+- `WA_MODELLO_LAVORO` — facoltativa. Di partenza `claude-haiku-4-5`.
+- `WA_MODELLO_TESTA` — facoltativa. Di partenza `claude-opus-5`.
+  (`WA_SEGRETARIA_MODEL` resta accettata come sinonimo del modello di testa.)
 - `WA_SEGRETARIA_EFFORT` — facoltativa. Di partenza `medium`.
+
+## Chi risponde: due modelli, una regola
+
+La segretaria chiamava Opus per tutto. Ma "tutto" è quasi sempre «a che ora
+aprite», «quanto costa la ceretta», «dove siete»: domande a cui si risponde
+leggendo un dato dal gestionale e scrivendo una riga. Pagare l'intelligenza più
+cara che c'è per leggere un orario è come mandare il direttore a rispondere al
+citofono.
+
+Due modelli (`lib/orchestrazione.ts`), e una regola sola:
+
+> **il modello piccolo LEGGE, il modello grosso SCRIVE.**
+
+| | Modello | Quando |
+|---|---|---|
+| Lavoro | `claude-haiku-4-5` | listino, orari, indirizzo, quando c'è posto — la maggior parte |
+| Testa | `claude-opus-5` | tutto quello che resta scritto, o che va capito |
+
+Sul grosso si sale in due modi:
+
+**Prima del turno**, per quello che si sa già: c'è una **foto** (va guardata, e
+il confine su cosa non dire guardandola è la regola più delicata che abbiamo),
+arriva da un **vocale** (la trascrizione è approssimativa proprio dove conta —
+nomi, giorni, orari), oppure la conversazione **era già salita** e non
+riscende: se dieci minuti fa stava prendendo un appuntamento, la battuta dopo
+fa parte di quella cosa lì. Il livello si azzera con la giornata.
+
+**Durante il turno**, quando il piccolo allunga la mano su uno strumento che
+scrive — `verifica_prenotazione`, `prenota`, `sposta_appuntamento`,
+`disdici_appuntamento` — o su `passa_a_persona`, che non scrive niente ma è la
+resa: prima di arrendersi ci prova la testa buona.
+
+Lì il turno **si butta e si rifà** da zero sul grosso, con la stessa
+conversazione davanti. Far confermare al modello grosso una decisione già presa
+dal piccolo non servirebbe: il giorno e l'ora li ha scelti lui due righe fa.
+Costa un turno piccolo sprecato — un quinto di quello grosso — e compra che
+nessun appuntamento venga deciso dal modello economico. L'invio sta in un posto
+solo, dopo l'escalation: un turno che finisce con "sali" non ha ancora scritto
+niente a nessuno.
+
+**Perché non un classificatore.** La strada ovvia sarebbe un modello che legge
+il messaggio e decide chi risponde. Ma è una chiamata in più su ogni messaggio,
+e può sbagliare in silenzio: manda al piccolo la cliente che voleva disdire, e
+non lo sa nessuno. Qui non c'è niente da indovinare — l'escalation la fa
+scattare il piccolo stesso, nel momento in cui tocca lo strumento sbagliato.
+
+**Sui parametri.** Non sono uguali per tutti i modelli, e sbagliarli non
+degrada: rifiutano la richiesta. Haiku 4.5 non conosce `effort` e risponde 400;
+la famiglia Opus/Sonnet 5 non conosce più `budget_tokens` e risponde 400. Per
+questo la scelta del modello e quella dei parametri sono la stessa funzione.
+
+Si cambia senza rilasciare: `WA_MODELLO_LAVORO` (se Haiku risulta troppo
+letterale, il gradino sopra è `claude-sonnet-5`) e `WA_MODELLO_TESTA`.
 
 ## Quanto costa
 
