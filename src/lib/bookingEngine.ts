@@ -163,11 +163,20 @@ function aperturaDelGiorno(ctx: Contesto, date: string): { da: number; a: number
   const dow = new Date(date + 'T12:00:00').getDay();
   const orario = ctx.centro.orari?.[String(dow === 0 ? 7 : dow)];
 
-  // Giorno dichiarato chiuso.
-  if (orario === null) return null;
+  /*
+    Gli orari del centro sono l'unica verita', e non hanno una seconda opinione.
 
-  const da = orario?.apre ? toMinutes(orario.apre) : toMinutes(ctx.regole.apertura);
-  const a = orario?.chiude ? toMinutes(orario.chiude) : toMinutes(ctx.regole.chiusura);
+    Prima, quando per un giorno non c'era scritto niente, si ripiegava sulla
+    fascia unica delle impostazioni di prenotazione: due dati che dicevano la
+    stessa cosa in due punti diversi, e quando divergevano vinceva quello che
+    nessuno stava guardando. Adesso vale quello che c'e' scritto in
+    Assistente → orari: se un giorno non c'e', quel giorno il centro e' chiuso.
+    Niente riserva, niente sorprese.
+  */
+  if (!orario) return null;
+
+  const da = toMinutes(orario.apre);
+  const a = toMinutes(orario.chiude);
   return a > da ? { da, a } : null;
 }
 
@@ -325,7 +334,8 @@ function lavoroDelGiorno(ctx: Contesto, date: string): Map<string, Fascia[]> {
   }
 
   for (const op of ctx.operatori) {
-    if (dow === 0) { lavoro.set(op.id, []); continue; } // domenica chiuso
+    // La domenica non e' piu' cablata qui: se il centro apre di domenica lo
+    // dice `centro.orari`, e `aperturaDelGiorno` sopra ha gia' deciso.
     const perSettimana = ctx.settimane.find(w => w.operatorId === op.id && w.weekStart === weekStart);
     const settimana = perSettimana?.schedule as Record<string, Turno> | null | undefined;
 
@@ -605,6 +615,32 @@ export interface GiornoDisponibile {
 }
 
 /**
+ * Perché un giorno è uscito a mani vuote.
+ *
+ * Tre cose diversissime finivano nella stessa risposta — «non c'è posto» — e
+ * quella risposta arrivava tale e quale alla cliente. Una cliente si è sentita
+ * dire che domani e sabato erano pieni: nessuno può sapere, da lì, se il
+ * centro fosse chiuso, se in agenda non ci fossero turni, o se davvero fosse
+ * tutto occupato. Sono tre problemi con tre rimedi diversi, e due su tre non
+ * sono un no da dare alla cliente.
+ */
+export type MotivoVuoto =
+  /** Il centro quel giorno è chiuso: riposo, ferie, festivo. */
+  | 'chiuso'
+  /** Il centro è aperto ma in agenda nessuna operatrice ha turno. */
+  | 'nessunTurno'
+  /** C'è chi lavora, ma per quella seduta non resta un buco abbastanza lungo. */
+  | 'pieno';
+
+/** Perché in quel giorno non è uscito niente. Si guarda l'agenda, e basta. */
+function perchéVuoto(ctx: Contesto, date: string): MotivoVuoto {
+  if (!aperturaDelGiorno(ctx, date)) return 'chiuso';
+  const lavoro = lavoroDelGiorno(ctx, date);
+  const qualcunoInTurno = [...lavoro.values()].some(fasce => fasce.length > 0);
+  return qualcunoInTurno ? 'pieno' : 'nessunTurno';
+}
+
+/**
  * "Quando posso venire?" — la ricerca vera: guarda avanti nei prossimi giorni
  * e riporta solo quelli in cui la seduta ci sta, rispettando i giorni della
  * settimana e la fascia oraria che la cliente ha indicato.
@@ -613,12 +649,14 @@ export async function cercaSlot(req: RicercaSlot): Promise<{
   giorni: GiornoDisponibile[];
   durataTotale: number;
   prezzoTotale: number;
+  /** Per ogni giorno guardato e rimasto vuoto, perché. */
+  vuoti: Array<{ date: string; motivo: MotivoVuoto }>;
 }> {
   const passi = await preparaPassi(req.services, req.gender);
-  if (!passi) return { giorni: [], durataTotale: 0, prezzoTotale: 0 };
+  if (!passi) return { giorni: [], durataTotale: 0, prezzoTotale: 0, vuoti: [] };
 
   const passi2 = req.services2?.length ? await preparaPassi(req.services2, req.gender) : null;
-  if (req.services2?.length && !passi2) return { giorni: [], durataTotale: 0, prezzoTotale: 0 };
+  if (req.services2?.length && !passi2) return { giorni: [], durataTotale: 0, prezzoTotale: 0, vuoti: [] };
   const gruppi = passi2 ? [passi, passi2] : [passi];
 
   const { prenotazione } = await leggiConfig();
@@ -629,25 +667,31 @@ export async function cercaSlot(req: RicercaSlot): Promise<{
   const cursore = new Date(req.dateFrom + 'T12:00:00');
   for (let i = 0; i < quanti; i++) {
     const dow = cursore.getDay();
-    const vaBene = dow !== 0 && (!req.giorniSettimana?.length || req.giorniSettimana.includes(dow));
+    // I giorni di chiusura non si filtrano qui: li conosce `centro.orari`, e un
+    // giorno chiuso esce comunque a mani vuote. Filtrarlo anche qui vorrebbe
+    // dire tenere l'elenco dei giorni di apertura in due posti.
+    const vaBene = !req.giorniSettimana?.length || req.giorniSettimana.includes(dow);
     if (vaBene) {
       date.push(`${cursore.getFullYear()}-${String(cursore.getMonth() + 1).padStart(2, '0')}-${String(cursore.getDate()).padStart(2, '0')}`);
     }
     cursore.setDate(cursore.getDate() + 1);
   }
-  if (date.length === 0) return { giorni: [], durataTotale: 0, prezzoTotale: 0 };
+  if (date.length === 0) return { giorni: [], durataTotale: 0, prezzoTotale: 0, vuoti: [] };
 
   const ctx = await caricaContesto(date[0], date[date.length - 1], prenotazione);
   const max = Math.min(Math.max(1, req.maxPerGiorno || 40), 100);
 
   const giorni: GiornoDisponibile[] = [];
+  const vuoti: Array<{ date: string; motivo: MotivoVuoto }> = [];
   for (const d of date) {
     const slots = slotDelGiorno(ctx, d, gruppi, req.oraDa, req.oraA);
     if (slots.length > 0) giorni.push({ date: d, slots: distribuisci(slots, max) });
+    else vuoti.push({ date: d, motivo: perchéVuoto(ctx, d) });
   }
 
   return {
     giorni,
+    vuoti,
     // Con due persone il tempo è quello della più lunga, il prezzo la somma.
     durataTotale: Math.max(...gruppi.map(g => g.reduce((s, p) => s + p.duration, 0))),
     prezzoTotale: gruppi.reduce((s, g) => s + g.reduce((x, p) => x + p.price, 0), 0),

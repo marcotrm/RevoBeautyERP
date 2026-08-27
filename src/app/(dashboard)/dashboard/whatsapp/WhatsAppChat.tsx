@@ -12,8 +12,8 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Send, Loader2, Trash2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X, Search, Smile } from 'lucide-react';
-import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione, eliminaConversazione, segnaConversazioneGestita } from '@/app/actions/whatsapp';
+import { MessageSquare, Bot as BotOn, Send, Loader2, Trash2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X, Search, Smile, BotOff } from 'lucide-react';
+import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione, eliminaConversazione, segnaConversazioneGestita, statoSegretaria, riprendiSegretariaAction, spegniSegretariaAction } from '@/app/actions/whatsapp';
 import SegniCliente from '@/components/SegniCliente';
 import MandaListino from '@/components/MandaListino';
 import {
@@ -478,6 +478,16 @@ export default function WhatsAppChat() {
   const [thread, setThread] = useState<WaMessageRow[]>([]);
   const [windowOpen, setWindowOpen] = useState(false);
   const [windowExpiresAt, setWindowExpiresAt] = useState<string | undefined>();
+  /*
+    Se la segretaria tace su questa conversazione, e perché.
+
+    Senza questo il passaggio a una persona è invisibile: la cliente scrive,
+    non le risponde più nessuno, e da qui la chat sembra identica a una in cui
+    il bot semplicemente non ha niente da dire. Questo è il posto dove si vede,
+    ed è anche l'unico posto da cui si può disfare.
+  */
+  const [muta, setMuta] = useState<{ muta: boolean; spenta: boolean; fino?: string; motivo?: string }>({ muta: false, spenta: false });
+  const [riprendendo, setRiprendendo] = useState(false);
   const [clientName, setClientName] = useState<string | undefined>();
   const [clientAvatar, setClientAvatar] = useState<string | undefined>();
   const [draft, setDraft] = useState('');
@@ -575,6 +585,7 @@ export default function WhatsAppChat() {
       setClientName(res.clientName);
       setClientAvatar(res.clientAvatar);
       setCaricandoThread(false);
+      void statoSegretaria(phone).then(setMuta).catch(() => {});
       // Aprire la chat la segna letta: spegne subito il pallino sul menu,
       // senza aspettare il giro di polling dell'avviso globale.
       void useWaInboxStore.getState().fetchUnread();
@@ -634,6 +645,27 @@ export default function WhatsAppChat() {
 
   const [eliminando, setEliminando] = useState(false);
   const [segnando, setSegnando] = useState(false);
+
+
+  const riprendi = async (phone: string) => {
+    setRiprendendo(true);
+    try {
+      await riprendiSegretariaAction(phone);
+      setMuta({ muta: false, spenta: false });
+    } finally {
+      setRiprendendo(false);
+    }
+  };
+
+  const spegni = async (phone: string) => {
+    setRiprendendo(true);
+    try {
+      await spegniSegretariaAction(phone);
+      setMuta({ muta: true, spenta: true });
+    } finally {
+      setRiprendendo(false);
+    }
+  };
 
   /** "L'ho gestita io": via il segno DA RISPONDERE, finché non riscrivono. */
   const segnaLetta = async (phone: string) => {
@@ -998,6 +1030,48 @@ export default function WhatsAppChat() {
             {/* Casella di risposta. Fuori dalla finestra 24h Meta rifiuta il testo
                 libero: meglio bloccare qui che far scrivere invano. */}
             <div className="border-t border-border/40 p-3 flex-shrink-0 space-y-2">
+              {/* Chi risponde a questo numero. Si vede qui, sopra la casella,
+                  perché è qui che si sta per scrivere a mano — ed è qui che
+                  serve sapere se il bot risponderà da solo o no. */}
+              {muta.muta ? (
+                <div className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 flex items-start gap-2">
+                  <BotOff className="w-4 h-4 text-warning flex-shrink-0 mt-px" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] text-text-primary font-medium">
+                      {muta.spenta
+                        ? 'Segretaria spenta su questa conversazione.'
+                        : `La segretaria non risponde a questo numero${muta.fino ? ` fino alle ${timeLabel(muta.fino)}` : ''}.`}
+                    </p>
+                    {!muta.spenta && muta.motivo && (
+                      <p className="text-[10px] text-text-secondary mt-0.5 break-words">{muta.motivo}</p>
+                    )}
+                    <p className="text-[10px] text-text-muted/80 mt-0.5">
+                      {muta.spenta
+                        ? 'Vale solo per questo numero: alle altre clienti risponde come sempre. Finché è spenta, qui rispondi tu.'
+                        : 'Ha passato la palla a una persona: finché dura, chi scrive resta senza risposta se non rispondi tu.'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => void riprendi(active)}
+                    disabled={riprendendo}
+                    className="text-[11px] px-2.5 py-1.5 rounded-lg border border-warning/40 bg-bg-tertiary
+                      text-text-primary hover:border-warning disabled:opacity-40 flex-shrink-0">
+                    {riprendendo ? <Loader2 className="w-3 h-3 animate-spin" /> : (muta.spenta ? 'Riaccendi' : 'Falla riprendere')}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-[10px] text-text-muted/80">
+                  <BotOn className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                  <span className="flex-1">A questo numero risponde la segretaria.</span>
+                  <button
+                    onClick={() => void spegni(active)}
+                    disabled={riprendendo}
+                    className="px-2 py-1 rounded-lg border border-border bg-bg-tertiary text-text-secondary
+                      hover:text-warning hover:border-warning/40 disabled:opacity-40 flex-shrink-0">
+                    {riprendendo ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Spegnila qui'}
+                  </button>
+                </div>
+              )}
               {caricandoThread ? (
                 <p className="flex items-center gap-2 text-[11px] text-text-muted py-2">
                   <Loader2 className="w-3 h-3 animate-spin" /> apro la conversazione…

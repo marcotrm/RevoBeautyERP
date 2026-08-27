@@ -62,6 +62,7 @@ import {
   STRUMENTI_DELICATI, modelloPer, parametriRagionamento, livelloDiPartenza, type Livello,
 } from './orchestrazione';
 import { listMessages, markConversationUnread, type WaMedia } from './wa-conversations';
+import { normalizePhone } from './whatsapp';
 import {
   registraArrivo, attendiSilenzio, prendiTurno, rilasciaTurno, rispondiUnaVolta,
 } from './wa-antiflood';
@@ -131,6 +132,15 @@ interface StatoChat {
   fotoPendenti?: Array<{ id: string; mime?: string }>;
   /** Fino a quando la segretaria sta zitta perché ha passato la palla a una persona. */
   mutoFino?: string;
+  /** Perché ha passato la palla: è quello che si legge nel gestionale. */
+  passataMotivo?: string;
+  /**
+   * Spenta a mano su QUESTA conversazione, a tempo indeterminato.
+   *
+   * Diversa dalla pausa: quella scade, questa no. Serve per la cliente che si
+   * vuole seguire di persona senza spegnere la segretaria per tutte le altre.
+   */
+  spenta?: boolean;
   /**
    * Su quale modello gira questa conversazione.
    *
@@ -155,6 +165,8 @@ async function leggiStato(phone: string): Promise<StatoChat> {
     pendenti: s?.pendenti || [],
     fotoPendenti: s?.fotoPendenti || [],
     mutoFino: s?.mutoFino,
+    passataMotivo: s?.passataMotivo,
+    spenta: s?.spenta,
     // Il livello si azzera con la giornata, come il tetto delle risposte: chi
     // torna a scrivere dopo due giorni comincia da una domanda, non da dove
     // aveva lasciato.
@@ -504,7 +516,10 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
       return JSON.stringify({
         nome: centro.nome,
         indirizzo: centro.indirizzo,
-        telefono: centro.telefono,
+        // Un campo vuoto il modello lo riempie: si e' visto scrivere a una
+        // cliente «chiama il centro: 0823… (numero che mi serve dal centro)».
+        // Detto a parole, invece, non c'e' niente da completare.
+        telefono: centro.telefono || 'NON DISPONIBILE — non inventarlo e non darne uno alla cliente',
         orari: orariParlati(centro.orari),
         oggi: { data: oggi, giorno: dataParlata(oggi, oggi), aperto: !eChiuso(centro, oggi) },
         chiusureFuture: (centro.chiusure || []).filter(d => d >= oggi).sort().slice(0, 8),
@@ -658,9 +673,30 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         oraA: typeof dati.alle === 'string' ? dati.alle : null,
       };
 
-      const { giorni, durataTotale, prezzoTotale } = await cercaSlot({
+      const { giorni, durataTotale, prezzoTotale, vuoti } = await cercaSlot({
         dateFrom, giorni: quanti, services, gender: sesso, ...fascia, maxPerGiorno: 5,
       });
+
+      /*
+        «Pieno» e «nessuno ha messo i turni» non sono la stessa cosa.
+
+        Finivano nella stessa frase, e quella frase arrivava alla cliente: si e'
+        sentita dire che domani e sabato erano pieni quando il centro era
+        aperto e il problema stava altrove. Un giorno senza turni in agenda non
+        e' un no da dare a una cliente — e' una cosa che al centro devono
+        sapere.
+      */
+      const senzaTurni = vuoti.filter(v => v.motivo === 'nessunTurno').map(v => dataParlata(v.date, oggi));
+      const chiusi = vuoti.filter(v => v.motivo === 'chiuso').map(v => dataParlata(v.date, oggi));
+      const agenda = {
+        ...(chiusi.length ? { centroChiuso: chiusi } : {}),
+        ...(senzaTurni.length ? {
+          senzaTurniInAgenda: senzaTurni,
+          attenzione: 'In quei giorni il centro e\' APERTO ma in agenda non c\'e\' nessuna operatrice in turno. '
+            + 'NON dire alla cliente che e\' pieno: non lo sappiamo. Proponi gli altri giorni, e se lei puo\' '
+            + 'solo in quelli usa "passa_a_persona" dicendo che in agenda mancano i turni.',
+        } : {}),
+      };
 
       if (giorni.length > 0) {
         return JSON.stringify({
@@ -668,6 +704,7 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
           durataMinuti: durataTotale,
           prezzo: prezzoTotale,
           giorni: giorni.slice(0, 4).map(dillo),
+          ...agenda,
         });
       }
 
@@ -691,7 +728,8 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
             durataMinuti: vicini.durataTotale,
             prezzo: vicini.prezzoTotale,
             maCiSarebbe: vicini.giorni.slice(0, 3).map(dillo),
-            nota: 'Dille che quel giorno è pieno e proponi subito il primo utile, in un messaggio solo.',
+            ...agenda,
+            nota: 'Dille che quel giorno non c\'è posto e proponi subito il primo utile, in un messaggio solo.',
           });
         }
       }
@@ -700,7 +738,10 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         trovato: false,
         durataMinuti: durataTotale,
         prezzo: prezzoTotale,
-        nota: 'Niente posto con questi criteri, nemmeno allargando. Chiedi alla cliente se va bene un\'altra fascia oraria, o passa al centro.',
+        ...agenda,
+        nota: 'Niente posto con questi criteri, nemmeno allargando. NON chiudere qui la conversazione e non '
+          + 'mandarla a telefonare: chiedile se le va bene un\'altra fascia oraria o un altro giorno, e se lei '
+          + 'può solo in quei giorni usa "passa_a_persona" — al banco un buco lo trovano quasi sempre, tu no.',
       });
     }
 
@@ -904,6 +945,49 @@ async function contestoDiChat(phone: string): Promise<string> {
     `Stai scrivendo su WhatsApp al numero ${phone}.`,
   ];
 
+  /*
+    Aperto o chiuso ADESSO, detto qui, come fatto.
+
+    Prima il modello aveva l'ora corrente e — solo se chiamava `info_centro` —
+    gli orari, e doveva incrociarli da sé. Un giovedì alle 15:21, col centro
+    aperto fino alle 19, ha scritto a una cliente «il centro adesso è chiuso,
+    riapre domani alle 9». Non era un dato sbagliato: era un conto che nessuno
+    gli aveva fatto. Adesso glielo facciamo noi, e non c'è più niente da
+    dedurre.
+
+    Stessa cosa per il telefono: se in anagrafica non c'è, va detto che non
+    c'è. Lasciato vuoto e basta, si è visto scrivere a una cliente «chiama il
+    centro: 0823… (numero che mi serve dal centro)» — il segnaposto, testuale,
+    dentro WhatsApp.
+  */
+  const centro = await leggiCentro().catch(() => null);
+  if (centro) {
+    const oggi = todayInItaly();
+    const dow = new Date(oggi + 'T12:00:00').getDay();
+    const orarioOggi = centro.orari?.[String(dow === 0 ? 7 : dow)] ?? null;
+    const minutiAdesso = Number(
+      new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', hour12: false }).format(new Date())
+    ) * 60 + Number(
+      new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', minute: '2-digit' }).format(new Date())
+    );
+    const inMinuti = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+
+    if (eChiuso(centro, oggi)) {
+      righe.push('OGGI IL CENTRO È CHIUSO (giorno di riposo o chiusura straordinaria).');
+    } else if (orarioOggi && minutiAdesso >= inMinuti(orarioOggi.apre) && minutiAdesso < inMinuti(orarioOggi.chiude)) {
+      righe.push(`IN QUESTO MOMENTO IL CENTRO È APERTO (oggi ${orarioOggi.apre}–${orarioOggi.chiude}). Non dire che è chiuso.`);
+    } else if (orarioOggi) {
+      righe.push(`In questo momento il centro è chiuso: oggi l'orario è ${orarioOggi.apre}–${orarioOggi.chiude}.`);
+    }
+
+    righe.push(
+      centro.telefono
+        ? `Il numero del centro è ${centro.telefono}: è l'UNICO che puoi dare.`
+        : 'Nei dati NON c\'è nessun numero di telefono del centro. Non scriverne uno: non esiste un numero '
+          + 'da dare. Se serve parlare con una persona usa "passa_a_persona", non mandare la cliente a chiamare.'
+    );
+  }
+
   const lead = await leadDaTelefono(phone).catch(() => null);
   if (lead && !lead.clientId) {
     righe.push(
@@ -1043,6 +1127,18 @@ async function eseguiTurno(
     conversazione.push({ role: 'assistant', content: risposta.content });
 
     const risultati: Anthropic.ToolResultBlockParam[] = [];
+    /*
+      Quando la ricerca torna a mani vuote, il turno risale.
+
+      «Non c'è posto» è la frase che fa perdere una cliente, ed è anche il
+      momento in cui il modello piccolo comincia a inventare: si e' visto
+      dichiarare il centro chiuso di giovedi' pomeriggio e dettare un numero di
+      telefono che non esiste, pur di chiudere il discorso. Se la risposta e'
+      un no, la scrive la testa buona — che semmai passa la palla a una
+      collega invece di mandare via la cliente.
+    */
+    let ricercaAVuoto = false;
+
     for (const r of richieste) {
       let contenuto: string;
       try {
@@ -1051,8 +1147,28 @@ async function eseguiTurno(
         console.error(`[wa-segretaria] strumento ${r.name} in errore`, err);
         contenuto = JSON.stringify({ errore: 'Lo strumento non ha risposto. Non inventare il dato: passa al centro.' });
       }
+
+      /*
+        Cosa ha chiesto e cosa si è sentito rispondere, nel log.
+
+        Senza questa riga «il bot ha detto una cosa falsa» non si può né
+        confermare né smentire: non si sa se abbia letto male il gestionale o
+        se se lo sia inventato, e sono due bug diversi con due rimedi diversi.
+      */
+      console.log(
+        `[wa-segretaria] ${ctx.phone} · ${r.name}(${JSON.stringify(r.input).slice(0, 200)})`
+        + ` → ${contenuto.slice(0, 300)}`
+      );
+
+      if (r.name === 'quando_c_e_posto' && contenuto.includes('"trovato":false')) ricercaAVuoto = true;
+
       risultati.push({ type: 'tool_result', tool_use_id: r.id, content: contenuto });
     }
+
+    if (livello === 'lavoro' && ricercaAVuoto) {
+      return { tipo: 'sali', strumento: 'quando_c_e_posto (nessun posto trovato)' };
+    }
+
     conversazione.push({ role: 'user', content: risultati });
 
     // Se il turno finisce senza altro testo, almeno questo è già stato detto.
@@ -1140,6 +1256,7 @@ async function turno(
     mutoFino: ctx.passata
       ? new Date(Date.now() + MUTO_ORE * 3_600_000).toISOString()
       : stato.mutoFino,
+    passataMotivo: ctx.passata || stato.passataMotivo,
   });
 
   // Il contatto arrivato dal sito avanza da solo: chi ha già prenotato non va
@@ -1250,8 +1367,16 @@ export async function handleSegretariaMessage(params: {
 
     let stato = await leggiStato(phone);
 
+    if (stato.spenta) {
+      return { handled: false, reason: 'segretaria spenta a mano su questa conversazione' };
+    }
     if (stato.mutoFino && stato.mutoFino > new Date().toISOString()) {
-      return { handled: false, reason: 'conversazione passata a una persona' };
+      // L'ora serve: nel log «passata a una persona» da solo sembra un blocco
+      // definitivo, e invece scade — chi guarda deve sapere quando.
+      const fino = new Date(stato.mutoFino).toLocaleTimeString('it-IT', {
+        hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome',
+      });
+      return { handled: false, reason: `passata a una persona, tace fino alle ${fino}` };
     }
     if (stato.risposteOggi >= MAX_RISPOSTE_GIORNO) {
       return { handled: false, reason: 'tetto giornaliero raggiunto per questo numero' };
@@ -1311,4 +1436,70 @@ export async function handleSegretariaMessage(params: {
 export async function segretariaInConversazione(phone: string): Promise<boolean> {
   const stato = await leggiStato(phone).catch(() => null);
   return Boolean(stato && stato.turni.length > 0 && stato.giorno === todayRome());
+}
+
+/**
+ * Se la segretaria sta tacendo su questo numero, e perché.
+ *
+ * Serve al gestionale: senza, il passaggio a una persona è una porta che si
+ * apre da sola e non si richiude. La cliente scrive, non le risponde più
+ * nessuno, e dalla schermata WhatsApp non si capisce se sia rotto qualcosa o
+ * se sia voluto. Qui c'è la risposta, con l'ora in cui la pausa scade.
+ */
+export async function passaggioInCorso(phone: string): Promise<{
+  muta: boolean;
+  spenta: boolean;
+  fino?: string;
+  motivo?: string;
+}> {
+  const stato = await leggiStato(normalizePhone(phone)).catch(() => null);
+  if (stato?.spenta) return { muta: true, spenta: true };
+  if (!stato?.mutoFino || stato.mutoFino <= new Date().toISOString()) return { muta: false, spenta: false };
+  return { muta: true, spenta: false, fino: stato.mutoFino, motivo: stato.passataMotivo };
+}
+
+/**
+ * Spegne la segretaria su QUESTA conversazione e basta.
+ *
+ * La pausa dopo un passaggio scade da sola; questa no. È per la cliente che
+ * si vuole seguire di persona — una lamentela, una cosa delicata, una prova —
+ * senza togliere la segretaria a tutte le altre.
+ */
+export async function spegniSegretaria(phone: string): Promise<void> {
+  const normalizzato = normalizePhone(phone);
+  const stato = await leggiStato(normalizzato);
+  await scriviStato({ ...stato, spenta: true, passataMotivo: 'spenta a mano dal gestionale' });
+  console.log(`[wa-segretaria] ${normalizzato}: spenta a mano su questa conversazione`);
+}
+
+/**
+ * Ridà la parola alla segretaria su questo numero, subito.
+ *
+ * La usa chi ha finito di rispondere a mano: la pausa di quattro ore serve a
+ * non parlarle sopra mentre ci sta parlando una persona, non a tenerla ferma
+ * quando quella persona ha già chiuso.
+ */
+export async function riprendiSegretaria(phone: string): Promise<void> {
+  const normalizzato = normalizePhone(phone);
+  const stato = await leggiStato(normalizzato);
+  await scriviStato({ ...stato, mutoFino: undefined, passataMotivo: undefined, spenta: false });
+  console.log(`[wa-segretaria] ${normalizzato}: la segretaria riprende la conversazione`);
+}
+
+/**
+ * Mentre una persona scrive a mano, la segretaria resta fuori.
+ *
+ * Senza questo la pausa scade a un'ora fissa dal passaggio: se la collega sta
+ * ancora scrivendo alla cliente quando scattano le quattro ore, il bot rientra
+ * a metà di una conversazione umana e risponde sopra. Ogni messaggio scritto a
+ * mano fa ripartire il conto.
+ */
+export async function zittiscilaPerUnaPersona(phone: string): Promise<void> {
+  const normalizzato = normalizePhone(phone);
+  const stato = await leggiStato(normalizzato);
+  await scriviStato({
+    ...stato,
+    mutoFino: new Date(Date.now() + MUTO_ORE * 3_600_000).toISOString(),
+    passataMotivo: stato.passataMotivo || 'sta rispondendo una persona dal gestionale',
+  });
 }

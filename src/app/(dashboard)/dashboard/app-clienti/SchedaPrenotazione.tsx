@@ -19,7 +19,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  Clock, Users, Loader2, Save, CheckCircle, ExternalLink, AlertTriangle, Check,
+  Clock, Users, Loader2, Save, CheckCircle, ExternalLink, Check,
 } from 'lucide-react';
 
 import { getOperators, updateOperator } from '@/app/actions/operators';
@@ -61,7 +61,6 @@ function BloccoOrari({ config, salva, salvando }: {
   const cambia = <K extends keyof typeof bozza>(k: K, v: (typeof bozza)[K]) =>
     setBozza(p => ({ ...p, [k]: v }));
 
-  const orariStorti = bozza.chiusura <= bozza.apertura;
 
   return (
     <div className="bg-bg-secondary border border-border rounded-2xl p-5">
@@ -80,26 +79,14 @@ function BloccoOrari({ config, salva, salvando }: {
           "non c'è posto" su un'ora in cui il centro era aperto. */}
       <div className="mb-4 p-2.5 rounded-xl bg-bg-secondary border border-border/60">
         <p className="text-[11px] text-text-secondary leading-relaxed">
-          Se in <b>Assistente</b> hai messo gli orari giorno per giorno, comandano quelli:
-          questa fascia resta solo per i giorni che non hai configurato lì. Anche ferie e
-          chiusure straordinarie si mettono in Assistente, e da lì valgono per tutti —
-          app, sito e assistente.
+          Gli orari di apertura stanno <b>solo</b> in <b>Assistente → orari</b>, giorno per
+          giorno, insieme a ferie e chiusure straordinarie: quello è l&apos;unico posto, e
+          vale per tutti — app, sito, WhatsApp e telefono. Qui restano le regole di come si
+          propongono gli orari dentro l&apos;apertura.
         </p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-xs font-medium text-text-secondary mb-1">Apertura</label>
-          <input type="time" value={bozza.apertura} onChange={e => cambia('apertura', e.target.value)}
-            className="px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary" />
-          <p className="text-[11px] text-text-muted mt-1">Nessun orario prima di quest&apos;ora.</p>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-text-secondary mb-1">Chiusura</label>
-          <input type="time" value={bozza.chiusura} onChange={e => cambia('chiusura', e.target.value)}
-            className="px-3 py-2 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary" />
-          <p className="text-[11px] text-text-muted mt-1">La seduta deve <b>finire</b> entro quest&apos;ora.</p>
-        </div>
         <Numero label="Ogni quanto un orario" valore={bozza.passoMinuti} min={5} max={60} suffisso="minuti"
           onChange={n => cambia('passoMinuti', n)}
           aiuto="15 propone 9:00, 9:15, 9:30… 30 dimezza gli orari mostrati." />
@@ -111,14 +98,8 @@ function BloccoOrari({ config, salva, salvando }: {
           aiuto="Fin dove la cliente può spingersi cercando un posto." />
       </div>
 
-      {orariStorti && (
-        <p className="flex items-center gap-1.5 text-[11px] text-error mt-3">
-          <AlertTriangle className="w-3.5 h-3.5" /> La chiusura deve venire dopo l&apos;apertura.
-        </p>
-      )}
-
       <div className="flex justify-end mt-4">
-        <button onClick={() => salva({ prenotazione: bozza })} disabled={salvando || orariStorti}
+        <button onClick={() => salva({ prenotazione: bozza })} disabled={salvando}
           className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-semibold disabled:opacity-50">
           {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salva
         </button>
