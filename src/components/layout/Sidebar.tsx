@@ -15,7 +15,7 @@ import {
   Megaphone, Settings, ChevronLeft, ChevronRight,
   LayoutDashboard, UserCog, LogOut,
   Warehouse, Sparkles, X, Landmark, Radio, Gift, PartyPopper, CheckSquare, Zap, TrendingUp, Banknote, Receipt, MessageSquare, QrCode,
-  Smartphone, BookOpen,
+  Smartphone, BookOpen, Inbox,
 } from 'lucide-react';
 import { getInitials } from '@/lib/helpers';
 
@@ -30,6 +30,7 @@ const menuItems = [
   { id: 'gift-cards', label: 'Buoni Regalo', icon: Gift, href: '/dashboard/packages/gift-cards' },
   { id: 'inventory', label: 'Magazzino', icon: Warehouse, href: '/dashboard/inventory' },
   { id: 'marketing', label: 'Marketing', icon: Megaphone, href: '/dashboard/marketing' },
+  { id: 'contatti', label: 'Contatti dal sito', icon: Inbox, href: '/dashboard/contatti' },
   { id: 'copri-buchi', label: 'Copri buchi', icon: Radio, href: '/dashboard/copri-buchi' },
   { id: 'affiliati', label: 'Affiliazione', icon: QrCode, href: '/dashboard/affiliati' },
   { id: 'reports', label: 'Report', icon: BarChart3, href: '/dashboard/reports' },

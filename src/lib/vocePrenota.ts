@@ -13,6 +13,10 @@ import { prisma } from './prisma';
 import { slotDisponibili, type ServizioRichiesto, type SlotProposto } from './bookingEngine';
 import { quandoParlato } from './parlato';
 import { findClientByPhone, todayInItaly } from './voice';
+import { notifyNuovoAppuntamento } from './telegram';
+import { eClienteNuova } from './clienteNuova';
+import { omonimoInRubrica } from './omonimi';
+import { sendAppointmentConfirmation } from './wa-appointments';
 
 export interface DatiPrenotazione {
   phone: string;
@@ -125,4 +129,153 @@ export async function metaTrattamenti(slot: SlotProposto) {
     select: { id: true, category: true, color: true },
   });
   return new Map(trattamenti.map(t => [t.id, t]));
+}
+
+// ============================================================
+// La scrittura in agenda
+// ============================================================
+
+export interface EsitoScrittura {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  treatmentName: string;
+  operatorName: string;
+  clientName: string;
+  clientId: string;
+  price: number;
+}
+
+export type Scrittura =
+  | { ok: false; stato: number; codice: string; messaggio: string }
+  | { ok: true; appuntamento: EsitoScrittura; messaggio: string };
+
+/**
+ * Scrive l'appuntamento che la cliente ha appena confermato.
+ *
+ * Sta qui e non nella route perche' adesso le bocche sono due — il telefono e
+ * WhatsApp — e devono scrivere la stessa identica riga in agenda. Due copie di
+ * questo codice divergono: una crea la scheda cliente e l'altra no, una manda
+ * la conferma e l'altra se ne dimentica, e il centro si ritrova due tipi di
+ * appuntamento che si comportano diversamente senza che nessuno l'abbia
+ * deciso.
+ *
+ * La disponibilita' si ricontrolla sempre: fra il "si, confermo" e adesso sono
+ * passati dei secondi, e al banco intanto qualcuno puo' aver preso quel posto.
+ */
+export async function scriviAppuntamento(
+  confermato: DatiPrenotazione,
+  origine: { createdBy: string; nota: string; canale: string }
+): Promise<Scrittura> {
+  const p = await preparaPrenotazione(confermato);
+  if (!p.ok) return { ok: false, stato: p.stato, codice: p.codice, messaggio: p.messaggio };
+
+  const { slot } = p;
+
+  /*
+    La scheda della cliente si crea adesso, non prima: se la conversazione si
+    fosse incagliata sull'orario, in rubrica non doveva restare la scheda vuota
+    di qualcuno che non ha prenotato niente.
+  */
+  const client = p.clienteId
+    ? { id: p.clienteId, nome: p.nomeCliente }
+    : await prisma.client.create({
+        data: {
+          firstName: p.nomeCliente.split(/\s+/)[0],
+          lastName: p.nomeCliente.split(/\s+/).slice(1).join(' '),
+          phone: confermato.phone,
+          gender: confermato.gender === 'male' ? 'M' : 'F',
+          createdAt: new Date().toISOString(),
+        },
+        select: { id: true },
+      }).then(c => ({ id: c.id, nome: p.nomeCliente }));
+
+  const metaDi = await metaTrattamenti(slot);
+  const principale = slot.assegnazioni[0];
+  const adesso = new Date().toISOString();
+
+  const appointment = await prisma.appointment.create({
+    data: {
+      clientId: client.id,
+      clientName: client.nome,
+      operatorId: principale.operatorId,
+      operatorName: principale.operatorName,
+      treatmentId: principale.treatmentId,
+      treatmentName: slot.assegnazioni.map(a => a.treatmentName).join(' + '),
+      treatmentCategory: metaDi.get(principale.treatmentId)?.category || 'body',
+      date: confermato.date,
+      startTime: slot.time,
+      endTime: slot.endTime,
+      duration: slot.durataTotale,
+      status: 'confirmed',
+      price: slot.prezzoTotale,
+      services: slot.assegnazioni.map(a => ({
+        treatmentId: a.treatmentId,
+        treatmentName: a.treatmentName,
+        treatmentCategory: metaDi.get(a.treatmentId)?.category || 'body',
+        duration: a.duration,
+        price: a.price,
+        gender: confermato.gender,
+        operatorId: a.operatorId,
+        operatorName: a.operatorName,
+      })),
+      color: metaDi.get(principale.treatmentId)?.color || '#A855F7',
+      notes: origine.nota,
+      createdAt: adesso,
+      updatedAt: adesso,
+      createdBy: origine.createdBy,
+    },
+  });
+
+  /*
+    Chi prenota da fuori non sceglie una scheda: la sua nasce dal numero. Se
+    pero' quel nome in rubrica c'e' gia' con un altro numero, e' un possibile
+    doppione e va detto stasera, non fra sei mesi.
+  */
+  Promise.all([
+    eClienteNuova(appointment.clientId, appointment.id),
+    omonimoInRubrica(prisma, appointment.clientId),
+  ])
+    .then(([nuova, omonimi]) => notifyNuovoAppuntamento({
+      client: appointment.clientName,
+      treatment: appointment.treatmentName,
+      operator: appointment.operatorName,
+      date: appointment.date,
+      time: appointment.startTime,
+      price: appointment.price,
+      source: origine.canale,
+      nuova,
+      omonima: omonimi.length > 0 ? omonimi.map(o => o.phone).join(', ') : null,
+    }))
+    .catch(() => {});
+
+  return {
+    ok: true,
+    appuntamento: {
+      id: appointment.id,
+      date: appointment.date,
+      startTime: appointment.startTime,
+      endTime: appointment.endTime,
+      treatmentName: appointment.treatmentName,
+      operatorName: appointment.operatorName,
+      clientName: appointment.clientName,
+      clientId: appointment.clientId,
+      price: appointment.price,
+    },
+    // Frase gia' pronta: la data la compone il gestionale, non il modello.
+    messaggio: `Fatto: ${quandoParlato(appointment.date, appointment.startTime)} `
+      + `con ${appointment.operatorName.split(' ')[0]}.`,
+  };
+}
+
+/**
+ * La conferma su WhatsApp dopo una prenotazione presa al telefono.
+ *
+ * Non parte per le prenotazioni fatte SU WhatsApp: li' la segretaria ha appena
+ * scritto in chat che e' fatta, e un template identico subito dopo e' il
+ * doppione classico che fa disattivare le notifiche.
+ */
+export function confermaSuWhatsApp(appointmentId: string): void {
+  sendAppointmentConfirmation(appointmentId).catch(() => {});
 }

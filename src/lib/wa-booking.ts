@@ -82,6 +82,18 @@ async function saveSession(phone: string, s: BookingSession): Promise<void> {
   });
 }
 
+/**
+ * Vero se su questo numero c'è una prenotazione guidata lasciata a metà.
+ *
+ * Con la segretaria accesa il bot a menù non parte più da solo, ma una
+ * conversazione già cominciata va lasciata finire: interromperla a metà
+ * significa lasciare qualcuno che ha appena scelto il trattamento davanti a un
+ * interlocutore che non sa di cosa stia parlando.
+ */
+export async function prenotazioneGuidataInCorso(phone: string): Promise<boolean> {
+  return (await loadSession(phone)) !== null;
+}
+
 async function clearSession(phone: string): Promise<void> {
   await prisma.adminEntry.delete({ where: { rowId: rowId(phone) } }).catch(() => {});
 }

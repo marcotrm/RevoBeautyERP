@@ -652,3 +652,8 @@ export async function handleSpostamentoMessage(params: {
     return { handled: false };
   }
 }
+
+/** Vero se su questo numero c'è uno spostamento guidato lasciato a metà. */
+export async function spostamentoInCorso(phone: string): Promise<boolean> {
+  return (await leggiSessione(phone)) !== null;
+}

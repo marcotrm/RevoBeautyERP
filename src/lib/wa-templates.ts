@@ -451,6 +451,26 @@ export const TESTO_APERTURA =
   'Rispondi pure a questo messaggio: dicci di cosa hai bisogno e quando ti fa comodo, e ti troviamo posto.\n' +
   'Ti aspettiamo in Via Caudina 30, Maddaloni.';
 
+/**
+ * Il primo messaggio a chi ha lasciato i contatti sul sito.
+ *
+ * Sta a parte da `apertura_conversazione` perche' dice una cosa che quello non
+ * puo' dire: *perche'* gli stiamo scrivendo. Chi compila un modulo alle undici
+ * di sera e si vede arrivare un WhatsApp il giorno dopo da un numero che non
+ * conosce, senza un riferimento alla richiesta che ha fatto, lo legge come
+ * spam — e su WhatsApp "questo e' spam" non e' un'opinione, e' un tasto che
+ * fa scendere la qualita' del numero fino al blocco.
+ *
+ * E' UTILITY e non MARKETING perche' non propone niente: risponde a una
+ * richiesta esplicita, arrivata pochi minuti prima. Se Meta non l'ha (ancora)
+ * approvato si ripiega su `apertura_conversazione`, che dice meno ma parte.
+ */
+export const NOME_CONTATTO_SITO = 'contatto_dal_sito';
+export const TESTO_CONTATTO_SITO =
+  'Ciao {{1}}, ti scriviamo da RevoBeauty: ci hai lasciato i tuoi contatti sul sito per {{2}}.\n' +
+  'Rispondi pure a questo messaggio e vediamo insieme quando ti fa comodo passare.\n' +
+  'Siamo in Via Caudina 30, Maddaloni.';
+
 /** Le automazioni che mandano messaggi di marketing (servono consenso + opt-out). */
 export function isMarketing(key: TemplateKey): boolean {
   return WA_TEMPLATES[key].category === 'MARKETING';

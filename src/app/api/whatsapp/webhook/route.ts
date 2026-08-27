@@ -10,13 +10,16 @@
  * https://erp.revobeauty.it/api/whatsapp/webhook?token=<segreto>
  */
 
+import { after } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { normalizePhone } from '@/lib/whatsapp';
 import { handleReminderReply } from '@/lib/wa-appointments';
 import { rispostaCopriBuchi } from '@/lib/copriBuchi';
-import { handleBookingMessage } from '@/lib/wa-booking';
-import { handleSpostamentoMessage } from '@/lib/wa-spostamento';
+import { handleBookingMessage, prenotazioneGuidataInCorso } from '@/lib/wa-booking';
+import { handleSpostamentoMessage, spostamentoInCorso } from '@/lib/wa-spostamento';
 import { handleAssistantMessage } from '@/lib/wa-assistant';
+import { handleSegretariaMessage } from '@/lib/wa-segretaria';
+import { getWaAutomationsConfig } from '@/lib/wa-automations';
 import { logInbound, type WaMedia, type WaMediaKind } from '@/lib/wa-conversations';
 
 export const runtime = 'nodejs';
@@ -159,6 +162,9 @@ export async function POST(request: Request) {
   // APP_URL vince quella.
   const origin = process.env.APP_URL || new URL(request.url).origin;
 
+  // Una lettura sola per richiesta: la configurazione non cambia a metà webhook.
+  const cfg = await getWaAutomationsConfig().catch(() => null) || { segretaria: false };
+
   try {
     type Change = { value?: { messages?: WaMessage[]; statuses?: WaStatus[]; contacts?: WaContact[] } };
     const changes: Change[] = (payload.entry || []).flatMap((e: { changes?: Change[] }) => e.changes || []);
@@ -221,19 +227,38 @@ export async function POST(request: Request) {
           continue;
         }
 
+        /*
+          Con la segretaria accesa i due bot a menù non partono più da soli: lei
+          fa quel lavoro meglio e in una conversazione sola. Le conversazioni
+          già cominciate però si lasciano finire — interrompere a metà chi ha
+          appena scelto il trattamento è peggio di qualunque bot.
+        */
+        const segretariaOn = cfg.segretaria;
+        const guidateInCorso = segretariaOn
+          ? await Promise.all([spostamentoInCorso(phone), prenotazioneGuidataInCorso(phone)])
+          : [true, true];
+
         // Spostamento in corso: se per questo numero c'è una conversazione
         // aperta ("in che giorno?", "quale orario?"), il numero che arriva
         // adesso è una risposta a quella. Va prima della prenotazione,
         // altrimenti un "2" verrebbe letto come scelta di un trattamento.
-        const spostamento = await handleSpostamentoMessage({ phone, text, origin });
-        if (spostamento.handled) {
-          console.log(`[wa-webhook] ${phone}: spostamento, passo ${spostamento.passo || 'concluso'}`);
-          continue;
+        if (guidateInCorso[0]) {
+          const spostamento = await handleSpostamentoMessage({ phone, text, origin });
+          if (spostamento.handled) {
+            console.log(`[wa-webhook] ${phone}: spostamento, passo ${spostamento.passo || 'concluso'}`);
+            continue;
+          }
         }
 
-        // Risposte al promemoria: "Confermo" conferma l'appuntamento, "Devo spostare"
-        // apre lo spostamento guidato (o avvisa il centro, se l'agente è spento).
-        const reply = await handleReminderReply({ phone, text, payloadId, contactName });
+        /*
+          Risposte al promemoria. "Confermo" segna l'appuntamento come
+          confermato e non manda niente: va bene sempre, anche con la
+          segretaria accesa, ed è una scrittura in agenda che non costa un
+          messaggio. "Devo spostare" invece, con la segretaria accesa, lo lascia
+          fare a lei: la via vecchia si limita ad avvisare il centro e la
+          cliente resterebbe senza risposta fino al giorno dopo.
+        */
+        const reply = await handleReminderReply({ phone, text, payloadId, contactName, soloConferme: segretariaOn });
         if (reply.handled) {
           console.log(`[wa-webhook] ${phone}: promemoria ${reply.intent} su appuntamento ${reply.appointmentId}`);
           continue;
@@ -242,14 +267,38 @@ export async function POST(request: Request) {
         // Prenotazione guidata: parte su "prenota/appuntamento" e prosegue finché
         // la conversazione è aperta. Se non c'entra, il messaggio resta solo in archivio
         // e risponde una persona.
-        const booking = await handleBookingMessage({ phone, text, contactName, origin });
-        if (booking.handled) {
-          console.log(`[wa-webhook] ${phone}: prenotazione, passo ${booking.step || 'concluso'}`);
-          continue; // conversazione di prenotazione in corso: l'assistente non si intromette
+        if (guidateInCorso[1]) {
+          const booking = await handleBookingMessage({ phone, text, contactName, origin });
+          if (booking.handled) {
+            console.log(`[wa-webhook] ${phone}: prenotazione, passo ${booking.step || 'concluso'}`);
+            continue; // conversazione di prenotazione in corso: l'assistente non si intromette
+          }
         }
 
-        // Assistente AI: risponde alle domande. Ultimo anello, così prenotazione
-        // e promemoria hanno sempre la precedenza.
+        /*
+          La segretaria. Gira DOPO la risposta a Meta.
+
+          Un turno con gli strumenti dura dai cinque ai venti secondi, e ci
+          aggiunge l'attesa che la cliente smetta di scrivere. Tenere aperta la
+          richiesta per tutto quel tempo fa scadere il webhook, e un webhook
+          scaduto Meta lo riconsegna: stesso messaggio, secondo turno, due
+          risposte identiche alla stessa domanda. Rispondere subito 200 e
+          lavorare dopo è l'unico modo di non farlo succedere.
+        */
+        if (segretariaOn) {
+          const messaggio = { phone, text, contactName, messageId: m.id };
+          after(async () => {
+            const esito = await handleSegretariaMessage(messaggio);
+            if (!esito.handled && esito.reason) {
+              console.log(`[wa-webhook] ${phone}: segretaria non ha risposto (${esito.reason})`);
+            }
+          });
+          continue;
+        }
+
+        // Assistente AI (vecchia via, quando la segretaria è spenta): risponde
+        // alle domande e basta. Ultimo anello, così prenotazione e promemoria
+        // hanno sempre la precedenza.
         const assistant = await handleAssistantMessage({ phone, text, contactName });
         if (!assistant.handled && assistant.reason) {
           console.log(`[wa-webhook] ${phone}: assistente non ha risposto (${assistant.reason})`);

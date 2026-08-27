@@ -20,11 +20,15 @@ import { listD360Templates } from '@/lib/whatsapp360';
 import { scegliRecensione } from '@/lib/sceltaRecensione';
 import { GIFT_OPTIONS } from '@/lib/giftOptions';
 import { phonesWithInbound } from '@/lib/wa-conversations';
+import { troppoRavvicinato } from '@/lib/wa-antiflood';
 
 const CONFIG_ROW = 'integration:wa_automations';
 const LOG_KIND = 'wa_log';
 /** Tetto per singola esecuzione: evita di svuotare il credito per un bug nei filtri. */
 const MAX_PER_RUN = 200;
+
+/** Quanti minuti devono passare dall'ultimo messaggio prima di mandarne uno automatico. */
+const MINUTI_DI_SILENZIO = 30;
 
 export interface WaAutomationsConfig {
   /**
@@ -61,6 +65,22 @@ export interface WaAutomationsConfig {
    * dalla modalità simulazione.
    */
   assistant: boolean;
+  /**
+   * La segretaria su WhatsApp (lib/wa-segretaria.ts).
+   *
+   * È l'assistente completo: dice quando c'è posto, prenota, sposta, disdice,
+   * risponde su prezzi, orari e indirizzo, e passa la conversazione a una
+   * persona quando serve. Legge il gestionale a ogni domanda — listino, turni
+   * veri delle operatrici, agenda — quindi non può proporre un orario che in
+   * cabina non esiste.
+   *
+   * Da accesa prende il posto dell'assistente, del bot di prenotazione e
+   * dell'agente spostamenti: erano tre interlocutori con tre memorie separate
+   * nella stessa chat, e la cliente se ne accorgeva.
+   *
+   * Spenta di default: scrive da sola ai clienti e tocca l'agenda.
+   */
+  segretaria: boolean;
   /**
    * Agente che gestisce gli spostamenti (lib/wa-spostamento.ts).
    *
@@ -125,6 +145,7 @@ export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
   dryRun: true,
   booking: false,
   assistant: false,
+  segretaria: false,
   spostamenti: false,
   copriBuchiAuto: false,
   affiliatoIncasso: false,
@@ -316,6 +337,22 @@ async function runJobs(key: TemplateKey, jobs: Job[], dryRun: boolean, chiaveInv
 
     if (dryRun) {
       result.details.push({ to: job.phone, name: job.name, ok: true, preview });
+      continue;
+    }
+
+    /*
+      Non si atterra sopra una conversazione in corso.
+
+      Il promemoria delle 18 che arriva mentre la cliente sta parlando con la
+      segretaria — magari proprio di quell'appuntamento — non informa nessuno:
+      fa sembrare due interlocutori scoordinati un unico interlocutore confuso,
+      e a quel punto la chat si silenzia. Mezz'ora di distanza dall'ultima cosa
+      che le abbiamo detto è il minimo perché il messaggio si legga come una
+      cosa a sé. Il posto in agenda non si perde: al giro dopo riparte, perché
+      il fermo dell'invio non è stato ancora preso.
+    */
+    if (await troppoRavvicinato(job.phone, MINUTI_DI_SILENZIO)) {
+      console.log(`[wa-automations] ${key}: ${job.phone} ha ricevuto un messaggio da poco, rimandato al prossimo giro`);
       continue;
     }
 
