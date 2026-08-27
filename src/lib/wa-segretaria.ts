@@ -508,7 +508,10 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
       return JSON.stringify({
         nome: centro.nome,
         indirizzo: centro.indirizzo,
-        telefono: centro.telefono,
+        // Un campo vuoto il modello lo riempie: si e' visto scrivere a una
+        // cliente «chiama il centro: 0823… (numero che mi serve dal centro)».
+        // Detto a parole, invece, non c'e' niente da completare.
+        telefono: centro.telefono || 'NON DISPONIBILE — non inventarlo e non darne uno alla cliente',
         orari: orariParlati(centro.orari),
         oggi: { data: oggi, giorno: dataParlata(oggi, oggi), aperto: !eChiuso(centro, oggi) },
         chiusureFuture: (centro.chiusure || []).filter(d => d >= oggi).sort().slice(0, 8),
@@ -704,7 +707,9 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         trovato: false,
         durataMinuti: durataTotale,
         prezzo: prezzoTotale,
-        nota: 'Niente posto con questi criteri, nemmeno allargando. Chiedi alla cliente se va bene un\'altra fascia oraria, o passa al centro.',
+        nota: 'Niente posto con questi criteri, nemmeno allargando. NON chiudere qui la conversazione e non '
+          + 'mandarla a telefonare: chiedile se le va bene un\'altra fascia oraria o un altro giorno, e se lei '
+          + 'può solo in quei giorni usa "passa_a_persona" — al banco un buco lo trovano quasi sempre, tu no.',
       });
     }
 
@@ -908,6 +913,49 @@ async function contestoDiChat(phone: string): Promise<string> {
     `Stai scrivendo su WhatsApp al numero ${phone}.`,
   ];
 
+  /*
+    Aperto o chiuso ADESSO, detto qui, come fatto.
+
+    Prima il modello aveva l'ora corrente e — solo se chiamava `info_centro` —
+    gli orari, e doveva incrociarli da sé. Un giovedì alle 15:21, col centro
+    aperto fino alle 19, ha scritto a una cliente «il centro adesso è chiuso,
+    riapre domani alle 9». Non era un dato sbagliato: era un conto che nessuno
+    gli aveva fatto. Adesso glielo facciamo noi, e non c'è più niente da
+    dedurre.
+
+    Stessa cosa per il telefono: se in anagrafica non c'è, va detto che non
+    c'è. Lasciato vuoto e basta, si è visto scrivere a una cliente «chiama il
+    centro: 0823… (numero che mi serve dal centro)» — il segnaposto, testuale,
+    dentro WhatsApp.
+  */
+  const centro = await leggiCentro().catch(() => null);
+  if (centro) {
+    const oggi = todayInItaly();
+    const dow = new Date(oggi + 'T12:00:00').getDay();
+    const orarioOggi = centro.orari?.[String(dow === 0 ? 7 : dow)] ?? null;
+    const minutiAdesso = Number(
+      new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', hour12: false }).format(new Date())
+    ) * 60 + Number(
+      new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', minute: '2-digit' }).format(new Date())
+    );
+    const inMinuti = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+
+    if (eChiuso(centro, oggi)) {
+      righe.push('OGGI IL CENTRO È CHIUSO (giorno di riposo o chiusura straordinaria).');
+    } else if (orarioOggi && minutiAdesso >= inMinuti(orarioOggi.apre) && minutiAdesso < inMinuti(orarioOggi.chiude)) {
+      righe.push(`IN QUESTO MOMENTO IL CENTRO È APERTO (oggi ${orarioOggi.apre}–${orarioOggi.chiude}). Non dire che è chiuso.`);
+    } else if (orarioOggi) {
+      righe.push(`In questo momento il centro è chiuso: oggi l'orario è ${orarioOggi.apre}–${orarioOggi.chiude}.`);
+    }
+
+    righe.push(
+      centro.telefono
+        ? `Il numero del centro è ${centro.telefono}: è l'UNICO che puoi dare.`
+        : 'Nei dati NON c\'è nessun numero di telefono del centro. Non scriverne uno: non esiste un numero '
+          + 'da dare. Se serve parlare con una persona usa "passa_a_persona", non mandare la cliente a chiamare.'
+    );
+  }
+
   const lead = await leadDaTelefono(phone).catch(() => null);
   if (lead && !lead.clientId) {
     righe.push(
@@ -1047,6 +1095,18 @@ async function eseguiTurno(
     conversazione.push({ role: 'assistant', content: risposta.content });
 
     const risultati: Anthropic.ToolResultBlockParam[] = [];
+    /*
+      Quando la ricerca torna a mani vuote, il turno risale.
+
+      «Non c'è posto» è la frase che fa perdere una cliente, ed è anche il
+      momento in cui il modello piccolo comincia a inventare: si e' visto
+      dichiarare il centro chiuso di giovedi' pomeriggio e dettare un numero di
+      telefono che non esiste, pur di chiudere il discorso. Se la risposta e'
+      un no, la scrive la testa buona — che semmai passa la palla a una
+      collega invece di mandare via la cliente.
+    */
+    let ricercaAVuoto = false;
+
     for (const r of richieste) {
       let contenuto: string;
       try {
@@ -1055,8 +1115,28 @@ async function eseguiTurno(
         console.error(`[wa-segretaria] strumento ${r.name} in errore`, err);
         contenuto = JSON.stringify({ errore: 'Lo strumento non ha risposto. Non inventare il dato: passa al centro.' });
       }
+
+      /*
+        Cosa ha chiesto e cosa si è sentito rispondere, nel log.
+
+        Senza questa riga «il bot ha detto una cosa falsa» non si può né
+        confermare né smentire: non si sa se abbia letto male il gestionale o
+        se se lo sia inventato, e sono due bug diversi con due rimedi diversi.
+      */
+      console.log(
+        `[wa-segretaria] ${ctx.phone} · ${r.name}(${JSON.stringify(r.input).slice(0, 200)})`
+        + ` → ${contenuto.slice(0, 300)}`
+      );
+
+      if (r.name === 'quando_c_e_posto' && contenuto.includes('"trovato":false')) ricercaAVuoto = true;
+
       risultati.push({ type: 'tool_result', tool_use_id: r.id, content: contenuto });
     }
+
+    if (livello === 'lavoro' && ricercaAVuoto) {
+      return { tipo: 'sali', strumento: 'quando_c_e_posto (nessun posto trovato)' };
+    }
+
     conversazione.push({ role: 'user', content: risultati });
 
     // Se il turno finisce senza altro testo, almeno questo è già stato detto.
