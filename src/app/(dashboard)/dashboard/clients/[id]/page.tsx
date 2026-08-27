@@ -15,6 +15,18 @@ import {
   CheckCircle, User, Cake, Tag, Settings, Plus, Trash2, Bell, Frown,
 } from 'lucide-react';
 import { formatCurrency, getInitials, formatDate, getStatusLabel, getStatusColor, getCategoryLabel, generateId, formatBirthDate } from '@/lib/helpers';
+
+/**
+ * Il giorno di una visita: "gio 30 lug 2026".
+ *
+ * Con l'anno, perche' lo storico di una cliente affezionata attraversa il
+ * capodanno e "30 lug" da solo, l'anno prossimo, sarebbe ambiguo.
+ */
+function dataVisita(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+}
 import Link from 'next/link';
 import AddClientModal from '@/components/AddClientModal';
 import BuonoCompleannoBadge from '@/components/BuonoCompleanno';
@@ -542,13 +554,28 @@ export default function ClientDetailPage() {
             <h3 className="text-base font-display font-semibold text-text-primary mb-4">Storico Visite</h3>
             {clientAppointments.length > 0 ? (
               <div className="space-y-3">
-                {clientAppointments.map((apt) => (
+                {/*
+                  Dalla piu' recente alla piu' vecchia.
+
+                  Senza la data scritta l'ordine non si notava; con la data in
+                  chiaro, partire da un mese fa vorrebbe dire scorrere fino in
+                  fondo per sapere quando e' venuta l'ultima volta — che e'
+                  proprio la domanda che ci si fa aprendo lo storico.
+                */}
+                {[...clientAppointments]
+                  .sort((a, b) => (b.date + b.startTime).localeCompare(a.date + a.startTime))
+                  .map((apt) => (
                   <div key={apt.id} className="flex items-center gap-3 p-3 rounded-xl bg-bg-tertiary/50 border border-border/30">
                     <div className="w-1 h-12 rounded-full flex-shrink-0" style={{ backgroundColor: apt.color }} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-text-primary">{apt.treatmentName}</p>
                       <p className="text-xs text-text-secondary">con {apt.operatorName}</p>
-                      <p className="text-[11px] text-text-muted mt-0.5">{apt.startTime} - {apt.endTime}</p>
+                      {/* La data prima dell'ora: uno storico senza il giorno
+                          dice solo "alle nove", e di quale giorno non si sa. */}
+                      <p className="text-[11px] text-text-muted mt-0.5">
+                        <span className="font-semibold text-text-secondary">{dataVisita(apt.date)}</span>
+                        {' · '}{apt.startTime} - {apt.endTime}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-text-primary">{formatCurrency(apt.price)}</p>
