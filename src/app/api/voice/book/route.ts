@@ -3,104 +3,81 @@ import { notifyNuovoAppuntamento } from '@/lib/telegram';
 import { eClienteNuova } from '@/lib/clienteNuova';
 import { omonimoInRubrica } from '@/lib/omonimi';
 import { sendAppointmentConfirmation } from '@/lib/wa-appointments';
-import { slotDisponibili, type ServizioRichiesto } from '@/lib/bookingEngine';
 import { quandoParlato } from '@/lib/parlato';
-import {
-  isAuthorized, unauthorized, badRequest, findClientByPhone, todayInItaly,
-} from '@/lib/voice';
+import { leggiConferma } from '@/lib/conferma';
+import { preparaPrenotazione, metaTrattamenti, type DatiPrenotazione } from '@/lib/vocePrenota';
+import { isAuthorized, unauthorized } from '@/lib/voice';
 
 export const runtime = 'nodejs';
 
 /**
  * L'appuntamento preso al telefono.
  *
- * Riconosce la cliente dal numero da cui chiama; se non è in rubrica la crea
- * con il nome che ha detto.
+ * Si entra solo con il gettone rilasciato da /api/voice/book/verifica, e i dati
+ * si prendono da LÌ, non dal corpo della richiesta: fra il "sì, corretto" della
+ * cliente e la riga scritta in agenda non deve poter cambiare niente. È anche
+ * la ragione per cui l'assistente non può prenotare senza aver prima letto il
+ * riepilogo ad alta voce — non è una regola scritta nelle istruzioni, che un
+ * modello di fretta salta, è la forma della porta.
  *
- * Il ricontrollo della disponibilità passa dallo stesso motore di tutto il
- * resto (`slotDisponibili`), non più da `hasConflict`: quello guardava solo se
- * l'operatrice era già occupata, e lasciava passare gli appuntamenti presi
- * mentre è in pausa, fuori dal suo turno, o su un lavoro che non fa lei.
- *
- * `oraDa: startTime` non è un dettaglio: senza, la griglia degli orari riparte
- * dall'apertura del centro e cade su minuti diversi da quelli che la cliente
- * si è sentita proporre — la ricerca offre le 18:45, il ricontrollo conosce
- * solo le 18:50, e la prenotazione muore su un orario che era libero.
+ * La disponibilità si ricontrolla comunque: fra la conferma e adesso sono
+ * passati dei secondi, e al banco intanto qualcuno può aver preso quel posto.
  */
 export async function POST(request: Request) {
   if (!isAuthorized(request)) return unauthorized();
 
   const b = await request.json().catch(() => null);
-  if (!b) return badRequest('Body JSON mancante');
+  if (!b) return Response.json({ success: false, code: 'VALIDATION', message: 'Dati mancanti.' }, { status: 400 });
 
-  if (!b.phone) return badRequest('Campo "phone" obbligatorio');
-  if (!b.date || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) return badRequest('Campo "date" obbligatorio in formato YYYY-MM-DD');
-  if (!b.startTime || !/^\d{2}:\d{2}$/.test(b.startTime)) return badRequest('Campo "startTime" obbligatorio in formato HH:MM');
-  if (b.date < todayInItaly()) return badRequest('La data richiesta è nel passato');
-
-  // Forma nuova (più trattamenti di fila) e forma vecchia a trattamento singolo
-  const richiesti: ServizioRichiesto[] = Array.isArray(b.services) && b.services.length > 0
-    ? b.services
-        .filter((s: unknown) => s && typeof s === 'object')
-        .map((s: { treatmentId?: unknown; operatorId?: unknown }) => ({
-          treatmentId: String(s.treatmentId || ''),
-          operatorId: s.operatorId ? String(s.operatorId) : null,
-        }))
-        .filter((s: ServizioRichiesto) => s.treatmentId)
-    : (b.treatmentId
-        ? [{ treatmentId: String(b.treatmentId), operatorId: b.operatorId ? String(b.operatorId) : null }]
-        : []);
-  if (richiesti.length === 0) return badRequest('Serve almeno un trattamento');
-
-  /*
-    La cliente si cerca PRIMA di scrivere, ma si crea DOPO che l'orario ha
-    retto: se la telefonata si incaglia sull'orario, in rubrica non deve
-    restare una scheda vuota di qualcuno che non ha prenotato niente.
-  */
-  const esistente = await findClientByPhone(b.phone);
-  const gender: 'male' | 'female' = (b.gender === 'male' || b.gender === 'female')
-    ? b.gender
-    : (esistente?.gender === 'M' ? 'male' : 'female');
-
-  const { slots } = await slotDisponibili({
-    date: b.date, services: richiesti, gender, oraDa: b.startTime,
-  });
-  const slot = slots.find(s => s.time === b.startTime);
-  if (!slot) {
+  const confermato = leggiConferma<DatiPrenotazione>(b.tokenConferma);
+  if (!confermato) {
     return Response.json({
       success: false,
-      code: 'NOT_AVAILABLE',
-      message: 'Quell\'orario non è più libero. Proponi un altro orario.',
-    }, { status: 409 });
+      code: 'SERVE_CONFERMA',
+      message: b.tokenConferma
+        ? 'La conferma è scaduta. Ripeti l\'appuntamento alla cliente e fattelo confermare di nuovo.'
+        : 'Prima chiama /api/voice/book/verifica, leggi il riepilogo alla cliente e fattelo confermare.',
+    }, { status: 428 });
   }
 
-  const client = esistente || await prisma.client.create({
-    data: {
-      firstName: String(b.clientName || '').trim().split(/\s+/)[0] || 'Cliente',
-      lastName: String(b.clientName || '').trim().split(/\s+/).slice(1).join(' '),
-      phone: String(b.phone),
-      createdAt: new Date().toISOString(),
-    },
-    select: { id: true, firstName: true, lastName: true, phone: true, gender: true },
-  });
+  const p = await preparaPrenotazione(confermato);
+  if (!p.ok) {
+    return Response.json({ success: false, code: p.codice, message: p.messaggio }, { status: p.stato });
+  }
+  const { slot } = p;
 
-  const trattamenti = await prisma.treatment.findMany({
-    where: { id: { in: slot.assegnazioni.map(a => a.treatmentId) } },
-    select: { id: true, category: true, color: true },
-  });
-  const metaDi = new Map(trattamenti.map(t => [t.id, t]));
+  /*
+    La scheda della cliente si crea adesso, non prima: se la telefonata si
+    fosse incagliata sull'orario, in rubrica non doveva restare la scheda vuota
+    di qualcuno che non ha prenotato niente.
+  */
+  const client = p.clienteId
+    ? { id: p.clienteId, nome: p.nomeCliente }
+    : await prisma.client.create({
+        data: {
+          firstName: p.nomeCliente.split(/\s+/)[0],
+          lastName: p.nomeCliente.split(/\s+/).slice(1).join(' '),
+          phone: confermato.phone,
+          gender: confermato.gender === 'male' ? 'M' : 'F',
+          createdAt: new Date().toISOString(),
+        },
+        select: { id: true },
+      }).then(c => ({ id: c.id, nome: p.nomeCliente }));
+
+  const metaDi = await metaTrattamenti(slot);
   const principale = slot.assegnazioni[0];
+  const adesso = new Date().toISOString();
 
   const appointment = await prisma.appointment.create({
     data: {
       clientId: client.id,
-      clientName: `${client.firstName} ${client.lastName}`.trim(),
+      clientName: client.nome,
       operatorId: principale.operatorId,
       operatorName: principale.operatorName,
       treatmentId: principale.treatmentId,
       treatmentName: slot.assegnazioni.map(a => a.treatmentName).join(' + '),
       treatmentCategory: metaDi.get(principale.treatmentId)?.category || 'body',
-      date: b.date,
+      date: confermato.date,
       startTime: slot.time,
       endTime: slot.endTime,
       duration: slot.durataTotale,
@@ -112,14 +89,14 @@ export async function POST(request: Request) {
         treatmentCategory: metaDi.get(a.treatmentId)?.category || 'body',
         duration: a.duration,
         price: a.price,
-        gender,
+        gender: confermato.gender,
         operatorId: a.operatorId,
         operatorName: a.operatorName,
       })),
       color: metaDi.get(principale.treatmentId)?.color || '#A855F7',
       notes: 'Prenotazione al telefono',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: adesso,
+      updatedAt: adesso,
       createdBy: 'voice-assistant',
     },
   });
@@ -151,9 +128,9 @@ export async function POST(request: Request) {
 
   return Response.json({
     success: true,
-    // Frase già pronta da leggere alla cliente, invece di far comporre al
-    // modello una data che potrebbe dire sbagliata.
-    message: `Appuntamento fissato ${quandoParlato(appointment.date, appointment.startTime)} con ${appointment.operatorName.split(' ')[0]}.`,
+    // Frase già pronta: la data la compone il gestionale, non il modello.
+    message: `Fatto: ${quandoParlato(appointment.date, appointment.startTime)} `
+      + `con ${appointment.operatorName.split(' ')[0]}.`,
     appointment: {
       id: appointment.id,
       date: appointment.date,

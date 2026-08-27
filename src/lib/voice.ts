@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { confrontoSicuro } from '@/lib/conferma';
 
 // ============================================================
 // Utility condivise per le API dell'assistente vocale
@@ -11,7 +12,9 @@ export function isAuthorized(request: Request): boolean {
   const secret = process.env.VOICE_API_SECRET;
   if (!secret) return false;
   const header = request.headers.get('authorization') || '';
-  return header === `Bearer ${secret}`;
+  // Confronto a tempo costante: `===` esce al primo byte diverso, e quella
+  // differenza di tempo si misura per indovinare il segreto un pezzo per volta.
+  return confrontoSicuro(header, `Bearer ${secret}`);
 }
 
 export function unauthorized() {
@@ -121,4 +124,29 @@ export async function hasConflict(
     select: { startTime: true, endTime: true },
   });
   return appointments.some((a) => start < toMinutes(a.endTime) && end > toMinutes(a.startTime));
+}
+
+/**
+ * Quanto preavviso serve per spostare o disdire da soli.
+ *
+ * Sotto le ventiquattr'ore il posto non si rivende piu': e' tempo di cabina
+ * gia' perso, e la decisione se farlo passare o no la prende il centro, non
+ * una voce al telefono.
+ */
+export const PREAVVISO_ORE = 24;
+
+/** Quante ore mancano all'appuntamento. Negativo se e' gia' passato. */
+export function oreDaAdesso(date: string, startTime: string): number {
+  // Gli appuntamenti sono scritti in ora italiana; il server puo' stare altrove.
+  const adessoIt = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Rome' }));
+  const quando = new Date(`${date}T${startTime}:00`);
+  return (quando.getTime() - adessoIt.getTime()) / 3_600_000;
+}
+
+/**
+ * Vero se l'appuntamento e' troppo vicino perche' l'assistente ci metta mano.
+ * In quel caso la telefonata va passata al centro, non chiusa con un no.
+ */
+export function troppoTardi(date: string, startTime: string): boolean {
+  return oreDaAdesso(date, startTime) < PREAVVISO_ORE;
 }

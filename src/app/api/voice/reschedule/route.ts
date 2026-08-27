@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { isAuthorized, unauthorized, badRequest, hasConflict, toMinutes, toHHMM, todayInItaly } from '@/lib/voice';
+import { isAuthorized, unauthorized, badRequest, hasConflict, toMinutes, toHHMM, todayInItaly, troppoTardi, PREAVVISO_ORE } from '@/lib/voice';
 
 // Sposta un appuntamento esistente a una nuova data/ora
 export async function POST(request: Request) {
@@ -29,6 +29,19 @@ export async function POST(request: Request) {
       { success: false, message: 'Questo appuntamento è bloccato e non può essere spostato al telefono' },
       { status: 409 }
     );
+  }
+
+  /*
+    Vale per l'appuntamento di PARTENZA: quello che si sta liberando. Spostare
+    a due ore dall'inizio lascia il buco esattamente come disdire.
+  */
+  if (troppoTardi(appointment.date, appointment.startTime)) {
+    return Response.json({
+      success: false,
+      code: 'TOO_LATE',
+      message: `Manca meno di ${PREAVVISO_ORE} ore all'appuntamento: lo spostamento non lo puoi fare tu. `
+        + `Dille che la passi subito a una collega, e passa la chiamata.`,
+    }, { status: 409 });
   }
 
   const conflict = await hasConflict(

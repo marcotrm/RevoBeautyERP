@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { isAuthorized, unauthorized, badRequest } from '@/lib/voice';
+import { isAuthorized, unauthorized, badRequest, troppoTardi, PREAVVISO_ORE } from '@/lib/voice';
 
 // Cancella un appuntamento (soft delete: imposta lo stato a "cancelled")
 export async function POST(request: Request) {
@@ -20,6 +20,23 @@ export async function POST(request: Request) {
       { success: false, message: 'Questo appuntamento è bloccato e non può essere cancellato al telefono' },
       { status: 409 }
     );
+  }
+
+  /*
+    Sotto le ventiquattr'ore la disdetta non la prende l'assistente.
+
+    Non e' una regola burocratica: quel posto non si rivende piu', e' tempo di
+    cabina gia' perso. Se la cliente ha un motivo serio deve poterlo dire a una
+    persona, che decide. Quindi qui non si dice di no e basta: si passa la
+    telefonata.
+  */
+  if (troppoTardi(appointment.date, appointment.startTime)) {
+    return Response.json({
+      success: false,
+      code: 'TOO_LATE',
+      message: `Manca meno di ${PREAVVISO_ORE} ore: la disdetta non la puoi fare tu. `
+        + `Dille che la passi subito a una collega, e passa la chiamata.`,
+    }, { status: 409 });
   }
 
   await prisma.appointment.update({
