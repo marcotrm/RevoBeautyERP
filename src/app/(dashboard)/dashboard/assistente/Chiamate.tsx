@@ -51,18 +51,31 @@ export default function Chiamate() {
   const [chiamate, setChiamate] = useState<Chiamata[] | null>(null);
   const [aperta, setAperta] = useState<string | null>(null);
   const [inCorso, setInCorso] = useState(false);
+  /*
+    L'ora del caricamento, presa una volta sola.
+
+    «Oggi» e «ultimi 7 giorni» hanno bisogno di sapere che ore sono, ma
+    leggere l'orologio mentre si disegna la pagina rende il disegno diverso a
+    ogni passata — e React lo vieta apposta. Si guarda l'orologio quando
+    arrivano i dati, e quella e' l'ora a cui le cifre si riferiscono.
+  */
+  const [letteAlle, setLetteAlle] = useState<number | null>(null);
 
   const carica = async () => {
     setInCorso(true);
     try {
       setChiamate(await caricaChiamate(50));
+      setLetteAlle(Date.now());
     } finally {
       setInCorso(false);
     }
   };
 
   useEffect(() => {
-    void (async () => { setChiamate(await caricaChiamate(50)); })();
+    void (async () => {
+      setChiamate(await caricaChiamate(50));
+      setLetteAlle(Date.now());
+    })();
   }, []);
 
   if (!chiamate) {
@@ -91,6 +104,25 @@ export default function Chiamate() {
     ? chiamate.reduce((s, c) => s + (c.durata || 0), 0) / chiamate.length
     : 0;
 
+  // Oggi e sette giorni: senza, «venti telefonate» non dice se sono di ieri o
+  // del mese scorso, ed e' la prima cosa che si vuole sapere.
+  const riferimento = letteAlle ?? 0;
+  const oggi = new Date(riferimento).toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' });
+  const settimanaFa = new Date(riferimento - 7 * 86_400_000).toISOString();
+  const diOggi = chiamate.filter(c => (c.iniziata || '').slice(0, 10) === oggi).length;
+  const dellaSettimana = chiamate.filter(c => (c.iniziata || '') >= settimanaFa).length;
+
+  /*
+    Quante sono andate a vuoto.
+
+    «Riattaccato senza concludere» e' l'esito che nessuno guarda e che dice di
+    piu': una cliente che ha chiamato, ha parlato con la voce e se n'e' andata
+    senza niente in mano. Non lascia traccia in agenda, non lascia una
+    lamentela, non la vede nessuno.
+  */
+  const aVuoto = perEsito.nessuno || 0;
+  const percento = (n: number) => (chiamate.length > 0 ? Math.round((n / chiamate.length) * 100) : 0);
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -114,11 +146,37 @@ export default function Chiamate() {
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <Numero valore={chiamate.length} etichetta="telefonate" />
-            <Numero valore={appuntamenti} etichetta="hanno toccato l'agenda" />
-            <Numero valore={passate} etichetta="passate a una persona"
-              allarme={chiamate.length > 0 && passate / chiamate.length > 0.3} />
+            <Numero valore={diOggi} etichetta="oggi" />
+            <Numero valore={dellaSettimana} etichetta="ultimi 7 giorni" />
+            <Numero valore={chiamate.length} etichetta="in tutto qui sotto" />
             <Numero valore={durataParlata(durataMedia)} etichetta="durata media" />
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            <Numero valore={`${appuntamenti} · ${percento(appuntamenti)}%`} etichetta="hanno toccato l'agenda" />
+            <Numero valore={`${passate} · ${percento(passate)}%`} etichetta="passate a una persona"
+              allarme={chiamate.length > 0 && passate / chiamate.length > 0.3} />
+            <Numero valore={`${aVuoto} · ${percento(aVuoto)}%`} etichetta="riattaccato senza concludere"
+              allarme={chiamate.length > 0 && aVuoto / chiamate.length > 0.3} />
+          </div>
+
+          {/* Come sono finite, tutte. Le tre cifre sopra sono quelle che si
+              guardano; qui c'e' il dettaglio per chi vuole capire perche'. */}
+          <div className="flex flex-wrap gap-1.5">
+            {(Object.keys(ESITI) as EsitoChiamata[])
+              .filter(k => (perEsito[k] || 0) > 0)
+              .map(k => {
+                const e = ESITI[k];
+                const Icona = e.icona;
+                return (
+                  <span key={k}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-bg-tertiary border border-border text-[11px] text-text-secondary">
+                    <Icona className={`w-3 h-3 ${e.classe}`} />
+                    {e.etichetta}
+                    <b className="text-text-primary">{perEsito[k]}</b>
+                  </span>
+                );
+              })}
           </div>
 
           <div className="divide-y divide-border/60 border border-border rounded-xl overflow-hidden">
