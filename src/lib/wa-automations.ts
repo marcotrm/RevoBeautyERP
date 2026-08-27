@@ -98,6 +98,19 @@ export interface WaAutomationsConfig {
   segretariaSposta: boolean;
   segretariaDisdice: boolean;
   /**
+   * La fascia oraria in cui la segretaria risponde, formato HH:MM.
+   *
+   * Vuote: risponde sempre, che e' come ha sempre funzionato. Servono a chi
+   * la sta ancora collaudando e non vuole che scriva alle clienti a mezzanotte
+   * senza che nessuno se ne accorga fino al mattino.
+   *
+   * Fuori fascia la segretaria non risponde e la conversazione resta segnata
+   * DA LEGGERE nel gestionale: chi scrive alle nove di sera non va perso, va
+   * solo letto da una persona domani.
+   */
+  segretariaDalle?: string;
+  segretariaAlle?: string;
+  /**
    * Agente che gestisce gli spostamenti (lib/wa-spostamento.ts).
    *
    * Quando la cliente risponde "devo spostare" al promemoria o alla conferma,
@@ -165,6 +178,8 @@ export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
   segretariaPrenota: true,
   segretariaSposta: true,
   segretariaDisdice: true,
+  segretariaDalle: '',
+  segretariaAlle: '',
   spostamenti: false,
   copriBuchiAuto: false,
   affiliatoIncasso: false,

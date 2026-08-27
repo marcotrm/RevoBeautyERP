@@ -38,6 +38,15 @@ export default function AssistentePage() {
   const [stato, setStato] = useState<Stato | null>(null);
   const [istruzioni, setIstruzioni] = useState('');
   const [canale, setCanale] = useState<'telefono' | 'whatsapp'>('telefono');
+  /*
+    Due schermate, non una pagina lunga il doppio.
+
+    Da una parte quello che si imposta e si salva, dall'altra quello che si
+    legge per capire com'e' andata. Erano una cosa sola e il tasto Salva
+    finiva in mezzo, con sotto altre due sezioni che non c'entravano niente:
+    chi arrivava dal fondo non sapeva piu' se aveva salvato.
+  */
+  const [schermata, setSchermata] = useState<'impostazioni' | 'andamento'>('impostazioni');
   const [salvando, setSalvando] = useState(false);
   const [salvato, setSalvato] = useState(false);
 
@@ -103,6 +112,24 @@ export default function AssistentePage() {
         </div>
       )}
 
+      {/* ------------------------------------------------------- schermate */}
+      <div className="flex gap-1.5 border-b border-border">
+        {([
+          ['impostazioni', 'Impostazioni'],
+          ['andamento', 'Come sta andando'],
+        ] as const).map(([chiave, testo]) => (
+          <button key={chiave} onClick={() => setSchermata(chiave)}
+            className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors ${
+              schermata === chiave
+                ? 'border-accent text-accent'
+                : 'border-transparent text-text-muted hover:text-text-secondary'
+            }`}>
+            {testo}
+          </button>
+        ))}
+      </div>
+
+      {schermata === 'impostazioni' && (<>
       {/* --------------------------------------------------- dati del centro */}
       <Sezione icona={Phone} titolo="Il centro"
         sotto="Quello che l'assistente dice quando le chiedono dove siete e come raggiungervi.">
@@ -112,8 +139,11 @@ export default function AssistentePage() {
           <Campo etichetta="Indirizzo" valore={centro.indirizzo || ''}
             onChange={v => { setCentro({ ...centro, indirizzo: v }); setSalvato(false); }} />
           <Campo etichetta="Telefono" valore={centro.telefono || ''}
-            aiuto="È il numero a cui l'assistente passa la chiamata quando non sa rispondere."
+            aiuto="Il numero pubblico: quello che l'assistente detta a chi lo chiede."
             onChange={v => { setCentro({ ...centro, telefono: v }); setSalvato(false); }} />
+          <Campo etichetta="Passa le chiamate a" valore={centro.telefonoPassaggio || ''}
+            aiuto="Dove gira la telefonata quando non ne viene fuori. Se le chiamate del numero pubblico sono già deviate sull'assistente, qui va un numero DIVERSO: altrimenti la rimanda a se stessa e non risponde nessuno. Vuoto = usa il numero pubblico."
+            onChange={v => { setCentro({ ...centro, telefonoPassaggio: v }); setSalvato(false); }} />
           <Campo etichetta="Sito" valore={centro.sito || ''}
             onChange={v => { setCentro({ ...centro, sito: v }); setSalvato(false); }} />
         </div>
@@ -173,14 +203,6 @@ export default function AssistentePage() {
           className="w-full px-3 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary" />
       </Sezione>
 
-      {/* ------------------------------------------------------ chiarimenti */}
-      <Sezione icona={HelpCircle} titolo="Quando non è chiaro quale trattamento"
-        sotto="«Il gel» può essere quattro cose. Qui si scrivono le domande che le ragazze fanno per capirlo.">
-        <Chiarimenti
-          valore={centro.chiarimenti || []}
-          onChange={v => { setCentro({ ...centro, chiarimenti: v }); setSalvato(false); }} />
-      </Sezione>
-
       {/* ------------------------------------------------------ salvataggio */}
       <div className="flex items-center gap-3">
         <button onClick={salva} disabled={salvando}
@@ -190,19 +212,6 @@ export default function AssistentePage() {
         </button>
         {salvato && <span className="text-xs text-success">Salvato. Vale dalla prossima telefonata.</span>}
       </div>
-
-      {/* -------------------------------------------------------- chiamate */}
-      <Sezione icona={Phone} titolo="Le telefonate"
-        sotto="Chi ha chiamato, com'e' finita e cosa si sono detti. Comprese quelle che ha passato a una persona.">
-        <Chiamate />
-      </Sezione>
-
-      {/* ------------------------------------------------------ autocritica */}
-      <Sezione icona={ScanSearch} titolo="Come è andata"
-        sotto="La segretaria si rilegge ogni sera e dice cosa ha sbagliato. Quello che propone di imparare lo decidi tu.">
-        <Autocritica />
-      </Sezione>
-
       {/* ------------------------------------------------------- istruzioni */}
       <Sezione icona={FileText} titolo="Le regole, come le riceve l'assistente"
         sotto="Il testo esatto. Le parti fisse stanno nel codice; orari, dati del centro e note qui sopra ci entrano da sole.">
@@ -220,6 +229,39 @@ export default function AssistentePage() {
           {istruzioni}
         </pre>
       </Sezione>
+      </>)}
+
+      {schermata === 'andamento' && (<>
+      {/* ------------------------------------------------------ chiarimenti */}
+      <Sezione icona={HelpCircle} titolo="Quando non è chiaro quale trattamento"
+        sotto="«Il gel» può essere quattro cose. Qui si scrivono le domande che le ragazze fanno per capirlo.">
+        <Chiarimenti
+          valore={centro.chiarimenti || []}
+          onChange={v => { setCentro({ ...centro, chiarimenti: v }); setSalvato(false); }} />
+        <div className="flex items-center gap-3 mt-4 pt-3 border-t border-border/60">
+          <button onClick={salva} disabled={salvando}
+            className="px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-medium flex items-center gap-2 disabled:opacity-60">
+            <Save className="w-3.5 h-3.5" />
+            {salvando ? 'Salvo…' : 'Salva le domande'}
+          </button>
+          {salvato && <span className="text-xs text-success">Salvato.</span>}
+        </div>
+      </Sezione>
+
+      {/* -------------------------------------------------------- chiamate */}
+      <Sezione icona={Phone} titolo="Le telefonate"
+        sotto="Chi ha chiamato, com'e' finita e cosa si sono detti. Comprese quelle che ha passato a una persona.">
+        <Chiamate />
+      </Sezione>
+
+      {/* ------------------------------------------------------ autocritica */}
+      <Sezione icona={ScanSearch} titolo="Come è andata"
+        sotto="La segretaria si rilegge ogni sera e dice cosa ha sbagliato. Quello che propone di imparare lo decidi tu.">
+        <Autocritica />
+      </Sezione>
+
+      </>)}
+
     </motion.div>
   );
 }

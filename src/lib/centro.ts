@@ -47,6 +47,20 @@ export interface Centro {
   nome: string;
   indirizzo?: string;
   telefono?: string;
+  /**
+   * Il numero a cui l'assistente passa la chiamata quando non ne viene fuori.
+   *
+   * Sta a parte da `telefono` perche' i due numeri possono — e spesso devono
+   * — essere diversi. `telefono` e' quello pubblico, quello che l'assistente
+   * detta alle clienti. Se le chiamate del numero pubblico sono deviate
+   * sull'assistente, trasferirci sopra vorrebbe dire rimandare la cliente
+   * all'assistente stesso: la chiamata gira in tondo e non risponde mai
+   * nessuno.
+   *
+   * Vuoto: si ripiega su `telefono`, che e' giusto finche' la deviazione e'
+   * condizionata (il numero pubblico squilla ancora davvero).
+   */
+  telefonoPassaggio?: string;
   sito?: string;
   /** Da "1" (lunedì) a "7" (domenica). `null` = chiuso tutto il giorno. */
   orari?: Record<string, OrarioGiorno | null>;
@@ -62,6 +76,7 @@ export const CENTRO: Centro = {
   nome: 'Revobeauty',
   indirizzo: 'Via Caudina 30 · Maddaloni (CE)',
   telefono: '',
+  telefonoPassaggio: '',
   sito: 'revobeauty.it',
   orari: {
     '1': { apre: '09:00', chiude: '19:00' },
