@@ -533,11 +533,36 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
     case 'listino': {
       const cerca = typeof dati.cerca === 'string' ? dati.cerca.trim() : '';
       const categoria = typeof dati.categoria === 'string' ? dati.categoria.trim() : '';
+
+      /*
+        Si cerca a parole, non per pezzo di frase.
+
+        Prima la ricerca era un `contains` sulla stringa intera. Funziona
+        finche' la cliente scrive il nome esatto del gestionale — e non lo
+        scrive mai. «Rimuovere e fare la colata» non combacia con niente, e in
+        listino ci sono sia «rimozione prodotto» sia «Ricostruzione Acrygel o
+        Gel»: due trattamenti che c'erano, trovati zero, e la segretaria
+        costretta a rispondere a mano libera.
+        Vale anche per le parole del sito, che non sono quelle del gestionale:
+        sul sito c'e' scritto «Acrygel Ricostruzione», in gestionale
+        «Ricostruzione Acrygel o Gel». Chi legge il sito scrive quello che ha
+        letto.
+
+        Quindi: si spezza in parole, basta che ne combaci una, e si ordina per
+        quante ne combaciano. Sotto le tre lettere si scarta — «e», «di», «la»
+        starebbero dentro mezzo listino.
+      */
+      const parole = cerca.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(p => p.length >= 3);
+
       const trattamenti = await prisma.treatment.findMany({
         where: {
           isActive: true,
           ...(categoria ? { category: categoria } : {}),
-          ...(cerca ? { name: { contains: cerca, mode: 'insensitive' as const } } : {}),
+          ...(parole.length > 0
+            ? { OR: parole.map(p => ({ name: { contains: p, mode: 'insensitive' as const } })) }
+            : cerca
+              ? { name: { contains: cerca, mode: 'insensitive' as const } }
+              : {}),
         },
         orderBy: [{ category: 'asc' }, { name: 'asc' }],
         select: {
@@ -546,8 +571,26 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         },
         take: 40,
       });
+
+      /*
+        Quello che combacia di piu' sta in cima.
+
+        Chi scrive «ricostruzione gel» trova sia «Ricostruzione Acrygel o Gel»
+        (due parole su due) sia «rimozione prodotto» (zero, ma e' entrato per
+        un'altra parola della frase): metterli in fila alfabetica vuol dire
+        offrire il secondo per primo.
+      */
+      if (parole.length > 1) {
+        const quante = (nome: string) => parole.filter(p => nome.toLowerCase().includes(p)).length;
+        trattamenti.sort((a, b) => quante(b.name) - quante(a.name) || a.name.localeCompare(b.name));
+      }
+
       if (trattamenti.length === 0) {
-        return JSON.stringify({ trovati: 0, nota: 'Niente con questo nome. Non inventare: chiedi alla cliente di dirlo con parole sue, o passa al centro.' });
+        return JSON.stringify({
+          trovati: 0,
+          nota: 'Niente con questo nome, nemmeno cercando parola per parola. Non inventare un prezzo ne\' un nome: '
+            + 'chiedi alla cliente di dirlo con parole sue («che cosa ti fai di solito?»), oppure usa "passa_a_persona".',
+        });
       }
 
       /*
@@ -573,7 +616,22 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         il centro le ha scritte — porta le domande che le distinguono. Sceglie
         la cliente, non il modello.
       */
-      const ambiguo = trattamenti.length > 1 && cerca.length > 0;
+      /*
+        Ambiguo e' un pareggio in cima, non «piu' di uno».
+
+        Cercando a parole entrano anche i mezzi risultati: «ricostruzione gel»
+        tira dentro «rimozione prodotto», che e' entrato per un'altra parola
+        della frase. Chiamare ambigua quella lista vorrebbe dire far scegliere
+        alla cliente fra cose che non c'entrano. Ambiguo e' quando in testa
+        restano due trattamenti che combaciano ALLO STESSO MODO — «Refill
+        Acrygel o Gel» e «Ricostruzione Acrygel o Gel» per chi scrive «gel»:
+        li' la domanda serve davvero.
+      */
+      const quanteParole = (nome: string) =>
+        parole.length > 0 ? parole.filter(p => nome.toLowerCase().includes(p)).length : 1;
+      const miglior = trattamenti.length > 0 ? quanteParole(trattamenti[0].name) : 0;
+      const aPariMerito = trattamenti.filter(t => quanteParole(t.name) === miglior);
+      const ambiguo = aPariMerito.length > 1 && cerca.length > 0;
 
       let chiarimento: Chiarimento | undefined;
       if (ambiguo) {
@@ -601,7 +659,7 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
       */
       const giaFatti = (sch?.storico || [])
         .map(v => v.trattamento)
-        .filter(fatto => trattamenti.some(t => t.name.toLowerCase() === fatto.toLowerCase()));
+        .filter(fatto => aPariMerito.some(t => t.name.toLowerCase() === fatto.toLowerCase()));
 
       return JSON.stringify({
         trovati: trattamenti.length,
@@ -614,6 +672,7 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
               + 'Sbagliare trattamento vuol dire sbagliare durata, prezzo e operatrice, e ce ne si accorge '
               + 'in cabina con lei già seduta. Una domanda per messaggio.',
           giaFattoDaLei: giaFatti[0] || undefined,
+          traQuesti: aPariMerito.map(t => t.name),
           domandaDaFare: chiarimento?.chiedi,
           comeSiSceglie: chiarimento?.scelta,
         } : {}),
