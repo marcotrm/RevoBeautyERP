@@ -567,7 +567,11 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         chiarimento = (centro?.chiarimenti || []).find(c =>
           (c.parole || []).some(p => {
             const parola = p.toLowerCase().trim();
-            return parola && (cercato.includes(parola) || parola.includes(cercato));
+            // Sotto le tre lettere non si combacia: una "e" sfuggita nell'elenco
+            // starebbe dentro mezzo listino e attaccherebbe la domanda sbagliata
+            // a qualunque ricerca.
+            if (parola.length < 3) return false;
+            return cercato.includes(parola) || parola.includes(cercato);
           })
         );
       }
@@ -582,7 +586,7 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
       */
       const giaFatti = (sch?.storico || [])
         .map(v => v.trattamento)
-        .filter(nome => trattamenti.some(t => t.name.toLowerCase() === nome.toLowerCase()));
+        .filter(fatto => trattamenti.some(t => t.name.toLowerCase() === fatto.toLowerCase()));
 
       return JSON.stringify({
         trovati: trattamenti.length,
