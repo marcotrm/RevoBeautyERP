@@ -13,7 +13,7 @@ import { leggiCentro, salvaCentro, orariParlati, type Centro } from '@/lib/centr
 import { costruisciIstruzioni } from '@/lib/istruzioniAssistente';
 import { ultimeChiamate, type Chiamata } from '@/lib/voceChiamate';
 import {
-  ultimeAutocritiche, autocriticaDelGiorno, accettaProposta, scartaProposta,
+  ultimeAutocritiche, autocriticaDelGiorno, accettaProposta, scartaProposta, ULTIME_DI_DEFAULT,
   type Autocritica,
 } from '@/lib/autocritica';
 import { proponiChiarimenti, type ChiarimentoProposto } from '@/lib/chiarimentiProposti';
@@ -67,15 +67,15 @@ export async function caricaAutocritiche(quante = 10): Promise<Autocritica[]> {
 }
 
 /**
- * Rilancia l'analisi a mano, senza aspettare le 21:30.
+ * Rilegge adesso le ultime conversazioni, senza aspettare le 21:30.
  *
- * Serve la prima volta — per vedere che funziona senza restare un giorno al
- * buio — e serve il giorno che si vuole rileggere una giornata storta senza
- * aspettare domani. Se l'analisi di oggi c'è già, non la rifà: costa e
- * direbbe le stesse cose.
+ * Chi preme questo pulsante l'ha premuto apposta — magari dopo aver sistemato
+ * un orario o una nota — quindi rifà l'analisi anche se per oggi c'è già:
+ * sentirsi rispondere «già fatta» è il modo più veloce per non fidarsi più di
+ * un pulsante. L'analisi della sera invece non si ripete da sola.
  */
-export async function rileggiOggi() {
-  const esito = await autocriticaDelGiorno();
+export async function rileggiOggi(quante = ULTIME_DI_DEFAULT) {
+  const esito = await autocriticaDelGiorno(undefined, { rifai: true, quante });
   return {
     ok: esito.fatta,
     motivo: esito.motivo,

@@ -37,9 +37,9 @@ export default function Autocritica() {
     void (async () => { setGiorni(await caricaAutocritiche(10)); })();
   }, []);
 
-  const rileggi = () => start(async () => {
+  const rileggi = (quante: number) => start(async () => {
     setNota(null);
-    const r = await rileggiOggi();
+    const r = await rileggiOggi(quante);
     if (!r.ok) setNota(r.motivo || 'Niente da rileggere');
     await ricarica();
   });
@@ -58,15 +58,23 @@ export default function Autocritica() {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] text-text-muted leading-relaxed max-w-2xl">
-          Ogni sera alle 21:30 rilegge le conversazioni della giornata con davanti le sue regole, e scrive
-          cosa non ha funzionato. Se propone di aggiungere qualcosa alle note, <b>non lo fa da sola</b>:
-          resta qui finché non lo accetti tu.
+          Ogni sera alle 21:30 rilegge le conversazioni con davanti le sue regole, <b>intere</b> — non solo
+          i messaggi di oggi — e scrive cosa non ha funzionato. Se propone di aggiungere qualcosa alle note,
+          <b> non lo fa da sola</b>: resta qui finché non lo accetti tu.
         </p>
-        <button onClick={rileggi} disabled={inCorso}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-secondary hover:bg-bg-hover disabled:opacity-50 flex-shrink-0">
-          {inCorso ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-          Rileggi oggi
-        </button>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Due tagli: le ultime cinque per guardare in fretta dopo una chat
+              storta, tutte quando si vuole il quadro. */}
+          <button onClick={() => rileggi(5)} disabled={inCorso}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-secondary hover:bg-bg-hover disabled:opacity-50">
+            {inCorso ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            Rileggi le ultime 5
+          </button>
+          <button onClick={() => rileggi(25)} disabled={inCorso}
+            className="px-3 py-1.5 rounded-lg bg-bg-tertiary border border-border text-xs text-text-secondary hover:bg-bg-hover disabled:opacity-50">
+            Tutte
+          </button>
+        </div>
       </div>
 
       {nota && <p className="text-[11px] text-warning">{nota}</p>}

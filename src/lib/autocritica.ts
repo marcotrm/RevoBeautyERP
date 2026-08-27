@@ -50,7 +50,10 @@ const KIND = 'wa_autocritica';
 /** Quante conversazioni rileggere per volta: oltre, il costo non ripaga. */
 const MAX_CHAT = 25;
 /** Quante battute per chat: le ultime sono quelle dove si vede com'è finita. */
-const MAX_BATTUTE = 30;
+const MAX_BATTUTE = 40;
+
+/** Quante conversazioni rilegge il pulsante «rileggi adesso», se non si dice altro. */
+export const ULTIME_DI_DEFAULT = 5;
 
 export type Gravita = 'grave' | 'media' | 'lieve';
 
@@ -106,6 +109,16 @@ GRAVI — costano una cliente o un guaio:
   un «di solito si può», una valutazione della pelle o del corpo;
 - ha detto un prezzo, una durata o una promozione che non le ha dato uno
   strumento;
+- ha dato un numero di telefono, un indirizzo o un orario che non le ha dato
+  uno strumento — comprese le mezze cifre e i segnaposto tipo «0823...»:
+  quello che non sa non si completa, si passa a una persona;
+- ha detto che il centro era chiuso (o aperto) contraddicendo l'orario che
+  aveva davanti, o si è sbagliata sul giorno di oggi;
+- ha detto «è pieno» o «non c'è posto» come fatto, quando il gestionale non
+  gliel'aveva detto: in agenda che non ci siano turni non vuol dire che il
+  centro sia pieno, e alla cliente arriva la stessa frase;
+- ha mandato via una cliente («chiama il centro», «riprova domani») invece di
+  passarla a una persona, con la cliente che aveva ancora bisogno di qualcosa;
 - ha promesso un orario e poi non l'ha prenotato, o ha lasciato la cliente
   senza risposta a metà di una prenotazione;
 - ha scritto due volte la stessa cosa, o ha mandato più messaggi di fila per
@@ -120,7 +133,10 @@ MEDI — fanno perdere l'appuntamento senza che sembri colpa di nessuno:
 - ha lasciato cadere una richiesta: la cliente ha chiesto una cosa e la
   risposta parla d'altro;
 - doveva passare la conversazione a una persona e non l'ha fatto (reclami,
-  rimborsi, sconti, appuntamenti sotto le 24 ore);
+  rimborsi, sconti, appuntamenti sotto le 24 ore, cliente che può solo in
+  giorni dove non risulta posto);
+- ha chiuso la conversazione con un no, senza offrire nient'altro: la cliente
+  se n'è andata e non l'ha saputo nessuno;
 - ha passato a una persona qualcosa che sapeva fare benissimo da sola.
 
 LIEVI — il tono:
@@ -203,28 +219,39 @@ const SCHEMA = {
 interface ChatDelGiorno { phone: string; righe: string[]; risposte: number }
 
 /**
- * Le conversazioni in cui la segretaria ha risposto oggi.
+ * Le conversazioni in cui la segretaria ha risposto, dalla più recente.
  *
- * Le chat scritte solo da persone non si giudicano: lì non c'è niente da
+ * Due scelte, tutte e due imparate sbagliando.
+ *
+ * **Intere, non la fetta di giornata.** Prima si tagliava ai messaggi di oggi,
+ * e gli errori che contano non stanno dentro una giornata: la cliente chiede
+ * lunedì, la segretaria promette, e giovedì non ha fatto sapere niente. A
+ * mezzanotte quel filo si spezzava e l'analisi rileggeva mezza conversazione
+ * senza sapere com'era cominciata — cioè proprio il pezzo dove sta l'errore.
+ *
+ * **Le chat scritte solo da persone non si giudicano**: lì non c'è niente da
  * imparare su come risponde il bot, e passarle al modello costa e basta.
  */
-async function chatDiOggi(giorno: string): Promise<ChatDelGiorno[]> {
+async function chatRecenti(quante: number): Promise<ChatDelGiorno[]> {
   const elenco = await listConversations(300);
-  const candidate = elenco.filter(c => (c.lastAt || '').slice(0, 10) === giorno);
 
   const chat: ChatDelGiorno[] = [];
-  for (const c of candidate.slice(0, MAX_CHAT)) {
+  for (const c of elenco) {
+    if (chat.length >= Math.min(quante, MAX_CHAT)) break;
+
     const messaggi = await listMessages(c.phone, 120).catch(() => []);
-    const diOggi = messaggi.filter(m => m.at.slice(0, 10) === giorno);
-    const risposte = diOggi.filter(m => m.direction === 'out' && m.source === 'assistant').length;
+    const risposte = messaggi.filter(m => m.direction === 'out' && m.source === 'assistant').length;
     if (risposte === 0) continue;
 
     chat.push({
       phone: c.phone,
       risposte,
-      righe: diOggi.slice(-MAX_BATTUTE).map(m => {
+      righe: messaggi.slice(-MAX_BATTUTE).map(m => {
         const chi = m.direction === 'in' ? 'CLIENTE' : (m.source === 'assistant' ? 'SEGRETARIA' : 'CENTRO');
-        return `${chi}: ${m.text.replace(/\s+/g, ' ').trim()}`;
+        // Il giorno davanti a ogni riga: senza, «ti faccio sapere domani» e la
+        // risposta di tre giorni dopo sembrano la stessa conversazione filata
+        // liscia.
+        return `[${m.at.slice(0, 10)}] ${chi}: ${m.text.replace(/\s+/g, ' ').trim()}`;
       }),
     });
   }
@@ -258,14 +285,30 @@ export interface EsitoAutocritica { fatta: boolean; motivo?: string; analisi?: A
 /**
  * Rilegge la giornata. Non lancia mai: gira dentro uno scheduler.
  */
-export async function autocriticaDelGiorno(giorno = todayRome()): Promise<EsitoAutocritica> {
+export async function autocriticaDelGiorno(
+  giorno = todayRome(),
+  opzioni: {
+    /**
+     * Rifare l'analisi anche se per oggi c'è già.
+     *
+     * Di sera lo scheduler non deve rifarla — costa e non cambia niente. Ma
+     * chi preme il pulsante nel gestionale l'ha premuto apposta, magari dopo
+     * aver sistemato un orario o una nota, e sentirsi rispondere «già fatta»
+     * è il modo più veloce per non fidarsi più di quel pulsante.
+     */
+    rifai?: boolean;
+    /** Quante conversazioni rileggere, dalla più recente. */
+    quante?: number;
+  } = {},
+): Promise<EsitoAutocritica> {
   try {
     if (!process.env.ANTHROPIC_API_KEY) return { fatta: false, motivo: 'manca ANTHROPIC_API_KEY' };
 
     const gia = await leggiAutocritica(giorno);
-    if (gia) return { fatta: false, motivo: 'già fatta per oggi', analisi: gia };
+    if (gia && !opzioni.rifai) return { fatta: false, motivo: 'già fatta per oggi', analisi: gia };
 
-    const chat = await chatDiOggi(giorno);
+    const quante = Math.min(Math.max(1, opzioni.quante || MAX_CHAT), MAX_CHAT);
+    const chat = await chatRecenti(quante);
     if (chat.length === 0) return { fatta: false, motivo: 'nessuna conversazione con risposte automatiche' };
 
     const istruzioni = await costruisciIstruzioni('whatsapp');
@@ -307,7 +350,9 @@ export async function autocriticaDelGiorno(giorno = todayRome()): Promise<EsitoA
       messages: [{
         role: 'user',
         content: [
-          `Ecco le conversazioni di ${giorno}. Rileggile e dimmi cosa non ha funzionato.`,
+          `Ecco le ultime ${chat.length} conversazioni in cui ha risposto la segretaria, intere. `
+          + 'Ogni riga porta davanti il giorno: una promessa fatta lunedì e mai mantenuta si vede solo così. '
+          + 'Rileggile e dimmi cosa non ha funzionato.',
           giaVisti.length > 0
             ? `\nQuesto è quello che le avevo già segnalato nei giorni scorsi. Se un difetto si ripete, `
               + `dillo esplicitamente e alza la gravità: un errore che torna dopo che è stato segnalato `
