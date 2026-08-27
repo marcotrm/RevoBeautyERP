@@ -16,8 +16,17 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   if (!isAuthorized(request)) return unauthorized();
 
+  const b = await request.json().catch(() => null);
+  const categoria = typeof b?.categoria === 'string' ? b.categoria.trim() : '';
+  const cerca = typeof b?.cerca === 'string' ? b.cerca.trim() : '';
+
   const treatments = await prisma.treatment.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      ...(categoria ? { category: categoria } : {}),
+      // Ricerca per nome: la cliente dice "il baffetto", non l'identificativo
+      ...(cerca ? { name: { contains: cerca, mode: 'insensitive' as const } } : {}),
+    },
     orderBy: [{ category: 'asc' }, { name: 'asc' }],
     select: {
       id: true, name: true, category: true,
