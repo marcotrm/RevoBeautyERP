@@ -93,11 +93,23 @@ export async function handleReminderReply(params: {
   text: string;
   payloadId: string;
   contactName?: string;
+  /**
+   * Gestisci solo il "Confermo" e lascia stare il "Devo spostare".
+   *
+   * Serve quando è accesa la segretaria: lo spostamento lo porta avanti lei in
+   * conversazione, e questa via — che si limita ad annotare e avvisare il
+   * centro — le passerebbe davanti lasciando la cliente senza risposta.
+   */
+  soloConferme?: boolean;
 }): Promise<ReminderReplyResult> {
   const intent = detectReminderIntent(params.text, params.payloadId);
   if (!intent) return { handled: false, intent: null };
 
   try {
+    if (intent === 'reschedule' && params.soloConferme) {
+      return { handled: false, intent, note: 'spostamento lasciato alla segretaria' };
+    }
+
     const appt = await nextAppointmentByPhone(params.phone);
     if (!appt) {
       return { handled: false, intent, note: 'nessun appuntamento aperto per questo numero' };

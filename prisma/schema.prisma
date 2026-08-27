@@ -500,6 +500,55 @@ model InaugurationLead {
 }
 
 // ============================================================
+// CONTATTI INTERESSATI (form del sito, app, QR)
+// ============================================================
+/**
+ * Chi ha lasciato i suoi dati senza essere ancora cliente.
+ *
+ * Prima non esisteva: il modulo del sito faceva finta di inviare — il tasto
+ * diventava verde e il messaggio non partiva da nessuna parte — quindi ogni
+ * richiesta arrivata da revobeauty.it si e' persa nel momento in cui la
+ * persona chiudeva la pagina. Un contatto perso non fa rumore, ed e' questo
+ * che lo rende caro.
+ *
+ * Il lead resta separato dalla scheda cliente finche' non prenota davvero:
+ * riempire la rubrica di schede vuote di gente che ha solo fatto una domanda
+ * sporca le statistiche e i richiami automatici. Quando prenota, `clientId`
+ * lega le due cose.
+ */
+model Lead {
+  id               String  @id @default(cuid())
+  firstName        String
+  lastName         String  @default("")
+  /** Normalizzato internazionale (393331234567): e' la chiave con cui si parla su WhatsApp. */
+  phone            String  @default("")
+  email            String  @default("")
+  /** Il servizio scelto nel modulo, come lo ha scritto il sito. */
+  service          String  @default("")
+  message          String  @default("")
+  /** sito | app | qr | telefono | manuale */
+  source           String  @default("sito")
+  /** Da quale pagina e' arrivato: serve a capire cosa converte. */
+  page             String  @default("")
+  /** nuovo | contattato | in_chat | prenotato | cliente | perso */
+  status           String  @default("nuovo")
+  privacyConsent   Boolean @default(false)
+  marketingConsent Boolean @default(false)
+  clientId         String?
+  appointmentId    String?
+  /** Quando gli e' partito il primo messaggio WhatsApp. */
+  contactedAt      String?
+  notes            String  @default("")
+  createdAt        String
+  updatedAt        String
+
+  @@index([status])
+  @@index([phone])
+  @@index([createdAt])
+  @@map("leads")
+}
+
+// ============================================================
 // ACCOUNT GESTIONALE (accessi al gestionale + ruoli/permessi)
 // Condivisi via DB così valgono su tutti i dispositivi.
 // ============================================================

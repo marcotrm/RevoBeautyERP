@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { MessageSquare, ChevronDown, Loader2, CheckCircle2, AlertTriangle, Clock, Heart, Gift, Star, CalendarPlus, Bot, Zap } from 'lucide-react';
+import { MessageSquare, ChevronDown, Loader2, CheckCircle2, AlertTriangle, Clock, Heart, Gift, Star, CalendarPlus, Bot, Zap, Headset } from 'lucide-react';
 import {
   loadWaConfig, saveWaConfig, loadWaStatus, previewAutomation, runAutomationNow, checkTemplates, loadWaInbox,
   creaTemplateRecensione, inviaTemplateDiProva,
@@ -155,10 +155,10 @@ export default function WhatsAppAutomationsConfig() {
   const headStatus = !configured
     ? { label: 'Da configurare', cls: 'bg-warning/10 text-warning' }
     : cfg?.dryRun
-      ? cfg.booking
+      ? cfg.booking || cfg.segretaria
         ? { label: 'Simulazione · bot attivo', cls: 'bg-warning/10 text-warning' }
         : { label: 'Simulazione', cls: 'bg-warning/10 text-warning' }
-      : anyOn || cfg?.booking
+      : anyOn || cfg?.booking || cfg?.segretaria
         ? { label: 'Attivo', cls: 'bg-success/10 text-success' }
         : { label: 'Spento', cls: 'bg-bg-tertiary text-text-muted' };
 
@@ -531,8 +531,41 @@ export default function WhatsAppAutomationsConfig() {
             </p>
           </div>
 
-          {/* Assistente AI */}
+          {/* Segretaria WhatsApp: l'assistente completo */}
           <div className="p-3 rounded-xl bg-bg-secondary border border-border/50">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex items-start gap-2">
+                <Headset className="w-4 h-4 text-text-muted flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-text-primary">Segretaria WhatsApp</span>
+                  <span className="ml-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-warning/15 text-warning align-middle">SCRIVE IN AGENDA</span>
+                  <p className="text-[11px] text-text-muted">
+                    Conversazione normale, non menù numerati: dice quando c&apos;è posto, prenota, sposta, disdice,
+                    risponde su prezzi e orari e passa la chat a una persona quando serve.
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => save({ segretaria: !cfg.segretaria })} disabled={saving}
+                className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${cfg.segretaria ? 'bg-success' : 'bg-bg-hover'}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${cfg.segretaria ? 'left-6' : 'left-1'}`} />
+              </button>
+            </div>
+            <p className="text-[10px] text-text-muted/70 mt-2 leading-relaxed">
+              Guarda il gestionale a ogni domanda — listino, turni veri delle operatrici, agenda — quindi non può
+              proporre un orario che in cabina non esiste. Prima di scrivere in agenda ripete l&apos;appuntamento e
+              aspetta il sì. Sotto le 24 ore non tocca niente e avvisa il centro.
+              {cfg.segretaria && (
+                <> <b className="text-text-secondary">Da accesa prende il posto</b> dell&apos;assistente AI, del bot di
+                prenotazione e dell&apos;agente spostamenti: erano tre interlocutori con tre memorie separate nella
+                stessa chat.</>
+              )}
+              {' '}Guarda le foto e ascolta i vocali. Richiede <code className="text-warning">ANTHROPIC_API_KEY</code>;
+              per i vocali anche <code className="text-warning">DEEPGRAM_API_KEY</code> — senza, chiede di riscriverli.
+            </p>
+          </div>
+
+          {/* Assistente AI */}
+          <div className={`p-3 rounded-xl bg-bg-secondary border border-border/50 ${cfg.segretaria ? 'opacity-50' : ''}`}>
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0 flex items-start gap-2">
                 <Bot className="w-4 h-4 text-text-muted flex-shrink-0 mt-0.5" />
@@ -550,6 +583,7 @@ export default function WhatsAppAutomationsConfig() {
               </button>
             </div>
             <p className="text-[10px] text-text-muted/70 mt-2 leading-relaxed">
+              {cfg.segretaria && <><b className="text-text-secondary">Non fa più niente:</b> risponde la segretaria. </>}
               Non dà indicazioni mediche e non inventa prezzi: sulle domande cliniche rimanda alla valutazione in sede.
               Chi vuole prenotare viene indirizzato alla prenotazione guidata. Massimo 20 risposte al giorno per numero.
               Ogni risposta ha un costo: richiede <code className="text-warning">ANTHROPIC_API_KEY</code> tra le variabili d&apos;ambiente.

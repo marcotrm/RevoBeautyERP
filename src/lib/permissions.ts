@@ -17,6 +17,8 @@ export const MENU_PERMISSIONS: Record<string, string> = {
   inventory: 'inventory_view',
   marketing: 'marketing',
   'copri-buchi': 'marketing',
+  // Contengono nome, telefono ed email di persone: stesso permesso della rubrica.
+  contatti: 'clients_view',
   affiliati: 'marketing',
   reports: 'reports',
   statistiche: 'reports',
@@ -57,6 +59,7 @@ const ROUTE_PERMISSIONS: { prefix: string; permission: string }[] = [
   { prefix: '/dashboard-mobile', permission: 'dashboard' },
   { prefix: '/cassaforte-mobile', permission: 'pos' },
   { prefix: '/dashboard/clients', permission: 'clients_view' },
+  { prefix: '/dashboard/contatti', permission: 'clients_view' },
   { prefix: '/dashboard/pos', permission: 'pos' },
   { prefix: '/dashboard/cassa-contanti', permission: 'pos' },
   { prefix: '/dashboard/packages', permission: 'packages' },

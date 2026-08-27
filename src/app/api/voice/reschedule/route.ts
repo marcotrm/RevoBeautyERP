@@ -1,84 +1,47 @@
-import { prisma } from '@/lib/prisma';
-import { isAuthorized, unauthorized, badRequest, hasConflict, toMinutes, toHHMM, todayInItaly, troppoTardi, PREAVVISO_ORE } from '@/lib/voice';
+import { isAuthorized, unauthorized, badRequest } from '@/lib/voice';
+import { spostaAppuntamento } from '@/lib/agendaAgente';
 
-// Sposta un appuntamento esistente a una nuova data/ora
+export const runtime = 'nodejs';
+
+/**
+ * Sposta un appuntamento a una nuova data e ora.
+ *
+ * Il controllo del posto nuovo lo fa `lib/agendaAgente`, che su un giorno
+ * diverso passa dal motore vero degli orari: prima qui si guardava solo
+ * "siamo aperti dalle nove alle sette", e il telefono spostava appuntamenti
+ * dentro la pausa dell'operatrice o dopo la fine del suo turno.
+ */
 export async function POST(request: Request) {
   if (!isAuthorized(request)) return unauthorized();
 
   const body = await request.json().catch(() => null);
   if (!body?.appointmentId) return badRequest('Campo "appointmentId" obbligatorio');
-  if (!body?.newDate || !/^\d{4}-\d{2}-\d{2}$/.test(body.newDate)) {
-    return badRequest('Campo "newDate" obbligatorio in formato YYYY-MM-DD');
-  }
-  if (!body?.newTime || !/^\d{2}:\d{2}$/.test(body.newTime)) {
-    return badRequest('Campo "newTime" obbligatorio in formato HH:MM');
-  }
-  if (body.newDate < todayInItaly()) {
-    return badRequest('La nuova data è nel passato');
-  }
+  if (!body?.newDate) return badRequest('Campo "newDate" obbligatorio in formato YYYY-MM-DD');
+  if (!body?.newTime) return badRequest('Campo "newTime" obbligatorio in formato HH:MM');
 
-  const appointment = await prisma.appointment.findUnique({ where: { id: body.appointmentId } });
-  if (!appointment) {
-    return Response.json({ success: false, message: 'Appuntamento non trovato' }, { status: 404 });
-  }
-  if (appointment.status === 'cancelled') {
-    return Response.json({ success: false, message: 'Questo appuntamento è stato cancellato' }, { status: 409 });
-  }
-  if (appointment.isLocked) {
-    return Response.json(
-      { success: false, message: 'Questo appuntamento è bloccato e non può essere spostato al telefono' },
-      { status: 409 }
-    );
-  }
-
-  /*
-    Vale per l'appuntamento di PARTENZA: quello che si sta liberando. Spostare
-    a due ore dall'inizio lascia il buco esattamente come disdire.
-  */
-  if (troppoTardi(appointment.date, appointment.startTime)) {
-    return Response.json({
-      success: false,
-      code: 'TOO_LATE',
-      message: `Manca meno di ${PREAVVISO_ORE} ore all'appuntamento: lo spostamento non lo puoi fare tu. `
-        + `Dille che la passi subito a una collega, e passa la chiamata.`,
-    }, { status: 409 });
-  }
-
-  const conflict = await hasConflict(
-    body.newDate,
-    appointment.operatorId,
-    body.newTime,
-    appointment.duration,
-    appointment.id
-  );
-  if (conflict) {
-    return Response.json(
-      { success: false, message: 'Orario non disponibile: fuori orario di apertura o già occupato' },
-      { status: 409 }
-    );
-  }
-
-  const newEndTime = toHHMM(toMinutes(body.newTime) + appointment.duration);
-  const updated = await prisma.appointment.update({
-    where: { id: appointment.id },
-    data: {
-      date: body.newDate,
-      startTime: body.newTime,
-      endTime: newEndTime,
-      updatedAt: new Date().toISOString(),
-    },
+  const esito = await spostaAppuntamento({
+    appointmentId: String(body.appointmentId),
+    newDate: String(body.newDate),
+    newTime: String(body.newTime),
   });
+
+  if (!esito.ok) {
+    if (esito.codice === 'VALIDAZIONE') return badRequest(esito.messaggio);
+    const stato = esito.codice === 'NON_TROVATO' ? 404 : 409;
+    const code = esito.codice === 'TROPPO_TARDI' ? 'TOO_LATE' : esito.codice;
+    return Response.json({ success: false, code, message: esito.messaggio }, { status: stato });
+  }
 
   return Response.json({
     success: true,
     message: 'Appuntamento spostato con successo',
     appointment: {
-      id: updated.id,
-      date: updated.date,
-      startTime: updated.startTime,
-      endTime: updated.endTime,
-      treatmentName: updated.treatmentName,
-      operatorName: updated.operatorName,
+      id: String(body.appointmentId),
+      date: esito.date,
+      startTime: esito.startTime,
+      endTime: esito.endTime,
+      treatmentName: esito.treatmentName,
+      operatorName: esito.operatorName,
     },
   });
 }
