@@ -386,6 +386,16 @@ export interface RichiestaDisponibilita {
 interface Passo {
   treatmentId: string; treatmentName: string; category: string; operatorId: string | null;
   duration: number; price: number;
+  /**
+   * Chi sa fare QUESTO trattamento, non la sua categoria.
+   *
+   * Vuoto: lo fanno tutte. È la stessa regola che applicano l'agenda e «Cerca
+   * buchi» leggendo `operatorSkills`, e che qui mancava: il motore guardava
+   * solo le categorie spuntate in Staff, quindi dentro «Unghie» assegnava la
+   * ricostruzione a chiunque sapesse fare le unghie — anche a chi in listino
+   * quella riga non ce l'ha spuntata.
+   */
+  abili: string[];
 }
 
 /** Trasforma i trattamenti richiesti nella sequenza da incastrare, con durate e prezzi del sesso giusto. */
@@ -415,8 +425,25 @@ async function preparaPassi(services: ServizioRichiesto[], gender: 'male' | 'fem
       */
       duration: Math.max(5, durataDi(t, gender) + (t.preparazione || 0)),
       price: prezzoDi(t, gender),
+      abili: leggiAbili(t.operatorSkills),
     };
   });
+}
+
+/**
+ * Chi e' abilitato a un trattamento, dalle spunte del listino.
+ *
+ * `operatorSkills` e' JSON e arriva dal database senza garanzie di forma: una
+ * riga scritta a mano o rimasta da una versione vecchia non deve far cadere
+ * una ricerca di disponibilita'. Quello che non si riesce a leggere vale come
+ * «nessuna spunta», che e' il caso permissivo — meglio proporre un'operatrice
+ * in piu' che far sparire un trattamento dall'agenda senza dirlo a nessuno.
+ */
+function leggiAbili(grezzo: unknown): string[] {
+  if (!Array.isArray(grezzo)) return [];
+  return grezzo
+    .map(v => (v && typeof v === 'object' && 'operatorId' in v ? String((v as { operatorId: unknown }).operatorId || '') : ''))
+    .filter(Boolean);
 }
 
 /**
@@ -510,9 +537,21 @@ function slotDelGiorno(
       }
       const p = catena[i];
       const fine = cursore + p.duration;
-      // Chi sa fare questa categoria, ristretto all'operatrice chiesta dalla cliente
+      /*
+        Chi puo' davvero fare QUESTO trattamento.
+
+        Tre condizioni, e la terza mancava: l'operatrice chiesta dalla cliente
+        se ne ha chiesta una; la categoria spuntata in Staff; e le spunte del
+        listino sul singolo trattamento. Senza l'ultima il motore restava
+        dentro la categoria e assegnava a caso: chi sa fare «Unghie» si vedeva
+        arrivare la ricostruzione anche se in listino quella riga non ce
+        l'aveva. Se ne accorgeva la ragazza al banco, con la cliente gia'
+        seduta.
+      */
       const candidate = ctx.operatori.filter(o =>
-        (!p.operatorId || o.id === p.operatorId) && ctx.competenze.get(o.id)?.has(p.category));
+        (!p.operatorId || o.id === p.operatorId)
+        && ctx.competenze.get(o.id)?.has(p.category)
+        && (p.abili.length === 0 || p.abili.includes(o.id)));
 
       for (const op of candidate) {
         if (!libera(op.id, cursore, fine, lavoro, occupato)) continue;

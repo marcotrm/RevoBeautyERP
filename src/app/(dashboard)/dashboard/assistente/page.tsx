@@ -18,6 +18,7 @@ import { motion } from 'framer-motion';
 import { Phone, Clock, FileText, CheckCircle2, AlertTriangle, Save, ScanSearch, HelpCircle } from 'lucide-react';
 import Autocritica from './Autocritica';
 import Chiamate from './Chiamate';
+import AggiornaNote from './AggiornaNote';
 import Chiarimenti from './Chiarimenti';
 
 import {
@@ -201,6 +202,15 @@ export default function AssistentePage() {
           rows={5}
           placeholder={'Es. In agosto siamo aperti solo la mattina.\nIl parcheggio è nel cortile interno.\nPer il laser serve la visita prima.'}
           className="w-full px-3 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary" />
+
+        <div className="mt-4 pt-3 border-t border-border/60">
+          <p className="text-[11px] font-medium text-text-secondary mb-2">
+            Oppure scrivilo a braccio e lo sistema lui
+          </p>
+          <AggiornaNote
+            attuali={centro.noteVoce || ''}
+            onApplica={note => { setCentro({ ...centro, noteVoce: note }); setSalvato(false); }} />
+        </div>
       </Sezione>
 
       {/* ------------------------------------------------------ salvataggio */}
