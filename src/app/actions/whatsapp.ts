@@ -15,6 +15,7 @@ import {
   getWaAutomationsConfig, saveWaAutomationsConfig, runWaAutomations,
   type WaAutomationsConfig, type RunResult,
 } from '@/lib/wa-automations';
+import { passaggioInCorso, riprendiSegretaria, zittiscilaPerUnaPersona } from '@/lib/wa-segretaria';
 
 export async function loadWaConfig(): Promise<WaAutomationsConfig> {
   return getWaAutomationsConfig();
@@ -205,7 +206,33 @@ export async function sendManualReply(phone: string, text: string): Promise<{ ok
   }
 
   const res = await sendWhatsApp(normalized, body, 'manual');
-  return res.ok ? { ok: true } : { ok: false, error: res.error || 'Invio fallito' };
+  if (!res.ok) return { ok: false, error: res.error || 'Invio fallito' };
+
+  /*
+    Da qui in poi parla una persona, e la segretaria sta fuori.
+
+    Il conto riparte a ogni messaggio scritto a mano: se la pausa restasse
+    ancorata al momento del passaggio, una conversazione lunga con una collega
+    se la vedrebbe scadere addosso, col bot che rientra a metà discorso. Per
+    farla tornare prima c'è il pulsante nella chat.
+  */
+  await zittiscilaPerUnaPersona(normalized).catch(() => {});
+  return { ok: true };
+}
+
+/** Se la segretaria tace su questo numero, da quando e perché. */
+export async function statoSegretaria(phone: string): Promise<{
+  muta: boolean;
+  fino?: string;
+  motivo?: string;
+}> {
+  return passaggioInCorso(normalizePhone(phone));
+}
+
+/** Ridà la parola alla segretaria su questo numero, senza aspettare la scadenza. */
+export async function riprendiSegretariaAction(phone: string): Promise<{ ok: boolean }> {
+  await riprendiSegretaria(normalizePhone(phone));
+  return { ok: true };
 }
 
 /**

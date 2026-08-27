@@ -62,6 +62,7 @@ import {
   STRUMENTI_DELICATI, modelloPer, parametriRagionamento, livelloDiPartenza, type Livello,
 } from './orchestrazione';
 import { listMessages, markConversationUnread, type WaMedia } from './wa-conversations';
+import { normalizePhone } from './whatsapp';
 import {
   registraArrivo, attendiSilenzio, prendiTurno, rilasciaTurno, rispondiUnaVolta,
 } from './wa-antiflood';
@@ -131,6 +132,8 @@ interface StatoChat {
   fotoPendenti?: Array<{ id: string; mime?: string }>;
   /** Fino a quando la segretaria sta zitta perché ha passato la palla a una persona. */
   mutoFino?: string;
+  /** Perché ha passato la palla: è quello che si legge nel gestionale. */
+  passataMotivo?: string;
   /**
    * Su quale modello gira questa conversazione.
    *
@@ -155,6 +158,7 @@ async function leggiStato(phone: string): Promise<StatoChat> {
     pendenti: s?.pendenti || [],
     fotoPendenti: s?.fotoPendenti || [],
     mutoFino: s?.mutoFino,
+    passataMotivo: s?.passataMotivo,
     // Il livello si azzera con la giornata, come il tetto delle risposte: chi
     // torna a scrivere dopo due giorni comincia da una domanda, non da dove
     // aveva lasciato.
@@ -1140,6 +1144,7 @@ async function turno(
     mutoFino: ctx.passata
       ? new Date(Date.now() + MUTO_ORE * 3_600_000).toISOString()
       : stato.mutoFino,
+    passataMotivo: ctx.passata || stato.passataMotivo,
   });
 
   // Il contatto arrivato dal sito avanza da solo: chi ha già prenotato non va
@@ -1251,7 +1256,12 @@ export async function handleSegretariaMessage(params: {
     let stato = await leggiStato(phone);
 
     if (stato.mutoFino && stato.mutoFino > new Date().toISOString()) {
-      return { handled: false, reason: 'conversazione passata a una persona' };
+      // L'ora serve: nel log «passata a una persona» da solo sembra un blocco
+      // definitivo, e invece scade — chi guarda deve sapere quando.
+      const fino = new Date(stato.mutoFino).toLocaleTimeString('it-IT', {
+        hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome',
+      });
+      return { handled: false, reason: `passata a una persona, tace fino alle ${fino}` };
     }
     if (stato.risposteOggi >= MAX_RISPOSTE_GIORNO) {
       return { handled: false, reason: 'tetto giornaliero raggiunto per questo numero' };
@@ -1311,4 +1321,54 @@ export async function handleSegretariaMessage(params: {
 export async function segretariaInConversazione(phone: string): Promise<boolean> {
   const stato = await leggiStato(phone).catch(() => null);
   return Boolean(stato && stato.turni.length > 0 && stato.giorno === todayRome());
+}
+
+/**
+ * Se la segretaria sta tacendo su questo numero, e perché.
+ *
+ * Serve al gestionale: senza, il passaggio a una persona è una porta che si
+ * apre da sola e non si richiude. La cliente scrive, non le risponde più
+ * nessuno, e dalla schermata WhatsApp non si capisce se sia rotto qualcosa o
+ * se sia voluto. Qui c'è la risposta, con l'ora in cui la pausa scade.
+ */
+export async function passaggioInCorso(phone: string): Promise<{
+  muta: boolean;
+  fino?: string;
+  motivo?: string;
+}> {
+  const stato = await leggiStato(normalizePhone(phone)).catch(() => null);
+  if (!stato?.mutoFino || stato.mutoFino <= new Date().toISOString()) return { muta: false };
+  return { muta: true, fino: stato.mutoFino, motivo: stato.passataMotivo };
+}
+
+/**
+ * Ridà la parola alla segretaria su questo numero, subito.
+ *
+ * La usa chi ha finito di rispondere a mano: la pausa di quattro ore serve a
+ * non parlarle sopra mentre ci sta parlando una persona, non a tenerla ferma
+ * quando quella persona ha già chiuso.
+ */
+export async function riprendiSegretaria(phone: string): Promise<void> {
+  const normalizzato = normalizePhone(phone);
+  const stato = await leggiStato(normalizzato);
+  await scriviStato({ ...stato, mutoFino: undefined, passataMotivo: undefined });
+  console.log(`[wa-segretaria] ${normalizzato}: la segretaria riprende la conversazione`);
+}
+
+/**
+ * Mentre una persona scrive a mano, la segretaria resta fuori.
+ *
+ * Senza questo la pausa scade a un'ora fissa dal passaggio: se la collega sta
+ * ancora scrivendo alla cliente quando scattano le quattro ore, il bot rientra
+ * a metà di una conversazione umana e risponde sopra. Ogni messaggio scritto a
+ * mano fa ripartire il conto.
+ */
+export async function zittiscilaPerUnaPersona(phone: string): Promise<void> {
+  const normalizzato = normalizePhone(phone);
+  const stato = await leggiStato(normalizzato);
+  await scriviStato({
+    ...stato,
+    mutoFino: new Date(Date.now() + MUTO_ORE * 3_600_000).toISOString(),
+    passataMotivo: stato.passataMotivo || 'sta rispondendo una persona dal gestionale',
+  });
 }
