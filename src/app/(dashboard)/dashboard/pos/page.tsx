@@ -13,7 +13,7 @@ import {
   Trash2, Search, Smartphone, Lock, Vault, ArrowDownToLine, Printer, Gift, AlertCircle,
 } from 'lucide-react';
 import { getCassaforte, closeCassa, withdrawCassa, CassaMovementRecord } from '@/app/actions/cassaforte';
-import { getTransactionsByRange } from '@/app/actions/pos';
+import { getTransactionsByRange, emettiScontrinoOra } from '@/app/actions/pos';
 import { printThermalReceipt, primeVatRate } from '@/lib/printReceipt';
 import { buonoDiCliente, usaBuono } from '@/app/actions/buoni';
 import type { BuonoCompleanno } from '@/lib/buonoCompleanno';
@@ -21,7 +21,7 @@ import IncomeSummary from './IncomeSummary';
 import CassaTabs from '@/components/CassaTabs';
 import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { useClientStore } from '@/stores/useClientStore';
-import { formatCurrency } from '@/lib/helpers';
+import { formatCurrency, numeroCorrisponde } from '@/lib/helpers';
 import { usePackageStore } from '@/stores/usePackageStore';
 import { usePriceListStore } from '@/stores/usePriceListStore';
 import { useProductStore } from '@/stores/useProductStore';
@@ -46,7 +46,7 @@ const PAYMENT_METHODS = [
 ];
 
 function NewSaleModal({ onClose, onComplete, initialData }: {
-  onClose: () => void; onComplete: (tx: Omit<TransactionRecord, 'id'>, debtPkgId?: string) => Promise<TransactionRecord | undefined>;
+  onClose: () => void; onComplete: (tx: Omit<TransactionRecord, 'id'> & { scontrinoDopo?: boolean }, debtPkgId?: string) => Promise<TransactionRecord | undefined>;
   initialData?: {
     client: string; treatmentName: string; treatmentId: string; price: number; operator: string;
     debtPkgId?: string; cabinMinutes?: number; appointmentId?: string;
@@ -135,8 +135,12 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const doppioni = useMemo(() => nomiDoppi(allClients), [allClients]);
   const packages = usePackageStore(s => s.packages);
   const { priceLists } = usePriceListStore();
+  // Anche per numero: al banco capita di avere il telefono in mano e il nome no.
   const filteredClients = clientSearch.trim()
-    ? allClients.filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(clientSearch.toLowerCase())).slice(0, 8)
+    ? allClients.filter(c =>
+        `${c.firstName} ${c.lastName}`.toLowerCase().includes(clientSearch.toLowerCase())
+        || numeroCorrisponde(c.phone, clientSearch)
+      ).slice(0, 8)
     : [];
 
   /*
@@ -330,6 +334,17 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     }
   };
 
+  /*
+    I contanti sono l'unico caso in cui lo scontrino non parte da solo.
+
+    Con la carta il documento serve sempre, ed esce insieme al pagamento:
+    niente da premere, niente da ricordarsi. Con i contanti la decisione si
+    prende al banco, e va presa prima che il documento sia partito — perche'
+    una volta all'Agenzia delle Entrate si torna indietro solo con un annullo.
+    Quindi l'incasso si registra, lo scontrino aspetta un tasto.
+  */
+  const contanti = paymentMethod === 'contanti';
+
   const handleComplete = async () => {
     if (!canComplete || saving) return;
     setSaving(true);
@@ -351,6 +366,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       // Il legame con l'appuntamento: da qui in poi il gestionale sa che quella
       // seduta è stata incassata davvero, e non solo chiusa.
       appointmentId: initialData?.appointmentId,
+      scontrinoDopo: contanti,
     }, initialData?.debtPkgId).catch(() => undefined);
     setSavedTx(saved || null);
     setSaving(false);
@@ -364,14 +380,37 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     }
 
     /*
-      Lo scontrino esce da solo.
+      Con la carta lo scontrino esce da solo, fiscale e di carta.
 
       Prima bisognava premere "Stampa scontrino" a incasso finito: un passaggio
       in più con la cliente davanti che aspetta, e quando qualcuno se ne
       dimenticava la copia cartacea non usciva affatto. Il tasto resta, per la
-      seconda copia.
+      seconda copia. Con i contanti invece non esce niente finché non lo si
+      chiede: c'è il tasto qui sotto.
     */
-    handlePrintReceipt(saved || null);
+    if (!contanti) handlePrintReceipt(saved || null);
+  };
+
+  /**
+   * Il tasto dei contanti: fa il documento fiscale adesso e stampa.
+   *
+   * Le due cose vanno insieme — il numero del documento commerciale nasce da
+   * C95 e deve finire sul tagliando di carta, se no la cliente si porta a casa
+   * un foglio che non è riferibile a niente.
+   */
+  const [emettendo, setEmettendo] = useState(false);
+  const [erroreScontrino, setErroreScontrino] = useState<string | null>(null);
+  /* Incasso in contanti chiuso, documento fiscale ancora da fare. */
+  const scontrinoDaFare = !!savedTx && contanti && savedTx.c95Status !== 'emitted' && !savedTx.c95Progressivo;
+  const faiScontrino = async () => {
+    if (!savedTx || emettendo) return;
+    setEmettendo(true);
+    setErroreScontrino(null);
+    const res = await emettiScontrinoOra(savedTx.id).catch(() => ({ ok: false, error: 'Collegamento non riuscito: riprova' } as const));
+    setEmettendo(false);
+    if ('tx' in res && res.tx) setSavedTx(res.tx);
+    if (!res.ok) { setErroreScontrino(res.error || 'Emissione non riuscita'); return; }
+    handlePrintReceipt(('tx' in res && res.tx) ? res.tx : null);
   };
 
   /**
@@ -430,7 +469,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                   ) : (
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                      <input type="text" value={clientSearch} onChange={e => setClientSearch(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca cliente..."
+                      <input type="text" value={clientSearch} onChange={e => setClientSearch(e.target.value)} {...NO_AUTOFILL} placeholder="Cerca cliente o numero..."
                         className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
                       {filteredClients.length > 0 && (
                         <div className="absolute left-0 right-0 top-full mt-1 bg-bg-secondary border border-border rounded-xl shadow-xl z-10 overflow-hidden">
@@ -632,6 +671,14 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                     </div>
                   )}
 
+                  {/* Detto prima, non dopo: chi incassa deve sapere che con i
+                      contanti il documento fiscale non parte da solo. */}
+                  {contanti && finalTotal > 0 && (
+                    <p className="mt-3 text-[11px] text-text-muted">
+                      💡 Con i contanti lo scontrino <strong className="text-text-secondary">non parte da solo</strong>: a incasso fatto trovi il tasto per emetterlo e stamparlo.
+                    </p>
+                  )}
+
                   {paymentMethod === 'misto' && (
                     <div className="mt-4 p-4 rounded-xl bg-bg-tertiary/50 border border-border space-y-3">
                       <p className="text-sm font-medium text-text-primary mb-2">Dividi Importo (Totale: {formatCurrency(finalTotal)})</p>
@@ -693,7 +740,20 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                     <p className="text-[11px] text-text-secondary">Da adesso è speso: non comparirà più nella sua scheda.</p>
                   </div>
                 )}
-                {savedTx?.c95Status === 'emitted' ? (
+                {scontrinoDaFare ? (
+                  <div className="w-full rounded-xl bg-warning/10 border border-warning/30 px-3 py-3 text-left space-y-2">
+                    <p className="text-xs font-semibold text-warning">Scontrino non ancora fatto</p>
+                    <p className="text-[11px] text-text-secondary">
+                      L&apos;incasso è registrato in cassa. All&apos;Agenzia delle Entrate non è partito niente:
+                      se lo scontrino serve, si fa da qui — parte su C95 ed esce anche di carta.
+                    </p>
+                    {erroreScontrino && <p className="text-[11px] font-medium text-error">{erroreScontrino}</p>}
+                    <button onClick={faiScontrino} disabled={emettendo}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl gradient-accent text-white text-sm font-semibold shadow-lg shadow-accent/20 hover:scale-[1.02] disabled:opacity-60 disabled:hover:scale-100 transition-all">
+                      <Receipt className="w-4 h-4" /> {emettendo ? 'Emissione in corso…' : 'Fai lo scontrino e stampa'}
+                    </button>
+                  </div>
+                ) : savedTx?.c95Status === 'emitted' ? (
                   <div className="w-full rounded-xl bg-success/10 border border-success/20 px-3 py-2 text-left">
                     <p className="text-xs font-semibold text-success mb-0.5">✓ Scontrino fiscale emesso</p>
                     {savedTx.c95Progressivo && <p className="text-[11px] text-text-secondary font-mono">N. {savedTx.c95Progressivo}</p>}
@@ -724,13 +784,15 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                 <button onClick={() => setStep('items')} className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">← Indietro</button>
                 <button onClick={handleComplete} disabled={!canComplete || saving}
                   className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition-all ${canComplete && !saving ? 'gradient-accent shadow-lg shadow-accent/20 hover:scale-105' : 'bg-bg-tertiary text-text-muted cursor-not-allowed'}`}>
-                  <CheckCircle className="w-4 h-4" /> {saving ? 'Emissione scontrino...' : `Incassa ${formatCurrency(finalTotal)}`}
+                  <CheckCircle className="w-4 h-4" /> {saving ? (contanti ? 'Registro incasso…' : 'Emissione scontrino…') : `Incassa ${formatCurrency(finalTotal)}`}
                 </button>
               </>
             ) : (
               <div className="w-full flex items-center gap-3">
-                <button onClick={() => handlePrintReceipt()} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border text-sm font-medium text-text-primary hover:bg-bg-hover transition-colors">
-                  <Printer className="w-4 h-4" /> Stampa un'altra copia
+                <button onClick={() => handlePrintReceipt()}
+                  title={scontrinoDaFare ? 'Solo il foglietto di carta: non è un documento fiscale' : 'Ristampa il tagliando'}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border text-sm font-medium text-text-primary hover:bg-bg-hover transition-colors">
+                  <Printer className="w-4 h-4" /> {scontrinoDaFare ? 'Stampa senza scontrino' : "Stampa un'altra copia"}
                 </button>
                 <button onClick={onClose} className="flex-1 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:scale-105 transition-all">
                   ✓ Chiudi
@@ -945,7 +1007,7 @@ function POSPageInner() {
     }
   }, [router]);
 
-  const handleNewSale = async (tx: Omit<TransactionRecord, 'id'>, debtPkgId?: string) => {
+  const handleNewSale = async (tx: Omit<TransactionRecord, 'id'> & { scontrinoDopo?: boolean }, debtPkgId?: string) => {
     const created = await addTransaction(tx);
     if (debtPkgId) {
       addPayment(debtPkgId, created.total, created.method as any, created.operator, 'Pagamento da Cassa');

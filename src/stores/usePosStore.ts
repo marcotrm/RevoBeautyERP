@@ -7,7 +7,8 @@ interface PosStore {
   transactions: TransactionRecord[];
   isLoading: boolean;
   fetchTransactions: () => Promise<void>;
-  addTransaction: (tx: Omit<TransactionRecord, 'id'>, originalTxId?: string) => Promise<TransactionRecord>;
+  // `scontrinoDopo`: incassa senza emettere il documento fiscale (contanti).
+  addTransaction: (tx: Omit<TransactionRecord, 'id'> & { scontrinoDopo?: boolean }, originalTxId?: string) => Promise<TransactionRecord>;
   removeTransaction: (id: string) => Promise<void>;
 }
 

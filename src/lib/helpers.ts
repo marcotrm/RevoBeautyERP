@@ -175,3 +175,31 @@ export function guessGenderFromName(fullName: string): 'male' | 'female' {
   // -o, -e, consonanti: in italiano tipicamente maschili (le eccezioni femminili sono nella lista sopra)
   return 'male';
 }
+
+/**
+ * Le cifre con cui si confrontano due numeri di telefono.
+ *
+ * In rubrica lo stesso numero e' scritto in quattro modi: 3664761157,
+ * +393664761157, "366 476 1157", e uno perfino con la barra in mezzo. Chi
+ * cerca al banco lo legge dal telefono e lo batte come gli viene. Qui restano
+ * solo le cifre, e il prefisso 39 se ne va — ma solo quando davvero e' un
+ * prefisso: 3934324735 e' un cellulare vero che comincia per 39, e quelle due
+ * cifre non si toccano (per questo si guarda la lunghezza, non l'inizio).
+ */
+export function cifreTelefono(raw: string | null | undefined): string {
+  const d = String(raw ?? '').replace(/\D/g, '');
+  return d.startsWith('39') && d.length > 10 ? d.slice(2) : d;
+}
+
+/**
+ * Vero se il numero della scheda contiene le cifre che si stanno cercando.
+ *
+ * Bastano tre cifre — spesso si ricordano solo le ultime del numero — e sotto
+ * le tre non cerca niente, se no ogni "3" tirerebbe su mezza rubrica.
+ */
+export function numeroCorrisponde(telefono: string | null | undefined, cercato: string): boolean {
+  const q = cifreTelefono(cercato);
+  if (q.length < 3) return false;
+  const tel = cifreTelefono(telefono);
+  return tel.length > 0 && tel.includes(q);
+}

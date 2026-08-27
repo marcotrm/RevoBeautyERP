@@ -188,7 +188,16 @@ export async function deleteTransaction(id: string) {
   return true;
 }
 
-export async function createTransaction(data: Omit<TransactionRecord, 'id'>, originalTxId?: string) {
+/**
+ * Vendita in cassa.
+ *
+ * `scontrinoDopo` serve ai contanti: l'incasso si registra subito, il
+ * documento fiscale no. Al banco capita di dover decidere sul momento se lo
+ * scontrino si fa o no, e una volta partito verso l'Agenzia delle Entrate
+ * l'unico modo di tornare indietro e' un annullo. Chi paga con la carta non ha
+ * questo dubbio: quello lo scontrino ce l'ha sempre, e parte da solo.
+ */
+export async function createTransaction(data: Omit<TransactionRecord, 'id'> & { scontrinoDopo?: boolean }, originalTxId?: string) {
   const today = todayRome();
   const lines = data.productLines || [];
   const created = await prisma.posTransaction.create({
@@ -237,7 +246,7 @@ export async function createTransaction(data: Omit<TransactionRecord, 'id'>, ori
     altro qui vorrebbe dire dichiarare due volte gli stessi soldi.
   */
   const colBuono = /buono/i.test(created.paymentMethod || '');
-  if (created.total > 0 && !created.isRefund && !colBuono) {
+  if (created.total > 0 && !created.isRefund && !colBuono && !data.scontrinoDopo) {
     // Stessa emissione usata dai pacchetti (lib/scontrino): un punto solo.
     const aggiornata = await emettiScontrinoElettronico(created, data.items);
     if (aggiornata) outcome = aggiornata;
@@ -273,4 +282,34 @@ export async function createTransaction(data: Omit<TransactionRecord, 'id'>, ori
     }
   }
   return toTransactionRecord(outcome);
+}
+
+/**
+ * Fa lo scontrino adesso, su un incasso gia' in cassa.
+ *
+ * E' il tasto dei contanti: la vendita esiste dal momento in cui si e'
+ * incassato, il documento fiscale nasce solo quando qualcuno lo chiede. Torna
+ * la riga aggiornata perche' il tagliando di carta deve poterci stampare
+ * sopra il numero del documento commerciale, che prima non c'era.
+ */
+export async function emettiScontrinoOra(txId: string): Promise<{ ok: boolean; error?: string; tx?: TransactionRecord }> {
+  const tx = await prisma.posTransaction.findUnique({ where: { id: txId } });
+  if (!tx) return { ok: false, error: 'Incasso non trovato' };
+  if (tx.c95Emitted) return { ok: true, tx: toTransactionRecord(tx) };
+  if (tx.total <= 0) return { ok: false, error: 'I rimborsi si gestiscono con il reso' };
+  // Esito incerto: il documento potrebbe essere gia' partito. Riprovare qui
+  // vorrebbe dire rischiare di dichiarare due volte gli stessi soldi.
+  if (tx.c95Status === 'uncertain') {
+    return { ok: false, error: 'Esito incerto sul primo tentativo: controlla su C95 se il documento esiste gia\', prima di rifarlo' };
+  }
+  const cfg = await getC95Config();
+  if (!cfg.enabled) return { ok: false, error: 'Scontrino elettronico non configurato: Impostazioni → C95' };
+
+  const itemsArr = Array.isArray(tx.items) ? (tx.items as string[]) : [String(tx.items ?? '')];
+  const aggiornata = await emettiScontrinoElettronico(tx, itemsArr.join(', '));
+  if (!aggiornata) return { ok: false, error: 'Emissione non riuscita: riprova o emetti a mano su C95' };
+  if (!aggiornata.c95Emitted) {
+    return { ok: false, error: aggiornata.c95Error || 'Emissione non riuscita', tx: toTransactionRecord(aggiornata) };
+  }
+  return { ok: true, tx: toTransactionRecord(aggiornata) };
 }

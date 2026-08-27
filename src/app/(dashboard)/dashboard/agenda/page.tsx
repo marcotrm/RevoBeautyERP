@@ -24,6 +24,7 @@ import {
 import {
   formatDateLong, timeToMinutes, minutesToTime, getStatusLabel,
   getStatusColor, formatCurrency, getInitials, getCategoryLabel, guessGenderFromName,
+  cifreTelefono, numeroCorrisponde,
 } from '@/lib/helpers';
 import { resolveTreatmentForPackage } from '@/lib/packageTreatment';
 import { GIFT_OPTIONS, isGiftPackage } from '@/lib/giftOptions';
@@ -1291,17 +1292,32 @@ function CercaCliente({ clients, appointments, onApriAppuntamento, onVaiAlGiorno
     const q = normalizza(testo);
     if (q.length < 2) return [];
     const parole = q.split(/\s+/);
+    /*
+      Anche per numero, non solo per nome.
+
+      Il numero nella scheda e' scritto come capita — 3664761157, +39 366 476
+      1157, con gli spazi o senza — e chi cerca lo legge dal telefono e lo
+      batte come gli viene. Si confrontano le cifre e basta, cosi' le quattro
+      scritture sono lo stesso numero; e bastano le ultime cifre, che spesso
+      sono le uniche che si ricordano.
+    */
     return clients
       .filter(c => {
+        if (numeroCorrisponde(c.phone, testo)) return true;
         const campo = normalizza(`${c.firstName} ${c.lastName} ${c.phone || ''}`);
         return parole.every(p => campo.includes(p));
       })
       // Chi INIZIA con quello che si sta scrivendo viene prima: cercando "ann"
       // si vuole Annarita, non Gianluca Annunziata solo perché è alfabetico.
+      // Col numero vale lo stesso: chi ce l'ha uguale in fondo sta sopra a chi
+      // se lo ritrova per caso in mezzo.
       .sort((a, b) => {
-        const inizia = (c: Client) =>
-          normalizza(c.firstName).startsWith(parole[0]) || normalizza(c.lastName).startsWith(parole[0]) ? 0 : 1;
-        return inizia(a) - inizia(b)
+        const cifre = cifreTelefono(testo);
+        const rango = (c: Client) => {
+          if (cifre.length >= 3 && cifreTelefono(c.phone).endsWith(cifre)) return 0;
+          return normalizza(c.firstName).startsWith(parole[0]) || normalizza(c.lastName).startsWith(parole[0]) ? 1 : 2;
+        };
+        return rango(a) - rango(b)
           || `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
       })
       .slice(0, 8);
@@ -1340,7 +1356,7 @@ function CercaCliente({ clients, appointments, onApriAppuntamento, onVaiAlGiorno
             // Invio con un solo risultato: si apre quello, senza toccare il mouse.
             if (e.key === 'Enter' && suggerimenti.length === 1) { setScelto(suggerimenti[0]); setAperto(true); }
           }}
-          placeholder="Cerca cliente…"
+          placeholder="Cerca nome o numero…"
           className="w-full min-w-0 bg-transparent text-sm text-text-primary placeholder-text-muted focus:outline-none"
           {...NO_AUTOFILL}
         />
@@ -1356,7 +1372,7 @@ function CercaCliente({ clients, appointments, onApriAppuntamento, onVaiAlGiorno
           bg-bg-secondary shadow-2xl overflow-hidden">
           {!scelto ? (
             suggerimenti.length === 0 ? (
-              <p className="px-4 py-4 text-sm text-text-muted">Nessun cliente con questo nome.</p>
+              <p className="px-4 py-4 text-sm text-text-muted">Nessun cliente con questo nome o numero.</p>
             ) : (
               <div className="max-h-72 overflow-y-auto divide-y divide-border/30">
                 {suggerimenti.map(c => (
@@ -2245,7 +2261,11 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
   const filteredClients = useMemo(() => {
     if (!clientSearch.trim()) return allClients.slice(0, 5);
     const q = clientSearch.toLowerCase();
-    return allClients.filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) || c.phone.includes(q)).slice(0, 8);
+    // Il numero si confronta a cifre: `c.phone.includes(q)` sbagliava tutte le
+    // schede scritte col +39 o con gli spazi.
+    return allClients.filter(c =>
+      `${c.firstName} ${c.lastName}`.toLowerCase().includes(q) || numeroCorrisponde(c.phone, clientSearch)
+    ).slice(0, 8);
   }, [clientSearch, allClients]);
 
   // Active packages for selected client
