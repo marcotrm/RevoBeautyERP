@@ -15,7 +15,7 @@ import {
   Megaphone, Settings, ChevronLeft, ChevronRight,
   LayoutDashboard, UserCog, LogOut,
   Warehouse, Sparkles, X, Landmark, Radio, Gift, PartyPopper, CheckSquare, Zap, TrendingUp, Banknote, Receipt, MessageSquare, QrCode,
-  Smartphone, BookOpen,
+  Smartphone, BookOpen, PhoneCall,
 } from 'lucide-react';
 import { getInitials } from '@/lib/helpers';
 
@@ -41,6 +41,7 @@ const menuItems = [
   { id: 'inaugurazione', label: 'Inaugurazione', icon: PartyPopper, href: '/dashboard/settings/inaugurazione' },
   { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare, href: '/dashboard/whatsapp' },
   { id: 'automazioni', label: 'Automazioni', icon: Zap, href: '/dashboard/automazioni' },
+  { id: 'assistente', label: 'Assistente', icon: PhoneCall, href: '/dashboard/assistente' },
   // La guida sta in fondo e la vedono tutte: non c'è niente da proteggere,
   // ed è la voce che si cerca quando non si sa dove cercare.
   { id: 'guida', label: 'Guida', icon: BookOpen, href: '/dashboard/guida' },
