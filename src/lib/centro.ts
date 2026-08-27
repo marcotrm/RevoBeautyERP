@@ -23,6 +23,26 @@ export interface OrarioGiorno {
   chiude: string;
 }
 
+/**
+ * Come si distingue un trattamento da un altro quando la cliente lo chiama a
+ * modo suo.
+ *
+ * «Il gel» al banco non vuol dire niente: può essere una ricostruzione da
+ * zero, un ritocco, un semipermanente, un acrygel. Le ragazze lo risolvono
+ * senza pensarci, facendo due domande — «ce le hai già?», «quanto lunghe?» —
+ * e quelle domande non stanno in nessun database: stanno nella loro testa.
+ *
+ * Qui ci si scrivono, una volta, e da quel momento le fa anche l'assistente.
+ */
+export interface Chiarimento {
+  /** Le parole con cui le clienti chiamano questa famiglia: "gel", "unghie", "ricostruzione". */
+  parole: string[];
+  /** La domanda da fare PRIMA di scegliere. */
+  chiedi: string;
+  /** Come si sceglie in base alla risposta. */
+  scelta?: string;
+}
+
 export interface Centro {
   nome: string;
   indirizzo?: string;
@@ -34,6 +54,8 @@ export interface Centro {
   chiusure?: string[];
   /** Quello che l'assistente deve sapere e che nei dati non c'è. */
   noteVoce?: string;
+  /** Le domande che distinguono i trattamenti che le clienti confondono. */
+  chiarimenti?: Chiarimento[];
 }
 
 export const CENTRO: Centro = {
@@ -52,6 +74,7 @@ export const CENTRO: Centro = {
   },
   chiusure: [],
   noteVoce: '',
+  chiarimenti: [],
 };
 
 const CHIAVE = 'centro';

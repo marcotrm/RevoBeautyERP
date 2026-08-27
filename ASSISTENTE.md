@@ -335,6 +335,66 @@ questo la scelta del modello e quella dei parametri sono la stessa funzione.
 Si cambia senza rilasciare: `WA_MODELLO_LAVORO` (se Haiku risulta troppo
 letterale, il gradino sopra è `claude-sonnet-5`) e `WA_MODELLO_TESTA`.
 
+## Che cosa le lasci toccare
+
+Tre interruttori separati (Automazioni → WhatsApp → Segretaria), tutti accesi
+di suo:
+
+| | Rischio |
+|---|---|
+| Prendere appuntamenti nuovi | **l'unico dei tre in cui si sbaglia senza accorgersene** |
+| Spostare | l'appuntamento esiste già: il trattamento è scritto, cambia l'ora |
+| Disdire | come sopra |
+
+La differenza non e' l'importanza, e' che spostare e disdire partono da una
+riga che c'e' gia'. Prendere un appuntamento nuovo obbliga invece a capire
+QUALE trattamento vuole una persona che magari lo chiama con un altro nome.
+
+Uno spento non viene *sconsigliato*: non viene proprio passato al modello. Non
+puo' chiamarlo, non puo' sbagliarsi, non c'e' una regola da ricordarsi — la
+porta non esiste. Stessa idea del gettone di conferma: le cose che non devono
+succedere non si scrivono nel prompt, si tolgono dalla stanza.
+
+Con la prenotazione spenta la segretaria fa comunque tutto il lavoro — capisce
+il trattamento, guarda quando c'e' posto, lo dice — e poi passa a una collega
+con dentro quello che ha capito. Quello che NON fa e' dire «ti ho preso
+l'appuntamento».
+
+## «Il gel» — quando la cliente non sa il nome
+
+E' l'obiezione seria a un bot che prenota, ed e' vera: «il gel» puo' essere una
+ricostruzione da zero, un ritocco, un semipermanente, un acrygel. Sbagliare
+trattamento vuol dire sbagliare durata, prezzo e operatrice, e ce ne si accorge
+in cabina con la cliente gia' seduta.
+
+Le ragazze al banco lo risolvono senza pensarci: fanno due domande. Quelle
+domande non stanno in nessun database — stanno nella loro testa. Quindi:
+
+**1. Lo strumento dichiara l'ambiguita'.** Quando la ricerca nel listino porta
+piu' di un trattamento, `listino` risponde `ambiguo: true` con le possibilita'.
+Non e' un suggerimento gentile: e' un dato che il modello si trova davanti.
+
+**2. Chi l'ha gia' fatto non viene interrogato.** Se fra i trattamenti che
+combaciano ce n'e' uno che quella cliente ha gia' fatto, «il gel» vuol dire
+quello: si conferma («la ricostruzione gel come l'ultima volta?») invece di
+fare tre domande a un'abituale. Copre la maggior parte dei casi da solo.
+
+**3. Per le clienti nuove, le domande le scrive il centro.** In Assistente →
+«Quando non e' chiaro quale trattamento»: le parole che le clienti usano, la
+domanda che le distingue, e come si sceglie in base alla risposta.
+
+```
+Quando dice:  gel, unghie, ricostruzione
+Tu chiedi:    Le hai già fatte o partiamo da zero?
+E scegli:     Ritocco su una ricostruzione che ha già → Refill.
+              Da zero → Ricostruzione gel. Se le rompe spesso → Acrygel.
+```
+
+La domanda dev'essere sulla **sua situazione**, non un elenco di nomi tecnici:
+se sapesse la differenza fra acrygel e gel l'avrebbe gia' detto. E se dopo due
+giri non e' chiaro, non tira a indovinare: passa a una collega dicendole cosa
+ha capito.
+
 ## A chi passa la palla
 
 Quando la segretaria si ferma — domande mediche, reclami, rimborsi, sconti,

@@ -82,6 +82,22 @@ export interface WaAutomationsConfig {
    */
   segretaria: boolean;
   /**
+   * Che cosa la segretaria può toccare in agenda.
+   *
+   * Tre interruttori separati e non uno solo, perché i tre lavori hanno rischi
+   * diversi. Spostare e disdire partono da un appuntamento che ESISTE: il
+   * trattamento è già scritto, non c'è niente da indovinare, al massimo cambia
+   * l'ora. Prendere un appuntamento nuovo invece obbliga a capire quale
+   * trattamento vuole una persona che magari lo chiama con un altro nome — ed
+   * è l'unico dei tre in cui si può sbagliare senza accorgersene.
+   *
+   * Tutti e tre accesi di suo: chi ha già la segretaria in funzione non deve
+   * ritrovarsela dimezzata dopo un aggiornamento.
+   */
+  segretariaPrenota: boolean;
+  segretariaSposta: boolean;
+  segretariaDisdice: boolean;
+  /**
    * Agente che gestisce gli spostamenti (lib/wa-spostamento.ts).
    *
    * Quando la cliente risponde "devo spostare" al promemoria o alla conferma,
@@ -146,6 +162,9 @@ export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
   booking: false,
   assistant: false,
   segretaria: false,
+  segretariaPrenota: true,
+  segretariaSposta: true,
+  segretariaDisdice: true,
   spostamenti: false,
   copriBuchiAuto: false,
   affiliatoIncasso: false,

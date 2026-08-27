@@ -550,6 +550,37 @@ export default function WhatsAppAutomationsConfig() {
                 <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${cfg.segretaria ? 'left-6' : 'left-1'}`} />
               </button>
             </div>
+            {/* I tre poteri, separati. Spostare e disdire partono da un
+                appuntamento che esiste: il trattamento è già scritto. Prendere
+                un appuntamento nuovo obbliga invece a capire QUALE trattamento
+                vuole chi magari lo chiama con un altro nome — è l'unico dei tre
+                in cui si sbaglia senza accorgersene. */}
+            {cfg.segretaria && (
+              <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
+                <p className="text-[11px] font-medium text-text-secondary">Cosa può toccare in agenda</p>
+                {([
+                  { k: 'segretariaPrenota' as const, n: 'Prendere appuntamenti nuovi', d: 'Da spento raccoglie cosa vuole e quando, e passa a una collega per fissarlo.' },
+                  { k: 'segretariaSposta' as const, n: 'Spostare appuntamenti', d: 'Solo fino a 24 ore prima.' },
+                  { k: 'segretariaDisdice' as const, n: 'Disdire appuntamenti', d: 'Solo fino a 24 ore prima.' },
+                ]).map(v => (
+                  <div key={v.k} className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="text-[12px] text-text-primary">{v.n}</span>
+                      <p className="text-[10px] text-text-muted">{v.d}</p>
+                    </div>
+                    <button onClick={() => save({ [v.k]: cfg[v.k] === false })} disabled={saving}
+                      className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${cfg[v.k] !== false ? 'bg-success' : 'bg-bg-hover'}`}>
+                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${cfg[v.k] !== false ? 'left-[18px]' : 'left-[2px]'}`} />
+                    </button>
+                  </div>
+                ))}
+                <p className="text-[10px] text-text-muted/70 leading-relaxed">
+                  Uno spento non viene sconsigliato: non le viene proprio dato. Non può chiamarlo e non può
+                  sbagliarsi — la porta non esiste.
+                </p>
+              </div>
+            )}
+
             <p className="text-[10px] text-text-muted/70 mt-2 leading-relaxed">
               Guarda il gestionale a ogni domanda — listino, turni veri delle operatrici, agenda — quindi non può
               proporre un orario che in cabina non esiste. Prima di scrivere in agenda ripete l&apos;appuntamento e

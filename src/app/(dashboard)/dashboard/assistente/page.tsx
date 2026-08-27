@@ -15,8 +15,9 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Phone, Clock, FileText, CheckCircle2, AlertTriangle, Save, ScanSearch } from 'lucide-react';
+import { Phone, Clock, FileText, CheckCircle2, AlertTriangle, Save, ScanSearch, HelpCircle } from 'lucide-react';
 import Autocritica from './Autocritica';
+import Chiarimenti from './Chiarimenti';
 
 import {
   caricaCentro, salvaImpostazioniCentro, anteprimaIstruzioni, statoAssistente,
@@ -169,6 +170,14 @@ export default function AssistentePage() {
           rows={5}
           placeholder={'Es. In agosto siamo aperti solo la mattina.\nIl parcheggio è nel cortile interno.\nPer il laser serve la visita prima.'}
           className="w-full px-3 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary" />
+      </Sezione>
+
+      {/* ------------------------------------------------------ chiarimenti */}
+      <Sezione icona={HelpCircle} titolo="Quando non è chiaro quale trattamento"
+        sotto="«Il gel» può essere quattro cose. Qui si scrivono le domande che le ragazze fanno per capirlo.">
+        <Chiarimenti
+          valore={centro.chiarimenti || []}
+          onChange={v => { setCentro({ ...centro, chiarimenti: v }); setSalvato(false); }} />
       </Sezione>
 
       {/* ------------------------------------------------------ salvataggio */}
