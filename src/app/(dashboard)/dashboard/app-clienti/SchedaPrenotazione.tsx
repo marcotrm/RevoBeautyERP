@@ -69,10 +69,23 @@ function BloccoOrari({ config, salva, salvando }: {
         <Clock className="w-4 h-4 text-accent" />
         <h3 className="text-base font-display font-semibold text-text-primary">Quando si può prenotare</h3>
       </div>
-      <p className="text-xs text-text-secondary mb-4 leading-relaxed">
+      <p className="text-xs text-text-secondary mb-3 leading-relaxed">
         La cornice entro cui il sistema propone gli orari. Dentro questa cornice comandano
         i turni delle operatrici: se Rosaria stacca alle 14, alle 15 non compare comunque.
       </p>
+
+      {/* Due impostazioni sullo stesso fatto sono una bugia in attesa: prima
+          l'assistente diceva alle clienti gli orari di Assistente e poi cercava
+          posto dentro questa fascia, e quando le due divergevano rispondeva
+          "non c'è posto" su un'ora in cui il centro era aperto. */}
+      <div className="mb-4 p-2.5 rounded-xl bg-bg-secondary border border-border/60">
+        <p className="text-[11px] text-text-secondary leading-relaxed">
+          Se in <b>Assistente</b> hai messo gli orari giorno per giorno, comandano quelli:
+          questa fascia resta solo per i giorni che non hai configurato lì. Anche ferie e
+          chiusure straordinarie si mettono in Assistente, e da lì valgono per tutti —
+          app, sito e assistente.
+        </p>
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <div>

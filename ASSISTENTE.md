@@ -395,6 +395,31 @@ se sapesse la differenza fra acrygel e gel l'avrebbe gia' detto. E se dopo due
 giri non e' chiaro, non tira a indovinare: passa a una collega dicendole cosa
 ha capito.
 
+## Gli orari veri, uno solo
+
+Gli orari del centro stavano in **due** posti che non si parlavano:
+
+- **Assistente** — apre e chiude giorno per giorno, piu' ferie e chiusure. E'
+  quello che l'assistente *dice* alle clienti.
+- **App Clienti → Prenotazione** — una fascia unica uguale per tutti i giorni.
+  Era quella che il motore *usava* per calcolare gli orari liberi.
+
+Due verita' sullo stesso fatto, e nessuna che avvisasse quando divergevano.
+Cosa succedeva davvero: l'assistente diceva «siamo aperti fino alle otto» e poi
+rispondeva «dopo le sei non c'e' posto», perche' la fascia della prenotazione
+era rimasta alle 19. E su un giorno di ferie offriva tranquillamente un
+appuntamento, perche' le chiusure il motore non le guardava proprio.
+
+Adesso comanda **Assistente**, per tutti e tre i canali (app, pagina /prenota,
+assistente): apertura e chiusura del giorno, giorno dichiarato chiuso, ferie. La
+fascia unica resta la rete di sicurezza per i giorni che nessuno ha
+configurato.
+
+Anche il turno dell'operatrice si ritaglia su quella finestra: prima chi era in
+turno fino alle venti veniva tagliata alle diciannove, e quell'ora sparita non
+si vedeva da nessuna parte — in agenda il turno risultava intero, fra gli orari
+proposti semplicemente non compariva.
+
 ## A chi passa la palla
 
 Quando la segretaria si ferma — domande mediche, reclami, rimborsi, sconti,
