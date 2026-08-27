@@ -247,6 +247,26 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
         # del pubblico sono deviate qui, trasferircele sopra le rimanda a noi.
         numero = (centro_info.get("telefonoPassaggio") or centro_info.get("telefono") or "").strip()
 
+        # A centro chiuso non si passa a nessuno.
+        #
+        # Alle nove di sera, o di domenica, il numero squilla a vuoto: la
+        # cliente si sente dire «ti passo una collega» e poi ascolta il vuoto,
+        # che e' il modo peggiore di chiudere una telefonata. Meglio dirle
+        # chiaramente che adesso non c'e' nessuno e che la richiamiamo:
+        # e' vero, ed e' una promessa che il centro puo' mantenere.
+        aperto_adesso = bool((info.get("oggi") or {}).get("adessoAperto"))
+        if numero and not aperto_adesso:
+            logger.info(f"chiamata {call_sid}: non passata, il centro adesso e' chiuso")
+            await params.result_callback({
+                "trasferimento": False,
+                "istruzione": (
+                    "Adesso il centro e' chiuso e non c'e' nessuno a cui passarla. Diglielo in una "
+                    "frase, dille che la faranno richiamare appena riaprono, e saluta. "
+                    "Non prometterle che le risponde una collega adesso."
+                ),
+            })
+            return
+
         if not numero:
             await params.result_callback({
                 "trasferimento": False,
