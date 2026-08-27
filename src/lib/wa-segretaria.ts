@@ -61,7 +61,7 @@ import { trascriviVocale, archiviaTrascrizione, trascrizioneConfigurata } from '
 import {
   STRUMENTI_DELICATI, modelloPer, parametriRagionamento, livelloDiPartenza, type Livello,
 } from './orchestrazione';
-import { listMessages, type WaMedia } from './wa-conversations';
+import { listMessages, markConversationUnread, type WaMedia } from './wa-conversations';
 import {
   registraArrivo, attendiSilenzio, prendiTurno, rilasciaTurno, rispondiUnaVolta,
 } from './wa-antiflood';
@@ -668,12 +668,35 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
       ctx.passata = motivo;
       const sch = await scheda(ctx);
       const chi = sch ? sch.nomeCompleto : ctx.phone;
-      sendTelegram(
-        `🙋 *Serve una persona su WhatsApp*\n\n${chi} (${ctx.phone})\n\n${motivo}`
-      ).catch(() => {});
+
+      /*
+        A chi passa la palla, davvero.
+
+        Telegram è il modo veloce, ma è configurabile: se non lo è —  o se il
+        bot è stato tolto, o il token è scaduto — `sendTelegram` risponde
+        ok:false e non se ne accorge nessuno. Una chiamata d'aiuto che finisce
+        nel vuoto è peggio di non averla fatta: la segretaria ha detto alla
+        cliente «ti fa sapere una collega», e la collega non sa niente.
+
+        Quindi il posto sicuro è il gestionale: la conversazione torna DA
+        LEGGERE nella schermata WhatsApp, con il numerino sul menù. Quello si
+        vede sempre, anche senza Telegram, anche domani mattina.
+      */
+      await markConversationUnread(ctx.phone).catch(() => {});
+
+      const avvisato = await sendTelegram(
+        `🙋 *Serve una persona su WhatsApp*\n\n${chi} (${ctx.phone})\n\n${motivo}\n\n`
+        + `_La chat è segnata da leggere nel gestionale._`
+      ).catch(() => ({ ok: false as const, error: 'errore' }));
+
+      if (!avvisato.ok) {
+        console.log(`[wa-segretaria] ${ctx.phone}: passata a una persona, Telegram non ha avvisato (${avvisato.error}) — resta la chat da leggere`);
+      }
+
       return JSON.stringify({
         ok: true,
-        nota: `Il centro è stato avvisato. Scrivi alla cliente che la fai ricontattare da una collega, in una frase, e fermati.`,
+        nota: 'Il centro è stato avvisato e la chat risulta da leggere. Scrivi alla cliente che la fai '
+          + 'ricontattare da una collega, in una frase, e fermati.',
       });
     }
 

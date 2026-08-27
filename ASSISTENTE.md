@@ -152,7 +152,7 @@ legge il gestionale nel momento in cui viene chiamato.
 | `prenota` | Scrive in agenda — **solo col gettone** |
 | `sposta_appuntamento` | Sposta, fino a 24 ore prima |
 | `disdici_appuntamento` | Disdice, fino a 24 ore prima |
-| `passa_a_persona` | Avvisa il centro e tace per quattro ore |
+| `passa_a_persona` | Segna la chat da leggere nel gestionale, avvisa su Telegram, e tace per quattro ore |
 
 Il motore degli orari è lo stesso di `/prenota`, dell'app clienti e
 dell'assistente al telefono: se una prenotazione entra dall'app mentre la
@@ -335,6 +335,24 @@ questo la scelta del modello e quella dei parametri sono la stessa funzione.
 Si cambia senza rilasciare: `WA_MODELLO_LAVORO` (se Haiku risulta troppo
 letterale, il gradino sopra è `claude-sonnet-5`) e `WA_MODELLO_TESTA`.
 
+## A chi passa la palla
+
+Quando la segretaria si ferma — domande mediche, reclami, rimborsi, sconti,
+appuntamenti sotto le 24 ore, o semplicemente non ne viene fuori — fa due cose:
+
+1. **segna la conversazione da leggere** nella schermata WhatsApp del
+   gestionale, quella col numerino sul menu;
+2. manda un messaggio su Telegram, se Telegram e' configurato.
+
+L'ordine non e' casuale. Telegram e' il modo veloce ma e' configurabile: se non
+lo e', o se il token e' scaduto, `sendTelegram` risponde `ok:false` e non se ne
+accorge nessuno. Una chiamata d'aiuto che finisce nel vuoto e' peggio che non
+averla fatta, perche' alla cliente e' gia' stato detto «ti fa sapere una
+collega». Il gestionale invece si vede sempre, anche domani mattina.
+
+Poi tace per quattro ore su quel numero, cosi' non si mette in mezzo mentre una
+persona sta rispondendo.
+
 ## Il collaudo: prima solo il tuo numero
 
 Accendere una cosa che scrive in agenda su tutte le clienti insieme, la prima
@@ -375,6 +393,15 @@ Il risultato sta in **Assistente → Come e' andata**, e su Telegram parte un
 messaggio solo se c'e' qualcosa di grave o una proposta da decidere: un
 riepilogo quotidiano che dice sempre «tutto bene» smette di essere letto dopo
 una settimana, e il giorno che dice qualcosa non lo legge piu' nessuno.
+
+### Non ripete gli stessi errori
+
+L'analisi di stasera vede i problemi delle ultime sei giornate. Senza, ogni
+sera riscoprirebbe gli stessi tre difetti come se fosse la prima volta, e dopo
+una settimana di «ha risposto un po' lunga» non la leggerebbe piu' nessuno.
+Con davanti lo storico dice la cosa che conta: «questo lo fa da quattro giorni,
+e nessuno l'ha ancora sistemato» — e alza la gravita', perche' un errore che
+torna dopo essere stato segnalato non e' piu' una svista.
 
 ### Perche' NON si aggiorna da sola
 

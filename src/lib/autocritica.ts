@@ -270,6 +270,20 @@ export async function autocriticaDelGiorno(giorno = todayRome()): Promise<EsitoA
 
     const istruzioni = await costruisciIstruzioni('whatsapp');
 
+    /*
+      Quello che sbagliava nei giorni scorsi.
+
+      È il pezzo che rende l'analisi utile invece che ripetitiva: senza, ogni
+      sera riscopre gli stessi tre difetti come se fosse la prima volta, e
+      dopo una settimana di «ha risposto un po' lunga» non lo legge più
+      nessuno. Con davanti lo storico può dire la cosa che conta davvero —
+      «questo lo fa da quattro giorni, e nessuno l'ha ancora sistemato».
+    */
+    const passate = (await ultimeAutocritiche(7)).filter(a => a.giorno !== giorno);
+    const giaVisti = passate
+      .flatMap(a => a.problemi.map(p => `${a.giorno} · ${p.gravita}: ${p.cosa}`))
+      .slice(0, 40);
+
     const trascritti = chat
       .map((c, i) => `--- CONVERSAZIONE ${i + 1} (numero ${c.phone}) ---\n${c.righe.join('\n')}`)
       .join('\n\n');
@@ -292,7 +306,15 @@ export async function autocriticaDelGiorno(giorno = todayRome()): Promise<EsitoA
       output_config: { effort: 'high', format: { type: 'json_schema', schema: SCHEMA } },
       messages: [{
         role: 'user',
-        content: `Ecco le conversazioni di ${giorno}. Rileggile e dimmi cosa non ha funzionato.\n\n${trascritti}`,
+        content: [
+          `Ecco le conversazioni di ${giorno}. Rileggile e dimmi cosa non ha funzionato.`,
+          giaVisti.length > 0
+            ? `\nQuesto è quello che le avevo già segnalato nei giorni scorsi. Se un difetto si ripete, `
+              + `dillo esplicitamente e alza la gravità: un errore che torna dopo che è stato segnalato `
+              + `non è più una svista.\n${giaVisti.join('\n')}`
+            : '',
+          `\n${trascritti}`,
+        ].filter(Boolean).join('\n'),
       }],
     });
 
@@ -371,6 +393,10 @@ async function avvisaCentro(a: Autocritica): Promise<void> {
     for (const p of gravi.slice(0, 5)) righe.push(`• ${p.cosa} — ${p.chat}`);
   }
   if (medi.length > 0) righe.push('', `Altri ${medi.length} punti minori nel gestionale.`);
+  const ricorrenti = a.problemi.filter(p => /ripet|di nuovo|ancora|da giorni|gia' segnal|già segnal/i.test(p.cosa));
+  if (ricorrenti.length > 0) {
+    righe.push('', `⚠️ ${ricorrenti.length} ${ricorrenti.length === 1 ? 'difetto che torna' : 'difetti che tornano'} dai giorni scorsi.`);
+  }
   if (a.proposte.length > 0) {
     righe.push('', '*Propone di aggiungere alle note:*');
     for (const p of a.proposte) righe.push(`• «${p.testo}»`);
