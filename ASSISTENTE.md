@@ -335,6 +335,103 @@ questo la scelta del modello e quella dei parametri sono la stessa funzione.
 Si cambia senza rilasciare: `WA_MODELLO_LAVORO` (se Haiku risulta troppo
 letterale, il gradino sopra è `claude-sonnet-5`) e `WA_MODELLO_TESTA`.
 
+## Che cosa le lasci toccare
+
+Tre interruttori separati (Automazioni → WhatsApp → Segretaria), tutti accesi
+di suo:
+
+| | Rischio |
+|---|---|
+| Prendere appuntamenti nuovi | **l'unico dei tre in cui si sbaglia senza accorgersene** |
+| Spostare | l'appuntamento esiste già: il trattamento è scritto, cambia l'ora |
+| Disdire | come sopra |
+
+La differenza non e' l'importanza, e' che spostare e disdire partono da una
+riga che c'e' gia'. Prendere un appuntamento nuovo obbliga invece a capire
+QUALE trattamento vuole una persona che magari lo chiama con un altro nome.
+
+Uno spento non viene *sconsigliato*: non viene proprio passato al modello. Non
+puo' chiamarlo, non puo' sbagliarsi, non c'e' una regola da ricordarsi — la
+porta non esiste. Stessa idea del gettone di conferma: le cose che non devono
+succedere non si scrivono nel prompt, si tolgono dalla stanza.
+
+Con la prenotazione spenta la segretaria fa comunque tutto il lavoro — capisce
+il trattamento, guarda quando c'e' posto, lo dice — e poi passa a una collega
+con dentro quello che ha capito. Quello che NON fa e' dire «ti ho preso
+l'appuntamento».
+
+## «Il gel» — quando la cliente non sa il nome
+
+E' l'obiezione seria a un bot che prenota, ed e' vera: «il gel» puo' essere una
+ricostruzione da zero, un ritocco, un semipermanente, un acrygel. Sbagliare
+trattamento vuol dire sbagliare durata, prezzo e operatrice, e ce ne si accorge
+in cabina con la cliente gia' seduta.
+
+Le ragazze al banco lo risolvono senza pensarci: fanno due domande. Quelle
+domande non stanno in nessun database — stanno nella loro testa. Quindi:
+
+**1. Lo strumento dichiara l'ambiguita'.** Quando la ricerca nel listino porta
+piu' di un trattamento, `listino` risponde `ambiguo: true` con le possibilita'.
+Non e' un suggerimento gentile: e' un dato che il modello si trova davanti.
+
+**2. Chi l'ha gia' fatto non viene interrogato.** Se fra i trattamenti che
+combaciano ce n'e' uno che quella cliente ha gia' fatto, «il gel» vuol dire
+quello: si conferma («la ricostruzione gel come l'ultima volta?») invece di
+fare tre domande a un'abituale. Copre la maggior parte dei casi da solo.
+
+**3. Per le clienti nuove, le domande le scrive il centro.** In Assistente →
+«Quando non e' chiaro quale trattamento»: le parole che le clienti usano, la
+domanda che le distingue, e come si sceglie in base alla risposta.
+
+Scriverle a mano pero' e' anche il lavoro che non si fa mai. Per questo c'e' il
+tasto **«Proponile tu, dal listino e dalle chat»**: legge i trattamenti attivi
+e le conversazioni in cui ha risposto una PERSONA — non la segretaria, che e'
+quello che stiamo migliorando — e propone. Quando in una chat una ragazza aveva
+gia' fatto la domanda giusta, riprende **le sue parole**: e' il modo in cui quel
+centro parla alle sue clienti, e vale piu' di qualunque riformulazione. Le
+proposte che vengono da li' sono marcate.
+
+Propone e basta: entrano quando qualcuno le accetta. Dentro quelle chat ci sono
+messaggi scritti da estranei, e una domanda «suggerita» da una cliente furba non
+deve poter finire in bocca all'assistente.
+
+```
+Quando dice:  gel, unghie, ricostruzione
+Tu chiedi:    Le hai già fatte o partiamo da zero?
+E scegli:     Ritocco su una ricostruzione che ha già → Refill.
+              Da zero → Ricostruzione gel. Se le rompe spesso → Acrygel.
+```
+
+La domanda dev'essere sulla **sua situazione**, non un elenco di nomi tecnici:
+se sapesse la differenza fra acrygel e gel l'avrebbe gia' detto. E se dopo due
+giri non e' chiaro, non tira a indovinare: passa a una collega dicendole cosa
+ha capito.
+
+## Gli orari veri, uno solo
+
+Gli orari del centro stavano in **due** posti che non si parlavano:
+
+- **Assistente** — apre e chiude giorno per giorno, piu' ferie e chiusure. E'
+  quello che l'assistente *dice* alle clienti.
+- **App Clienti → Prenotazione** — una fascia unica uguale per tutti i giorni.
+  Era quella che il motore *usava* per calcolare gli orari liberi.
+
+Due verita' sullo stesso fatto, e nessuna che avvisasse quando divergevano.
+Cosa succedeva davvero: l'assistente diceva «siamo aperti fino alle otto» e poi
+rispondeva «dopo le sei non c'e' posto», perche' la fascia della prenotazione
+era rimasta alle 19. E su un giorno di ferie offriva tranquillamente un
+appuntamento, perche' le chiusure il motore non le guardava proprio.
+
+Adesso comanda **Assistente**, per tutti e tre i canali (app, pagina /prenota,
+assistente): apertura e chiusura del giorno, giorno dichiarato chiuso, ferie. La
+fascia unica resta la rete di sicurezza per i giorni che nessuno ha
+configurato.
+
+Anche il turno dell'operatrice si ritaglia su quella finestra: prima chi era in
+turno fino alle venti veniva tagliata alle diciannove, e quell'ora sparita non
+si vedeva da nessuna parte — in agenda il turno risultava intero, fra gli orari
+proposti semplicemente non compariva.
+
 ## A chi passa la palla
 
 Quando la segretaria si ferma — domande mediche, reclami, rimborsi, sconti,

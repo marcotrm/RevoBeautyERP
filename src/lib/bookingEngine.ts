@@ -17,6 +17,7 @@ import { prisma } from '@/lib/prisma';
 import { toMinutes, toHHMM, todayInItaly } from '@/lib/voice';
 import { mondayISO } from '@/lib/weekSchedule';
 import { leggiConfig, type ConfigApp } from '@/lib/appSettings';
+import { leggiCentro, eChiuso, type Centro } from '@/lib/centro';
 
 /**
  * La cornice della prenotazione — apertura, chiusura, passo degli orari,
@@ -78,9 +79,9 @@ interface Fascia { from: number; to: number }
  * la pausa. Turno assente = si assume disponibile per tutta l'apertura, così
  * una settimana non ancora pianificata non blocca le prenotazioni.
  */
-function fasceDiLavoro(turno: Turno | undefined, regole: Regole): Fascia[] {
-  const apertura = toMinutes(regole.apertura);
-  const chiusura = toMinutes(regole.chiusura);
+function fasceDiLavoro(turno: Turno | undefined, finestra: { da: number; a: number }): Fascia[] {
+  const apertura = finestra.da;
+  const chiusura = finestra.a;
   if (!turno) return [{ from: apertura, to: chiusura }];
   if (turno.isWorking === false) return [];
 
@@ -131,6 +132,43 @@ interface Contesto {
   competenze: Map<string, Set<string>>;
   /** Orari e passo impostati in App Clienti → Prenotazione. */
   regole: Regole;
+  /**
+   * Quando il centro è davvero aperto: orari per giorno della settimana e
+   * ferie, impostati in Assistente.
+   *
+   * Erano già lì e li diceva l'assistente alle clienti — ma il motore non li
+   * guardava: calcolava su una fascia unica uguale per tutti i giorni, presa
+   * dalle impostazioni della prenotazione. Due verità sullo stesso fatto, e
+   * nessuna che avvisasse quando divergevano: l'assistente diceva «siamo
+   * aperti fino alle otto» e poi non trovava posto dopo le sei, oppure
+   * offriva un appuntamento in un giorno di ferie.
+   */
+  centro: Centro;
+}
+
+/**
+ * La finestra di apertura di UN giorno.
+ *
+ * Vince quello che il centro ha scritto in Assistente, perché è il dato che
+ * qualcuno tiene aggiornato e che l'assistente dice alle clienti. La fascia
+ * unica delle impostazioni resta la rete di sicurezza per i giorni che nessuno
+ * ha configurato.
+ *
+ * `null` vuol dire chiuso: quel giorno non esce nessun orario.
+ */
+function aperturaDelGiorno(ctx: Contesto, date: string): { da: number; a: number } | null {
+  // Ferie e chiusure straordinarie: prima di tutto il resto.
+  if (eChiuso(ctx.centro, date)) return null;
+
+  const dow = new Date(date + 'T12:00:00').getDay();
+  const orario = ctx.centro.orari?.[String(dow === 0 ? 7 : dow)];
+
+  // Giorno dichiarato chiuso.
+  if (orario === null) return null;
+
+  const da = orario?.apre ? toMinutes(orario.apre) : toMinutes(ctx.regole.apertura);
+  const a = orario?.chiude ? toMinutes(orario.chiude) : toMinutes(ctx.regole.chiusura);
+  return a > da ? { da, a } : null;
 }
 
 /**
@@ -168,6 +206,7 @@ export function competenzePerOperatrice(
  * dire ottanta interrogazioni al database: così sono quattro.
  */
 async function caricaContesto(dateFrom: string, dateTo: string, regole: Regole): Promise<Contesto> {
+  const centro = await leggiCentro().catch(() => null);
   const settimaneCoinvolte = new Set<string>();
   for (let d = new Date(dateFrom + 'T12:00:00'); d <= new Date(dateTo + 'T12:00:00'); d.setDate(d.getDate() + 7)) {
     settimaneCoinvolte.add(mondayISO(d));
@@ -224,6 +263,9 @@ async function caricaContesto(dateFrom: string, dateTo: string, regole: Regole):
 
   return {
     operatori, settimane, occupatoPerData, regole,
+    // Senza i dati del centro si ricade sulla fascia unica: peggio di prima
+    // no, uguale a prima sì.
+    centro: centro || { nome: '', orari: undefined, chiusure: [] },
     competenze: competenzePerOperatrice(operatori, categorie.map(c => c.category)),
   };
 }
@@ -266,6 +308,22 @@ function lavoroDelGiorno(ctx: Contesto, date: string): Map<string, Fascia[]> {
   const dow = giorno.getDay(); // 0=Dom
   const weekStart = mondayISO(giorno);
   const lavoro = new Map<string, Fascia[]>();
+
+  /*
+    Il turno si ritaglia sull'apertura DI QUEL GIORNO.
+
+    Prima si ritagliava sulla fascia unica: un'operatrice in turno fino alle
+    venti veniva tagliata alle diciannove perche' cosi' diceva un'altra
+    impostazione, e quell'ora sparita non la vedeva nessuno — ne' in agenda,
+    dove il turno risultava intero, ne' fra gli orari proposti, dove semplicemente
+    non compariva.
+  */
+  const finestra = aperturaDelGiorno(ctx, date);
+  if (!finestra) {
+    for (const op of ctx.operatori) lavoro.set(op.id, []);
+    return lavoro;
+  }
+
   for (const op of ctx.operatori) {
     if (dow === 0) { lavoro.set(op.id, []); continue; } // domenica chiuso
     const perSettimana = ctx.settimane.find(w => w.operatorId === op.id && w.weekStart === weekStart);
@@ -281,12 +339,12 @@ function lavoroDelGiorno(ctx: Contesto, date: string): Map<string, Fascia[]> {
     */
     if (settimana && Object.keys(settimana).length > 0) {
       const turno = settimana[String(dow)];
-      lavoro.set(op.id, turno ? fasceDiLavoro(turno, ctx.regole) : []);
+      lavoro.set(op.id, turno ? fasceDiLavoro(turno, finestra) : []);
       continue;
     }
 
     const mappa = op.schedule as Record<string, Turno> | null;
-    lavoro.set(op.id, fasceDiLavoro(mappa?.[String(dow)], ctx.regole));
+    lavoro.set(op.id, fasceDiLavoro(mappa?.[String(dow)], finestra));
   }
   return lavoro;
 }
@@ -376,9 +434,18 @@ function slotDelGiorno(
     const adesso = new Date().toLocaleTimeString('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit', hour12: false });
     minimoOggi = toMinutes(adesso) + ctx.regole.preavvisoMinuti;
   }
-  const chiusura = toMinutes(ctx.regole.chiusura);
-  const dalle = Math.max(toMinutes(ctx.regole.apertura), oraDa ? toMinutes(oraDa) : 0, minimoOggi);
-  const alle = Math.min(chiusura, oraA ? toMinutes(oraA) : chiusura);
+  /*
+    Quando il centro e' aperto QUEL giorno — non la fascia unica di sempre.
+
+    Se e' chiuso (ferie, o giorno dichiarato chiuso in Assistente) non esce
+    niente: e' l'unica risposta giusta, e prima invece il motore offriva
+    tranquillamente un appuntamento a Ferragosto.
+  */
+  const apertura = aperturaDelGiorno(ctx, date);
+  if (!apertura) return [];
+
+  const dalle = Math.max(apertura.da, oraDa ? toMinutes(oraDa) : 0, minimoOggi);
+  const alle = Math.min(apertura.a, oraA ? toMinutes(oraA) : apertura.a);
 
   const slots: SlotProposto[] = [];
   const passo = Math.max(5, ctx.regole.passoMinuti);

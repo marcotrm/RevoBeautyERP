@@ -16,6 +16,7 @@ import {
   ultimeAutocritiche, autocriticaDelGiorno, accettaProposta, scartaProposta,
   type Autocritica,
 } from '@/lib/autocritica';
+import { proponiChiarimenti, type ChiarimentoProposto } from '@/lib/chiarimentiProposti';
 
 export async function caricaCentro(): Promise<Centro> {
   return leggiCentro();
@@ -95,4 +96,18 @@ export async function accettaPropostaAssistente(id: string) {
 
 export async function scartaPropostaAssistente(id: string) {
   return scartaProposta(id);
+}
+
+/**
+ * Fatti proporre le domande che distinguono i trattamenti.
+ *
+ * Legge il listino e le conversazioni in cui ha risposto una PERSONA: le
+ * domande giuste le hanno già fatte le ragazze, e riprendere le loro parole
+ * vale più di qualunque riformulazione. Propone e basta — entrano quando
+ * qualcuno le accetta.
+ */
+export async function proponiDomandeTrattamenti(): Promise<
+  { ok: true; proposte: ChiarimentoProposto[]; chatLette: number } | { ok: false; motivo: string }
+> {
+  return proponiChiarimenti();
 }

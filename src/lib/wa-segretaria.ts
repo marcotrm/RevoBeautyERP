@@ -45,7 +45,7 @@ import { prisma } from './prisma';
 import { todayRome } from './date';
 import { costruisciIstruzioni } from './istruzioniAssistente';
 import { getWaAutomationsConfig } from './wa-automations';
-import { leggiCentro, orariParlati, eChiuso } from './centro';
+import { leggiCentro, orariParlati, eChiuso, type Chiarimento } from './centro';
 import { cercaSlot, type ServizioRichiesto } from './bookingEngine';
 import { preparaPrenotazione, scriviAppuntamento, type DatiPrenotazione } from './vocePrenota';
 import { spostaAppuntamento, disdiciAppuntamento, prossimiAppuntamenti } from './agendaAgente';
@@ -315,6 +315,64 @@ const STRUMENTI: Anthropic.Tool[] = [
   },
 ];
 
+/** Quello che il centro le lascia toccare in agenda, oggi. */
+export interface Poteri {
+  prenota: boolean;
+  sposta: boolean;
+  disdice: boolean;
+}
+
+/**
+ * Gli strumenti che la segretaria ha davvero in mano.
+ *
+ * Uno strumento spento non viene *sconsigliato*: non viene proprio passato al
+ * modello. Non può chiamarlo, non può sbagliarsi, non c'è una regola da
+ * ricordarsi di rispettare — la porta non esiste. È la stessa idea del gettone
+ * di conferma: le cose che non devono succedere non si scrivono nel prompt, si
+ * tolgono dalla stanza.
+ */
+function strumentiPer(poteri: Poteri): Anthropic.Tool[] {
+  return STRUMENTI.filter(t => {
+    if (t.name === 'verifica_prenotazione' || t.name === 'prenota') return poteri.prenota;
+    if (t.name === 'sposta_appuntamento') return poteri.sposta;
+    if (t.name === 'disdici_appuntamento') return poteri.disdice;
+    return true;
+  });
+}
+
+/**
+ * Che cosa dirle quando le hanno tolto qualcosa.
+ *
+ * Senza questo, con la prenotazione spenta, la segretaria arriverebbe fino a
+ * «perfetto, giovedì alle 15» e poi non troverebbe lo strumento: la cliente
+ * resta convinta di avere un appuntamento che non esiste. Deve saperlo PRIMA,
+ * per portare la conversazione dove serve.
+ */
+function limitiDiOggi(poteri: Poteri): string {
+  const righe: string[] = [];
+
+  if (!poteri.prenota) {
+    righe.push(
+      'OGGI NON PRENDI APPUNTAMENTI NUOVI. Puoi dire tutto: quanto costa, quanto dura, '
+      + 'quando ci sarebbe posto. Ma l\'appuntamento lo fissa una collega.\n\n'
+      + 'Quindi fai il lavoro fino in fondo e poi passi: capisci bene QUALE trattamento '
+      + 'vuole (con le domande che servono, senza indovinare), quando le farebbe comodo, '
+      + 'e se è già cliente. Poi chiami "passa_a_persona" scrivendo lì dentro tutto quello '
+      + 'che hai capito — trattamento, giorni e ore che le vanno bene, nome — e le dici in '
+      + 'una riga che la richiama una collega per fissarlo.\n\n'
+      + 'Non dire mai «ti ho preso l\'appuntamento» e non dare per fatta una cosa che non hai fatto.'
+    );
+  }
+  if (!poteri.sposta) {
+    righe.push('Non sposti appuntamenti: raccogli quando vorrebbe e passa la conversazione a una collega.');
+  }
+  if (!poteri.disdice) {
+    righe.push('Non disdici appuntamenti: passa sempre la conversazione a una collega.');
+  }
+
+  return righe.length > 0 ? `## Che cosa NON puoi fare oggi\n\n${righe.join('\n\n')}` : '';
+}
+
 /** Legge i trattamenti come li manda il modello. */
 function serviziDa(input: unknown): ServizioRichiesto[] {
   const t = (input as { trattamenti?: unknown })?.trattamenti;
@@ -486,8 +544,64 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
       */
       const sch = await scheda(ctx);
 
+      /*
+        «Il gel».
+
+        Al banco non vuol dire niente: può essere una ricostruzione da zero, un
+        ritocco, un semipermanente, un acrygel. Le ragazze lo risolvono senza
+        pensarci, con due domande. Un modello no: prende il primo della lista e
+        va avanti, e l'errore si scopre in cabina con la cliente già seduta e
+        mezz'ora di agenda che non torna.
+
+        Quindi quando la ricerca porta più di un trattamento, lo strumento non
+        fa finta di niente: dice che è ambiguo, elenca le possibilità, e —  se
+        il centro le ha scritte — porta le domande che le distinguono. Sceglie
+        la cliente, non il modello.
+      */
+      const ambiguo = trattamenti.length > 1 && cerca.length > 0;
+
+      let chiarimento: Chiarimento | undefined;
+      if (ambiguo) {
+        const centro = await leggiCentro().catch(() => null);
+        const cercato = cerca.toLowerCase();
+        chiarimento = (centro?.chiarimenti || []).find(c =>
+          (c.parole || []).some(p => {
+            const parola = p.toLowerCase().trim();
+            // Sotto le tre lettere non si combacia: una "e" sfuggita nell'elenco
+            // starebbe dentro mezzo listino e attaccherebbe la domanda sbagliata
+            // a qualunque ricerca.
+            if (parola.length < 3) return false;
+            return cercato.includes(parola) || parola.includes(cercato);
+          })
+        );
+      }
+
+      /*
+        Chi l'ha già fatto non va interrogato.
+
+        Se fra i trattamenti che combaciano ce n'è uno che ha già fatto, «il
+        gel» vuol dire quello: si conferma («la ricostruzione gel come
+        l'ultima volta?») invece di fare tre domande a una cliente abituale,
+        che è il modo più veloce per farla sentire in un call center.
+      */
+      const giaFatti = (sch?.storico || [])
+        .map(v => v.trattamento)
+        .filter(fatto => trattamenti.some(t => t.name.toLowerCase() === fatto.toLowerCase()));
+
       return JSON.stringify({
         trovati: trattamenti.length,
+        ambiguo: ambiguo || undefined,
+        ...(ambiguo ? {
+          nota: giaFatti.length > 0
+            ? `Più di un trattamento si chiama così. Ma questa cliente ha già fatto «${giaFatti[0]}»: `
+              + 'conferma quello invece di farle domande — «come l\'ultima volta?» — e chiedi solo se ti dice di no.'
+            : 'PIÙ DI UN TRATTAMENTO SI CHIAMA COSÌ. Non sceglierne uno tu: chiedi alla cliente. '
+              + 'Sbagliare trattamento vuol dire sbagliare durata, prezzo e operatrice, e ce ne si accorge '
+              + 'in cabina con lei già seduta. Una domanda per messaggio.',
+          giaFattoDaLei: giaFatti[0] || undefined,
+          domandaDaFare: chiarimento?.chiedi,
+          comeSiSceglie: chiarimento?.scelta,
+        } : {}),
         trattamenti: trattamenti.map(t => {
           const misura = sch?.suMisura.find(m => m.treatmentId === t.id);
           const pacchetto = pacchettoCheCopre(sch, t.name);
@@ -817,7 +931,8 @@ async function eseguiTurno(
   foto: Array<{ id: string; mime?: string }>,
   stato: StatoChat,
   livello: Livello,
-  ctx: Contesto
+  ctx: Contesto,
+  poteri: Poteri
 ): Promise<EsitoGiro> {
   const client = new Anthropic();
   const model = modelloPer(livello);
@@ -873,9 +988,12 @@ async function eseguiTurno(
       */
       system: [
         { type: 'text', text: istruzioni, cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: `## Questa conversazione\n\n${contesto}` },
+        {
+          type: 'text',
+          text: [limitiDiOggi(poteri), `## Questa conversazione\n\n${contesto}`].filter(Boolean).join('\n\n'),
+        },
       ],
-      tools: STRUMENTI,
+      tools: strumentiPer(poteri),
       /*
         Pensa quanto serve, ma non è un compito di matematica: è una segretaria
         che deve rispondere in fretta a «quanto costa la ceretta». Le decisioni
@@ -959,7 +1077,8 @@ async function turno(
   messaggi: string[],
   foto: Array<{ id: string; mime?: string }>,
   statoIniziale: StatoChat,
-  daVocale: boolean
+  daVocale: boolean,
+  poteri: Poteri
 ): Promise<EsitoTurno> {
   let stato = statoIniziale;
   const ctx: Contesto = { phone, clienteId: null, passata: null, prenotato: null };
@@ -984,7 +1103,7 @@ async function turno(
   });
 
   let livello = partenza.livello;
-  let esito = await eseguiTurno(phone, messaggi, foto, stato, livello, ctx);
+  let esito = await eseguiTurno(phone, messaggi, foto, stato, livello, ctx, poteri);
 
   if (esito.tipo === 'sali') {
     console.log(`[wa-segretaria] ${phone}: sale sul modello grosso (ha chiesto ${esito.strumento})`);
@@ -992,7 +1111,7 @@ async function turno(
     // Il contesto si rifà pulito: quello di prima porta dentro le tracce di un
     // turno che stiamo buttando via.
     const ctxPulito: Contesto = { phone, clienteId: null, passata: null, prenotato: null };
-    esito = await eseguiTurno(phone, messaggi, foto, stato, livello, ctxPulito);
+    esito = await eseguiTurno(phone, messaggi, foto, stato, livello, ctxPulito, poteri);
     Object.assign(ctx, ctxPulito);
   } else {
     console.log(`[wa-segretaria] ${phone}: risponde il modello di ${livello} (${partenza.perche})`);
@@ -1170,7 +1289,11 @@ export async function handleSegretariaMessage(params: {
     try {
       stato = await leggiStato(phone);
       const messaggi = stato.pendenti.length > 0 ? stato.pendenti : [testoUtile].filter(Boolean);
-      const esito = await turno(phone, messaggi, stato.fotoPendenti || [], stato, daVocale);
+      const esito = await turno(phone, messaggi, stato.fotoPendenti || [], stato, daVocale, {
+        prenota: cfg.segretariaPrenota !== false,
+        sposta: cfg.segretariaSposta !== false,
+        disdice: cfg.segretariaDisdice !== false,
+      });
       return esito.risposto
         ? { handled: true }
         : { handled: false, reason: esito.motivo };
