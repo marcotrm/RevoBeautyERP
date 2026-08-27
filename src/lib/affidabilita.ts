@@ -16,6 +16,12 @@
  *    non tutti quelli in agenda. Contare anche i prossimi appuntamenti già
  *    fissati abbasserebbe la percentuale di chi prenota molto, che è l'esatto
  *    contrario di quello che serve sapere.
+ *  - più buchi nello STESSO GIORNO valgono uno. Una cliente risultava "50%
+ *    mancati" per tre disdette tutte del 30 luglio: al banco quella mattina
+ *    avevano preso l'appuntamento quattro volte in un quarto d'ora e cancellato
+ *    i tre doppioni, mentre lei era venuta e aveva pagato. Un errore di
+ *    digitazione non è una cliente inaffidabile — e anche quando la giornata
+ *    salta davvero, salta una volta sola.
  *
  * Le soglie sono tarate sui numeri veri del centro: col rosso restano due
  * nomi su centottantaquattro, e un segnale che compare su mezza agenda non lo
@@ -66,13 +72,22 @@ export function valutaAffidabilita(
   appuntamenti: { status: string; date: string }[],
   dal = dalQuando(),
 ): Affidabilita {
-  let completati = 0, disdette = 0, noShow = 0;
+  let completati = 0;
+  // I giorni saltati, non gli appuntamenti saltati: nello stesso giorno più
+  // buchi contano per uno solo.
+  const giorniSaltati = new Map<string, 'cancelled' | 'no_show'>();
   for (const a of appuntamenti) {
     if (!CONCLUSI.has(a.status)) continue;
     if (a.date < dal) continue;
-    if (a.status === 'completed') completati++;
-    else if (a.status === 'cancelled') disdette++;
-    else noShow++;
+    if (a.status === 'completed') { completati++; continue; }
+    // Nella stessa giornata il no-show pesa più della disdetta: chi avvisa e
+    // chi non si presenta non sono la stessa cosa, e vince il peggiore.
+    if (a.status === 'no_show') giorniSaltati.set(a.date, 'no_show');
+    else if (!giorniSaltati.has(a.date)) giorniSaltati.set(a.date, 'cancelled');
+  }
+  let disdette = 0, noShow = 0;
+  for (const tipo of giorniSaltati.values()) {
+    if (tipo === 'no_show') noShow++; else disdette++;
   }
   const mancati = disdette + noShow;
   const conclusi = completati + mancati;

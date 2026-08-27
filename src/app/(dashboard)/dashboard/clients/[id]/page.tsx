@@ -117,7 +117,13 @@ export default function ClientDetailPage() {
     const recenti = clientAppointments.filter(a => a.date >= dalAffidabilita);
     return {
       // La lista serve solo per i motivi qui sotto: i conteggi li dà la regola.
-      disdetteLista: recenti.filter(a => a.status === 'cancelled'),
+      /*
+        Una riga per giornata, come il conteggio: tre disdette dello stesso
+        giorno sono quasi sempre lo stesso appuntamento preso male e corretto,
+        e in elenco diventavano tre righe identiche.
+      */
+      disdetteLista: recenti.filter(a => a.status === 'cancelled')
+        .filter((a, i, tutte) => tutte.findIndex(x => x.date === a.date) === i),
       ...valutaAffidabilita(clientAppointments, dalAffidabilita),
     };
   }, [clientAppointments, dalAffidabilita]);
