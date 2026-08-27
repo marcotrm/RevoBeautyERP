@@ -1,0 +1,9 @@
+# Pipecat con i soli pezzi che servono: telefonia Twilio, Deepgram per capire,
+# Fish Audio per parlare, Anthropic per pensare, Silero per sapere quando la
+# cliente ha finito di parlare.
+pipecat-ai[anthropic,deepgram,fish,silero,webrtc]~=0.0.90
+fastapi~=0.120.0
+uvicorn[standard]~=0.40.0
+httpx~=0.28.0
+loguru~=0.7.3
+python-dotenv~=1.1.0
