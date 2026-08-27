@@ -57,7 +57,7 @@ export interface WaTemplate {
 }
 
 /**
- * Nota sui testi: RevoBeauty è un centro di medicina estetica, non un salone.
+ * Nota sui testi: RevoBeauty è un centro di estetica avanzata, non un salone.
  * Due conseguenze sulla copy:
  *  - niente concordanze al femminile ("passata", "trovata"): la clientela è mista;
  *  - nei template MARKETING non si nominano procedure mediche (filler, botox,

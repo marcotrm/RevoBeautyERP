@@ -5,7 +5,7 @@
  * del centro, e la disponibilità dei prossimi giorni. Non inventa: se un dato non
  * è nel contesto, dice di non saperlo e passa la parola a una persona.
  *
- * Limiti deliberati, perché RevoBeauty è un centro di medicina estetica:
+ * Limiti deliberati, perché RevoBeauty è un centro di estetica avanzata:
  *  - nessuna indicazione medica, diagnosi, controindicazione o consiglio clinico:
  *    su quei temi rimanda sempre alla consulenza in sede;
  *  - nessun prezzo o promozione inventata: solo quelli a listino;
@@ -89,7 +89,7 @@ async function buildContext(): Promise<string> {
   ].join('\n');
 }
 
-const SYSTEM_RULES = `Sei l'assistente WhatsApp di ${BUSINESS.name}, un centro di medicina estetica.
+const SYSTEM_RULES = `Sei l'assistente WhatsApp di ${BUSINESS.name}, un centro di estetica avanzata.
 Rispondi in italiano, con tono cordiale e professionale, dando del tu.
 
 REGOLE INDEROGABILI:
