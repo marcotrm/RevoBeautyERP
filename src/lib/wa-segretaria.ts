@@ -979,13 +979,23 @@ async function scaricaFoto(
  * li ha mai letti, e farglieli credere detti e' peggio che non averli.
  */
 async function storicoDaArchivio(phone: string): Promise<Battuta[]> {
-  const messaggi = await listMessages(phone, 60).catch(() => []);
+  const messaggi = await listMessages(phone, 80).catch(() => []);
   return messaggi
     .filter(m => m.text?.trim() && (m.direction === 'in' || m.ok !== false))
-    .slice(-14)
+    .slice(-MEMORIA_TURNI)
     .map(m => ({
       role: m.direction === 'in' ? ('user' as const) : ('assistant' as const),
-      text: m.text.trim(),
+      /*
+        Quando ha risposto una persona, si dice.
+
+        Non e' un dettaglio di forma: cambia cosa deve fare adesso. Se una
+        collega ha gia' promesso un orario o ha gia' preso in mano la
+        questione, la segretaria non deve ricominciare da capo ne'
+        contraddirla — e senza questa riga quelle frasi le sembrano sue.
+      */
+      text: m.direction === 'out' && m.source === 'manual'
+        ? `(scritto da una collega del centro) ${m.text.trim()}`
+        : m.text.trim(),
     }));
 }
 
@@ -1259,16 +1269,28 @@ async function turno(
   const ctx: Contesto = { phone, clienteId: null, passata: null, prenotato: null };
 
   /*
-    Prima battuta con questo numero: si recupera dall'archivio quello che il
-    centro e la cliente si sono gia' detti. Non e' un lusso — senza, la
-    segretaria chiede come si chiama a chi scrive da mesi.
+    La conversazione si rilegge dall'archivio OGNI VOLTA, non solo la prima.
+
+    `turni` e' la memoria del bot, e contiene solo quello che ha detto lui e
+    quello che gli e' stato detto mentre rispondeva. Non contiene i messaggi
+    scritti a mano dalle ragazze dal gestionale: quelli non ci sono mai
+    entrati. E siccome prima l'archivio si leggeva solo a `turni` vuoto, dopo
+    la prima risposta la segretaria restava cieca su tutto quello che avevano
+    scritto le colleghe — per sempre.
+
+    Si e' visto: il 26 agosto la cliente aveva gia' detto che trattamento
+    voleva, il 28 ha scritto «possibile oggi verso le 11» e si e' sentita
+    chiedere «per quale trattamento?». La risposta giusta era due messaggi
+    sopra, nella stessa chat.
+
+    L'archivio invece e' quello che la cliente ha davvero davanti sul
+    telefono, chiunque l'abbia scritto. E' l'unica versione che conta, e
+    adesso e' quella che legge anche lei. `turni` resta come rete: se
+    l'archivio non risponde, meglio la memoria parziale che nessuna.
   */
-  if (stato.turni.length === 0) {
-    const storico = await storicoDaArchivio(phone);
-    if (storico.length > 0) {
-      console.log(`[wa-segretaria] ${phone}: ripresa la chat dall'archivio (${storico.length} battute)`);
-      stato = { ...stato, turni: storico };
-    }
+  const storico = await storicoDaArchivio(phone);
+  if (storico.length > 0) {
+    stato = { ...stato, turni: storico };
   }
 
   const partenza = livelloDiPartenza({

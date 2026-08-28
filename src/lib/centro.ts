@@ -61,6 +61,15 @@ export interface Centro {
    * condizionata (il numero pubblico squilla ancora davvero).
    */
   telefonoPassaggio?: string;
+  /**
+   * Dove arriva il report della sera, se Telegram non e' configurato.
+   *
+   * L'autocritica scriveva solo su Telegram, e `sendTelegram` quando non e'
+   * configurato risponde `ok:false` senza che se ne accorga nessuno: il
+   * report c'era, era scritto nel gestionale, e non lo leggeva nessuno perche'
+   * nessuno sapeva di doverlo aprire.
+   */
+  emailReport?: string;
   sito?: string;
   /** Da "1" (lunedì) a "7" (domenica). `null` = chiuso tutto il giorno. */
   orari?: Record<string, OrarioGiorno | null>;
@@ -77,6 +86,7 @@ export const CENTRO: Centro = {
   indirizzo: 'Via Caudina 30 · Maddaloni (CE)',
   telefono: '',
   telefonoPassaggio: '',
+  emailReport: '',
   sito: 'revobeauty.it',
   orari: {
     '1': { apre: '09:00', chiude: '19:00' },
