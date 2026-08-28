@@ -540,18 +540,22 @@ function slotDelGiorno(
       /*
         Chi puo' davvero fare QUESTO trattamento.
 
-        Tre condizioni, e la terza mancava: l'operatrice chiesta dalla cliente
-        se ne ha chiesta una; la categoria spuntata in Staff; e le spunte del
-        listino sul singolo trattamento. Senza l'ultima il motore restava
-        dentro la categoria e assegnava a caso: chi sa fare «Unghie» si vedeva
-        arrivare la ricostruzione anche se in listino quella riga non ce
-        l'aveva. Se ne accorgeva la ragazza al banco, con la cliente gia'
-        seduta.
+        Due criteri, e il piu' preciso vince. Se in listino quel trattamento ha
+        le spunte — la colonna «chi lo fa» —, quelle sono l'elenco completo e
+        basta: sono state messe guardando la riga, una per una. Se non ce l'ha,
+        si scende alle categorie spuntate in Staff, che e' il criterio grosso.
+
+        Prima valevano tutte e due insieme, e le due cose si tagliavano a
+        vicenda: bastava che una sola operatrice avesse spuntato «Unghie» in
+        Staff perche' la categoria diventasse sua, e da quel momento la
+        pedicure con Luisa e Rosaria spuntate in listino non la poteva fare
+        nessuno — nessuno slot, mai, e nessun messaggio a dirlo. Erano cinque
+        trattamenti, due dei quali completamente irraggiungibili da WhatsApp,
+        dall'app e dalla pagina di prenotazione.
       */
       const candidate = ctx.operatori.filter(o =>
         (!p.operatorId || o.id === p.operatorId)
-        && ctx.competenze.get(o.id)?.has(p.category)
-        && (p.abili.length === 0 || p.abili.includes(o.id)));
+        && (p.abili.length > 0 ? p.abili.includes(o.id) : ctx.competenze.get(o.id)?.has(p.category)));
 
       for (const op of candidate) {
         if (!libera(op.id, cursore, fine, lavoro, occupato)) continue;
