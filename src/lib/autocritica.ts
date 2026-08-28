@@ -42,6 +42,7 @@ import { leggiCentro, salvaCentro } from './centro';
 import { costruisciIstruzioni } from './istruzioniAssistente';
 import { modelloDiTesta } from './orchestrazione';
 import { sendTelegram } from './telegram';
+import { sendEmail } from './mail';
 import { listConversations, listMessages } from './wa-conversations';
 
 const RIGA_ESITO = (giorno: string) => `wa:autocritica:${giorno}`;
@@ -436,7 +437,18 @@ const FACCIA: Record<number, string> = { 1: '🔴', 2: '🟠', 3: '🟡', 4: '�
 async function avvisaCentro(a: Autocritica): Promise<void> {
   const gravi = a.problemi.filter(p => p.gravita === 'grave');
   const medi = a.problemi.filter(p => p.gravita === 'media');
-  if (gravi.length === 0 && a.proposte.length === 0 && a.voto >= 4) return;
+
+  /*
+    Parte ogni sera, anche quando e' andato tutto bene.
+
+    Qui prima si taceva nelle giornate senza problemi, per la ragione giusta:
+    un riepilogo che dice sempre «tutto bene» smette di essere letto, e il
+    giorno che dice qualcosa non lo legge piu' nessuno. Il centro ha chiesto
+    il contrario — vuole vedere ogni sera com'e' andata — e ha ragione lui,
+    perche' il silenzio non distingue «nessun problema» da «non ha girato».
+    Il verdetto sta nell'oggetto e nella faccia: una giornata buona si legge
+    in un secondo e si chiude.
+  */
 
   const righe = [
     `${FACCIA[a.voto] || '🟡'} *La segretaria si è riletta* — ${a.giorno}`,
@@ -460,7 +472,47 @@ async function avvisaCentro(a: Autocritica): Promise<void> {
     righe.push('', '_Non è stato cambiato niente: si accetta dal gestionale, in Assistente._');
   }
 
-  await sendTelegram(righe.join('\n'));
+  const testo = righe.join('\n');
+
+  /*
+    Il report deve arrivare a qualcuno.
+
+    Prima usciva solo su Telegram. Ma `sendTelegram` quando non e' configurato
+    risponde `ok:false` e non lo sa nessuno: il report veniva scritto ogni
+    sera nel gestionale e non lo leggeva mai nessuno, perche' nessuno sapeva
+    di doverlo aprire. Un rapporto che non arriva e' un rapporto che non
+    esiste — lo stesso difetto della chiamata d'aiuto che finiva nel vuoto.
+
+    Quindi: Telegram se c'e', altrimenti l'email del centro. E se non c'e'
+    nessuno dei due, lo si scrive nel log a chiare lettere invece di far finta
+    di aver avvisato.
+  */
+  const suTelegram = await sendTelegram(testo).catch(() => ({ ok: false as const }));
+  if (suTelegram.ok) return;
+
+  const centro = await leggiCentro().catch(() => null);
+  const dove = (centro?.emailReport || '').trim();
+  if (!dove) {
+    console.log(
+      `[autocritica] ${a.giorno}: report pronto ma non recapitato — ne' Telegram ne' email del centro `
+      + 'sono configurati. Si legge in Assistente → Come sta andando.'
+    );
+    return;
+  }
+
+  const esito = await sendEmail({
+    to: dove,
+    subject: `${FACCIA[a.voto] || '🟡'} La segretaria si è riletta — ${a.giorno} (voto ${a.voto}/5)`,
+    // Il report e' scritto per essere letto di corsa: si tiene la stessa
+    // impaginazione del messaggio, senza rifarla in HTML.
+    html: `<pre style="font:14px/1.6 -apple-system,Segoe UI,sans-serif;white-space:pre-wrap">${
+      testo.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string))
+    }</pre>`,
+  }).catch(() => ({ ok: false as const, error: 'errore' }));
+
+  if (!esito.ok) {
+    console.log(`[autocritica] ${a.giorno}: report non recapitato a ${dove} (${'error' in esito ? esito.error : 'errore'})`);
+  }
 }
 
 // ============================================================

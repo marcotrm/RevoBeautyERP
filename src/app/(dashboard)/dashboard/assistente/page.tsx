@@ -145,6 +145,9 @@ export default function AssistentePage() {
           <Campo etichetta="Passa le chiamate a" valore={centro.telefonoPassaggio || ''}
             aiuto="Dove gira la telefonata quando non ne viene fuori. Se le chiamate del numero pubblico sono già deviate sull'assistente, qui va un numero DIVERSO: altrimenti la rimanda a se stessa e non risponde nessuno. Vuoto = usa il numero pubblico."
             onChange={v => { setCentro({ ...centro, telefonoPassaggio: v }); setSalvato(false); }} />
+          <Campo etichetta="Email per il report della sera" valore={centro.emailReport || ''}
+            aiuto="Ogni sera alle 21:30 ci arriva il resoconto di come ha risposto. Se resta vuoto il report si legge solo qui, in «Come sta andando»."
+            onChange={v => { setCentro({ ...centro, emailReport: v }); setSalvato(false); }} />
           <Campo etichetta="Sito" valore={centro.sito || ''}
             onChange={v => { setCentro({ ...centro, sito: v }); setSalvato(false); }} />
         </div>
