@@ -471,14 +471,18 @@ function chiedeSeDisdire(testo: string): boolean {
 function eUnSi(testo: string): boolean {
   const t = testo.toLowerCase().trim().replace(/[!.]+$/, '');
   /*
-    Basta un «ma» perche' non sia piu' un si' secco: «va bene ma preferisco
-    spostarlo» e' un'altra conversazione, e disdire li' sarebbe un disastro.
-    Un «grazie» da solo non conta: ringrazia anche chi sta ancora pensando.
+    Chi risponde «grazie mille» a «te lo disdico?» sta dicendo di si', e anche
+    «va bene ma preferisco spostarlo»: in tutti e due i casi quel posto lei non
+    lo occupa piu', ed e' l'unica cosa che all'agenda interessa. Il nuovo
+    appuntamento e' un discorso a parte, che si fa dopo.
+
+    Restano fuori solo i veri no e i rinvii: negazioni, «aspetta», «ci penso»,
+    «ti faccio sapere». Nel dubbio non si disdice e decide il modello.
   */
-  if (/\b(no|non|ma|pero|però|invece|preferisco|magari|aspetta|spostar|spostiamo)\b/.test(t)) return false;
+  if (/\b(no|non|nemmeno|neanche|aspetta|attendi|fammi|ci penso|ci devo pensare|vediamo|ti faccio sapere|ti dico|ti confermo)\b/.test(t)) return false;
   // Niente \b in coda: in JavaScript la «ì» accentata non e' un carattere di
   // parola, e «si'» finiva per non essere riconosciuto proprio.
-  return /^(s[iì]s[iì]|s[iì]|si'|ok|okay|va bene|va benissimo|certo|perfetto|d'accordo|daccordo|👍|✅)(?![a-z])/.test(t);
+  return /^(s[iì]s[iì]|s[iì]|si'|ok|okay|va bene|va benissimo|certo|perfetto|d'accordo|daccordo|grazie|👍|✅)(?![a-z])/.test(t);
 }
 
 /**
