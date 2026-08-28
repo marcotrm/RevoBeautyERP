@@ -17,7 +17,10 @@ $centro = rb_centro();
 <section class="sezione foto-chi-siamo rivela">
 	<?php $foto = is_readable( RB_DUE_DIR . '/assets/img/chi-siamo.webp' ) ? RB_DUE_URI . '/assets/img/chi-siamo.webp' : ''; ?>
 	<?php if ( $foto ) : ?>
-		<img src="<?php echo esc_url( $foto ); ?>" alt="Il centro RevoBeauty a Maddaloni" width="1200" height="675" loading="lazy" />
+		<picture>
+			<source type="image/avif" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/chi-siamo.avif" />
+			<img src="<?php echo esc_url( $foto ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/chi-siamo-800.webp 800w, <?php echo esc_attr( $foto ); ?> 1600w" sizes="(max-width: 1120px) 100vw, 1072px" alt="Il bancone di RevoBeauty con il logo dorato retroilluminato" width="1600" height="900" loading="lazy" />
+		</picture>
 	<?php else : ?>
 		<div class="foto-attesa" aria-hidden="true"><span>Qui la foto vera del centro</span></div>
 	<?php endif; ?>

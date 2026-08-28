@@ -7,8 +7,10 @@ get_header();
 $listino  = rb_listino();
 $whatsapp = rb_whatsapp_url();
 
-/* Le quattro foto della striscia hero: si mettono in assets/img come
-   hero-1.webp … hero-4.webp. Finché non ci sono, gradiente caldo. */
+/* L'eroe fotografico: la vetrina vera al tramonto (assets/img/hero-full-*).
+   Se le foto non ci sono, si ripiega sul logotipo gigante con le strisce. */
+$foto_eroe = is_readable( RB_DUE_DIR . '/assets/img/hero-full-1400.webp' );
+
 $strisce = array();
 for ( $i = 1; $i <= 4; $i++ ) {
 	$file = "/assets/img/hero-$i.webp";
@@ -16,6 +18,26 @@ for ( $i = 1; $i <= 4; $i++ ) {
 }
 ?>
 
+<?php if ( $foto_eroe ) : ?>
+<section class="eroe eroe-foto">
+	<picture class="eroe-sfondo">
+		<source type="image/avif" sizes="100vw" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-800.avif 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-1400.avif 1400w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-2000.avif 2000w" />
+		<source type="image/webp" sizes="100vw" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-800.webp 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-1400.webp 1400w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-2000.webp 2000w" />
+		<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/hero-full-1400.webp' ); ?>" alt="La vetrina illuminata di RevoBeauty in via Caudina a Maddaloni, al tramonto" width="2000" height="1494" fetchpriority="high" />
+	</picture>
+	<div class="eroe-velo" aria-hidden="true"></div>
+	<div class="eroe-contenuto">
+		<p class="eroe-riga">Maddaloni · Via Caudina 30</p>
+		<h1 class="eroe-titolo">Il centro di estetica avanzata <em>a Maddaloni.</em></h1>
+		<div class="eroe-azioni">
+			<a class="bottone bottone-oro" href="<?php echo esc_url( rb_prenota_url() ); ?>">Prenota online</a>
+			<?php if ( $whatsapp ) : ?>
+				<a class="bottone bottone-scuro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">WhatsApp</a>
+			<?php endif; ?>
+		</div>
+	</div>
+</section>
+<?php else : ?>
 <section class="eroe">
 	<div class="eroe-strisce" aria-hidden="true">
 		<?php foreach ( $strisce as $i => $src ) : ?>
@@ -34,6 +56,7 @@ for ( $i = 1; $i <= 4; $i++ ) {
 		<?php endif; ?>
 	</div>
 </section>
+<?php endif; ?>
 
 <section class="sezione intro">
 	<p class="occhiello rivela">Centro estetico · <?php echo esc_html( rb_centro()['indirizzo'] ?? 'Via Caudina 30, Maddaloni' ); ?></p>

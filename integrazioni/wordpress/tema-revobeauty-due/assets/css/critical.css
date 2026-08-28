@@ -136,3 +136,25 @@ a:hover { color: var(--bordeaux); }
   .eroe { min-height: 72vh; }
   .eroe-strisce { gap: 8px; padding: 0 12px; }
 }
+
+/* ── Eroe fotografico (quando le foto vere ci sono) ───────────────────── */
+.eroe-foto { justify-content: flex-end; align-items: stretch; padding: 0; min-height: 86vh; }
+.eroe-sfondo { position: absolute; inset: 0; }
+.eroe-sfondo img { width: 100%; height: 100%; object-fit: cover; object-position: center 42%; }
+.eroe-velo {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(10,10,10,.30) 0%, rgba(10,10,10,.12) 42%, rgba(10,10,10,.82) 100%);
+}
+.eroe-contenuto {
+  position: relative; max-width: var(--largo); width: 100%;
+  margin: 0 auto; padding: 0 24px 64px;
+  display: flex; flex-direction: column; gap: 18px; align-items: flex-start;
+}
+.eroe-titolo {
+  font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 5.6vw, 62px);
+  line-height: 1.08; margin: 0; max-width: 640px; color: var(--crema);
+}
+.eroe-titolo em { font-style: italic; color: var(--oro-chiaro); }
+.eroe-foto .eroe-riga { margin: 0; text-align: left; color: #d9d3c6; }
+.eroe-foto .eroe-azioni { margin-top: 12px; justify-content: flex-start; }
+@media (max-width: 760px) { .eroe-foto { min-height: 78vh; } .eroe-contenuto { padding-bottom: 44px; } }
