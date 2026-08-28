@@ -31,6 +31,7 @@ from pipecat.services.anthropic.llm import AnthropicLLMService
 from pipecat.frames.frames import (
     ErrorFrame,
     Frame,
+    InputAudioRawFrame,
     InterimTranscriptionFrame,
     TranscriptionFrame,
     TTSSpeakFrame,
@@ -105,6 +106,30 @@ def leggi(dati: dict, campo: str) -> str:
             if valore:
                 return str(valore)
     return ""
+
+
+class Microfono(FrameProcessor):
+    """
+    Conta l'audio che arriva dal telefono.
+
+    Domanda a cui finora non si poteva rispondere: quando la cliente parla e
+    l'assistente resta muto, la sua voce ci arriva e non viene riconosciuta,
+    oppure non ci arriva proprio? Sono due guasti diversi — uno si aggiusta
+    sulla soglia della voce, l'altro sulla linea con Twilio. Qui si segna il
+    primo pacchetto audio e quanti ne sono arrivati in tutto.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.pacchetti = 0
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+        if isinstance(frame, InputAudioRawFrame):
+            self.pacchetti += 1
+            if self.pacchetti == 1:
+                logger.info("primo audio dalla cliente: la linea porta la voce")
+        await self.push_frame(frame, direction)
 
 
 class Orecchie(FrameProcessor):
@@ -211,7 +236,20 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
             # Mezzo secondo di silenzio prima di considerare finita la frase.
             # Più corto e le si parla sopra mentre pensa; più lungo e sembra
             # che non abbia capito.
-            vad_analyzer=SileroVADAnalyzer(params=VADParams(stop_secs=0.5)),
+            #
+            # E la soglia di volume va abbassata. Di suo Pipecat parte da 0.6,
+            # che è tarato su un microfono da computer in una stanza chiusa: al
+            # telefono la voce arriva a 8 kHz, compressa dalla rete e schiacciata
+            # dal codec, e resta sotto quella soglia. Nei log di produzione si
+            # vede il risultato — la cliente parla e non compare NESSUN «User
+            # started speaking», come se in linea non ci fosse nessuno.
+            #
+            # 0.2 è abbastanza basso da sentire chi parla piano o da lontano, e
+            # abbastanza alto da non scambiare per voce il fruscio della linea:
+            # sotto, il rumore di fondo farebbe partire turni a vuoto.
+            vad_analyzer=SileroVADAnalyzer(
+                params=VADParams(stop_secs=0.5, min_volume=0.2)
+            ),
         ),
     )
 
@@ -541,8 +579,11 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
         llm.register_function(nome, funzione)
 
     # ------------------------------------------------------------- pipeline
+    microfono = Microfono()
+
     pipeline = Pipeline([
         transport.input(),
+        microfono,
         stt,
         Orecchie(),
         aggregator.user(),
@@ -585,6 +626,13 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
     @transport.event_handler("on_client_disconnected")
     async def _chiusa(_transport, _client):
         durata = (datetime.datetime.now(datetime.timezone.utc) - iniziata).total_seconds()
+        # Quanto audio e' arrivato davvero: 50 pacchetti al secondo. Una
+        # telefonata di dieci secondi con poche centinaia di pacchetti vuol
+        # dire che la voce non passava; con migliaia vuol dire che passava e
+        # non l'abbiamo riconosciuta.
+        logger.info(
+            f"chiusa dopo {durata:.0f}s · audio ricevuto: {microfono.pacchetti} pacchetti"
+        )
         for m in context.get_messages():
             if m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str):
                 trascrizione.append({
