@@ -304,6 +304,12 @@ model Appointment {
   /// Chi ha deciso il prezzo diverso: serve a chi guarda i conti a fine mese,
   /// non a controllare le persone — ma senza, uno sconto è di nessuno.
   discountBy        String?
+  /// Seduta già pagata prima del giorno, di solito da qualcun altro: il padre
+  /// che passa e paga il trattamento della figlia per la settimana dopo. Dentro
+  /// c'è la riga di cassa dove i soldi sono entrati davvero (o la nota di chi
+  /// li ha presi), così al check-out non si incassa una seconda volta e chi è
+  /// al banco quel giorno lo sa senza aver parlato con nessuno.
+  paidAhead         Json?
   color             String
   createdAt         String
   updatedAt         String

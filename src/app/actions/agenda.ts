@@ -67,11 +67,14 @@ export async function createAppointment(data: Omit<Appointment, 'id' | 'createdA
     });
   }
 
-  const { services, ...rest } = data;
+  const { services, paidAhead, ...rest } = data;
   const appointment = await prisma.appointment.create({
     data: {
       ...rest,
       services: services ? JSON.parse(JSON.stringify(services)) : undefined,
+      // Un appuntamento nasce quasi sempre da pagare; il "gia' pagato" si mette
+      // dopo, dal pannello. Ma se arriva gia' scritto va salvato lo stesso.
+      paidAhead: paidAhead ? JSON.parse(JSON.stringify(paidAhead)) : undefined,
       clientId: targetClientId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -118,7 +121,7 @@ function inizioPerLaCliente(a: {
 }
 
 export async function updateAppointmentAction(id: string, updates: Partial<Appointment>) {
-  const { services, ...rest } = updates;
+  const { services, paidAhead, ...rest } = updates;
   // Lo stato precedente serve in due casi: per notificare l'annullamento una
   // volta sola, e per far avanzare le sfide solo alla prima volta che
   // l'appuntamento viene completato (un check-out ripetuto non vale due passi).
@@ -141,6 +144,8 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
     data: {
       ...rest,
       ...(services !== undefined ? { services: services ? JSON.parse(JSON.stringify(services)) : null } : {}),
+      // `null` toglie il "gia' pagato": e' come si annulla una segnatura sbagliata.
+      ...(paidAhead !== undefined ? { paidAhead: paidAhead ? JSON.parse(JSON.stringify(paidAhead)) : null } : {}),
       updatedAt: new Date().toISOString()
     }
   });

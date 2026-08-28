@@ -253,6 +253,31 @@ export interface AppointmentService {
   productId?: string;
 }
 
+/**
+ * Una seduta già pagata prima del giorno.
+ *
+ * Nasce da una cosa che al banco succede di continuo: il padre passa oggi e
+ * paga il trattamento che la figlia farà venerdì. Venerdì al banco c'è
+ * qualcun altro, che non era lì e non lo sa: o richiede i soldi, o telefona a
+ * chiedere. Qui resta scritto sull'appuntamento, con la riga di cassa dove i
+ * soldi sono entrati davvero — se c'è.
+ */
+export interface PagatoPrima {
+  /** La riga di cassa dell'incasso, quando è stato battuto in cassa. */
+  txId?: string;
+  /** Chi ha pagato: «il padre, Giuseppe». Vuoto = la cliente stessa. */
+  da?: string;
+  /** Quanto è stato pagato, per confronto col conto della seduta. */
+  importo?: number;
+  /** Il giorno dell'incasso (YYYY-MM-DD), come si legge in cassa. */
+  quando?: string;
+  /** Quello che serve sapere e che nei campi non ci sta. */
+  nota?: string;
+  /** Chi l'ha segnato, e quando: senza, è di nessuno. */
+  segnatoDa?: string;
+  segnatoIl?: string;
+}
+
 export interface Appointment {
   id: string;
   clientId: string;
@@ -283,6 +308,8 @@ export interface Appointment {
   discountReason?: string;
   /** Chi ha applicato il prezzo diverso dal listino. */
   discountBy?: string;
+  /** Seduta già saldata prima del giorno: vedi `PagatoPrima`. */
+  paidAhead?: PagatoPrima;
   color: string;
   createdAt: string;
   updatedAt: string;
