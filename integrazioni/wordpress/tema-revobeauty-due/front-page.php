@@ -68,7 +68,10 @@ for ( $i = 1; $i <= 4; $i++ ) {
 	// Una carta per categoria: quante voci, prezzo "da". Tutto calcolato, niente a mano.
 	$categorie = array();
 	foreach ( $listino['trattamenti'] as $t ) {
-		$c = $t['categoria'];
+		$c = $t['categoria'] ?? null;
+		if ( ! $c ) {
+			continue;
+		}
 		$prezzo = $t['donna']['prezzo'] ?? null;
 		if ( ! isset( $categorie[ $c ] ) ) {
 			$categorie[ $c ] = array( 'quante' => 0, 'da' => null );
@@ -128,11 +131,11 @@ for ( $i = 1; $i <= 4; $i++ ) {
 		<?php foreach ( array_slice( $staff, 0, 4 ) as $persona ) : ?>
 			<div class="persona rivela">
 				<?php if ( ! empty( $persona['avatar'] ) ) : ?>
-					<img class="persona-foto" src="<?php echo esc_url( $persona['avatar'] ); ?>" alt="<?php echo esc_attr( $persona['nomeBreve'] ); ?>" width="120" height="120" loading="lazy" />
+					<img class="persona-foto" src="<?php echo esc_url( $persona['avatar'] ); ?>" alt="<?php echo esc_attr( $persona['nomeBreve'] ?? '' ); ?>" width="120" height="120" loading="lazy" />
 				<?php else : ?>
-					<span class="persona-foto persona-foto-vuota" aria-hidden="true"><?php echo esc_html( mb_substr( $persona['nomeBreve'], 0, 1 ) ); ?></span>
+					<span class="persona-foto persona-foto-vuota" aria-hidden="true"><?php echo esc_html( mb_substr( (string) ( $persona['nomeBreve'] ?? '?' ), 0, 1 ) ); ?></span>
 				<?php endif; ?>
-				<span class="persona-nome"><?php echo esc_html( $persona['nomeBreve'] ); ?></span>
+				<span class="persona-nome"><?php echo esc_html( $persona['nomeBreve'] ?? '' ); ?></span>
 			</div>
 		<?php endforeach; ?>
 	</div>

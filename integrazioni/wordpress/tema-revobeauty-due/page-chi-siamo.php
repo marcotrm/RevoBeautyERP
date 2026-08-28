@@ -36,11 +36,11 @@ $centro = rb_centro();
 			?>
 			<div class="scheda-persona rivela">
 				<?php if ( ! empty( $persona['avatar'] ) ) : ?>
-					<img class="scheda-foto" src="<?php echo esc_url( $persona['avatar'] ); ?>" alt="<?php echo esc_attr( $persona['nome'] ); ?>" width="280" height="320" loading="lazy" />
+					<img class="scheda-foto" src="<?php echo esc_url( $persona['avatar'] ); ?>" alt="<?php echo esc_attr( $persona['nome'] ?? '' ); ?>" width="280" height="320" loading="lazy" />
 				<?php else : ?>
-					<span class="scheda-foto scheda-foto-vuota" aria-hidden="true"><?php echo esc_html( mb_substr( $persona['nomeBreve'], 0, 1 ) ); ?></span>
+					<span class="scheda-foto scheda-foto-vuota" aria-hidden="true"><?php echo esc_html( mb_substr( (string) ( $persona['nomeBreve'] ?? '?' ), 0, 1 ) ); ?></span>
 				<?php endif; ?>
-				<span class="scheda-nome"><?php echo esc_html( $persona['nome'] ); ?></span>
+				<span class="scheda-nome"><?php echo esc_html( $persona['nome'] ?? '' ); ?></span>
 				<span class="scheda-ruolo"><?php echo esc_html( $tutte ? 'Estetista specializzata' : implode( ' · ', array_slice( $categorie, 0, 3 ) ) ); ?></span>
 			</div>
 		<?php endforeach; ?>

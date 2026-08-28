@@ -19,6 +19,9 @@ $listino = rb_listino();
 <?php if ( is_array( $listino ) && ! empty( $listino['trattamenti'] ) ) :
 	$per_categoria = array();
 	foreach ( $listino['trattamenti'] as $t ) {
+		if ( empty( $t['categoria'] ) ) {
+			continue;
+		}
 		$per_categoria[ $t['categoria'] ][] = $t;
 	}
 	$ordinate = array();
@@ -44,7 +47,7 @@ $listino = rb_listino();
 				?>
 				<li class="voce rivela">
 					<div class="voce-testo">
-						<span class="voce-nome"><?php echo esc_html( $t['nome'] ); ?></span>
+						<span class="voce-nome"><?php echo esc_html( $t['nome'] ?? '' ); ?></span>
 						<?php if ( $uomo_diverso ) : ?>
 							<span class="voce-varianti">donna <?php echo esc_html( rb_prezzo( $donna['prezzo'] ?? null ) ); ?> · <?php echo (int) ( $donna['durata'] ?? 0 ); ?> min — uomo <?php echo esc_html( rb_prezzo( $uomo['prezzo'] ?? null ) ); ?> · <?php echo (int) ( $uomo['durata'] ?? 0 ); ?> min</span>
 						<?php endif; ?>
@@ -65,7 +68,7 @@ $listino = rb_listino();
 		<div class="pacchetti">
 			<?php foreach ( $listino['pacchetti'] as $p ) : ?>
 				<div class="pacchetto rivela">
-					<span class="pacchetto-nome"><?php echo esc_html( $p['nome'] ); ?></span>
+					<span class="pacchetto-nome"><?php echo esc_html( $p['nome'] ?? '' ); ?></span>
 					<span class="pacchetto-dettagli"><?php echo (int) ( $p['sedute'] ?? 0 ); ?> sedute<?php if ( ! empty( $p['trattamento'] ) ) : ?> · <?php echo esc_html( $p['trattamento'] ); ?><?php endif; ?></span>
 					<span class="pacchetto-prezzo"><?php echo esc_html( rb_prezzo( $p['prezzo'] ?? null ) ); ?></span>
 				</div>

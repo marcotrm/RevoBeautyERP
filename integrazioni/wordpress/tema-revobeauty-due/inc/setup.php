@@ -35,6 +35,23 @@ add_action( 'wp_enqueue_scripts', function () {
    l'ottimizzatore di LiteSpeed può solo rompere l'ordine del critico inline. */
 add_filter( 'litespeed_optimize_css', '__return_false' );
 
+/**
+ * La pagina del modulo non va in cache.
+ *
+ * Il modulo porta un nonce, che vive 24 ore. Se la pagina è HTML congelato da
+ * LiteSpeed, quel nonce viene servito uguale a tutti finché la copia non viene
+ * rifatta — e la copia si rifà solo quando cambia il listino, cioè magari fra
+ * una settimana. Passate le 24 ore ogni invio finirebbe nel ramo «la pagina è
+ * rimasta aperta troppo a lungo» e il contatto sarebbe perso senza che nessuno
+ * se ne accorga: esattamente il guasto che questo tema esiste per chiudere.
+ */
+add_action( 'wp', function () {
+	if ( ! is_page( 'contatti' ) && ! ( is_singular() && has_shortcode( (string) get_post_field( 'post_content', get_the_ID() ), 'revobeauty_contatti' ) ) ) {
+		return;
+	}
+	do_action( 'litespeed_control_set_nocache', 'modulo contatti: il nonce deve essere fresco' );
+} );
+
 // Zavorra di default che queste pagine non usano.
 add_action( 'init', function () {
 	remove_action( 'wp_head', 'print_emoji_detection_script', 7 );

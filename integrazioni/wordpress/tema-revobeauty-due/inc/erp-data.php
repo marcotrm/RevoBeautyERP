@@ -52,7 +52,17 @@ function rb_erp_get( $percorso, $ttl = 600, $forza = false ) {
 		}
 	}
 
-	$risposta = wp_remote_get( rb_erp_base() . $percorso, array( 'timeout' => 8 ) );
+	$risposta = wp_remote_get(
+		rb_erp_base() . $percorso,
+		array(
+			'timeout' => 8,
+			// Il listino sta in poche decine di KB. Mezzo mega è già dieci volte
+			// il necessario, e mette al riparo dal caso in cui dall'altra parte
+			// esca per errore qualcosa di enorme: senza tetto finirebbe prima
+			// nella memoria di PHP e poi dentro wp_options.
+			'limit_response_size' => 512 * KB_IN_BYTES,
+		)
+	);
 
 	if ( ! is_wp_error( $risposta ) && 200 === (int) wp_remote_retrieve_response_code( $risposta ) ) {
 		$dati = json_decode( wp_remote_retrieve_body( $risposta ), true );
@@ -72,6 +82,16 @@ function rb_erp_get( $percorso, $ttl = 600, $forza = false ) {
 		return $paracadute;
 	}
 
+	/*
+	 * Nemmeno la copia di scorta: gestionale giù prima ancora della prima
+	 * lettura riuscita. Senza questa riga ogni singola visita rifarebbe la
+	 * chiamata e aspetterebbe gli otto secondi del timeout — due volte, perché
+	 * il footer chiede il centro e la home chiede il team: sedici secondi a
+	 * pagina, i processi del sito esauriti in pochi istanti e il sito giù per
+	 * intero. Si segna il buco per un minuto e si serve la pagina senza prezzi,
+	 * che è quello che i template sanno già fare.
+	 */
+	set_transient( $chiave, array(), MINUTE_IN_SECONDS );
 	return null;
 }
 
@@ -172,7 +192,9 @@ function rb_orari_righe() {
 	$corrente = null;
 	for ( $g = 1; $g <= 7; $g++ ) {
 		$fascia = $orari[ (string) $g ] ?? null;
-		$testo  = $fascia ? ( $fascia['apre'] . ' – ' . $fascia['chiude'] ) : 'Chiuso';
+		$testo  = ( is_array( $fascia ) && isset( $fascia['apre'], $fascia['chiude'] ) )
+			? ( $fascia['apre'] . ' – ' . $fascia['chiude'] )
+			: 'Chiuso';
 		if ( $corrente && $corrente['testo'] === $testo && $corrente['fine'] === $g - 1 ) {
 			$corrente['fine'] = $g;
 		} else {
