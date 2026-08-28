@@ -270,6 +270,11 @@ const STRUMENTI: Anthropic.Tool[] = [
           description: 'True SOLO se la cliente ha detto che vuole il prima possibile: in quel caso non le si chiede mattina o pomeriggio.',
         },
         giorni: { type: 'number', description: 'Quanti giorni guardare avanti se non hai indicato una data (default 7)' },
+        fascia: {
+          type: 'string',
+          enum: ['mattina', 'pomeriggio'],
+          description: 'Quando la cliente ti ha detto mattina o pomeriggio, mettilo QUI. Ci pensa lo strumento a tradurlo in orari.',
+        },
         dalle: { type: 'string', description: 'Prima ora accettabile, HH:MM' },
         alle: { type: 'string', description: 'Ultima ora accettabile, HH:MM' },
         uomo: { type: 'boolean', description: 'True se il cliente è un uomo: cambiano prezzi e durate' },
@@ -919,13 +924,35 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         })),
       });
 
+      /*
+        «Pomeriggio» detto a parole, non due orari da ricordare.
+
+        Il modello la fascia se la dimenticava: chiedeva mattina o pomeriggio,
+        la cliente rispondeva «pomeriggio», e lui richiamava lo strumento senza
+        limiti — riceveva cinque orari sparsi su tutta la giornata e ne
+        sceglieva uno a caso fra quelli del pomeriggio. Cosi' Rosaria, libera
+        dalle 14:50, si e' sentita proporre le 16:15.
+      */
       const fascia = {
-        oraDa: typeof dati.dalle === 'string' ? dati.dalle : null,
-        oraA: typeof dati.alle === 'string' ? dati.alle : null,
+        oraDa: typeof dati.dalle === 'string' ? dati.dalle
+          : dati.fascia === 'pomeriggio' ? '13:00'
+            : null,
+        oraA: typeof dati.alle === 'string' ? dati.alle
+          : dati.fascia === 'mattina' ? '13:00'
+            : null,
       };
 
+      /*
+        Dodici candidati, non cinque.
+
+        Il motore, quando deve tagliare, sparpaglia i suoi cinque su tutta la
+        giornata per non darli tutti alla stessa ora: giusto per una pagina di
+        prenotazione, sbagliato qui, perche' fra i cinque sparpagliati il posto
+        attaccato all'appuntamento di prima puo' non esserci proprio. Meglio
+        chiederne dodici e scegliere qui, con la regola di «Cerca buchi».
+      */
       const { giorni, durataTotale, prezzoTotale, vuoti } = await cercaSlot({
-        dateFrom, giorni: quanti, services, gender: sesso, ...fascia, maxPerGiorno: 5,
+        dateFrom, giorni: quanti, services, gender: sesso, ...fascia, maxPerGiorno: 12,
       });
 
       /*
@@ -937,7 +964,7 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         due, qui gli orari non si danno proprio: torna la domanda, e basta.
         Non e' un consiglio al modello — se non ha gli orari non puo' dirli.
       */
-      const fasciaDetta = Boolean(fascia.oraDa || fascia.oraA || dati.subito === true);
+      const fasciaDetta = Boolean(fascia.oraDa || fascia.oraA || dati.fascia || dati.subito === true);
       if (!fasciaDetta && giorni.length > 0) {
         const conta = (g: { slots: SlotProposto[] }, mattina: boolean) =>
           g.slots.filter(s => (Number(s.time.slice(0, 2)) < 13) === mattina).length;
@@ -951,7 +978,7 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
             quanti: { mattina, pomeriggio },
             giorniConPosto: giorni.map(g => dataParlata(g.date, oggi)),
             nota: 'Gli orari non te li do finche\' non sai la fascia: scrivi "daScrivere" e aspetta. '
-              + 'Poi richiama questo strumento con dalle/alle (mattina 09:00-13:00, pomeriggio 13:00-20:00).',
+              + 'Quando risponde, richiama questo strumento con fascia="mattina" o fascia="pomeriggio".',
           });
         }
       }
