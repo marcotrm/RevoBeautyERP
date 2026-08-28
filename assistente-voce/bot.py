@@ -382,9 +382,14 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
         # nessuno che parlasse.
         #
         # La frase e' fissa e la conosciamo: si manda dritta alla voce, senza
-        # scomodare il modello. Resta nel contesto perche' finisca nella
-        # trascrizione, e il primo vero turno parte quando parla la cliente.
-        context.add_message({"role": "assistant", "content": SALUTO})
+        # scomodare il modello. Il primo vero turno parte quando parla la
+        # cliente.
+        #
+        # Nel contesto NON va aggiunta a mano: ci pensa gia' l'aggregatore in
+        # fondo alla catena, che raccoglie tutto quello che l'assistente dice.
+        # Scrivendola anche qui il saluto finiva due volte di fila nel contesto
+        # e nella trascrizione, e il modello si ritrovava a leggere di essersi
+        # presentato due volte.
         await task.queue_frames([TTSSpeakFrame(SALUTO)])
 
     @transport.event_handler("on_client_disconnected")
