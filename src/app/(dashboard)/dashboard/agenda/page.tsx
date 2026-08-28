@@ -3636,6 +3636,37 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     } finally { setPagatoBusy(false); }
   };
 
+  /**
+   * Incassa adesso una seduta che si fara' un altro giorno.
+   *
+   * Passa dalla cassa vera — quindi scontrino, metodo di pagamento, tutto come
+   * sempre — ma non tocca l'appuntamento: la cliente non e' qui, non ha fatto
+   * il check-in, e quel posto deve restare in agenda come prima. L'unica cosa
+   * che cambia e' che a fine incasso ci resta scritto «pagato».
+   */
+  const incassaInAnticipo = () => {
+    const daPagare = services.filter(x => x.price > 0);
+    const trattamenti = daPagare.filter(x => !x.productId);
+    const prodotti = daPagare.filter(x => x.productId);
+    const totale = Math.max(0, trattamenti.reduce((sum, x) => sum + x.price, 0) - (appointment.discountAmount || 0));
+    try {
+      sessionStorage.setItem('revo_pos_autosale', JSON.stringify({
+        appointmentId: appointment.id,
+        pagaInAnticipo: true,
+        client: appointment.clientName,
+        servizi: trattamenti.map(x => ({ id: x.treatmentId, name: x.treatmentName, price: x.price, qty: 1 })),
+        treatment: trattamenti.map(x => x.treatmentName).join(' + '),
+        treatmentId: trattamenti.length > 0 ? appointment.treatmentId : '',
+        price: totale,
+        sconto: appointment.discountAmount || 0,
+        products: prodotti.map(x => ({ id: x.productId, name: x.treatmentName, price: x.price, qty: 1 })),
+        operator: appointment.operatorName,
+      }));
+    } catch { /* no-op */ }
+    onClose();
+    router.push('/dashboard/pos');
+  };
+
   const togliGiaPagato = async () => {
     if (pagatoBusy) return;
     setPagatoBusy(true);
@@ -4484,10 +4515,30 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 </div>
               </div>
             ) : appointment.status !== 'completed' ? (
-              <button onClick={apriGiaPagato}
-                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-success/10 border border-success/25 text-[12px] font-semibold text-success hover:bg-success/20 transition-colors">
-                <CheckCircle className="w-3.5 h-3.5" /> Questa seduta è già pagata
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                {/*
+                  Due strade diverse, e vanno tenute separate.
+
+                  «Incassa adesso» e' per i soldi che stanno arrivando ORA: il
+                  fidanzato e' al banco e paga la seduta di lei della settimana
+                  prossima. Si va in cassa, si batte lo scontrino, e
+                  l'appuntamento resta dov'e' — nessun check-in, la cliente non
+                  e' qui.
+
+                  «E' gia' pagata» e' per i soldi entrati prima, magari da un
+                  altro: si aggancia la riga di cassa che c'e' gia'.
+                */}
+                <button onClick={incassaInAnticipo}
+                  title="Prendi i soldi adesso in cassa, senza fare il check-in"
+                  className="flex items-center justify-center gap-1.5 py-2 rounded-xl gradient-accent text-white text-[12px] font-semibold hover:opacity-90 transition-opacity">
+                  <Euro className="w-3.5 h-3.5" /> Incassa adesso
+                </button>
+                <button onClick={apriGiaPagato}
+                  title="I soldi sono gia' entrati: aggancia l'incasso"
+                  className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-success/10 border border-success/25 text-[12px] font-semibold text-success hover:bg-success/20 transition-colors">
+                  <CheckCircle className="w-3.5 h-3.5" /> È già pagata
+                </button>
+              </div>
             ) : null}
 
             {/* Promemoria: le cose da chiederle quando è qui. Sta accanto ai

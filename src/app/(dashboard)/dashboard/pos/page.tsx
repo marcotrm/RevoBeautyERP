@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { getCassaforte, closeCassa, withdrawCassa, CassaMovementRecord } from '@/app/actions/cassaforte';
 import { getTransactionsByRange, emettiScontrinoOra } from '@/app/actions/pos';
+import { updateAppointmentAction } from '@/app/actions/agenda';
+import { useAuthStore } from '@/stores/useAuthStore';
 import { printThermalReceipt, primeVatRate } from '@/lib/printReceipt';
 import { buonoDiCliente, usaBuono } from '@/app/actions/buoni';
 import type { BuonoCompleanno } from '@/lib/buonoCompleanno';
@@ -873,6 +875,8 @@ function POSPageInner() {
   const [saleInitialData, setSaleInitialData] = useState<{
     client: string; treatmentName: string; treatmentId: string; price: number; operator: string;
     debtPkgId?: string; cabinMinutes?: number; appointmentId?: string;
+    /** Incasso anticipato: a vendita fatta l'appuntamento va segnato «già pagato». */
+    pagaInAnticipo?: boolean;
     products?: { id: string; name: string; price: number; qty: number }[];
     servizi?: { id: string; name: string; price: number; qty: number }[];
     sconto?: number;
@@ -995,6 +999,7 @@ function POSPageInner() {
             debtPkgId: d.debtPkgId || undefined,
             cabinMinutes: d.cabinMinutes ? Number(d.cabinMinutes) : undefined,
             appointmentId: d.appointmentId || undefined,
+            pagaInAnticipo: d.pagaInAnticipo === true,
             products: prodotti,
           });
           setShowSaleModal(true);
@@ -1011,6 +1016,27 @@ function POSPageInner() {
     const created = await addTransaction(tx);
     if (debtPkgId) {
       addPayment(debtPkgId, created.total, created.method as any, created.operator, 'Pagamento da Cassa');
+    }
+    /*
+      Incasso anticipato: la seduta e' pagata, ma e' un altro giorno.
+
+      L'appuntamento non si tocca — niente check-in, niente stato cambiato: la
+      cliente non e' qui. Si scrive solo che i soldi ci sono, agganciati a
+      QUESTA riga di cassa, cosi' il giorno della seduta chi e' al banco lo
+      vede in agenda e non richiede niente a nessuno.
+    */
+    if (saleInitialData?.pagaInAnticipo && saleInitialData.appointmentId) {
+      const chi = useAuthStore.getState().user;
+      await updateAppointmentAction(saleInitialData.appointmentId, {
+        paidAhead: {
+          txId: created.id,
+          importo: created.total,
+          quando: created.date || todayRomeStr,
+          nota: 'Incassato in anticipo alla cassa',
+          segnatoDa: [chi?.firstName, chi?.lastName].filter(Boolean).join(' ').trim() || undefined,
+          segnatoIl: new Date().toISOString(),
+        },
+      }).catch(() => alert('Incasso registrato, ma non sono riuscito a segnare l\'appuntamento come pagato: segnalo a mano dal dettaglio.'));
     }
     return created;
   };
