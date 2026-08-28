@@ -77,7 +77,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             continuano a premere tasti che il server non riconosce più. */}
         <VersioneNuova />
       <PopupImmondizia />
-        <main className="p-4 lg:p-6 page-enter">
+        {/* `clip` e non `hidden`: taglia quello che sborda di lato senza
+            trasformare `main` in un riquadro che scorre — cosa che spegnerebbe
+            gli `sticky` dell'agenda e delle tabelle. Così una pagina non può
+            più allargare il documento oltre lo schermo. */}
+        <main className="p-4 lg:p-6 page-enter overflow-x-clip">
           {allowed ? children : (
             <div className="flex flex-col items-center justify-center text-center py-24 px-4">
               <div className="w-16 h-16 rounded-2xl bg-error/10 text-error flex items-center justify-center mb-5">

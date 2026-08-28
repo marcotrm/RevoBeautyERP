@@ -210,7 +210,12 @@ export default function CabinTimers() {
         visto subito, resta a z-95.
       */}
       {running.length > 0 && (
-        <div className="fixed bottom-4 right-4 z-[45] w-[280px] max-w-[calc(100vw-2rem)] rounded-2xl border border-border bg-bg-secondary/95 backdrop-blur-xl shadow-2xl overflow-hidden">
+        // Da telefono è ancorato a ENTRAMBI i lati: un elemento fisso agganciato
+        // solo a destra, se la finestra di impaginazione è più larga dello
+        // schermo, finisce fuori e per vederlo tocca scorrere di lato. Legato
+        // anche a sinistra non può andare da nessuna parte. Da tablet in su
+        // torna il riquadro da 280px in basso a destra.
+        <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-[45] sm:w-[280px] max-w-[calc(100vw-2rem)] rounded-2xl border border-border bg-bg-secondary/95 backdrop-blur-xl shadow-2xl overflow-hidden">
           <button onClick={() => setCollapsed(c => !c)}
             className="w-full flex items-center gap-2 px-3 py-2.5 bg-accent/10 hover:bg-accent/15 transition-colors">
             <Timer className="w-4 h-4 text-accent" />

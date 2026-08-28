@@ -123,6 +123,14 @@
 }
 
 html {
+  /* Lo stesso taglio che c'è su `body`, ma qui conta davvero.
+     Per le specifiche l'overflow del `body` sale alla finestra solo finché
+     `html` è `visible`, e i browser da telefono non sono d'accordo su cosa
+     significhi: su iOS la finestra di impaginazione si allarga lo stesso per
+     contenere quello che sborda, e allora tutto quello che sta `fixed` a
+     destra — il pannello «In cabina» — se ne va fuori schermo. Scritto anche
+     qui, la regola non è più interpretabile. */
+  overflow-x: hidden;
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
