@@ -120,9 +120,20 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
         ),
     )
 
+    # Le impostazioni vanno passate come oggetto, non come dizionario.
+    #
+    # Con `live_options={...}` la telefonata si apriva e cadeva subito: dentro
+    # Deepgram qualcuno chiedeva `live_options.sample_rate`, e un dizionario
+    # quell'attributo non ce l'ha. Da fuori si sentiva il cronometro partire e
+    # nessuno parlare.
+    #
+    # `live_options` esiste ancora ma e' deprecato: si usa `settings`, che e'
+    # la via buona di questa versione di Pipecat.
     stt = DeepgramSTTService(
         api_key=os.environ["DEEPGRAM_API_KEY"],
-        live_options={"language": "it", "model": "nova-2", "smart_format": True},
+        settings=DeepgramSTTService.Settings(
+            model="nova-2", language="it", smart_format=True
+        ),
     )
 
     # ------------------------------------------------------------------ voce
@@ -143,19 +154,27 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
             # I nomi delle voci sono "aura-2-<nome>-<lingua>": per l'italiano
             # si guarda l'elenco vero con GET https://api.deepgram.com/v1/models
             # invece di indovinarlo.
-            voice=os.getenv("DEEPGRAM_VOICE_ID", "aura-2-maia-it"),
+            settings=DeepgramTTSService.Settings(
+                voice=os.getenv("DEEPGRAM_VOICE_ID", "aura-2-maia-it"),
+            ),
             sample_rate=FREQUENZA,
         )
     else:
         tts = FishAudioTTSService(
             api_key=os.environ["FISH_API_KEY"],
-            model=os.environ["FISH_VOICE_ID"],
+            # La voce di Fish si sceglie con `voice`, dentro le impostazioni.
+            # `model` e `reference_id` funzionano ancora ma sono tutti e due
+            # deprecati, ed e' da questa famiglia di cambiamenti che e' arrivata
+            # la caduta del telefono: meglio non lasciarne in giro nessuno.
+            settings=FishAudioTTSService.Settings(voice=os.environ["FISH_VOICE_ID"]),
             sample_rate=FREQUENZA,
         )
 
     llm = AnthropicLLMService(
         api_key=os.environ["ANTHROPIC_API_KEY"],
-        model=os.getenv("VOCE_MODEL", "claude-opus-5"),
+        settings=AnthropicLLMService.Settings(
+            model=os.getenv("VOCE_MODEL", "claude-opus-5"),
+        ),
     )
 
     # Le istruzioni le scrive il gestionale, non stanno qui: cambiare come

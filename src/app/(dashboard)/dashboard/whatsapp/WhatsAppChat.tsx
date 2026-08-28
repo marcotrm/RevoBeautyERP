@@ -790,7 +790,7 @@ export default function WhatsAppChat() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 h-[calc(100dvh-13rem)] min-h-[28rem]">
       {/* Elenco conversazioni */}
-      <div className={`rounded-2xl bg-bg-secondary border border-border/50 flex flex-col overflow-hidden ${active ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`min-w-0 rounded-2xl bg-bg-secondary border border-border/50 flex flex-col overflow-hidden ${active ? 'hidden md:flex' : 'flex'}`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/40 flex-shrink-0">
           <p className="text-sm font-semibold text-text-primary">Conversazioni</p>
           <div className="flex items-center gap-1">
@@ -856,9 +856,15 @@ export default function WhatsAppChat() {
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-success text-white flex-shrink-0">{c.unread}</span>
                   )}
                 </div>
-                <div className="flex items-center gap-1.5 mt-0.5">
+                {/* `min-w-0` due volte, e non è una svista: `truncate` porta con
+                    sé `whitespace-nowrap`, e per un elemento dentro un flex la
+                    larghezza minima automatica è quella del suo contenuto — cioè
+                    l'anteprima INTERA, che non va a capo. Senza questo la riga
+                    non si stringe, il riquadro nemmeno, e la pagina finisce per
+                    essere più larga dello schermo. */}
+                <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
                   {c.lastMedia && <MediaThumb media={c.lastMedia} />}
-                  <p className="text-[11px] text-text-muted truncate">
+                  <p className="text-[11px] text-text-muted truncate min-w-0">
                     {c.lastDirection === 'out' && <span className="text-text-muted/70">Tu: </span>}{c.lastText}
                   </p>
                 </div>
@@ -922,7 +928,7 @@ export default function WhatsAppChat() {
       </div>
 
       {/* Thread */}
-      <div className={`relative rounded-2xl bg-bg-secondary border border-border/50 flex flex-col overflow-hidden ${active ? 'flex' : 'hidden md:flex'}`}>
+      <div className={`relative min-w-0 rounded-2xl bg-bg-secondary border border-border/50 flex flex-col overflow-hidden ${active ? 'flex' : 'hidden md:flex'}`}>
         {!active ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
             <MessageSquare className="w-8 h-8 text-text-muted/40 mb-2" />
