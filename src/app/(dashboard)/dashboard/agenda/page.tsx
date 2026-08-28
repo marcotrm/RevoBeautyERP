@@ -4024,7 +4024,18 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     router.push('/dashboard/pos');
   };
 
-  const handleCheckoutClick = () => {
+  const [confermaPagato, setConfermaPagato] = useState(false);
+
+  /*
+    Il check-out di una seduta gia' pagata deve DIRLO.
+
+    Senza avviso, chi preme check-out vede solo che la cassa non si apre: e a
+    quel punto o pensa che si sia rotto qualcosa, o i soldi li chiede lo
+    stesso. E' esattamente l'incomprensione con la cliente che questo tasto
+    doveva evitare, quindi prima di chiudere si mostra chi ha pagato e quanto.
+  */
+  const handleCheckoutClick = (giaAvvisato = false) => {
+    if (giaPagato && !giaAvvisato) { setConfermaPagato(true); return; }
     // Prenotata come "Seduta da pacchetto"? Allora si scala QUEL pacchetto,
     // in automatico e senza domande: il modale di scelta lasciava spazio a
     // check-out completati senza scalare niente (vissuto, non teoria).
@@ -4909,7 +4920,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
             <p className="text-xs text-text-muted pt-2 pb-1">Cambia stato:</p>
             <div className="grid grid-cols-2 gap-2">
               {(appointment.status === 'in_progress' || appointment.status === 'in_cabin') ? (
-                <button onClick={handleCheckoutClick}
+                <button onClick={() => handleCheckoutClick()}
                   className="col-span-2 py-2.5 rounded-xl text-sm font-medium transition-colors bg-success/10 text-success hover:bg-success/20">
                   <span className="flex items-center justify-center gap-1.5"><CheckCircle className="w-3.5 h-3.5" /> Check-out</span>
                 </button>
@@ -5232,6 +5243,54 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
               <p className="text-[10px] text-text-muted text-center">
                 Se non premi &quot;Fatto&quot; il promemoria resta, e te lo ripropongo alla visita dopo.
               </p>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Check-out di una seduta gia' pagata: si dice prima di chiudere */}
+      {confermaPagato && giaPagato && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConfermaPagato(false)} />
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="relative z-10 w-full max-w-md rounded-2xl border-2 border-success/50 bg-bg-secondary shadow-2xl overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-4 bg-success/10">
+              <div className="w-11 h-11 rounded-full bg-success/20 flex items-center justify-center text-success flex-shrink-0">
+                <CheckCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-display font-bold text-text-primary">Questa seduta è già pagata</h3>
+                <p className="text-xs text-text-secondary">Non chiedere soldi a {appointment.clientName.split(' ')[0]}.</p>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <div className="rounded-xl bg-bg-tertiary/60 border border-border p-3 space-y-1">
+                <p className="text-sm text-text-primary">
+                  {giaPagato.da ? <>Ha pagato <strong>{giaPagato.da}</strong></> : 'Saldata in anticipo'}
+                  {giaPagato.importo != null ? <> · <strong>{formatCurrency(giaPagato.importo)}</strong></> : null}
+                </p>
+                <p className="text-[11px] text-text-muted">
+                  {giaPagato.quando ? `Incassato il ${giaPagato.quando.split('-').reverse().join('/')}` : 'Data non registrata'}
+                  {giaPagato.txId ? ' · in cassa' : ' · fuori cassa'}
+                  {giaPagato.segnatoDa ? ` · segnato da ${giaPagato.segnatoDa}` : ''}
+                </p>
+                {giaPagato.nota && <p className="text-[11px] text-text-primary pt-1">{giaPagato.nota}</p>}
+              </div>
+              <p className="text-xs text-text-secondary">
+                Chiudendo, la seduta risulta fatta e <strong className="text-text-primary">la cassa non si apre</strong>: i soldi sono già entrati.
+              </p>
+            </div>
+
+            <div className="p-5 pt-0 space-y-2">
+              <button onClick={() => { setConfermaPagato(false); handleCheckoutClick(true); }}
+                className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity">
+                Ho capito, chiudi la seduta
+              </button>
+              <button onClick={() => setConfermaPagato(false)}
+                className="w-full py-2 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+                Annulla
+              </button>
             </div>
           </motion.div>
         </div>
