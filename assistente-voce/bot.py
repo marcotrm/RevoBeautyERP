@@ -26,7 +26,14 @@ from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.serializers.twilio import TwilioFrameSerializer
 from pipecat.services.anthropic.llm import AnthropicLLMService
-from pipecat.frames.frames import TTSSpeakFrame
+from pipecat.frames.frames import (
+    ErrorFrame,
+    Frame,
+    InterimTranscriptionFrame,
+    TranscriptionFrame,
+    TTSSpeakFrame,
+)
+from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.deepgram.tts import DeepgramTTSService
 from pipecat.services.fish.tts import FishAudioTTSService
@@ -86,6 +93,27 @@ def leggi(dati: dict, campo: str) -> str:
     return ""
 
 
+class Orecchie(FrameProcessor):
+    """
+    Scrive nel log cosa ha capito il telefono, e cosa e' andato storto.
+
+    Senza, quando l'assistente resta zitto non c'e' modo di sapere se non ha
+    sentito, se ha sentito male, o se ha sentito benissimo e si e' rotto
+    dopo. Una telefonata dura un minuto e non si ripete uguale: se non e'
+    scritta nel momento, quell'informazione e' persa.
+    """
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+        if isinstance(frame, TranscriptionFrame):
+            logger.info(f"capito: {frame.text!r}")
+        elif isinstance(frame, InterimTranscriptionFrame):
+            logger.debug(f"sto capendo: {frame.text!r}")
+        elif isinstance(frame, ErrorFrame):
+            logger.error(f"errore in linea: {frame.error}")
+        await self.push_frame(frame, direction)
+
+
 async def costruisci_bot(websocket, dati_chiamata: dict):
     """Monta la catena per UNA telefonata."""
     call_sid = leggi(dati_chiamata, "call_sid")
@@ -133,7 +161,26 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
     stt = DeepgramSTTService(
         api_key=os.environ["DEEPGRAM_API_KEY"],
         settings=DeepgramSTTService.Settings(
-            model="nova-2", language="it", smart_format=True
+            model="nova-2", language="it", smart_format=True,
+            # La rete di sicurezza sul fine-frase.
+            #
+            # Di suo Deepgram chiude la frase quando sente silenzio. Ma al
+            # telefono il silenzio spesso non arriva mai — traffico, il
+            # phon in sottofondo, la cliente che chiama dalla strada — e la
+            # loro documentazione lo dice: «significant background noise may
+            # prevent the speech_final=true flag from being sent». Quando non
+            # arriva, la frase non viene mai chiusa: la cliente parla,
+            # l'assistente non riceve niente e resta zitto. E' esattamente
+            # quello che si vedeva nei log, dove dopo «User stopped speaking»
+            # non compariva nessuna trascrizione.
+            #
+            # `utterance_end_ms` non ascolta il silenzio: guarda i buchi fra
+            # una parola e l'altra, quindi il rumore non lo inganna. Se il
+            # segnale normale non arriva, dopo un secondo chiude lo stesso.
+            # Vuole `interim_results` acceso, che scriviamo qui invece di
+            # fidarci del valore di partenza.
+            interim_results=True,
+            utterance_end_ms=1000,
         ),
     )
 
@@ -355,6 +402,7 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
     pipeline = Pipeline([
         transport.input(),
         stt,
+        Orecchie(),
         aggregator.user(),
         llm,
         tts,
