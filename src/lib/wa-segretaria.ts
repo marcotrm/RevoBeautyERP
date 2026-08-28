@@ -148,6 +148,17 @@ interface StatoChat {
    * appuntamento, la battuta dopo fa parte di quella cosa lì.
    */
   livello?: Livello;
+  /**
+   * Disdetta proposta e non ancora eseguita.
+   *
+   * «Nel frattempo disdico quello di oggi, ok?» e' una domanda: finche' non
+   * arriva la risposta in agenda non si tocca niente. Ma quando la risposta
+   * arriva ed e' un si', l'appuntamento DEVE sparire — se resta li', il giorno
+   * dopo le ragazze aspettano una cliente che aveva avvisato. Per questo la
+   * domanda si segna qui: al si' la disdetta la fa il gestionale, non il
+   * modello, che potrebbe anche dimenticarsene.
+   */
+  attesaDisdetta?: { appointmentId: string; quando: string; descrizione: string };
 }
 
 const riga = (phone: string) => `wa:segretaria:${phone}`;
@@ -171,6 +182,7 @@ async function leggiStato(phone: string): Promise<StatoChat> {
     // torna a scrivere dopo due giorni comincia da una domanda, non da dove
     // aveva lasciato.
     livello: s?.giorno === oggi ? s.livello : undefined,
+    attesaDisdetta: s?.attesaDisdetta,
   };
 }
 
@@ -435,6 +447,38 @@ function riconosciOperatrice<T extends { nome: string; nomeBreve: string }>(cerc
       .filter(k => k.length >= 4);
     return chiavi.some(k => k.includes(q) || q.includes(k));
   });
+}
+
+/**
+ * Il messaggio sta CHIEDENDO se disdire? (una proposta, non un fatto)
+ *
+ * Serve a sapere che la prossima risposta della cliente vale come consenso.
+ * Deve esserci il verbo al presente o al futuro e il punto interrogativo:
+ * «lo disdico?», «te lo annullo?», «vuoi che lo disdica?».
+ */
+function chiedeSeDisdire(testo: string): boolean {
+  if (!testo.includes('?')) return false;
+  return /\b(disdic|disdir|annull|cancell)\w*\b/i.test(testo)
+    && !/\b(ho|l'ho|le ho|abbiamo)\s+(gi[aà]\s+)?(disdett|annullat|cancellat)/i.test(testo);
+}
+
+/**
+ * La cliente ha detto di si'?
+ *
+ * Solo forme brevi e chiare. Nel dubbio si risponde no e decide il modello:
+ * disdire un appuntamento per un «forse» e' peggio che chiedere due volte.
+ */
+function eUnSi(testo: string): boolean {
+  const t = testo.toLowerCase().trim().replace(/[!.]+$/, '');
+  /*
+    Basta un «ma» perche' non sia piu' un si' secco: «va bene ma preferisco
+    spostarlo» e' un'altra conversazione, e disdire li' sarebbe un disastro.
+    Un «grazie» da solo non conta: ringrazia anche chi sta ancora pensando.
+  */
+  if (/\b(no|non|ma|pero|però|invece|preferisco|magari|aspetta|spostar|spostiamo)\b/.test(t)) return false;
+  // Niente \b in coda: in JavaScript la «ì» accentata non e' un carattere di
+  // parola, e «si'» finiva per non essere riconosciuto proprio.
+  return /^(s[iì]s[iì]|s[iì]|si'|ok|okay|va bene|va benissimo|certo|perfetto|d'accordo|daccordo|👍|✅)(?![a-z])/.test(t);
 }
 
 /**
@@ -1660,6 +1704,44 @@ async function turno(
     stato = { ...stato, turni: storico };
   }
 
+  /*
+    «Va bene» a una disdetta proposta: si disdice, punto.
+
+    Questa non e' una decisione da lasciare al modello. Il modello puo'
+    rispondere «perfetto, ci sentiamo» e andarsene, e l'appuntamento resta in
+    agenda: il giorno dopo le ragazze aspettano una cliente che aveva avvisato,
+    e il posto non e' stato rivenduto a nessuno. Se la domanda l'abbiamo fatta
+    noi e la risposta e' un si', la scrittura la fa il gestionale — poi il
+    modello scrive il messaggio, sapendo che e' gia' fatto.
+  */
+  let disdettoOra: string | null = null;
+  const attesa = stato.attesaDisdetta;
+  if (attesa && Date.now() - Date.parse(attesa.quando) < 24 * 3_600_000 && messaggi.some(m => eUnSi(m))) {
+    const esito = await disdiciAppuntamento(attesa.appointmentId).catch(() => null);
+    if (esito?.ok) {
+      disdettoOra = attesa.descrizione;
+      console.log(`[wa-segretaria] ${phone}: disdetta eseguita dal gestionale su conferma della cliente (${attesa.descrizione})`);
+      sendTelegram(
+        `❌ <b>Appuntamento disdetto</b>\n${attesa.descrizione}\n`
+        + 'La cliente ha confermato su WhatsApp la disdetta che le avevamo proposto.'
+      ).catch(() => {});
+    } else {
+      console.error(`[wa-segretaria] ${phone}: disdetta NON riuscita su ${attesa.appointmentId}`);
+    }
+    stato = { ...stato, attesaDisdetta: undefined };
+    if (disdettoOra) {
+      stato = {
+        ...stato,
+        turni: [...stato.turni, {
+          role: 'user',
+          text: `[GESTIONALE] Ho disdetto io l'appuntamento (${disdettoOra}) adesso, perche' hai chiesto tu `
+            + 'se disdirlo e la cliente ha detto di si\'. In agenda non c\'e\' piu\': diglielo con parole tue e '
+            + 'proponile di risentirvi per il nuovo appuntamento. Non chiamare "disdici_appuntamento", e\' gia\' fatto.',
+        }],
+      };
+    }
+  }
+
   const partenza = livelloDiPartenza({
     conFoto: foto.length > 0,
     daVocale,
@@ -1688,6 +1770,31 @@ async function turno(
   const inviato = await rispondiUnaVolta(phone, esito.testo, 'assistant');
   if (!inviato.inviato) return { risposto: false, motivo: inviato.motivo };
 
+  /*
+    Abbiamo appena chiesto «lo disdico?»: da adesso un si' vale come consenso.
+
+    L'appuntamento si sceglie ora, non al si': in questo momento sappiamo di
+    quale si sta parlando. Se ne ha piu' d'uno aperto non si segna niente e la
+    disdetta resta in mano al modello, che chiedera' quale — meglio una domanda
+    in piu' che cancellare l'appuntamento sbagliato.
+  */
+  let attesaDisdetta = stato.attesaDisdetta;
+  if (chiedeSeDisdire(esito.testo)) {
+    const scheda = await schedaDiChiScrive(phone).catch(() => null);
+    const aperti = scheda ? await prossimiAppuntamenti(scheda.id).catch(() => []) : [];
+    attesaDisdetta = aperti.length === 1
+      ? {
+          appointmentId: aperti[0].id,
+          quando: new Date().toISOString(),
+          descrizione: `${aperti[0].treatmentName} — ${quandoParlato(aperti[0].date, aperti[0].startTime, todayInItaly())}`,
+        }
+      : undefined;
+  } else if (attesaDisdetta && !disdettoOra) {
+    // La conversazione e' andata altrove: la domanda scade qui, non resta
+    // appesa a fare da grilletto a un «va bene» che parla d'altro.
+    attesaDisdetta = chiedeSeDisdire(esito.testo) ? attesaDisdetta : undefined;
+  }
+
   // Lo stato si salva DOPO l'invio riuscito: se il messaggio non è partito, la
   // conversazione non deve risultare andata avanti.
   await scriviStato({
@@ -1705,6 +1812,7 @@ async function turno(
       ? new Date(Date.now() + MUTO_ORE * 3_600_000).toISOString()
       : stato.mutoFino,
     passataMotivo: ctx.passata || stato.passataMotivo,
+    attesaDisdetta,
   });
 
   // Il contatto arrivato dal sito avanza da solo: chi ha già prenotato non va
