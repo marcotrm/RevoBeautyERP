@@ -10,15 +10,18 @@ tiene aperta una connessione per minuti interi, e Next.js non è fatto per
 quello.
 """
 
+import asyncio
 import os
 from html import escape
 from urllib.parse import parse_qs
 
+import httpx
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.responses import HTMLResponse, JSONResponse
 from loguru import logger
 from pipecat.runner.utils import parse_telephony_websocket
+from websockets.asyncio.client import connect as websocket_connect
 
 from bot import costruisci_bot, leggi
 
@@ -47,6 +50,52 @@ async def salute():
         "mancano": mancano,
         "gestionale": os.getenv("ERP_URL", "https://erp.revobeauty.it"),
     })
+
+
+@app.get("/fish")
+async def fish():
+    """
+    Cosa dice Fish del nostro credito, con parole sue.
+
+    Serve a rispondere con un dato invece che con una teoria alla domanda
+    «ho i crediti del piano, perche' mi chiede di ricaricare?». Il piano e
+    il credito API su Fish sono due contatori diversi, e questa rotta mostra
+    quello che conta per il telefono.
+
+    Due cose, e nessuna delle due stampa la chiave: quanto credito API vede
+    Fish, e se accetta di aprire la porta della voce. Il codice che risponde
+    e' l'informazione: 401 vuol dire chiave sbagliata, 402 vuol dire chiave
+    giusta e credito finito.
+    """
+    chiave = os.getenv("FISH_API_KEY", "")
+    if not chiave:
+        return JSONResponse({"errore": "FISH_API_KEY non impostata"}, status_code=503)
+
+    testa = {"Authorization": f"Bearer {chiave}"}
+    risposta: dict = {}
+
+    try:
+        async with httpx.AsyncClient(timeout=8) as c:
+            r = await c.get("https://api.fish.audio/wallet/self/api-credit", headers=testa)
+        risposta["credito_api"] = {"stato": r.status_code, "risposta": r.text[:400]}
+    except Exception as e:
+        risposta["credito_api"] = {"errore": str(e)}
+
+    try:
+        ws = await asyncio.wait_for(
+            websocket_connect(
+                "wss://api.fish.audio/v1/tts/live",
+                additional_headers={**testa, "model": os.getenv("FISH_MODEL", "s2-pro")},
+            ),
+            timeout=6,
+        )
+        await ws.close()
+        risposta["voce"] = {"apre": True}
+    except Exception as e:
+        risposta["voce"] = {"apre": False, "perche": str(e)}
+
+    risposta["voce_in_uso"] = os.getenv("VOCE_TTS", "fish").lower()
+    return JSONResponse(risposta)
 
 
 @app.post("/twiml")
