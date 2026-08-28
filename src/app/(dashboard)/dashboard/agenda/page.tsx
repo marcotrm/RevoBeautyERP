@@ -54,6 +54,7 @@ import AddClientModal from '@/components/AddClientModal';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { senzaOmaggioInaugurazione } from '@/lib/omaggioInaugurazione';
 import { esoneriScheda, esoneraScheda } from '@/app/actions/esoneroScheda';
+import { ultimoConsensoLaser, registraConsensoLaser, type FirmaLaser } from '@/app/actions/consensoLaser';
 import SegniCliente from '@/components/SegniCliente';
 import AvvisoCliente from '@/components/AvvisoCliente';
 import { nomiDoppi, omonimiDi, chiaveNome as chiaveOmonimi } from '@/lib/omonimi';
@@ -3959,7 +3960,54 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   const dopoControlloScheda = async () => {
     const aperti = clientData?.id ? await promemoriaAperti(clientData.id).catch(() => []) : [];
     if (aperti.length > 0) { setPromemoriaDaMostrare(aperti); return; }
-    proseguiCheckIn();
+    dopoPromemoria();
+  };
+
+  /*
+    Il laser vuole una firma, e la firma e' di carta.
+
+    Il modulo di responsabilita' si fa firmare prima della seduta, e l'unico
+    momento in cui glielo si puo' chiedere e' questo: la cliente e' al banco e
+    non e' ancora entrata in cabina. Detto dopo non lo dice piu' nessuno, e un
+    laser fatto senza foglio firmato e' un problema che si scopre tardi.
+
+    Il foglio resta di carta — qui si registra solo che qualcuno, quel giorno,
+    ha confermato che c'era.
+  */
+  const trattamentiLaser = services.filter(s => {
+    if (s.productId) return false;
+    const cat = s.treatmentCategory || treatments.find(t => t.id === s.treatmentId)?.category;
+    // La categoria e' il criterio; il nome e' la rete di sicurezza per le
+    // sedute vecchie salvate senza categoria.
+    return cat === 'laser' || /laser/i.test(s.treatmentName || '');
+  });
+  const [consensoLaser, setConsensoLaser] = useState<{ ultima: FirmaLaser | null } | null>(null);
+  const [consensoBusy, setConsensoBusy] = useState(false);
+
+  /** Dopo i promemoria: il consenso laser, se in questa seduta c'e' un laser. */
+  const dopoPromemoria = async () => {
+    if (trattamentiLaser.length === 0) { proseguiCheckIn(); return; }
+    const ultima = clientData?.id ? await ultimoConsensoLaser(clientData.id).catch(() => null) : null;
+    setConsensoLaser({ ultima });
+  };
+
+  /** Firma confermata: si registra e si va avanti col check-in. */
+  const confermaConsensoLaser = async () => {
+    if (consensoBusy) return;
+    setConsensoBusy(true);
+    try {
+      const io = useAuthStore.getState().user;
+      if (clientData?.id) {
+        await registraConsensoLaser(clientData.id, {
+          operatore: [io?.firstName, io?.lastName].filter(Boolean).join(' ').trim() || undefined,
+          appointmentId: appointment.id,
+        });
+      }
+    } finally {
+      setConsensoBusy(false);
+      setConsensoLaser(null);
+      proseguiCheckIn();
+    }
   };
 
   /** Dopo i promemoria: la cabina, o l'avviso che la data non è oggi. */
@@ -4997,7 +5045,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                       const restano = promemoriaDaMostrare.filter(x => x.id !== pm.id);
                       setPromemoriaDaMostrare(restano.length ? restano : null);
                       setPromemoriaVersione(v => v + 1);
-                      if (!restano.length) proseguiCheckIn();
+                      if (!restano.length) dopoPromemoria();
                     }}
                     className="px-2.5 py-1.5 rounded-lg bg-success/15 text-success text-[11px] font-bold hover:bg-success/25 flex-shrink-0">
                     Fatto
@@ -5007,12 +5055,72 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
             </div>
 
             <div className="p-5 pt-0 space-y-2">
-              <button onClick={() => { setPromemoriaDaMostrare(null); proseguiCheckIn(); }}
+              <button onClick={() => { setPromemoriaDaMostrare(null); dopoPromemoria(); }}
                 className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity">
                 Ho letto, vai al check-in
               </button>
               <p className="text-[10px] text-text-muted text-center">
                 Se non premi &quot;Fatto&quot; il promemoria resta, e te lo ripropongo alla visita dopo.
+              </p>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Laser: il modulo di responsabilità va firmato PRIMA della seduta */}
+      {consensoLaser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConsensoLaser(null)} />
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="relative z-10 w-full max-w-md rounded-2xl border-2 border-warning/50 bg-bg-secondary shadow-2xl overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-4 bg-warning/10">
+              <div className="w-11 h-11 rounded-full bg-warning/20 flex items-center justify-center text-warning flex-shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-display font-bold text-text-primary">Fai firmare il consenso</h3>
+                <p className="text-xs text-text-secondary">Seduta laser: il modulo si firma prima, non dopo.</p>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <div className="rounded-xl bg-bg-tertiary/60 border border-border p-3 space-y-1">
+                <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">In programma</p>
+                {trattamentiLaser.map((s, i) => (
+                  <p key={`${s.treatmentId}-${i}`} className="text-sm text-text-primary">{s.treatmentName}</p>
+                ))}
+              </div>
+
+              {consensoLaser.ultima ? (
+                <div className="rounded-xl bg-success/10 border border-success/25 px-3 py-2">
+                  <p className="text-xs font-semibold text-success">Risulta già firmato</p>
+                  <p className="text-[11px] text-text-secondary">
+                    Ultima conferma il {new Date(consensoLaser.ultima.data).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    {consensoLaser.ultima.operatore ? ` da ${consensoLaser.ultima.operatore}` : ''}.
+                    {' '}Controlla che il foglio sia in archivio.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-xl bg-warning/10 border border-warning/25 px-3 py-2">
+                  <p className="text-xs font-semibold text-warning">Nessuna firma registrata</p>
+                  <p className="text-[11px] text-text-secondary">
+                    Per {clientData?.firstName || appointment.clientName.split(' ')[0]} è la prima volta che risulta un laser: il modulo va firmato adesso.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-5 pt-0 space-y-2">
+              <button onClick={confermaConsensoLaser} disabled={consensoBusy}
+                className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-60">
+                {consensoBusy ? 'Registro…' : 'Ha firmato — vai al check-in'}
+              </button>
+              <button onClick={() => setConsensoLaser(null)}
+                className="w-full py-2 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+                Non ancora — mi fermo qui
+              </button>
+              <p className="text-[10px] text-text-muted text-center">
+                La firma resta sul foglio di carta. Qui si segna solo chi l&apos;ha confermata e quando.
               </p>
             </div>
           </motion.div>
