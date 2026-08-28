@@ -599,6 +599,37 @@ function pacchettoCheCopre(sch: SchedaInChat | null, nomeTrattamento: string) {
   }) || null;
 }
 
+/**
+ * Il posto e' stato preso mentre la cliente ci pensava: cosa proporle.
+ *
+ * Succede, e succedera' ancora: si propone un orario, lei risponde dopo due
+ * ore e nel frattempo quel posto l'ha preso qualcun altro — magari dall'app,
+ * magari al banco. La cosa da NON fare e' rispondere solo «non c'e' piu'
+ * posto»: e' la frase che fa perdere una cliente che stava per prenotare.
+ * Qui si torna subito, nella stessa risposta, gli orari piu' vicini a quello
+ * che voleva, cominciando dallo stesso giorno.
+ */
+async function alternativeVicine(
+  services: ServizioRichiesto[], gender: 'male' | 'female', data: string, ora: string,
+): Promise<Array<{ giorno: string; ora: string; con: string }>> {
+  const oggi = todayInItaly();
+  const minuti = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
+  const voluto = minuti(ora);
+  try {
+    const r = await cercaSlot({ dateFrom: data, giorni: 4, services, gender, maxPerGiorno: 12 });
+    const stessoGiorno = (r.giorni.find(g => g.date === data)?.slots || [])
+      .sort((a, b) => Math.abs(minuti(a.time) - voluto) - Math.abs(minuti(b.time) - voluto))
+      .slice(0, 3)
+      .map(sl => ({ giorno: dataParlata(data, oggi), ora: sl.time, con: [...new Set(sl.assegnazioni.map(a => a.operatorName.split(' ')[0]))].join(' e ') }));
+    if (stessoGiorno.length > 0) return stessoGiorno;
+    // Quel giorno e' pieno: si guarda avanti, il primo utile di ogni giorno.
+    return r.giorni.filter(g => g.date !== data).slice(0, 3).flatMap(g => {
+      const sl = g.slots[0];
+      return sl ? [{ giorno: dataParlata(g.date, oggi), ora: sl.time, con: [...new Set(sl.assegnazioni.map(a => a.operatorName.split(' ')[0]))].join(' e ') }] : [];
+    });
+  } catch { return []; }
+}
+
 /** Esegue uno strumento e torna il testo che il modello leggerà. */
 async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<string> {
   const dati = (input || {}) as Record<string, unknown>;
@@ -1133,7 +1164,23 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         startTime: dati.ora,
         gender: sesso,
       });
-      if (!p.ok) return JSON.stringify({ ok: false, codice: p.codice, messaggio: p.messaggio });
+      if (!p.ok) {
+        if (p.codice === 'NOT_AVAILABLE') {
+          const alt = await alternativeVicine(serviziDa(dati), sesso, String(dati.data || ''), String(dati.ora || ''));
+          return JSON.stringify({
+            ok: false,
+            codice: 'POSTO_PRESO',
+            messaggio: 'Quel posto nel frattempo l\'ha preso qualcun altro.',
+            alternative: alt,
+            daScrivere: alt.length > 0
+              ? `Mi dispiace, nel frattempo quel posto è stato preso. ${alt.length === 1 ? 'Ho libero' : 'Ho libero'} ${alt.map(a => `${a.giorno} alle ${a.ora}`).join(' oppure ')}. Ti va bene?`
+              : null,
+            nota: 'DILLE CHE IL POSTO NON C\'E\' PIU\', non fare finta di niente e non prenotare altro senza chiederglielo. '
+              + 'Se ci sono alternative proponile nello stesso messaggio: e\' una cliente che stava per prenotare, non farla scappare.',
+          });
+        }
+        return JSON.stringify({ ok: false, codice: p.codice, messaggio: p.messaggio });
+      }
 
       const gettone = firmaConferma(p.dati);
       if (!gettone) return JSON.stringify({ ok: false, codice: 'CONFIG', messaggio: 'Prenotazione non configurata: passa al centro.' });
@@ -1161,7 +1208,24 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         nota: 'Prenotazione su WhatsApp',
         canale: 'segretaria WhatsApp',
       });
-      if (!esito.ok) return JSON.stringify({ ok: false, codice: esito.codice, messaggio: esito.messaggio });
+      if (!esito.ok) {
+        // Fra il «confermi?» e il suo «sì» possono passare ore: il posto puo'
+        // essere sparito proprio adesso, con la cliente che crede sia fatta.
+        if (esito.codice === 'NOT_AVAILABLE') {
+          const alt = await alternativeVicine(confermato.services, confermato.gender, confermato.date, confermato.startTime);
+          return JSON.stringify({
+            ok: false,
+            codice: 'POSTO_PRESO',
+            messaggio: 'Quel posto e\' stato preso mentre aspettavamo la conferma. NON e\' stato prenotato niente.',
+            alternative: alt,
+            daScrivere: alt.length > 0
+              ? `Mi dispiace, mentre aspettavo la conferma quel posto è stato preso. Ho libero ${alt.map(a => `${a.giorno} alle ${a.ora}`).join(' oppure ')}. Ti va bene?`
+              : null,
+            nota: 'Non dire che hai prenotato: non hai prenotato niente. Dille com\'e\' andata e proponi un altro orario.',
+          });
+        }
+        return JSON.stringify({ ok: false, codice: esito.codice, messaggio: esito.messaggio });
+      }
 
       ctx.prenotato = { id: esito.appuntamento.id, clientId: esito.appuntamento.clientId };
       /*
