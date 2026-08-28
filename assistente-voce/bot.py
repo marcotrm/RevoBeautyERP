@@ -15,6 +15,7 @@ motivo per cui usiamo Pipecat invece di incollare le tre API a mano.
 
 import asyncio
 import datetime
+import json
 import os
 
 import httpx
@@ -174,6 +175,11 @@ async def fish_risponde() -> tuple[bool, str]:
     return esito
 
 
+async def _vuoto() -> None:
+    """Niente, ma awaitable: serve a mettere in parallelo i tre caricamenti."""
+    return None
+
+
 async def costruisci_bot(websocket, dati_chiamata: dict):
     """Monta la catena per UNA telefonata."""
     call_sid = leggi(dati_chiamata, "call_sid")
@@ -305,16 +311,55 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
 
     # Le istruzioni le scrive il gestionale, non stanno qui: cambiare come
     # parla l'assistente non deve richiedere di rilasciare questo servizio.
-    try:
-        testo_istruzioni = await gestionale.istruzioni()
-    except Exception as e:
-        logger.error(f"istruzioni non caricate: {e}")
-        testo_istruzioni = "Sei l'assistente di RevoBeauty. Se non riesci ad aiutare, passa la chiamata al centro."
+    #
+    # E insieme alle istruzioni si prende gia' quello che serve SEMPRE: i dati
+    # del centro e la scheda di chi sta chiamando.
+    #
+    # Il motivo e' quello che si vedeva nei log della prima telefonata vera.
+    # Alla domanda «volevo prenotare un appuntamento» l'assistente non ha
+    # risposto niente: ha chiamato "info_centro", ha aspettato, ha chiamato
+    # "chi_chiama", ha aspettato — e chi era al telefono, sentendo solo
+    # silenzio, ha riattaccato prima che aprisse bocca. Non era ignoranza,
+    # era attesa: due andate e ritorno prima della prima parola.
+    #
+    # Quelle due risposte pero' non dipendono da cosa dice la cliente: si
+    # sanno gia' quando il telefono squilla. Quindi si chiedono qui, tutte e
+    # tre insieme invece che in fila, mentre l'assistente sta ancora dicendo
+    # il saluto — e quando la cliente parla, la risposta parte subito.
+    istruzioni, centro, scheda = await asyncio.gather(
+        gestionale.istruzioni(),
+        gestionale.info_centro(),
+        gestionale.chi_chiama(chiamante) if chiamante else _vuoto(),
+        return_exceptions=True,
+    )
+
+    if isinstance(istruzioni, BaseException):
+        logger.error(f"istruzioni non caricate: {istruzioni}")
+        istruzioni = "Sei l'assistente di RevoBeauty. Se non riesci ad aiutare, passa la chiamata al centro."
+
+    gia_saputo = ""
+    for nome, dato in (("info_centro", centro), ("chi_chiama", scheda)):
+        if isinstance(dato, BaseException):
+            logger.error(f"{nome} non caricato: {dato}")
+        elif dato:
+            gia_saputo += f"\n\n### {nome}\n{json.dumps(dato, ensure_ascii=False)}"
+
+    if gia_saputo:
+        gia_saputo = (
+            "\n\n## Quello che sai gia', senza chiedere niente a nessuno\n\n"
+            "Queste sono le risposte di \"info_centro\" e \"chi_chiama\" per QUESTA "
+            "telefonata, prese un istante fa. Valgono come se le avessi appena "
+            "chieste tu: NON richiamare quei due strumenti all'inizio, useresti "
+            "secondi di silenzio per sapere una cosa che sai gia'. Gli altri "
+            "strumenti — orari, listino, prenotazione — si usano normalmente."
+            + gia_saputo
+        )
 
     sistema = (
-        f"{testo_istruzioni}\n\n{_oggi()}\n\n"
+        f"{istruzioni}\n\n{_oggi()}\n\n"
         f"La cliente sta chiamando dal numero {chiamante}. "
         f"Usa questo numero quando uno strumento te lo chiede: non chiederglielo."
+        f"{gia_saputo}"
     )
 
     # Le istruzioni devono arrivare COME istruzioni.
