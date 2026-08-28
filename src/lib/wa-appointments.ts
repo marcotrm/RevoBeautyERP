@@ -101,9 +101,25 @@ export async function handleReminderReply(params: {
    * centro — le passerebbe davanti lasciando la cliente senza risposta.
    */
   soloConferme?: boolean;
+  /**
+   * In chat si sta gia' parlando: l'ultima parola l'abbiamo detta noi.
+   *
+   * Cambia tutto il significato delle stesse parole. Francesca aveva scritto
+   * «non potro' venire», la segretaria le aveva risposto «disdico quello di
+   * oggi, ok?», e lei «Va bene grazie 😘». Quel «va bene» e' finito qui e ha
+   * CONFERMATO l'appuntamento che voleva disdire — e la segretaria, che
+   * aspettava quella risposta, non l'ha mai vista.
+   *
+   * Con una conversazione aperta si accettano solo i BOTTONI del promemoria,
+   * che sono senza equivoci. Le parole vanno a chi sta parlando.
+   */
+  conversazioneAperta?: boolean;
 }): Promise<ReminderReplyResult> {
   const intent = detectReminderIntent(params.text, params.payloadId);
   if (!intent) return { handled: false, intent: null };
+  if (params.conversazioneAperta && !params.payloadId) {
+    return { handled: false, intent, note: 'conversazione in corso: la risposta e\' per la segretaria' };
+  }
 
   try {
     if (intent === 'reschedule' && params.soloConferme) {

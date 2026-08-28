@@ -1384,7 +1384,16 @@ async function eseguiTurno(
     indovinare lo stesso. Questo invece non e' un consiglio: e' una porta.
   */
   const orariLeciti = new Set<string>(orariIn(domanda));
-  for (const t of stato.turni) if (t.role === 'user') for (const o of orariIn(t.text)) orariLeciti.add(o);
+  /*
+    Vale tutta la conversazione, non solo questo turno.
+    
+    Un orario gia' partito in chat e' un orario verificato: quando e' stato
+    scritto ha superato questo stesso controllo (o l'ha scritto una collega dal
+    gestionale). Guardando solo il turno corrente, invece, ripetere alla
+    cliente l'orario proposto due minuti prima diventava «inventato» e il
+    messaggio non partiva: e' successo, e la cliente e' rimasta senza risposta.
+  */
+  for (const t of stato.turni) for (const o of orariIn(t.text)) orariLeciti.add(o);
   let giaCorretto = false;
 
   for (let giro = 0; giro < MAX_GIRI_STRUMENTI; giro++) {
@@ -1458,11 +1467,12 @@ async function eseguiTurno(
           });
           continue;
         }
-        // Ha insistito: il turno non produce niente. Meglio il silenzio (e la
-        // chat che resta da leggere al banco) di un appuntamento inesistente.
-        return livello === 'lavoro'
-          ? { tipo: 'sali', strumento: 'orari non verificati' }
-          : { tipo: 'niente' };
+        // Ha insistito: il turno non produce niente. Meglio il silenzio di un
+        // appuntamento inesistente — ma la chat va lasciata rossa, se no il
+        // silenzio non lo vede nessuno e la cliente resta appesa.
+        if (livello === 'lavoro') return { tipo: 'sali', strumento: 'orari non verificati' };
+        await markConversationUnread(phone).catch(() => {});
+        return { tipo: 'niente' };
       }
       // Fine del ragionamento: questo è quello che la cliente legge.
       testoFinale = testo;

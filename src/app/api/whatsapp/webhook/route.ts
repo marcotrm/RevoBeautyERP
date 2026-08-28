@@ -20,7 +20,7 @@ import { handleSpostamentoMessage, spostamentoInCorso } from '@/lib/wa-spostamen
 import { handleAssistantMessage } from '@/lib/wa-assistant';
 import { handleSegretariaMessage } from '@/lib/wa-segretaria';
 import { getWaAutomationsConfig } from '@/lib/wa-automations';
-import { logInbound, type WaMedia, type WaMediaKind } from '@/lib/wa-conversations';
+import { logInbound, listMessages, type WaMedia, type WaMediaKind } from '@/lib/wa-conversations';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -269,8 +269,27 @@ export async function POST(request: Request) {
           fare a lei: la via vecchia si limita ad avvisare il centro e la
           cliente resterebbe senza risposta fino al giorno dopo.
         */
+        /*
+          Stiamo gia' parlando? Allora quelle parole sono per chi parla.
+
+          Un «va bene» dopo che la segretaria ha chiesto «disdico quello di
+          oggi, ok?» non e' una conferma dell'appuntamento: e' un si' a lei. La
+          scorciatoia del promemoria se lo prendeva lo stesso, riconfermava
+          l'appuntamento che la cliente voleva disdire, e la segretaria non
+          vedeva mai la risposta che aspettava. Ora, con una conversazione
+          aperta da poco, passano solo i BOTTONI del promemoria.
+        */
+        const conversazioneAperta = await (async () => {
+          try {
+            const thread = await listMessages(phone, 10);
+            const ultimo = thread[thread.length - 1];
+            if (!ultimo || ultimo.direction !== 'out') return false;
+            return Date.now() - Date.parse(ultimo.at) < 6 * 3_600_000;
+          } catch { return false; }
+        })();
+
         if (!soloSegretaria) {
-          const reply = await handleReminderReply({ phone, text, payloadId, contactName, soloConferme: segretariaOn });
+          const reply = await handleReminderReply({ phone, text, payloadId, contactName, soloConferme: segretariaOn, conversazioneAperta });
           if (reply.handled) {
             console.log(`[wa-webhook] ${phone}: promemoria ${reply.intent} su appuntamento ${reply.appointmentId}`);
             continue;
