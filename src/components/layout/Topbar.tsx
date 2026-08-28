@@ -64,8 +64,11 @@ export default function Topbar() {
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-display font-semibold text-text-primary">
+        {/* `min-w-0` + truncate: su un telefono stretto il titolo si accorcia
+            coi puntini invece di spingere le icone di destra fuori dallo
+            schermo — dove, col body a overflow nascosto, sarebbero perse. */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <h1 className="text-lg font-display font-semibold text-text-primary truncate min-w-0">
             {pageTitle}
           </h1>
           <ClientChat />
@@ -166,7 +169,7 @@ export default function Topbar() {
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
-                  className="absolute right-0 top-12 w-80 bg-bg-secondary border border-border rounded-2xl shadow-xl z-50 overflow-hidden"
+                  className="absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] bg-bg-secondary border border-border rounded-2xl shadow-xl z-50 overflow-hidden"
                 >
                   <div className="p-4 border-b border-border flex items-center justify-between">
                     <h3 className="font-semibold text-text-primary">Notifiche</h3>

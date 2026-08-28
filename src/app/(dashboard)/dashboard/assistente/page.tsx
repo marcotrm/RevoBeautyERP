@@ -258,7 +258,7 @@ export default function AssistentePage() {
             </button>
           ))}
         </div>
-        <pre className="whitespace-pre-wrap text-xs text-text-secondary bg-bg-secondary border border-border rounded-xl p-4 max-h-96 overflow-auto">
+        <pre className="whitespace-pre-wrap break-words text-xs text-text-secondary bg-bg-secondary border border-border rounded-xl p-4 max-h-96 overflow-auto">
           {istruzioni}
         </pre>
       </Sezione>

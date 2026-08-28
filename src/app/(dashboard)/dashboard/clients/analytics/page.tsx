@@ -576,28 +576,30 @@ function TreatmentsTab({ stats }: { stats: ClientAnalyticsData['treatmentStats']
       </div>
 
       <div className="bg-bg-secondary border border-border rounded-2xl overflow-hidden">
-        <table className="w-full">
-          <thead className="border-b border-border bg-bg-tertiary/30">
-            <tr>
-              <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-text-muted">Trattamento</th>
-              <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-text-muted">Clienti</th>
-              <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-text-muted">Fatturato</th>
-              <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-text-muted">Ritorno Medio</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/30">
-            {stats.map((t, i) => (
-              <tr key={t.name} className="hover:bg-bg-hover/50 transition-colors">
-                <td className="px-4 py-3 text-sm text-text-primary font-medium flex items-center gap-2">
-                  <div className="w-2 h-6 rounded-full" style={{ backgroundColor: chartColors[i % chartColors.length] }} />{t.name}
-                </td>
-                <td className="px-4 py-3 text-sm text-text-secondary">{t.count}</td>
-                <td className="px-4 py-3 text-sm font-semibold text-text-primary">{fmt(t.revenue)}</td>
-                <td className="px-4 py-3 text-sm text-text-secondary">{fmt(t.avgReturn)}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px]">
+            <thead className="border-b border-border bg-bg-tertiary/30">
+              <tr>
+                <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-text-muted">Trattamento</th>
+                <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-text-muted">Clienti</th>
+                <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-text-muted">Fatturato</th>
+                <th className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-text-muted">Ritorno Medio</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border/30">
+              {stats.map((t, i) => (
+                <tr key={t.name} className="hover:bg-bg-hover/50 transition-colors">
+                  <td className="px-4 py-3 text-sm text-text-primary font-medium flex items-center gap-2">
+                    <div className="w-2 h-6 rounded-full" style={{ backgroundColor: chartColors[i % chartColors.length] }} />{t.name}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-text-secondary">{t.count}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-text-primary">{fmt(t.revenue)}</td>
+                  <td className="px-4 py-3 text-sm text-text-secondary">{fmt(t.avgReturn)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

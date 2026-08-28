@@ -289,7 +289,7 @@ function DayDetail({ date, txs, onClose }: { date: string; txs: TransactionRecor
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="grid grid-cols-4 gap-px bg-border/60 flex-shrink-0">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border/60 flex-shrink-0">
           <div className="bg-bg-secondary px-4 py-3">
             <p className="text-[10px] text-text-muted uppercase tracking-wider">Contanti</p>
             <p className="text-sm font-bold text-text-primary">{formatCurrency(tot.contanti)}</p>

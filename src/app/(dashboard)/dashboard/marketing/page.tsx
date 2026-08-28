@@ -87,7 +87,7 @@ function NewCampaignModal({ onClose, onSave }: { onClose: () => void; onSave: (c
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
           </div>
 
-          <div className="px-6 py-5 space-y-4 max-h-[calc(100vh-14rem)] overflow-y-auto">
+          <div className="px-6 py-5 space-y-4 max-h-[calc(100dvh-14rem)] overflow-y-auto">
             {step === 'info' && (
               <>
                 <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Nome Campagna *</label>
@@ -95,7 +95,7 @@ function NewCampaignModal({ onClose, onSave }: { onClose: () => void; onSave: (c
                     className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-2">Canale</label>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {CAMPAIGN_TYPES.map(ct => {
                       const Icon = ct.icon;
                       return (

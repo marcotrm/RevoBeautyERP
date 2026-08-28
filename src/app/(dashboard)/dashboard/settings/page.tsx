@@ -163,7 +163,7 @@ function AppearanceSection() {
         {/* Live Preview */}
         <div className="rounded-xl border border-border p-4 space-y-3">
           <p className="text-xs font-semibold text-text-muted uppercase tracking-wider">Anteprima</p>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <button className="px-4 py-2 rounded-xl text-white text-sm font-medium" style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}CC)` }}>Bottone Primario</button>
             <button className="px-4 py-2 rounded-xl text-sm font-medium border-2" style={{ borderColor: accentColor, color: accentColor }}>Bottone Secondario</button>
             <span className="text-sm font-medium" style={{ color: accentColor }}>Link di esempio</span>

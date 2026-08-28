@@ -788,7 +788,7 @@ export default function WhatsAppChat() {
     .slice(0, 15);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 h-[calc(100vh-13rem)] min-h-[28rem]">
+    <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 h-[calc(100dvh-13rem)] min-h-[28rem]">
       {/* Elenco conversazioni */}
       <div className={`rounded-2xl bg-bg-secondary border border-border/50 flex flex-col overflow-hidden ${active ? 'hidden md:flex' : 'flex'}`}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/40 flex-shrink-0">
@@ -942,14 +942,18 @@ export default function WhatsAppChat() {
                 <p className="text-[11px] text-text-muted font-mono">+{active}</p>
               </div>
               {/* "Quanto viene?" è la domanda più frequente in chat: la
-                  risposta è un link, e parte da qui senza scriverla a mano. */}
+                  risposta è un link, e parte da qui senza scriverla a mano.
+
+                  Da qui in poi, sotto `sm` i bottoni tengono solo l'icona:
+                  con le etichette erano ~400px e su un telefono venivano
+                  tagliati fuori — il `title` resta a spiegare cosa fanno. */}
               <MandaListino phone={active} nome={clientName || undefined} className="flex-shrink-0 py-1.5" />
 
               {/* Rimette la chat fra le non lette: chiude il thread, altrimenti
                   restando aperta verrebbe subito risegnata come letta. */}
               <button onClick={() => segnaDaLeggere(active)} title="Rimetti fra i messaggi da leggere"
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-[11px] font-medium text-text-secondary hover:bg-bg-hover hover:text-accent transition-colors flex-shrink-0">
-                <MailQuestion className="w-3.5 h-3.5" /> Da leggere
+                <MailQuestion className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Da leggere</span>
               </button>
               {/* Chiude il "da rispondere" senza scrivere: la cliente è stata
                   richiamata al telefono, o il messaggio non chiedeva niente.
@@ -957,7 +961,7 @@ export default function WhatsAppChat() {
               <button onClick={() => segnaLetta(active)} disabled={segnando}
                 title="Tolgo il segno DA RISPONDERE: l'ho gestita io"
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-[11px] font-medium text-text-secondary hover:bg-success/10 hover:text-success hover:border-success/30 transition-colors flex-shrink-0 disabled:opacity-50">
-                {segnando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Ho letto
+                {segnando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} <span className="hidden sm:inline">Ho letto</span>
               </button>
               {/* Numeri sbagliati, spam, prove: restavano in elenco marchiati
                   DA RISPONDERE e sporcavano l'unica lista che deve stare
@@ -966,7 +970,7 @@ export default function WhatsAppChat() {
               <button onClick={() => eliminaChat(active)} disabled={eliminando}
                 title="Elimina questa conversazione dall'archivio"
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-[11px] font-medium text-text-secondary hover:bg-error/10 hover:text-error hover:border-error/30 transition-colors flex-shrink-0 disabled:opacity-50">
-                {eliminando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />} Elimina
+                {eliminando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />} <span className="hidden sm:inline">Elimina</span>
               </button>
             </div>
 

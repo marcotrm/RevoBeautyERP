@@ -89,30 +89,32 @@ export default function DettaglioProdotto({ nome, onClose }: { nome: string; onC
                         Tutte le vendite, dalla più recente
                       </p>
                       <div className="rounded-xl border border-border overflow-hidden">
-                        <table className="w-full text-left border-collapse">
-                          <thead className="bg-bg-tertiary/40">
-                            <tr>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Giorno</th>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Cliente</th>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase hidden sm:table-cell">Pagato con</th>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-right">Pezzi</th>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-right">Incasso</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/40">
-                            {dati.vendite.map((v, i) => (
-                              <tr key={i} className="hover:bg-bg-hover/50">
-                                <td className="px-3 py-2 text-sm text-text-primary whitespace-nowrap">
-                                  {giorno(v.data)} <span className="text-text-muted">{v.ora}</span>
-                                </td>
-                                <td className="px-3 py-2 text-sm text-text-primary truncate max-w-[160px]">{v.cliente}</td>
-                                <td className="px-3 py-2 text-sm text-text-secondary hidden sm:table-cell">{v.metodo}</td>
-                                <td className="px-3 py-2 text-sm text-text-secondary text-right tabular-nums">{v.quantita}</td>
-                                <td className="px-3 py-2 text-sm font-semibold text-text-primary text-right tabular-nums">{formatCurrency(v.incasso)}</td>
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[480px] text-left border-collapse">
+                            <thead className="bg-bg-tertiary/40">
+                              <tr>
+                                <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Giorno</th>
+                                <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Cliente</th>
+                                <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase hidden sm:table-cell">Pagato con</th>
+                                <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-right">Pezzi</th>
+                                <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-right">Incasso</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-border/40">
+                              {dati.vendite.map((v, i) => (
+                                <tr key={i} className="hover:bg-bg-hover/50">
+                                  <td className="px-3 py-2 text-sm text-text-primary whitespace-nowrap">
+                                    {giorno(v.data)} <span className="text-text-muted">{v.ora}</span>
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-text-primary truncate max-w-[160px]">{v.cliente}</td>
+                                  <td className="px-3 py-2 text-sm text-text-secondary hidden sm:table-cell">{v.metodo}</td>
+                                  <td className="px-3 py-2 text-sm text-text-secondary text-right tabular-nums">{v.quantita}</td>
+                                  <td className="px-3 py-2 text-sm font-semibold text-text-primary text-right tabular-nums">{formatCurrency(v.incasso)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                       <p className="text-[10px] text-text-muted mt-2">
                         L&apos;incasso è calcolato al prezzo di listino di adesso: se il prezzo è cambiato dopo la

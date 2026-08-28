@@ -509,7 +509,7 @@ export default function DashboardPage() {
         </div>
         
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full min-w-[640px] text-left border-collapse">
             <thead>
               <tr className="border-b border-border text-xs font-semibold text-text-muted uppercase tracking-wider">
                 <th className="py-3 px-4">Ora</th>

@@ -1971,7 +1971,7 @@ function RevenuePanel({ appointments, period, isFollowingAgenda, onChange, onFol
   return (
     <>
       <div className="fixed inset-0 z-[55]" onClick={onClose} />
-      <div className="absolute top-full right-0 mt-2 z-[56] w-[23rem] max-h-[calc(100vh-9rem)] overflow-y-auto bg-bg-secondary border border-border rounded-2xl shadow-2xl p-3"
+      <div className="absolute top-full right-0 mt-2 z-[56] w-[23rem] max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-9rem)] overflow-y-auto bg-bg-secondary border border-border rounded-2xl shadow-2xl p-3"
         onClick={e => e.stopPropagation()}>
         {/* Modalità periodo */}
         <div className="flex items-center justify-between mb-3">
@@ -5565,7 +5565,7 @@ export default function AgendaPage() {
   }, [view, selectedDate, dateStr]);
 
   return (
-    <div className="h-[calc(100vh-7rem)] flex flex-col">
+    <div className="h-[calc(100dvh-7rem)] flex flex-col">
       {/*
         Barra dei comandi: UNA riga sola.
 
@@ -5580,9 +5580,14 @@ export default function AgendaPage() {
         questa barra (ricerca cliente, calendarietto, incasso). Un contenitore
         che scorre in orizzontale taglia anche in verticale, e i menu
         sparivano senza dare segno di vita.
+
+        E niente `flex-nowrap`: con il body a overflow nascosto, su un telefono
+        la barra non scorreva — si tagliava, e la meta' destra (compreso
+        «Nuovo appuntamento», il comando principale) era irraggiungibile.
+        La barra va a capo: su due o tre righe si arriva a tutto.
       */}
       <div className="mb-4 flex-shrink-0">
-        <div className="flex items-center gap-2 flex-nowrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center rounded-xl border border-border overflow-hidden h-10 flex-shrink-0">
             <button onClick={goToPrev} title="Indietro"
               className="h-full px-2.5 hover:bg-bg-hover text-text-secondary transition-colors"><ChevronLeft className="w-4 h-4" /></button>

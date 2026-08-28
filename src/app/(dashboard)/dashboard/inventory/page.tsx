@@ -235,7 +235,7 @@ function AddProductModal({ onClose, onSave, editing }: { onClose: () => void; on
             <h3 className="text-lg font-display font-semibold text-text-primary">{editing ? 'Modifica Prodotto' : 'Aggiungi Prodotto'}</h3>
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
           </div>
-          <div className="px-6 py-5 space-y-4 max-h-[calc(100vh-14rem)] overflow-y-auto">
+          <div className="px-6 py-5 space-y-4 max-h-[calc(100dvh-14rem)] overflow-y-auto">
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Nome Prodotto *</label>
                 <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Es. Crema Idratante..."
@@ -244,7 +244,7 @@ function AddProductModal({ onClose, onSave, editing }: { onClose: () => void; on
                 <input type="text" value={brand} onChange={e => setBrand(e.target.value)} placeholder="Es. Dermalogica..."
                   className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Categoria</label>
                 <select value={category} onChange={e => setCategory(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all appearance-none">

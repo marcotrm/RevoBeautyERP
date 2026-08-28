@@ -210,7 +210,7 @@ export default function CabinTimers() {
         visto subito, resta a z-95.
       */}
       {running.length > 0 && (
-        <div className="fixed bottom-4 right-4 z-[45] w-[280px] rounded-2xl border border-border bg-bg-secondary/95 backdrop-blur-xl shadow-2xl overflow-hidden">
+        <div className="fixed bottom-4 right-4 z-[45] w-[280px] max-w-[calc(100vw-2rem)] rounded-2xl border border-border bg-bg-secondary/95 backdrop-blur-xl shadow-2xl overflow-hidden">
           <button onClick={() => setCollapsed(c => !c)}
             className="w-full flex items-center gap-2 px-3 py-2.5 bg-accent/10 hover:bg-accent/15 transition-colors">
             <Timer className="w-4 h-4 text-accent" />
