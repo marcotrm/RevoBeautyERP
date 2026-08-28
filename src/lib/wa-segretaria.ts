@@ -46,7 +46,7 @@ import { todayRome } from './date';
 import { costruisciIstruzioni } from './istruzioniAssistente';
 import { getWaAutomationsConfig } from './wa-automations';
 import { leggiCentro, orariParlati, eChiuso, type Chiarimento } from './centro';
-import { cercaSlot, type ServizioRichiesto } from './bookingEngine';
+import { cercaSlot, operatriciSelezionabili, type ServizioRichiesto } from './bookingEngine';
 import { preparaPrenotazione, scriviAppuntamento, type DatiPrenotazione } from './vocePrenota';
 import { spostaAppuntamento, disdiciAppuntamento, prossimiAppuntamenti } from './agendaAgente';
 import { firmaConferma, leggiConferma } from './conferma';
@@ -221,10 +221,25 @@ const STRUMENTI: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'operatrici',
+    description:
+      'Chi lavora al centro: nome e id di ognuna, e che cosa sa fare. '
+      + 'Chiamalo OGNI VOLTA che la cliente nomina una persona ("c\'e\' Rosaria?", "la vorrei con Michela"). '
+      + 'Due regole, e non hanno eccezioni: '
+      + '(1) se il nome che ha detto non e\' in questo elenco, quella persona da noi non c\'e\' — dillo e '
+      + 'chiedi chi intende, non tirare a indovinare e non usare quel nome come se esistesse; '
+      + '(2) per sapere se una persona ha posto devi passare il suo `id` come `operatorId` a "quando_c_e_posto". '
+      + 'Senza quell\'id gli orari che tornano sono del centro, di chiunque sia libera: attribuirli a una persona '
+      + 'e\' dirle una cosa falsa, e la cliente si presenta per trovare qualcun altro.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
     name: 'quando_c_e_posto',
     description:
       'Gli orari davvero liberi, guardando i turni veri delle operatrici, le pause e quello che è già in agenda '
       + '(comprese le prenotazioni arrivate dall\'app). Non proporre MAI un orario che non sia uscito da qui. '
+      + 'Se non passi `operatorId`, gli orari sono del CENTRO — libera una qualunque — e non puoi dirli come se '
+      + 'fossero di una persona: per gli orari di una persona prendi il suo id da "operatrici" e passalo qui. '
       + 'Se il giorno chiesto è pieno ti dà già i primi utili in `maCiSarebbe`: proponili subito, '
       + 'nello stesso messaggio, invece di rispondere solo che non c\'è posto.',
     input_schema: {
@@ -385,6 +400,26 @@ function limitiDiOggi(poteri: Poteri): string {
   return righe.length > 0 ? `## Che cosa NON puoi fare oggi\n\n${righe.join('\n\n')}` : '';
 }
 
+/**
+ * Il filtro sull'operatrice, se c'e', deve puntare a una persona che esiste.
+ *
+ * Un id inventato passava liscio: il motore non trovava nessuno con quel nome
+ * fra i candidati e restituiva gli orari come se il filtro non ci fosse, cioe'
+ * quelli di chiunque. Da fuori sembrava una risposta sulla persona chiesta.
+ * Torna la stringa d'errore da dare al modello, o null se e' tutto a posto.
+ */
+async function operatriceIgnota(services: ServizioRichiesto[]): Promise<string | null> {
+  const chieste = services.map(s => s.operatorId).filter((x): x is string => Boolean(x));
+  if (chieste.length === 0) return null;
+  const ops = await operatriciSelezionabili();
+  const ignote = chieste.filter(id => !ops.some(o => o.id === id));
+  if (ignote.length === 0) return null;
+  return JSON.stringify({
+    errore: 'Quell\'operatrice non esiste. Non inventare un nome: di\' alla cliente chi c\'e\' davvero.',
+    operatrici: ops.map(o => ({ id: o.id, nome: o.nome })),
+  });
+}
+
 /** Legge i trattamenti come li manda il modello. */
 function serviziDa(input: unknown): ServizioRichiesto[] {
   const t = (input as { trattamenti?: unknown })?.trattamenti;
@@ -500,6 +535,24 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         buoniRegaloEuro: sch.buoniEuro || undefined,
         punti: sch.punti || undefined,
         dalSito: lead ? { chiesto: lead.service || null, quando: lead.createdAt.slice(0, 10) } : null,
+      });
+    }
+
+    case 'operatrici': {
+      /*
+        Chi lavora qui, con gli id.
+
+        Senza questo elenco il modello non aveva modo di sapere ne' chi c'e'
+        ne' come chiederne gli orari: alla domanda «c'e' oggi Mariarosaria?»
+        ha risposto «ha posto alle 11:00 o alle 15:30» a un'ora in cui Rosaria
+        era occupata da un'ora — e "Mariarosaria" al centro non esiste nemmeno.
+        Un orario inventato e' peggio di un «non lo so»: la cliente ci viene.
+      */
+      const ops = await operatriciSelezionabili();
+      return JSON.stringify({
+        operatrici: ops.map(o => ({ id: o.id, nome: o.nome, nomeBreve: o.nomeBreve, sannoFare: o.categorie })),
+        nota: 'Se il nome detto dalla cliente non e\' qui, quella persona non lavora da noi: dillo. '
+          + 'Per i suoi orari passa l\'id come operatorId a "quando_c_e_posto".',
       });
     }
 
@@ -709,6 +762,8 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
     case 'quando_c_e_posto': {
       const services = serviziDa(dati);
       if (services.length === 0) return JSON.stringify({ errore: 'Serve almeno un trattamento (usa "listino" per gli id).' });
+      const nonValida = await operatriceIgnota(services);
+      if (nonValida) return nonValida;
 
       let dateFrom = oggi;
       let quanti = Math.min(Math.max(1, Number(dati.giorni) || 7), 30);
@@ -805,6 +860,8 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
     }
 
     case 'verifica_prenotazione': {
+      const ignota = await operatriceIgnota(serviziDa(dati));
+      if (ignota) return ignota;
       const p = await preparaPrenotazione({
         phone: ctx.phone,
         clientName: dati.nome,
