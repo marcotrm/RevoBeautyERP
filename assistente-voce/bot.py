@@ -13,6 +13,7 @@ momento in cui capisce che hai finito di parlare. Le fa Pipecat, ed è il
 motivo per cui usiamo Pipecat invece di incollare le tre API a mano.
 """
 
+import asyncio
 import datetime
 import os
 
@@ -114,6 +115,53 @@ class Orecchie(FrameProcessor):
         await self.push_frame(frame, direction)
 
 
+#: L'ultimo esito del controllo su Fish: (quando, va_bene, motivo).
+#:
+#: Si tiene in memoria per non rifare la stretta di mano a ogni telefonata —
+#: mezzo secondo prima di rispondere si sente. Ma si tiene per poco: quando il
+#: centro sistema il credito, la voce giusta deve tornare da sola entro un
+#: minuto, senza che nessuno rilasci niente.
+_FISH_CONTROLLATA: tuple[float, bool, str] = (0.0, False, "mai provata")
+_FISH_VALIDITA = 60.0
+
+
+async def fish_risponde() -> tuple[bool, str]:
+    """
+    Fish accetta la nostra chiave, adesso?
+
+    Si apre la stessa porta che aprirebbe Pipecat — stesso indirizzo, stessa
+    autorizzazione — e la si richiude subito. Serve perche' un rifiuto di Fish
+    non e' un dettaglio tecnico: la cliente sente la linea aprirsi e nessuno
+    che parla. Meglio scoprirlo qui, dove si puo' ancora cambiare voce, che a
+    meta' di una frase.
+    """
+    global _FISH_CONTROLLATA
+    quando, va_bene, motivo = _FISH_CONTROLLATA
+    adesso = asyncio.get_running_loop().time()
+    if adesso - quando < _FISH_VALIDITA:
+        return va_bene, motivo
+
+    try:
+        from websockets.asyncio.client import connect as apri
+        ws = await asyncio.wait_for(
+            apri(
+                "wss://api.fish.audio/v1/tts/live",
+                additional_headers={
+                    "Authorization": f"Bearer {os.environ['FISH_API_KEY']}",
+                    "model": os.getenv("FISH_MODEL", "s2-pro"),
+                },
+            ),
+            timeout=4,
+        )
+        await ws.close()
+        esito = (True, "")
+    except Exception as e:
+        esito = (False, str(e))
+
+    _FISH_CONTROLLATA = (adesso, *esito)
+    return esito
+
+
 async def costruisci_bot(websocket, dati_chiamata: dict):
     """Monta la catena per UNA telefonata."""
     call_sid = leggi(dati_chiamata, "call_sid")
@@ -196,7 +244,23 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
     # parlare passano dallo stesso servizio, che sul telefono si sente: ogni
     # salto fra fornitori diversi e' latenza, e al telefono la latenza e' la
     # differenza fra una conversazione e un'attesa.
-    if os.getenv("VOCE_TTS", "fish").lower() == "deepgram":
+    # Fish quando c'e', Deepgram quando Fish non c'e'.
+    #
+    # La voce del centro e' quella di Fish, ed e' quella che si usa. Ma Fish
+    # rifiuta la connessione quando il credito API e' finito (HTTP 402), e in
+    # quel caso il telefono squilla, si apre la linea e non parla NESSUNO —
+    # che per chi chiama e' peggio del centro chiuso. Quindi si chiede prima,
+    # e se Fish dice di no si parla lo stesso con Deepgram invece di restare
+    # muti. Il controllo vale un minuto: appena il credito torna, torna anche
+    # la voce giusta, da sola.
+    scelta = os.getenv("VOCE_TTS", "fish").lower()
+    if scelta != "deepgram":
+        ok, perche = await fish_risponde()
+        if not ok:
+            logger.error(f"Fish non risponde ({perche}): parlo con Deepgram per non restare muta")
+            scelta = "deepgram"
+
+    if scelta == "deepgram":
         tts = DeepgramTTSService(
             api_key=os.environ["DEEPGRAM_API_KEY"],
             # I nomi delle voci sono "aura-2-<nome>-<lingua>": per l'italiano
