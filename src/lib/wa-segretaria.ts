@@ -46,7 +46,7 @@ import { todayRome } from './date';
 import { costruisciIstruzioni } from './istruzioniAssistente';
 import { getWaAutomationsConfig } from './wa-automations';
 import { leggiCentro, orariParlati, eChiuso, type Chiarimento } from './centro';
-import { cercaSlot, operatriciSelezionabili, type ServizioRichiesto } from './bookingEngine';
+import { cercaSlot, operatriciSelezionabili, type ServizioRichiesto, type SlotProposto } from './bookingEngine';
 import { preparaPrenotazione, scriviAppuntamento, type DatiPrenotazione } from './vocePrenota';
 import { spostaAppuntamento, disdiciAppuntamento, prossimiAppuntamenti } from './agendaAgente';
 import { firmaConferma, leggiConferma } from './conferma';
@@ -258,6 +258,10 @@ const STRUMENTI: Anthropic.Tool[] = [
           },
         },
         data: { type: 'string', description: 'Un giorno preciso, YYYY-MM-DD. Ometti per i primi giorni utili.' },
+        subito: {
+          type: 'boolean',
+          description: 'True SOLO se la cliente ha detto che vuole il prima possibile: in quel caso non le si chiede mattina o pomeriggio.',
+        },
         giorni: { type: 'number', description: 'Quanti giorni guardare avanti se non hai indicato una data (default 7)' },
         dalle: { type: 'string', description: 'Prima ora accettabile, HH:MM' },
         alle: { type: 'string', description: 'Ultima ora accettabile, HH:MM' },
@@ -401,6 +405,23 @@ function limitiDiOggi(poteri: Poteri): string {
 }
 
 /**
+ * Gli orari scritti in un testo, in forma HH:MM.
+ *
+ * Serve a una cosa sola: confrontare quello che il modello sta per mandare
+ * con quello che gli strumenti gli hanno davvero risposto. Si guardano solo
+ * gli orari con i minuti — «alle 10:30» — perche' e' la forma in cui un
+ * modello propone un appuntamento; «alle tre» non lo scrive nessuno, e
+ * cercare i numeri sciolti farebbe scattare l'allarme su «3 sedute».
+ */
+function orariIn(testo: string): string[] {
+  const trovati: string[] = [];
+  const re = /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(testo)) !== null) trovati.push(`${m[1].padStart(2, '0')}:${m[2]}`);
+  return trovati;
+}
+
+/**
  * Il filtro sull'operatrice, se c'e', deve puntare a una persona che esiste.
  *
  * Un id inventato passava liscio: il motore non trovava nessuno con quel nome
@@ -522,9 +543,22 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
            senza storico la risposta è «cosa intendi?». */
         ultimiTrattamenti: sch.storico,
         operatriceAbituale: sch.operatriceAbituale,
-        nota: sch.operatriceAbituale
-          ? `Va quasi sempre da ${sch.operatriceAbituale}: se proponi un orario con un'altra, dillo invece di darlo per scontato.`
-          : undefined,
+        /*
+          Le note sono istruzioni, non descrizioni: dicono cosa fare con quel
+          dato. Quella sui pacchetti nasce da un caso vero — una cliente con
+          dieci Slimsphere pagate a cui si stava per rivendere una seduta sua.
+          Le sedute in mano vanno proposte per prime, prima del listino.
+        */
+        note: [
+          sch.operatriceAbituale
+            ? `Va quasi sempre da ${sch.operatriceAbituale}: se proponi un orario con un'altra, dillo invece di darlo per scontato.`
+            : null,
+          sch.pacchetti.length > 0
+            ? 'HA SEDUTE GIA\' PAGATE: ' + sch.pacchetti.map(p => `${p.nome} (${p.rimaste} su ${p.totali} da fare)`).join('; ')
+              + '. Prima di proporle qualcosa a listino chiedile se vuole usarne una — sono soldi che ha gia\' dato. '
+              + 'E se ti chiede quante gliene restano, il numero e\' questo: dillo, non mandarla al centro.'
+            : null,
+        ].filter(Boolean),
         /* Sedute già pagate. Chiedere i soldi a chi ha un pacchetto aperto è
            l'errore che al banco non succede mai. */
         pacchettiAperti: sch.pacchetti.map(p => ({
@@ -773,12 +807,23 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         quanti = 1;
       }
 
-      const dillo = (g: { date: string; slots: Array<{ time: string; assegnazioni: Array<{ operatorName: string }> }> }) => ({
+      /*
+        Quali orari dire per primi: quelli attaccati.
+
+        E' la regola di «Cerca buchi», ed e' la stessa che si applica al banco:
+        un appuntamento appiccicato a quello prima non lascia mezz'ora vuota in
+        mezzo alla giornata, che poi non si vende a nessuno. A parita', l'ordine
+        resta quello dell'orologio.
+      */
+      const perPrimi = (slots: SlotProposto[]) => [...slots].sort((a, b) => (b.attaccato ? 1 : 0) - (a.attaccato ? 1 : 0));
+
+      const dillo = (g: { date: string; slots: SlotProposto[] }) => ({
         data: g.date,
         giorno: dataParlata(g.date, oggi),
-        orari: g.slots.slice(0, 5).map(s => ({
+        orari: perPrimi(g.slots).slice(0, 5).map(s => ({
           ora: s.time,
           con: [...new Set(s.assegnazioni.map(a => a.operatorName.split(' ')[0]))].join(' e '),
+          attaccato: s.attaccato || undefined,
         })),
       });
 
@@ -790,6 +835,34 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
       const { giorni, durataTotale, prezzoTotale, vuoti } = await cercaSlot({
         dateFrom, giorni: quanti, services, gender: sesso, ...fascia, maxPerGiorno: 5,
       });
+
+      /*
+        Prima mattina o pomeriggio, poi gli orari.
+
+        Sparare quattro orari sparsi su tutta la giornata fa scegliere male: la
+        cliente legge il primo che le capita, o chiede «e nel pomeriggio?» e si
+        ricomincia. Quando la fascia non l'ha detta lei e ce n'e' in tutte e
+        due, qui gli orari non si danno proprio: torna la domanda, e basta.
+        Non e' un consiglio al modello — se non ha gli orari non puo' dirli.
+      */
+      const fasciaDetta = Boolean(fascia.oraDa || fascia.oraA || dati.subito === true);
+      if (!fasciaDetta && giorni.length > 0) {
+        const conta = (g: { slots: SlotProposto[] }, mattina: boolean) =>
+          g.slots.filter(s => (Number(s.time.slice(0, 2)) < 13) === mattina).length;
+        const mattina = giorni.reduce((n, g) => n + conta(g, true), 0);
+        const pomeriggio = giorni.reduce((n, g) => n + conta(g, false), 0);
+        if (mattina > 0 && pomeriggio > 0) {
+          return JSON.stringify({
+            trovato: true,
+            chiediPrima: true,
+            daScrivere: 'Preferisci mattina o pomeriggio?',
+            quanti: { mattina, pomeriggio },
+            giorniConPosto: giorni.map(g => dataParlata(g.date, oggi)),
+            nota: 'Gli orari non te li do finche\' non sai la fascia: scrivi "daScrivere" e aspetta. '
+              + 'Poi richiama questo strumento con dalle/alle (mattina 09:00-13:00, pomeriggio 13:00-20:00).',
+          });
+        }
+      }
 
       /*
         «Pieno» e «nessuno ha messo i turni» non sono la stessa cosa.
@@ -1178,6 +1251,23 @@ async function eseguiTurno(
 
   let testoFinale = '';
 
+  /*
+    Gli orari che il modello ha il diritto di scrivere.
+
+    Sono quelli usciti dagli strumenti in questo turno, piu' quelli che ha
+    scritto la cliente (se chiede «posso alle 16?», rispondere «alle 16 non
+    c'e' posto» deve restare possibile). Tutto il resto e' inventato.
+
+    Non e' teoria: «Mariarosaria oggi ha posto alle 11:00 o alle 15:30» e
+    «domani alle 10:30 oppure alle 17:00» sono partiti davvero, con Rosaria
+    occupata alle 11:00 e nessuno libero alle 10:30. Le istruzioni scritte
+    negli strumenti non bastano — un modello economico le legge e poi tira a
+    indovinare lo stesso. Questo invece non e' un consiglio: e' una porta.
+  */
+  const orariLeciti = new Set<string>(orariIn(domanda));
+  for (const t of stato.turni) if (t.role === 'user') for (const o of orariIn(t.text)) orariLeciti.add(o);
+  let giaCorretto = false;
+
   for (let giro = 0; giro < MAX_GIRI_STRUMENTI; giro++) {
     const risposta = await client.messages.create({
       model,
@@ -1226,6 +1316,35 @@ async function eseguiTurno(
     const richieste = risposta.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
 
     if (richieste.length === 0) {
+      const inventati = [...new Set(orariIn(testo))].filter(o => !orariLeciti.has(o));
+      if (inventati.length > 0) {
+        console.error(`[wa-segretaria] ${phone}: orari non verificati nel messaggio (${inventati.join(', ')}) — non lo mando`);
+        if (!giaCorretto) {
+          /*
+            Una seconda possibilita', con l'errore in faccia. Quasi sempre
+            basta: il modello richiama lo strumento e riscrive gli orari veri.
+          */
+          giaCorretto = true;
+          conversazione.push({ role: 'assistant', content: testo });
+          conversazione.push({
+            role: 'user',
+            content: [{
+              type: 'text',
+              text: 'CONTROLLO DEL GESTIONALE: nel messaggio che hai scritto ci sono orari che nessuno '
+                + `strumento ti ha dato (${inventati.join(', ')}). Quel messaggio NON e' stato mandato. `
+                + 'Chiama "quando_c_e_posto" con i parametri giusti — e se la cliente ha nominato una persona, '
+                + 'prendi prima il suo id da "operatrici" — poi riscrivi usando SOLO gli orari tornati dallo '
+                + 'strumento. Se non ci sono orari, dillo: e\' meglio di un orario inventato.',
+            }],
+          });
+          continue;
+        }
+        // Ha insistito: il turno non produce niente. Meglio il silenzio (e la
+        // chat che resta da leggere al banco) di un appuntamento inesistente.
+        return livello === 'lavoro'
+          ? { tipo: 'sali', strumento: 'orari non verificati' }
+          : { tipo: 'niente' };
+      }
       // Fine del ragionamento: questo è quello che la cliente legge.
       testoFinale = testo;
       break;
@@ -1285,6 +1404,9 @@ async function eseguiTurno(
         `[wa-segretaria] ${ctx.phone} · ${r.name}(${JSON.stringify(r.input).slice(0, 200)})`
         + ` → ${contenuto.slice(0, 300)}`
       );
+
+      // Quello che lo strumento ha davvero risposto diventa l'unico orario dicibile.
+      for (const o of orariIn(contenuto)) orariLeciti.add(o);
 
       if (r.name === 'quando_c_e_posto' && contenuto.includes('"trovato":false')) ricercaAVuoto = true;
 

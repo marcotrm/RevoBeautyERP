@@ -108,8 +108,24 @@ export async function schedaDiChiScrive(phone: string): Promise<SchedaInChat | n
       select: { date: true, treatmentName: true, operatorName: true },
       take: 12,
     }),
+    /*
+      I pacchetti: per scheda o, in mancanza, per nome.
+
+      Cinque pacchetti su dieci sono stati venduti scrivendo il nome a mano,
+      senza agganciare la scheda: nel database hanno `clientId` vuoto. Per
+      Giovanna De Rosa questo voleva dire che la segretaria su WhatsApp vedeva
+      «nessun pacchetto» mentre lei aveva dieci Slimsphere pagate — e le
+      avremmo rivenduto una seduta gia' sua. L'agenda gli stessi pacchetti li
+      trova, perche' guarda anche il nome: qui adesso fa lo stesso.
+    */
     prisma.clientPackage.findMany({
-      where: { clientId: cliente.id, status: 'active' },
+      where: {
+        status: 'active',
+        OR: [
+          { clientId: cliente.id },
+          { clientId: null, clientName: { equals: `${cliente.firstName} ${cliente.lastName}`.trim(), mode: 'insensitive' } },
+        ],
+      },
       select: { packageName: true, totalSessions: true, usedSessions: true, pricePaid: true, expiryDate: true },
     }),
     prisma.giftCard.findMany({
