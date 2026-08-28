@@ -14,6 +14,7 @@ import React, { useEffect, useState, useTransition } from 'react';
 import { Loader2, RefreshCw, Check, X, ChevronDown } from 'lucide-react';
 import {
   caricaAutocritiche, rileggiOggi, accettaPropostaAssistente, scartaPropostaAssistente,
+  segnaReportLetto,
 } from '@/app/actions/assistente';
 import type { Autocritica, Gravita } from '@/lib/autocritica';
 
@@ -92,7 +93,13 @@ export default function Autocritica() {
 
         return (
           <div key={a.giorno} className="rounded-xl bg-bg-secondary border border-border/50 overflow-hidden">
-            <button onClick={() => setAperto(apertoQui ? null : a.giorno)}
+            <button onClick={() => {
+              const apro = !apertoQui;
+              setAperto(apro ? a.giorno : null);
+              // Aprirlo e' il gesto che lo segna letto: nessun tasto in piu' da
+              // premere, e il segno «NUOVO» resta solo su quelli mai guardati.
+              if (apro && !a.lettoIl) void segnaReportLetto(a.giorno).then(ricarica);
+            }}
               className="w-full flex items-center gap-3 p-3 text-left">
               <span className="text-lg">{FACCIA[a.voto] || '🟡'}</span>
               <div className="min-w-0 flex-1">
@@ -101,6 +108,11 @@ export default function Autocritica() {
                 </p>
                 <p className="text-[11px] text-text-muted truncate">{a.riepilogo}</p>
               </div>
+              {!a.lettoIl && (
+                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-accent/20 text-accent flex-shrink-0">
+                  NUOVO
+                </span>
+              )}
               {gravi > 0 && (
                 <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-error/15 text-error flex-shrink-0">
                   {gravi} {gravi === 1 ? 'GRAVE' : 'GRAVI'}
@@ -125,7 +137,14 @@ export default function Autocritica() {
                         <span className={`font-semibold uppercase ${COLORE[p.gravita]}`}>{p.gravita}</span>
                         {' · '}
                         <span className="text-text-primary">{p.cosa}</span>
-                        <span className="text-text-muted"> — {p.chat}</span>
+                        {' — '}
+                        {/* Il contesto di un errore e' la chat in cui e' successo:
+                            da qui si apre, invece di ricopiare il numero a mano e
+                            cercarlo in una lista di trecento. */}
+                        <a href={`/dashboard/whatsapp?chat=${encodeURIComponent(String(p.chat || '').replace(/\D/g, ''))}`}
+                          className="text-accent hover:underline">
+                          apri la chat {p.chat}
+                        </a>
                         {p.esempio && (
                           <p className="text-text-muted/70 italic pl-3 border-l border-border ml-1 mt-0.5">«{p.esempio}»</p>
                         )}

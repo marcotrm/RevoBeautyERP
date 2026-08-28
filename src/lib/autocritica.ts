@@ -89,6 +89,8 @@ export interface Autocritica {
   problemi: Problema[];
   proposte: Proposta[];
   fattoIl: string;
+  /** Quando una persona l'ha aperto. Assente: nessuno l'ha ancora letto. */
+  lettoIl?: string;
 }
 
 // ============================================================
@@ -285,6 +287,22 @@ export async function ultimeAutocritiche(quante = 14): Promise<Autocritica[]> {
     where: { kind: KIND }, orderBy: { createdAt: 'desc' }, take: quante,
   });
   return righe.map(r => r.data as unknown as Autocritica).filter(a => a?.giorno);
+}
+
+/**
+ * Segna che una persona ha letto il report di quel giorno.
+ *
+ * Serve al segno «NUOVO» in elenco: un rapporto scritto ogni sera che non
+ * distingue quelli gia' visti diventa un muro di righe uguali, e dopo una
+ * settimana non si apre piu' nessuno.
+ */
+export async function segnaAutocriticaLetta(giorno: string): Promise<void> {
+  const a = await leggiAutocritica(giorno);
+  if (!a || a.lettoIl) return;
+  await prisma.adminEntry.update({
+    where: { rowId: RIGA_ESITO(giorno) },
+    data: { data: { ...a, lettoIl: new Date().toISOString() } as unknown as object },
+  }).catch(() => {});
 }
 
 /** Le proposte ancora da leggere, dalle ultime giornate. */

@@ -22,7 +22,7 @@ import AggiornaNote from './AggiornaNote';
 import Chiarimenti from './Chiarimenti';
 
 import {
-  caricaCentro, salvaImpostazioniCentro, anteprimaIstruzioni, statoAssistente,
+  caricaCentro, salvaImpostazioniCentro, anteprimaIstruzioni, statoAssistente, caricaAutocritiche,
 } from '@/app/actions/assistente';
 import type { Centro, OrarioGiorno } from '@/lib/centro';
 
@@ -48,8 +48,23 @@ export default function AssistentePage() {
     chi arrivava dal fondo non sapeva piu' se aveva salvato.
   */
   const [schermata, setSchermata] = useState<'impostazioni' | 'andamento'>('impostazioni');
+  /*
+    Il pallino sulla linguetta quando c'e' un report non ancora letto.
+
+    Il rapporto della sera si scrive da solo ogni notte, ma se nessuno sa che
+    c'e' resta una pagina che non apre nessuno. Qui il gestionale lo dice da
+    se', senza dipendere da Telegram o da una email.
+  */
+  const [reportDaLeggere, setReportDaLeggere] = useState(0);
   const [salvando, setSalvando] = useState(false);
   const [salvato, setSalvato] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const ultimi = await caricaAutocritiche(10).catch(() => []);
+      setReportDaLeggere(ultimi.filter(a => !a.lettoIl).length);
+    })();
+  }, []);
 
   const ricarica = useCallback(async (quale: 'telefono' | 'whatsapp') => {
     setIstruzioni(await anteprimaIstruzioni(quale));
@@ -126,6 +141,11 @@ export default function AssistentePage() {
                 : 'border-transparent text-text-muted hover:text-text-secondary'
             }`}>
             {testo}
+            {chiave === 'andamento' && reportDaLeggere > 0 && (
+              <span className="ml-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-accent/20 text-accent align-middle">
+                {reportDaLeggere}
+              </span>
+            )}
           </button>
         ))}
       </div>
