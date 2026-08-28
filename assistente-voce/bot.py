@@ -239,11 +239,30 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
         f"Usa questo numero quando uno strumento te lo chiede: non chiederglielo."
     )
 
-    context = OpenAILLMContext(
-        messages=[{"role": "system", "content": sistema}],
-        tools=strumenti.TUTTI,
+    # Le istruzioni devono arrivare COME istruzioni.
+    #
+    # Scritte come primo messaggio con ruolo "system", non arrivavano affatto.
+    # Pipecat converte il contesto per Anthropic, e li' dentro c'e' questa
+    # regola: se il messaggio di sistema e' l'unico della lista — e all'inizio
+    # di una telefonata lo e' sempre — invece di estrarlo gli cambia il ruolo
+    # in "user". Nei log di produzione infatti si leggeva
+    #
+    #     Generating chat from context [NOT_GIVEN] | [{'role': 'user',
+    #       'content': "Sei l'assistente di RevoBeauty..."}]
+    #
+    # cioe': system vuoto, e tutte le regole — niente di medico, non inventare
+    # i prezzi, ripeti e fatti confermare — consegnate al modello come se le
+    # avesse dette una cliente al telefono. Cambiato il ruolo una volta, resta
+    # cambiato per tutta la chiamata.
+    #
+    # Quindi il contesto si crea vuoto, si prende quello vero dall'aggregatore
+    # (e' lui a tenere il convertito: user e assistant condividono lo stesso
+    # oggetto) e le istruzioni si mettono dove vanno.
+    aggregator = llm.create_context_aggregator(
+        OpenAILLMContext(tools=strumenti.TUTTI)
     )
-    aggregator = llm.create_context_aggregator(context)
+    context = aggregator.user().context
+    context.system = sistema
 
     # ------------------------------------------------------------- strumenti
     trascrizione: list[dict] = []
