@@ -58,11 +58,46 @@ def _oggi() -> str:
     return f"Oggi è {giorni[ora.weekday()]} {ora.strftime('%d/%m/%Y')}, sono le {ora.strftime('%H:%M')}."
 
 
+#: Come si chiama, a seconda di chi lo scrive.
+#:
+#: Pipecat ha cambiato nome ai campi fra una versione e l'altra: dove prima
+#: c'era `call_sid` adesso arriva `call_id`. E i parametri che passiamo noi
+#: nel TwiML non stanno in cima al dizionario ma dentro `body`. Un `dict[...]`
+#: secco su un nome solo e' quello che ha fatto cadere ogni telefonata al
+#: primo istante — KeyError, websocket chiuso, Twilio che riaggancia dopo uno
+#: squillo. Qui si accettano tutti i nomi plausibili, e si guarda in tutti e
+#: due i posti.
+ALIAS = {
+    "call_sid": ("call_sid", "call_id", "callSid", "CallSid"),
+    "stream_id": ("stream_id", "stream_sid", "streamSid", "StreamSid"),
+    "from": ("from", "From", "caller", "chiamante"),
+}
+
+
+def leggi(dati: dict, campo: str) -> str:
+    """Il valore di `campo`, comunque lo abbia chiamato chi ce l'ha passato."""
+    corpo = dati.get("body") if isinstance(dati.get("body"), dict) else {}
+    for nome in ALIAS.get(campo, (campo,)):
+        for sorgente in (dati, corpo):
+            valore = sorgente.get(nome)
+            if valore:
+                return str(valore)
+    return ""
+
+
 async def costruisci_bot(websocket, dati_chiamata: dict):
     """Monta la catena per UNA telefonata."""
-    call_sid = dati_chiamata["call_sid"]
-    stream_id = dati_chiamata["stream_id"]
-    chiamante = dati_chiamata.get("from") or ""
+    call_sid = leggi(dati_chiamata, "call_sid")
+    stream_id = leggi(dati_chiamata, "stream_id")
+    chiamante = leggi(dati_chiamata, "from")
+
+    if not call_sid or not stream_id:
+        # Meglio dire cosa e' arrivato che morire su un KeyError: la prossima
+        # volta che Pipecat rinomina un campo, il log lo mostra subito.
+        raise RuntimeError(
+            f"Twilio non ha passato call_sid/stream_id riconoscibili. Ricevuto: {sorted(dati_chiamata)}"
+            + (f", body: {sorted(dati_chiamata['body'])}" if isinstance(dati_chiamata.get("body"), dict) else "")
+        )
 
     serializer = TwilioFrameSerializer(
         stream_sid=stream_id,
