@@ -616,6 +616,30 @@ export default function WhatsAppChat() {
     setLontanoDalFondo(false);
   }, []);
 
+  /*
+    `?chat=39…` apre direttamente quella conversazione.
+
+    Serve a chi arriva da un'altra schermata con un numero in mano: il report
+    della sera dice «questo l'ha sbagliato con il 3312733414», e senza un
+    aggancio quel numero va ricopiato a mano e cercato in una lista di
+    trecento. Il contesto di un errore e' la chat in cui e' successo, e deve
+    stare a un clic.
+
+    Si legge da `window.location` invece che da `useSearchParams` perche'
+    quest'ultimo obbliga a un confine di Suspense sull'intera pagina per una
+    cosa che serve una volta sola, al montaggio.
+  */
+  useEffect(() => {
+    // L'apertura si rimanda di un giro: toccare lo stato dentro il corpo
+    // dell'effect e' la cosa che `react-hooks/set-state-in-effect` vieta, ed e'
+    // lo stesso motivo per cui altrove in questo gestionale si usa questa
+    // forma.
+    void (async () => {
+      const chiesta = new URLSearchParams(window.location.search).get('chat');
+      if (chiesta) openThread(chiesta.replace(/\D/g, ''));
+    })();
+  }, [openThread]);
+
   /**
    * Unico punto di caricamento: primo giro subito, poi ogni POLL_MS. I fetch
    * stanno nei callback del timer, non nel corpo dell'effect, così lo stato non

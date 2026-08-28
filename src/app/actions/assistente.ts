@@ -14,6 +14,7 @@ import { costruisciIstruzioni } from '@/lib/istruzioniAssistente';
 import { ultimeChiamate, type Chiamata } from '@/lib/voceChiamate';
 import {
   ultimeAutocritiche, autocriticaDelGiorno, accettaProposta, scartaProposta, ULTIME_DI_DEFAULT,
+  segnaAutocriticaLetta,
   type Autocritica,
 } from '@/lib/autocritica';
 import { proponiChiarimenti, type ChiarimentoProposto } from '@/lib/chiarimentiProposti';
@@ -124,4 +125,10 @@ export async function proponiDomandeTrattamenti(): Promise<
  */
 export async function proponiNote(attuali: string, aggiunta: string): Promise<EsitoNote> {
   return riscriviNote({ attuali, aggiunta });
+}
+
+/** Segna letto il report di quel giorno: spegne il segno «NUOVO» in elenco. */
+export async function segnaReportLetto(giorno: string): Promise<{ ok: boolean }> {
+  await segnaAutocriticaLetta(giorno);
+  return { ok: true };
 }
