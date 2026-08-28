@@ -224,14 +224,21 @@ const STRUMENTI: Anthropic.Tool[] = [
     name: 'operatrici',
     description:
       'Chi lavora al centro: nome e id di ognuna, e che cosa sa fare. '
-      + 'Chiamalo OGNI VOLTA che la cliente nomina una persona ("c\'e\' Rosaria?", "la vorrei con Michela"). '
+      + 'Chiamalo OGNI VOLTA che la cliente nomina una persona ("c\'e\' Rosaria?", "la vorrei con Michela"), '
+      + 'passando in `nome` il nome ESATTO che ha usato lei: ci pensa lo strumento a riconoscerla anche se '
+      + 'lo dice per intero, accorciato o attaccato ("Mariarosaria", "Maria Rosaria", "la Cioffi"). '
       + 'Due regole, e non hanno eccezioni: '
-      + '(1) se il nome che ha detto non e\' in questo elenco, quella persona da noi non c\'e\' — dillo e '
+      + '(1) se lo strumento dice che quel nome non e\' di nessuna, quella persona da noi non c\'e\' — dillo e '
       + 'chiedi chi intende, non tirare a indovinare e non usare quel nome come se esistesse; '
       + '(2) per sapere se una persona ha posto devi passare il suo `id` come `operatorId` a "quando_c_e_posto". '
       + 'Senza quell\'id gli orari che tornano sono del centro, di chiunque sia libera: attribuirli a una persona '
       + 'e\' dirle una cosa falsa, e la cliente si presenta per trovare qualcun altro.',
-    input_schema: { type: 'object', properties: {} },
+    input_schema: {
+      type: 'object',
+      properties: {
+        nome: { type: 'string', description: 'Il nome come l\'ha detto la cliente, senza aggiustarlo.' },
+      },
+    },
   },
   {
     name: 'quando_c_e_posto',
@@ -402,6 +409,27 @@ function limitiDiOggi(poteri: Poteri): string {
   }
 
   return righe.length > 0 ? `## Che cosa NON puoi fare oggi\n\n${righe.join('\n\n')}` : '';
+}
+
+/**
+ * Riconosce l'operatrice dal nome come lo dice la cliente.
+ *
+ * «Mariarosaria», «Maria Rosaria», «rosaria», «la De Lucia» sono la stessa
+ * persona: si toglie tutto quello che non e' lettera, si abbassano gli accenti
+ * e basta che uno dei due contenga l'altro. Sotto le quattro lettere non si
+ * confronta niente — «lu» finirebbe dentro mezza rubrica.
+ */
+function riconosciOperatrice<T extends { nome: string; nomeBreve: string }>(cercato: string, ops: T[]): T[] {
+  const pulisci = (x: string) =>
+    x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
+  const q = pulisci(cercato);
+  if (q.length < 4) return [];
+  return ops.filter(o => {
+    const chiavi = [o.nome, o.nomeBreve, o.nome.split(' ').slice(1).join(' ')]
+      .map(pulisci)
+      .filter(k => k.length >= 4);
+    return chiavi.some(k => k.includes(q) || q.includes(k));
+  });
 }
 
 /**
@@ -583,8 +611,72 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
         Un orario inventato e' peggio di un «non lo so»: la cliente ci viene.
       */
       const ops = await operatriciSelezionabili();
+      const elenco = ops.map(o => ({ id: o.id, nome: o.nome, nomeBreve: o.nomeBreve, sannoFare: o.categorie }));
+      const cercato = typeof dati.nome === 'string' ? dati.nome : '';
+      const trovate = cercato ? riconosciOperatrice(cercato, ops) : [];
+
+      /*
+        Chi se n'e' andata va detto, non scambiato.
+
+        «Michela Tedesco» somiglia a «Michela Cioffi» quanto basta a farle
+        passare per la stessa persona, e la cliente si sarebbe sentita
+        confermare un appuntamento con una collega diversa senza che nessuno
+        glielo dicesse. Qui il cognome e' la prova: se combacia con una che non
+        lavora piu' qui, si risponde quello.
+      */
+      if (cercato) {
+        const andate = await prisma.operator.findMany({
+          where: { isActive: false, isResource: false },
+          select: { firstName: true, lastName: true },
+        });
+        const exAbbinate = riconosciOperatrice(
+          cercato,
+          andate.map(o => ({ nome: `${o.firstName} ${o.lastName}`.trim(), nomeBreve: '' })),
+        );
+        if (exAbbinate.length > 0) {
+          return JSON.stringify({
+            trovata: null,
+            nonPiuQui: exAbbinate[0].nome,
+            nota: `${exAbbinate[0].nome} non lavora piu' da noi. Dillo alla cliente con garbo e proponile `
+              + 'una delle colleghe, senza far finta che sia un\'altra persona.',
+            operatrici: elenco,
+          });
+        }
+      }
+
+      /*
+        Il nome come lo dice la cliente.
+
+        In rubrica sta «Rosaria De Lucia», ma al banco la chiamano Maria
+        Rosaria e in chat scrivono «mariarosaria» tutto attaccato. E' la stessa
+        persona, e farglielo chiedere ogni volta e' una figura: il confronto si
+        fa senza spazi e senza accenti, e uno che contiene l'altro basta.
+      */
+      if (cercato && trovate.length === 1) {
+        const t = trovate[0];
+        return JSON.stringify({
+          trovata: { id: t.id, nome: t.nome, nomeBreve: t.nomeBreve, sannoFare: t.categorie },
+          nota: `«${cercato}» e' ${t.nome}: e' lei, non chiedere conferma. `
+            + `Per i suoi orari passa operatorId="${t.id}" a "quando_c_e_posto".`,
+          operatrici: elenco,
+        });
+      }
+      if (cercato && trovate.length > 1) {
+        return JSON.stringify({
+          ambiguo: trovate.map(t => ({ id: t.id, nome: t.nome })),
+          nota: `«${cercato}» puo' essere piu' di una: chiedi alla cliente quale delle due intende.`,
+        });
+      }
+      if (cercato) {
+        return JSON.stringify({
+          trovata: null,
+          nota: `«${cercato}» non e' nessuna delle nostre. Dillo alla cliente e chiedile chi intende, `
+            + 'senza usare quel nome come se fosse una collega.',
+          operatrici: elenco,
+        });
+      }
       return JSON.stringify({
-        operatrici: ops.map(o => ({ id: o.id, nome: o.nome, nomeBreve: o.nomeBreve, sannoFare: o.categorie })),
+        operatrici: elenco,
         nota: 'Se il nome detto dalla cliente non e\' qui, quella persona non lavora da noi: dillo. '
           + 'Per i suoi orari passa l\'id come operatorId a "quando_c_e_posto".',
       });
