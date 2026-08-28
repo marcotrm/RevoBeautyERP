@@ -340,10 +340,28 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
             sample_rate=FREQUENZA,
         )
 
+    # Al telefono il tempo di risposta e' una funzione, non una rifinitura.
+    #
+    # Misurato sui log di una telefonata vera, dal momento in cui la frase e'
+    # stata capita a quello in cui l'assistente ha ricominciato a parlare:
+    # 2.8s, 4.2s, 6.7s. Chi chiama, in sei secondi di silenzio, riattacca — e
+    # infatti e' successo.
+    #
+    # Quel tempo se ne va quasi tutto nel ragionamento del modello, che di suo
+    # parte al massimo. Qui non serve: le regole che contano — non inventare i
+    # prezzi, ripetere e farsi confermare — non stanno nella profondita' del
+    # ragionamento, stanno negli strumenti, che rispondono coi dati veri o non
+    # rispondono affatto. Con lo sforzo basso il modello resta lo stesso, fa
+    # meno preamboli e risponde prima.
+    #
+    # E' una variabile perche' e' una manopola: se un giorno le risposte
+    # diventassero sbrigative, si alza a `medium` o `high` senza toccare il
+    # codice.
     llm = AnthropicLLMService(
         api_key=os.environ["ANTHROPIC_API_KEY"],
         settings=AnthropicLLMService.Settings(
             model=os.getenv("VOCE_MODEL", "claude-opus-5"),
+            extra={"output_config": {"effort": os.getenv("VOCE_SFORZO", "low")}},
         ),
     )
 
