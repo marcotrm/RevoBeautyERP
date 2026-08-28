@@ -334,8 +334,28 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
             # `model` e `reference_id` funzionano ancora ma sono tutti e due
             # deprecati, ed e' da questa famiglia di cambiamenti che e' arrivata
             # la caduta del telefono: meglio non lasciarne in giro nessuno.
+            # La taratura scelta dal centro ascoltando quattro prove della
+            # stessa frase con la sua voce.
+            #
+            # Senza questi parametri Fish parla con i suoi valori di partenza, e
+            # il risultato è la voce piatta e lenta che il centro ha descritto
+            # come «robotica». Non è il modello: è che non gli stavamo dicendo
+            # niente su come parlare.
+            #
+            # - `balanced` fa partire l'audio prima: al telefono l'attesa prima
+            #   della prima sillaba si sente più della qualità.
+            # - la cadenza a 1.12 toglie quella lentezza da lettura.
+            # - temperatura e top_p più alti danno variazione all'intonazione:
+            #   è quello che separa una persona da un annuncio in stazione.
+            # - `normalize` fa leggere numeri, orari e prezzi come si dicono.
             settings=FishAudioTTSService.Settings(
-                model=MODELLO_FISH, voice=os.environ["FISH_VOICE_ID"],
+                model=MODELLO_FISH,
+                voice=os.environ["FISH_VOICE_ID"],
+                latency=os.getenv("FISH_LATENZA", "balanced"),
+                normalize=True,
+                temperature=float(os.getenv("FISH_TEMPERATURA", "0.85")),
+                top_p=float(os.getenv("FISH_TOP_P", "0.85")),
+                prosody_speed=float(os.getenv("FISH_CADENZA", "1.12")),
             ),
             sample_rate=FREQUENZA,
         )
