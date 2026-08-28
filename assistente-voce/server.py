@@ -98,6 +98,51 @@ async def fish():
     return JSONResponse(risposta)
 
 
+@app.get("/chiamate")
+async def chiamate():
+    """
+    Le ultime telefonate viste da Twilio, non da noi.
+
+    Nei nostri log si vede che dopo il saluto non arriva piu' niente e che la
+    linea la chiude l'altro capo. Ma «l'altro capo» puo' essere la cliente che
+    riattacca o Twilio che tronca la chiamata, e le due cose si aggiustano in
+    modi opposti. Twilio lo sa: qui si chiede a lui.
+
+    Conta soprattutto `status` (completed, failed, busy, no-answer), la durata
+    e, quando c'e', il codice d'errore con la sua spiegazione.
+    """
+    sid = os.getenv("TWILIO_ACCOUNT_SID", "")
+    token = os.getenv("TWILIO_AUTH_TOKEN", "")
+    if not sid or not token:
+        return JSONResponse({"errore": "credenziali Twilio non impostate"}, status_code=503)
+
+    try:
+        async with httpx.AsyncClient(timeout=12) as c:
+            r = await c.get(
+                f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Calls.json",
+                params={"PageSize": 5}, auth=(sid, token),
+            )
+        if r.status_code != 200:
+            return JSONResponse({"stato": r.status_code, "risposta": r.text[:300]})
+        chiamate = [
+            {
+                "sid": c_.get("sid"),
+                "da": c_.get("from"),
+                "a": c_.get("to"),
+                "stato": c_.get("status"),
+                "durata_s": c_.get("duration"),
+                "iniziata": c_.get("start_time"),
+                "finita": c_.get("end_time"),
+                "codice_errore": c_.get("error_code"),
+                "errore": c_.get("error_message"),
+            }
+            for c_ in r.json().get("calls", [])
+        ]
+        return JSONResponse({"chiamate": chiamate})
+    except Exception as e:
+        return JSONResponse({"errore": str(e)}, status_code=502)
+
+
 @app.post("/twiml")
 async def twiml(request: Request):
     """
