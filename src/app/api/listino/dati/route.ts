@@ -34,6 +34,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { corsLead } from '@/lib/lead';
+import { leggiCentro } from '@/lib/centro';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +43,7 @@ export async function OPTIONS(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const [treatments, packages] = await Promise.all([
+  const [treatments, packages, centro] = await Promise.all([
     prisma.treatment.findMany({
       where: { isActive: true },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
@@ -53,6 +54,7 @@ export async function GET(request: Request) {
       },
     }),
     prisma.package.findMany({ orderBy: { price: 'asc' } }),
+    leggiCentro(),
   ]);
 
   const voci = treatments.map(t => ({
@@ -71,6 +73,17 @@ export async function GET(request: Request) {
   return NextResponse.json(
     {
       aggiornatoIl: new Date().toISOString(),
+      // I dati del centro che il sito stampa in chiaro: orari nel footer,
+      // indirizzo nella mappa, telefono nel bottone di chiamata. Solo i campi
+      // pubblici — telefonoPassaggio, emailReport e le note per l'assistente
+      // restano dentro il gestionale.
+      centro: {
+        nome: centro.nome,
+        indirizzo: centro.indirizzo,
+        telefono: centro.telefono,
+        orari: centro.orari,
+        chiusure: centro.chiusure,
+      },
       categorie,
       trattamenti: voci,
       pacchetti: packages.map(p => ({

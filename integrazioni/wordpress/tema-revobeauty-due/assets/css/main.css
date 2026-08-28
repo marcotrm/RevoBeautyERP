@@ -1,0 +1,217 @@
+/* ── Il resto del tema: tutto ciò che non serve al primo dipinto ──────── */
+
+/* Rivelazioni allo scroll: parte tutto visibile; il JS aggiunge .pronto e
+   da lì gli elementi .rivela entrano quando toccano il viewport. Con
+   prefers-reduced-motion niente si muove. */
+.pronto .rivela { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s cubic-bezier(.2,.6,.2,1); }
+.pronto .rivela.in-vista { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .pronto .rivela { opacity: 1; transform: none; transition: none; }
+}
+
+/* Parallasse leggero sulle strisce dell'eroe, solo dove il browser sa farlo. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .eroe-striscia { animation: scivola linear both; animation-timeline: view(); animation-range: entry 0% exit 100%; }
+    .eroe-striscia:nth-child(even) { animation-name: scivola-giu; }
+    @keyframes scivola { from { transform: translateY(3%); } to { transform: translateY(-6%); } }
+    @keyframes scivola-giu { from { transform: translateY(-3%); } to { transform: translateY(6%); } }
+  }
+}
+
+/* ── Casa: carte trattamenti a scorrimento orizzontale ────────────────── */
+.riga-titolo { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; flex-wrap: wrap; }
+.nota-listino { font-size: 12px; color: var(--grigio); letter-spacing: .06em; margin: 0; }
+.scorri {
+  display: flex; gap: 16px; overflow-x: auto; padding: 18px 24px 22px;
+  margin: 0 -24px; scroll-snap-type: x mandatory; scrollbar-width: none;
+}
+.scorri::-webkit-scrollbar { display: none; }
+.scorri > * { scroll-snap-align: start; }
+.carta {
+  min-width: 232px; background: #ffffff; border: 1px solid var(--crema-scura);
+  padding: 26px 22px 22px; display: flex; flex-direction: column; gap: 12px;
+  color: var(--inchiostro); transition: border-color .25s, transform .25s;
+}
+.carta:hover { border-color: var(--oro); transform: translateY(-4px); color: var(--inchiostro); }
+.carta-occhiello { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--oro-scuro); }
+.carta-nome { font-family: var(--serif); font-size: 22px; font-weight: 500; line-height: 1.15; }
+.carta-prezzo { font-size: 13px; color: var(--grigio); border-top: 1px solid var(--crema-scura); padding-top: 12px; margin-top: auto; }
+.carta-freccia { color: var(--oro); font-size: 15px; }
+.scorri-barra { height: 2px; background: var(--crema-scura); margin: 0 24px; position: relative; overflow: hidden; }
+.scorri-indice { position: absolute; left: 0; top: 0; bottom: 0; width: 18%; background: var(--oro); transition: transform .2s linear; }
+
+/* ── Fascia bordeaux ──────────────────────────────────────────────────── */
+.fascia-bordeaux { background: var(--bordeaux); color: var(--crema); padding: 64px 24px; margin-top: 72px; }
+.fascia-bordeaux > * { max-width: var(--largo); margin-left: auto; margin-right: auto; }
+.occhiello-chiaro { color: var(--oro-chiaro); }
+.citazione { margin: 0; }
+.citazione p { font-family: var(--serif); font-style: italic; font-size: clamp(20px, 3vw, 26px); line-height: 1.45; max-width: 640px; margin: 0 0 14px; }
+.citazione cite { font-style: normal; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--oro-chiaro); }
+
+/* ── Squadra ──────────────────────────────────────────────────────────── */
+.squadra-fila { display: flex; gap: 26px; flex-wrap: wrap; align-items: center; padding: 10px 0 16px; }
+.persona { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.persona-foto {
+  width: 110px; height: 110px; border-radius: 50%; object-fit: cover;
+  border: 1px solid var(--oro); background: var(--crema-scura);
+}
+.persona-foto-vuota {
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-size: 34px; color: var(--oro-scuro);
+}
+.persona-nome { font-size: 14px; }
+.collega { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--oro-scuro); }
+.collega:hover { color: var(--bordeaux); }
+.collega-chiaro { color: var(--crema); }
+.collega-chiaro:hover { color: var(--oro-chiaro); }
+
+.squadra-griglia { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 22px; padding-top: 8px; }
+.scheda-persona { display: flex; flex-direction: column; gap: 10px; }
+.scheda-foto { width: 100%; aspect-ratio: 7/8; object-fit: cover; background: var(--crema-scura); border: 1px solid var(--crema-scura); }
+.scheda-foto-vuota { display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 54px; color: var(--oro-scuro); }
+.scheda-nome { font-family: var(--serif); font-size: 20px; font-weight: 500; }
+.scheda-ruolo { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--oro-scuro); }
+
+/* ── Metodo (chi siamo) ───────────────────────────────────────────────── */
+.metodo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; }
+.metodo-passo { display: flex; flex-direction: column; gap: 8px; }
+.metodo-numero { font-family: var(--serif); font-size: 40px; color: var(--oro-chiaro); line-height: 1; }
+.metodo-nome { font-size: 14px; letter-spacing: .12em; text-transform: uppercase; }
+.metodo-testo { font-size: 14px; color: rgba(245,240,232,.75); }
+@media (max-width: 700px) { .metodo { grid-template-columns: 1fr; } }
+
+.foto-chi-siamo { padding-top: 12px; }
+.foto-chi-siamo img { width: 100%; }
+.foto-attesa {
+  aspect-ratio: 16/9; background: linear-gradient(160deg, var(--crema-scura), var(--oro-chiaro));
+  display: flex; align-items: flex-end; padding: 18px;
+}
+.foto-attesa span { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--oro-scuro); background: var(--avorio); padding: 8px 14px; }
+
+/* ── Listino (/servizi) ───────────────────────────────────────────────── */
+.testata-pagina { padding-top: 64px; }
+.ancore {
+  max-width: var(--largo); margin: 0 auto; padding: 8px 24px 0;
+  display: flex; gap: 10px; flex-wrap: wrap;
+}
+.ancore a {
+  font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+  border: 1px solid var(--crema-scura); padding: 9px 16px; color: var(--grigio);
+}
+.ancore a:hover { border-color: var(--oro); color: var(--oro-scuro); }
+.blocco-listino { padding-top: 56px; scroll-margin-top: 24px; }
+.titolo-categoria { font-family: var(--serif); font-weight: 500; font-size: 28px; margin: 0 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--crema-scura); }
+.listino { list-style: none; margin: 0; padding: 0; }
+.voce { display: flex; align-items: baseline; gap: 12px; padding: 13px 0; border-bottom: 1px solid rgba(232,226,214,.6); }
+.voce-testo { display: flex; flex-direction: column; gap: 3px; }
+.voce-nome { font-size: 15.5px; font-weight: 400; }
+.voce-varianti { font-size: 13px; color: var(--grigio); }
+.voce-punti { flex: 1; border-bottom: 1px dotted var(--crema-scura); transform: translateY(-4px); }
+.voce-dati { font-size: 14.5px; white-space: nowrap; color: var(--inchiostro); }
+.pacchetti { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.pacchetto { background: #ffffff; border: 1px solid var(--crema-scura); padding: 22px; display: flex; flex-direction: column; gap: 8px; }
+.pacchetto-nome { font-family: var(--serif); font-size: 19px; font-weight: 500; }
+.pacchetto-dettagli { font-size: 13px; color: var(--grigio); }
+.pacchetto-prezzo { font-size: 15px; color: var(--oro-scuro); margin-top: auto; padding-top: 10px; }
+
+/* ── Contatti ─────────────────────────────────────────────────────────── */
+.contatti-griglia { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 44px; padding-top: 28px; }
+@media (max-width: 860px) { .contatti-griglia { grid-template-columns: 1fr; } }
+.contatti-lato { display: flex; flex-direction: column; gap: 30px; }
+.lato-blocco p { margin: 4px 0; font-size: 14.5px; }
+address { font-style: normal; }
+
+.form-contatti { display: flex; flex-direction: column; gap: 20px; }
+.form-riga { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 560px) { .form-riga { grid-template-columns: 1fr; } }
+.form-campo label { display: block; font-size: 11px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; margin-bottom: 8px; }
+.form-campo input, .form-campo select, .form-campo textarea {
+  width: 100%; padding: 13px 14px; font-family: var(--sans); font-size: 15px; color: var(--inchiostro);
+  background: #ffffff; border: 1px solid var(--crema-scura); border-radius: 0; outline: none;
+  transition: border-color .2s;
+}
+.form-campo input:focus, .form-campo select:focus, .form-campo textarea:focus { border-color: var(--oro); }
+.form-campo textarea { resize: vertical; }
+.form-nota { font-size: 12px; color: var(--grigio); margin: 6px 0 0; }
+.form-check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--grigio); cursor: pointer; }
+.form-check input { width: 17px; height: 17px; margin-top: 2px; accent-color: var(--oro); flex-shrink: 0; }
+.form-invia { width: 100%; }
+.oro { color: var(--oro-scuro); }
+.hp { position: absolute; left: -9999px; }
+.form-errore { background: #fdf3f3; border: 1px solid #e6c9c9; color: #8a3b3b; font-size: 13px; padding: 12px 16px; margin-bottom: 18px; }
+.form-esito { background: var(--crema); border: 1px solid var(--crema-scura); padding: 36px; text-align: center; }
+.form-esito-titolo { font-family: var(--serif); font-size: 26px; font-weight: 500; margin: 0 0 10px; }
+.form-esito-testo { font-size: 14.5px; color: var(--grigio); margin: 0; }
+
+/* ── Blog ─────────────────────────────────────────────────────────────── */
+.elenco-articoli { display: flex; flex-direction: column; }
+.anteprima { border-bottom: 1px solid var(--crema-scura); }
+.anteprima-collega { display: flex; flex-direction: column; gap: 8px; padding: 30px 0; color: var(--inchiostro); }
+.anteprima-data { font-size: 11px; letter-spacing: .25em; text-transform: uppercase; color: var(--oro-scuro); }
+.anteprima-titolo { font-family: var(--serif); font-weight: 500; font-size: 26px; margin: 0; line-height: 1.2; }
+.anteprima-riassunto { font-size: 15px; color: var(--grigio); max-width: 640px; margin: 0; }
+.paginazione { padding: 26px 0; font-size: 14px; }
+.paginazione .nav-links { display: flex; gap: 18px; }
+
+.prosa { font-size: 16.5px; max-width: 720px; }
+.prosa p { margin: 0 0 1.3em; }
+.prosa h2 { font-family: var(--serif); font-weight: 500; font-size: 27px; margin: 1.7em 0 .6em; }
+.prosa h3 { font-family: var(--serif); font-weight: 500; font-size: 22px; margin: 1.5em 0 .5em; }
+.prosa ul, .prosa ol { padding-left: 1.2em; margin: 0 0 1.3em; }
+.prosa a { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── Chiusura + fondo ─────────────────────────────────────────────────── */
+.chiusura { background: var(--nero); color: var(--crema); padding: 88px 24px; margin-top: 88px; text-align: center; }
+.chiusura-titolo { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: clamp(26px, 4vw, 38px); line-height: 1.25; max-width: 660px; margin: 0 auto 28px; }
+.chiusura-azioni { display: flex; gap: 16px; justify-content: center; align-items: center; flex-wrap: wrap; }
+
+.fondo { background: var(--nero); color: var(--crema); border-top: 1px solid #1e1e1e; }
+.fondo-dentro {
+  max-width: var(--largo); margin: 0 auto; padding: 60px 24px 40px;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px;
+}
+@media (max-width: 760px) { .fondo-dentro { grid-template-columns: 1fr; } }
+.fondo .marchio { color: var(--crema); }
+.fondo-claim { color: #9a9a9a; font-size: 14px; margin: 12px 0 22px; }
+.fondo-titolo { font-size: 12px; letter-spacing: .25em; text-transform: uppercase; color: var(--oro); margin: 0 0 16px; font-weight: 500; }
+.fondo-testo { color: #c9c4b8; font-size: 14.5px; margin: 0 0 8px; }
+.fondo-link { color: var(--crema); font-size: 14.5px; }
+.fondo-link:hover { color: var(--oro-chiaro); }
+.orari { margin: 0; }
+.orari-riga { display: flex; justify-content: space-between; gap: 14px; padding: 6px 0; border-bottom: 1px solid #1e1e1e; font-size: 14px; }
+.orari-riga dt { color: #9a9a9a; }
+.orari-riga dd { margin: 0; }
+.fondo-legale {
+  border-top: 1px solid #1e1e1e; padding: 20px 24px; display: flex; justify-content: space-between;
+  align-items: center; gap: 14px; flex-wrap: wrap; max-width: var(--largo); margin: 0 auto;
+}
+.fondo-legale p { margin: 0; font-size: 12.5px; color: #9a9a9a; }
+.fondo-legale nav { display: flex; gap: 18px; align-items: center; }
+.fondo-legale a, .gestisci-cookie { font-size: 12.5px; color: #9a9a9a; background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--sans); }
+.fondo-legale a:hover, .gestisci-cookie:hover { color: var(--oro-chiaro); }
+
+/* ── Banner del consenso ──────────────────────────────────────────────── */
+.consenso { position: fixed; inset: auto 0 0 0; z-index: 60; padding: 16px; }
+.consenso-scatola {
+  max-width: 660px; margin: 0 auto; background: var(--nero); color: var(--crema);
+  border: 1px solid #2a2a2a; padding: 26px; box-shadow: 0 12px 40px rgba(0,0,0,.4);
+}
+.consenso-titolo { font-family: var(--serif); font-size: 20px; font-weight: 500; margin: 0 0 8px; }
+.consenso-testo { font-size: 13.5px; color: #c9c4b8; margin: 0 0 16px; }
+.consenso-testo a { color: var(--oro-chiaro); text-decoration: underline; }
+.consenso-scelte { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 18px; }
+.consenso-scelte label { display: flex; gap: 8px; align-items: center; font-size: 13.5px; cursor: pointer; }
+.consenso-scelte input { accent-color: var(--oro); width: 16px; height: 16px; }
+.consenso-azioni { display: flex; gap: 12px; flex-wrap: wrap; }
+.consenso-azioni .bottone { padding: 11px 20px; min-height: 42px; font-size: 12px; }
+
+/* Dentro il banner (fondo scuro) i bottoni secondari usano la variante chiara. */
+.consenso .bottone-lineare { border-color: #3a3a3a; color: var(--crema); }
+.consenso .bottone-lineare:hover { border-color: var(--oro); color: var(--oro-chiaro); }
+
+/* Tabelle nella prosa (cookie policy). */
+.prosa table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 0 0 1.4em; }
+.prosa th, .prosa td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--crema-scura); }
+.prosa th { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--oro-scuro); }
