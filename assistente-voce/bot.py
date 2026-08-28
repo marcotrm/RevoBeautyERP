@@ -54,6 +54,18 @@ FREQUENZA = 8000
 # chiede anche come norma.
 SALUTO = "RevoBeauty, sono l'assistente virtuale, dimmi pure."
 
+# Quale motore di Fish usare.
+#
+# `s2.1-pro-free` e' l'unico che si paga con l'abbonamento invece che col
+# credito API, ed e' quello che ci fa parlare con la voce del centro senza
+# mettere soldi in un secondo contatore. Accetta le voci clonate: provato con
+# la voce del centro, restituisce audio vero.
+#
+# Gli altri (s2-pro, s2.1-pro, s1, speech-1.6...) rispondono tutti 402 finche'
+# il credito API resta a zero. Il giorno che il centro decidesse di caricarlo,
+# si passa a `s2.1-pro` cambiando questa variabile e basta.
+MODELLO_FISH = os.getenv("FISH_MODEL", "s2.1-pro-free")
+
 
 def _oggi() -> str:
     """
@@ -148,7 +160,7 @@ async def fish_risponde() -> tuple[bool, str]:
                 "wss://api.fish.audio/v1/tts/live",
                 additional_headers={
                     "Authorization": f"Bearer {os.environ['FISH_API_KEY']}",
-                    "model": os.getenv("FISH_MODEL", "s2-pro"),
+                    "model": MODELLO_FISH,
                 },
             ),
             timeout=4,
@@ -278,7 +290,9 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
             # `model` e `reference_id` funzionano ancora ma sono tutti e due
             # deprecati, ed e' da questa famiglia di cambiamenti che e' arrivata
             # la caduta del telefono: meglio non lasciarne in giro nessuno.
-            settings=FishAudioTTSService.Settings(voice=os.environ["FISH_VOICE_ID"]),
+            settings=FishAudioTTSService.Settings(
+                model=MODELLO_FISH, voice=os.environ["FISH_VOICE_ID"],
+            ),
             sample_rate=FREQUENZA,
         )
 
