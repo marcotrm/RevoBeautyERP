@@ -13,7 +13,9 @@
 	// Il CSS critico, inline: niente giro di rete prima del primo dipinto.
 	$critico = RB_DUE_DIR . '/assets/css/critical.css';
 	if ( is_readable( $critico ) ) {
-		echo file_get_contents( $critico ); // phpcs:ignore
+		// Il CSS è inline: gli URL relativi si romperebbero contro l'URL della
+		// pagina, quindi i font usano un segnaposto risolto qui.
+		echo str_replace( '__RB_FONTS__', RB_DUE_URI . '/assets/fonts', file_get_contents( $critico ) ); // phpcs:ignore
 	}
 ?></style>
 <?php wp_head(); ?>

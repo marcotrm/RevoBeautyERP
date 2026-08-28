@@ -1,22 +1,22 @@
 /* ── Token e font: la parte che serve prima del primo dipinto ─────────── */
 @font-face {
   font-family: 'Bodoni Moda';
-  src: url('../fonts/bodoni-moda-normal-400-700-latin.woff2') format('woff2');
+  src: url('__RB_FONTS__/bodoni-moda-normal-400-700-latin.woff2') format('woff2');
   font-weight: 400 700; font-style: normal; font-display: swap;
 }
 @font-face {
   font-family: 'Bodoni Moda';
-  src: url('../fonts/bodoni-moda-italic-400-700-latin.woff2') format('woff2');
+  src: url('__RB_FONTS__/bodoni-moda-italic-400-700-latin.woff2') format('woff2');
   font-weight: 400 700; font-style: italic; font-display: swap;
 }
 @font-face {
   font-family: 'Archivo';
-  src: url('../fonts/archivo-normal-300-600-latin.woff2') format('woff2');
+  src: url('__RB_FONTS__/archivo-normal-300-600-latin.woff2') format('woff2');
   font-weight: 300 600; font-style: normal; font-display: swap;
 }
 
 :root {
-  --oro: #b59b53; --oro-chiaro: #d4c08a; --oro-scuro: #8a7639;
+  --oro: #b59b53; --oro-chiaro: #d4c08a; --oro-scuro: #7d6b33;
   --nero: #0a0a0a; --inchiostro: #1a1a1a; --grigio: #6b6b6b;
   --crema: #f5f0e8; --crema-scura: #e8e2d6; --avorio: #faf8f4;
   --bordeaux: #5e0f26;
