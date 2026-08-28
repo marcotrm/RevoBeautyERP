@@ -54,7 +54,6 @@ import AddClientModal from '@/components/AddClientModal';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { senzaOmaggioInaugurazione } from '@/lib/omaggioInaugurazione';
 import { esoneriScheda, esoneraScheda } from '@/app/actions/esoneroScheda';
-import { getTransactionsByRange, type TransactionRecord } from '@/app/actions/pos';
 import { ultimoConsensoLaser, registraConsensoLaser, type FirmaLaser } from '@/app/actions/consensoLaser';
 import SegniCliente from '@/components/SegniCliente';
 import AvvisoCliente from '@/components/AvvisoCliente';
@@ -3596,45 +3595,10 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     resta scritto sull'appuntamento, agganciato alla riga di cassa vera, e al
     check-out la cassa non si apre nemmeno.
   */
-  const [pagatoOpen, setPagatoOpen] = useState(false);
   const [pagatoBusy, setPagatoBusy] = useState(false);
-  const [incassiRecenti, setIncassiRecenti] = useState<TransactionRecord[] | null>(null);
-  const [cercaIncasso, setCercaIncasso] = useState('');
-  const [pagatoDa, setPagatoDa] = useState('');
-  const [pagatoNota, setPagatoNota] = useState('');
   const giaPagato = appointment.paidAhead || null;
 
-  const apriGiaPagato = async () => {
-    setPagatoOpen(true);
-    setPagatoDa('');
-    setPagatoNota('');
-    setCercaIncasso('');
-    if (incassiRecenti) return;
-    // Un mese indietro: chi paga in anticipo lo fa qualche giorno prima, non a marzo.
-    const oggiIso = todayRome();
-    const trenta = new Date(Date.parse(oggiIso + 'T12:00:00') - 30 * 86400000).toISOString().slice(0, 10);
-    setIncassiRecenti(await getTransactionsByRange(trenta, oggiIso).catch(() => []));
-  };
 
-  const salvaGiaPagato = async (tx: TransactionRecord | null) => {
-    if (pagatoBusy) return;
-    setPagatoBusy(true);
-    try {
-      const io = useAuthStore.getState().user;
-      await updateAppt(appointment.id, {
-        paidAhead: {
-          txId: tx?.id,
-          importo: tx?.total,
-          quando: tx?.date,
-          da: pagatoDa.trim() || (tx && tx.client !== appointment.clientName ? tx.client : undefined),
-          nota: pagatoNota.trim() || undefined,
-          segnatoDa: [io?.firstName, io?.lastName].filter(Boolean).join(' ').trim() || undefined,
-          segnatoIl: new Date().toISOString(),
-        },
-      });
-      setPagatoOpen(false);
-    } finally { setPagatoBusy(false); }
-  };
 
   /**
    * Incassa adesso una seduta che si fara' un altro giorno.
@@ -3674,16 +3638,6 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     finally { setPagatoBusy(false); }
   };
 
-  const incassiTrovati = (() => {
-    const lista = incassiRecenti || [];
-    const q = cercaIncasso.trim().toLowerCase();
-    if (!q) return lista.slice(0, 12);
-    return lista.filter(t =>
-      t.client.toLowerCase().includes(q)
-      || t.items.toLowerCase().includes(q)
-      || String(t.total).includes(q)
-    ).slice(0, 12);
-  })();
 
   const cambiaOperatriceServizio = (i: number, operatorId: string) => {
     const op = operators.find(o => o.id === operatorId);
@@ -4526,30 +4480,19 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 </div>
               </div>
             ) : appointment.status !== 'completed' ? (
-              <div className="grid grid-cols-2 gap-2">
-                {/*
-                  Due strade diverse, e vanno tenute separate.
+              /*
+                Una strada sola: i soldi si prendono qui, adesso.
 
-                  «Incassa adesso» e' per i soldi che stanno arrivando ORA: il
-                  fidanzato e' al banco e paga la seduta di lei della settimana
-                  prossima. Si va in cassa, si batte lo scontrino, e
-                  l'appuntamento resta dov'e' — nessun check-in, la cliente non
-                  e' qui.
-
-                  «E' gia' pagata» e' per i soldi entrati prima, magari da un
-                  altro: si aggancia la riga di cassa che c'e' gia'.
-                */}
-                <button onClick={incassaInAnticipo}
-                  title="Prendi i soldi adesso in cassa, senza fare il check-in"
-                  className="flex items-center justify-center gap-1.5 py-2 rounded-xl gradient-accent text-white text-[12px] font-semibold hover:opacity-90 transition-opacity">
-                  <Euro className="w-3.5 h-3.5" /> Incassa adesso
-                </button>
-                <button onClick={apriGiaPagato}
-                  title="I soldi sono gia' entrati: aggancia l'incasso"
-                  className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-success/10 border border-success/25 text-[12px] font-semibold text-success hover:bg-success/20 transition-colors">
-                  <CheckCircle className="w-3.5 h-3.5" /> È già pagata
-                </button>
-              </div>
+                C'era anche «e' gia' pagata», per agganciare a mano un incasso
+                gia' battuto. Due tasti che sembrano la stessa cosa fanno
+                sbagliare chi ha fretta, e questo e' un tasto che si preme con
+                la cliente davanti: meglio uno, e che sia quello giusto.
+              */
+              <button onClick={incassaInAnticipo}
+                title="Prendi i soldi adesso in cassa, senza fare il check-in"
+                className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl gradient-accent text-white text-[12px] font-semibold hover:opacity-90 transition-opacity">
+                <Euro className="w-3.5 h-3.5" /> Incassa adesso
+              </button>
             ) : null}
 
             {/* Promemoria: le cose da chiederle quando è qui. Sta accanto ai
@@ -5289,70 +5232,6 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
               </button>
               <button onClick={() => setConfermaPagato(false)}
                 className="w-full py-2 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
-                Annulla
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Chi ha pagato, e dove sono entrati i soldi */}
-      {pagatoOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setPagatoOpen(false)} />
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-            className="relative z-10 w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl border border-border bg-bg-secondary shadow-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-border">
-              <h3 className="text-base font-display font-bold text-text-primary">Seduta già pagata</h3>
-              <p className="text-xs text-text-secondary mt-0.5">
-                Scegli l&apos;incasso in cassa dove sono entrati i soldi. Se non è passato per la cassa, scrivilo sotto.
-              </p>
-            </div>
-
-            <div className="px-5 py-3 space-y-2 border-b border-border">
-              <input type="text" value={pagatoDa} onChange={e => setPagatoDa(e.target.value)} {...NO_AUTOFILL}
-                placeholder="Chi ha pagato (es. il padre, Giuseppe)"
-                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
-              <input type="text" value={pagatoNota} onChange={e => setPagatoNota(e.target.value)} {...NO_AUTOFILL}
-                placeholder="Nota per chi sarà al banco (facoltativa)"
-                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
-            </div>
-
-            <div className="px-5 py-3 border-b border-border">
-              <input type="text" value={cercaIncasso} onChange={e => setCercaIncasso(e.target.value)} {...NO_AUTOFILL}
-                placeholder="Cerca l'incasso: nome, trattamento o importo"
-                className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-5 py-3 space-y-1.5">
-              {incassiRecenti === null ? (
-                <p className="text-sm text-text-muted text-center py-6">Cerco gli incassi dell&apos;ultimo mese…</p>
-              ) : incassiTrovati.length === 0 ? (
-                <p className="text-sm text-text-muted text-center py-6">Nessun incasso trovato.</p>
-              ) : incassiTrovati.map(t => (
-                <button key={t.id} onClick={() => salvaGiaPagato(t)} disabled={pagatoBusy}
-                  className="w-full text-left p-3 rounded-xl border border-border bg-bg-tertiary/40 hover:border-success/50 hover:bg-success/5 transition-colors disabled:opacity-50">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-text-primary truncate">{t.client || 'Cliente occasionale'}</span>
-                    <span className="text-sm font-bold text-text-primary flex-shrink-0">{formatCurrency(t.total)}</span>
-                  </div>
-                  <p className="text-[11px] text-text-muted truncate">
-                    {(t.date || '').split('-').reverse().join('/')} {t.time} · {t.items} · {t.method}
-                  </p>
-                </button>
-              ))}
-            </div>
-
-            <div className="px-5 py-4 border-t border-border space-y-2">
-              {/* Non tutto passa per la cassa: a volte i soldi li prende la
-                  ragazza al banco e li mette da parte. Meglio saperlo scritto
-                  che non saperlo affatto. */}
-              <button onClick={() => salvaGiaPagato(null)} disabled={pagatoBusy}
-                className="w-full py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors disabled:opacity-50">
-                {pagatoBusy ? 'Salvo…' : 'Segna come pagato senza riga di cassa'}
-              </button>
-              <button onClick={() => setPagatoOpen(false)}
-                className="w-full py-2 rounded-xl text-sm font-medium text-text-muted hover:text-text-primary transition-colors">
                 Annulla
               </button>
             </div>
