@@ -90,11 +90,22 @@ export async function sendWhatsApp(number: string, text: string, source: WaSourc
   if (!provider) {
     return { ok: false, error: `WhatsApp non configurato: mancano ${whatsappMissingVars().join(', ')}` };
   }
-  const res = provider === '360dialog'
-    ? { ...(await sendD360Text(number, text)), provider }
-    : await sendViaEvolution(number, text);
+  /*
+    Il prefisso si mette qui, una volta per tutte.
 
-  await logOutbound({ phone: number, text, source, messageId: res.messageId, ok: res.ok, error: res.error });
+    Quasi tutti i chiamanti normalizzavano per conto loro, e quello che non lo
+    faceva mandava a «3669331862» invece che a «393669331862»: Meta accetta la
+    richiesta e poi risponde 131026, «message undeliverable». Il messaggio
+    risulta partito e non arriva a nessuno — e' successo col listino a
+    Raffaella, due volte di fila. In piu' l'archivio finiva sotto un numero
+    diverso, quindi la stessa persona compariva in due conversazioni.
+  */
+  const numero = normalizePhone(number);
+  const res = provider === '360dialog'
+    ? { ...(await sendD360Text(numero, text)), provider }
+    : await sendViaEvolution(numero, text);
+
+  await logOutbound({ phone: numero, text, source, messageId: res.messageId, ok: res.ok, error: res.error });
   return res;
 }
 
@@ -112,14 +123,16 @@ export async function sendWhatsAppTemplate(
     return { ok: false, error: `WhatsApp non configurato: mancano ${whatsappMissingVars().join(', ')}` };
   }
   const tpl = WA_TEMPLATES[key];
+  // Stesso motivo del testo libero: senza prefisso il template parte e non arriva.
+  const numero = normalizePhone(number);
 
   let res: WaSendResult;
   if (provider === '360dialog') {
-    res = { ...(await sendD360Template(number, tpl.name, { language: tpl.language, ...opts })), provider };
+    res = { ...(await sendD360Template(numero, tpl.name, { language: tpl.language, ...opts })), provider };
   } else if (!opts.fallbackText) {
     res = { ok: false, error: 'Evolution non supporta i template: serve fallbackText', provider };
   } else {
-    res = await sendViaEvolution(number, opts.fallbackText);
+    res = await sendViaEvolution(numero, opts.fallbackText);
   }
 
   // In archivio va il testo che il cliente legge davvero: il template con i
@@ -128,7 +141,7 @@ export async function sendWhatsAppTemplate(
   // capire cosa è stato consegnato, perché i bottoni (e per la richiesta
   // recensione l'intero link) non compaiono nel testo.
   await logOutbound({
-    phone: number,
+    phone: numero,
     text: opts.fallbackText || `[template ${tpl.name}]`,
     source: opts.source || 'automation',
     messageId: res.messageId,
@@ -177,8 +190,9 @@ export async function sendWhatsAppApertura(
     ? { name: NOME_CONTATTO_SITO, bodyParams: [nome, motivo], testo: TESTO_CONTATTO_SITO }
     : { name: NOME_APERTURA, bodyParams: [nome], testo: TESTO_APERTURA };
 
+  const numero = normalizePhone(number);
   const res: WaSendResult = {
-    ...(await sendD360Template(number, scelta.name, { language: 'it', bodyParams: scelta.bodyParams })),
+    ...(await sendD360Template(numero, scelta.name, { language: 'it', bodyParams: scelta.bodyParams })),
     provider: '360dialog',
   };
 
@@ -190,7 +204,7 @@ export async function sendWhatsAppApertura(
     scelta.testo
   );
   await logOutbound({
-    phone: number, text: testoLetto, source,
+    phone: numero, text: testoLetto, source,
     messageId: res.messageId, ok: res.ok, error: res.error,
     template: { name: scelta.name, buttons: [] },
   });

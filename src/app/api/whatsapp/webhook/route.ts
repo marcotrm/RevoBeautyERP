@@ -21,6 +21,7 @@ import { handleAssistantMessage } from '@/lib/wa-assistant';
 import { handleSegretariaMessage } from '@/lib/wa-segretaria';
 import { getWaAutomationsConfig } from '@/lib/wa-automations';
 import { logInbound, listMessages, type WaMedia, type WaMediaKind } from '@/lib/wa-conversations';
+import { sendTelegram } from '@/lib/telegram';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -357,8 +358,25 @@ export async function POST(request: Request) {
           update: { data },
           create: { rowId, kind: 'wa_status', entityId: s.id, data, createdAt: now },
         });
+        /*
+          Un messaggio che non arriva deve saperlo qualcuno.
+
+          Finora restava solo nei log di Railway: il centro se ne accorgeva
+          quando la cliente diceva «non mi e' arrivato niente» — o non se ne
+          accorgeva affatto. Il listino a Raffaella e' partito due volte e due
+          volte e' tornato indietro, e al banco risultava mandato.
+        */
         if (s.status === 'failed') {
           console.error(`[wa-webhook] invio fallito ${s.id}`, s.errors);
+          const chi = data.phone || 'numero sconosciuto';
+          const perche = data.error || 'motivo non indicato';
+          sendTelegram(
+            `⚠️ <b>Messaggio WhatsApp non consegnato</b>\n`
+            + `A: ${chi}\n`
+            + `Motivo: ${perche}${data.errorCode ? ` (${data.errorCode})` : ''}\n\n`
+            + 'Il messaggio risulta partito dal gestionale ma WhatsApp non l\'ha consegnato: '
+            + 'controlla che il numero sia giusto e che abbia WhatsApp.'
+          ).catch(() => {});
         }
       }
     }
