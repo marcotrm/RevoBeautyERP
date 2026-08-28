@@ -26,6 +26,7 @@ from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.serializers.twilio import TwilioFrameSerializer
 from pipecat.services.anthropic.llm import AnthropicLLMService
+from pipecat.frames.frames import TTSSpeakFrame
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.deepgram.tts import DeepgramTTSService
 from pipecat.services.fish.tts import FishAudioTTSService
@@ -371,8 +372,20 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
 
     @transport.event_handler("on_client_connected")
     async def _benvenuto(_transport, _client):
+        # Il saluto si fa dire, non si fa generare.
+        #
+        # Prima si infilava come messaggio dell'assistente e poi si chiedeva al
+        # modello di proseguire da li'. Ma una conversazione non puo' finire con
+        # l'assistente: Anthropic rispondeva
+        #     400 — This model does not support assistant message prefill.
+        # Il modello non partiva, e chi chiamava trovava la linea aperta e
+        # nessuno che parlasse.
+        #
+        # La frase e' fissa e la conosciamo: si manda dritta alla voce, senza
+        # scomodare il modello. Resta nel contesto perche' finisca nella
+        # trascrizione, e il primo vero turno parte quando parla la cliente.
         context.add_message({"role": "assistant", "content": SALUTO})
-        await task.queue_frames([aggregator.assistant().get_context_frame()])
+        await task.queue_frames([TTSSpeakFrame(SALUTO)])
 
     @transport.event_handler("on_client_disconnected")
     async def _chiusa(_transport, _client):
