@@ -438,6 +438,29 @@ function riconosciOperatrice<T extends { nome: string; nomeBreve: string }>(cerc
 }
 
 /**
+ * Quello che il messaggio dichiara di aver GIA' FATTO in agenda.
+ *
+ * «Nel frattempo disdico, ok?» e' una proposta e va benissimo senza aver
+ * toccato niente. «L'ho disdetto» invece e' un fatto, e se il fatto non c'e'
+ * la cliente resta convinta di non avere piu' l'appuntamento mentre in agenda
+ * quel posto e' ancora suo — e non se ne accorge nessuno fino al giorno stesso.
+ * Qui si guardano solo i tempi passati, che sono l'unica forma in cui si
+ * racconta una cosa gia' successa.
+ */
+function dichiaraDiAverFatto(testo: string): Array<'disdici_appuntamento' | 'sposta_appuntamento' | 'prenota'> {
+  const t = testo.toLowerCase();
+  const fatte: Array<'disdici_appuntamento' | 'sposta_appuntamento' | 'prenota'> = [];
+  const dice = (re: RegExp) => re.test(t);
+  if (dice(/\b(ho|l'ho|le ho|abbiamo|l'abbiamo)\s+(gi[aà]\s+)?(disdett|annullat|cancellat|tolt)/)
+    || dice(/(?:è|e')\s+stat[oa]\s+(?:disdett|annullat|cancellat)/)) fatte.push('disdici_appuntamento');
+  if (dice(/\b(ho|l'ho|le ho|abbiamo|l'abbiamo)\s+(gi[aà]\s+)?spostat/)
+    || dice(/(?:è|e')\s+stat[oa]\s+spostat/)) fatte.push('sposta_appuntamento');
+  if (dice(/\b(ho|le ho|ti ho|abbiamo)\s+(gi[aà]\s+)?(prenotat|fissat)/)
+    || dice(/(?:è|e')\s+stat[oa]\s+(?:prenotat|fissat)/)) fatte.push('prenota');
+  return fatte;
+}
+
+/**
  * Gli orari scritti in un testo, in forma HH:MM.
  *
  * Serve a una cosa sola: confrontare quello che il modello sta per mandare
@@ -1395,6 +1418,8 @@ async function eseguiTurno(
   */
   for (const t of stato.turni) for (const o of orariIn(t.text)) orariLeciti.add(o);
   let giaCorretto = false;
+  /** Gli strumenti che hanno davvero scritto in agenda in questo turno. */
+  const scritture = new Set<string>();
 
   for (let giro = 0; giro < MAX_GIRI_STRUMENTI; giro++) {
     const risposta = await client.messages.create({
@@ -1444,6 +1469,37 @@ async function eseguiTurno(
     const richieste = risposta.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
 
     if (richieste.length === 0) {
+      /*
+        Dice di aver fatto una cosa che non ha fatto.
+
+        E' l'altra meta' del problema degli orari inventati: li' si prometteva
+        un posto che non c'era, qui si racconta un'agenda che non e' cambiata.
+        La cliente se ne va tranquilla e il posto resta occupato.
+      */
+      const promesse = dichiaraDiAverFatto(testo).filter(x => !scritture.has(x));
+      if (promesse.length > 0 && !giaCorretto) {
+        console.error(`[wa-segretaria] ${phone}: dice di aver fatto ${promesse.join(', ')} senza averlo fatto — non lo mando`);
+        giaCorretto = true;
+        conversazione.push({ role: 'assistant', content: testo });
+        conversazione.push({
+          role: 'user',
+          content: [{
+            type: 'text',
+            text: 'CONTROLLO DEL GESTIONALE: nel messaggio dici di aver gia\' fatto una cosa in agenda '
+              + `(${promesse.join(', ')}) che pero' non hai fatto: quello strumento non l'hai chiamato, `
+              + 'e in agenda non e\' cambiato niente. Il messaggio NON e\' stato mandato. O chiami lo '
+              + 'strumento adesso, o riscrivi senza dire che e\' gia\' fatto.',
+          }],
+        });
+        continue;
+      }
+      if (promesse.length > 0) {
+        console.error(`[wa-segretaria] ${phone}: insiste a dire di aver fatto ${promesse.join(', ')} — turno chiuso`);
+        if (livello === 'lavoro') return { tipo: 'sali', strumento: 'dice di aver fatto senza farlo' };
+        await markConversationUnread(phone).catch(() => {});
+        return { tipo: 'niente' };
+      }
+
       const inventati = [...new Set(orariIn(testo))].filter(o => !orariLeciti.has(o));
       if (inventati.length > 0) {
         console.error(`[wa-segretaria] ${phone}: orari non verificati nel messaggio (${inventati.join(', ')}) — non lo mando`);
@@ -1536,6 +1592,9 @@ async function eseguiTurno(
 
       // Quello che lo strumento ha davvero risposto diventa l'unico orario dicibile.
       for (const o of orariIn(contenuto)) orariLeciti.add(o);
+      // Una scrittura vale solo se e' andata a buon fine: un tentativo fallito
+      // non autorizza a dire alla cliente che e' fatta.
+      if (!/"ok"\s*:\s*false|"errore"/.test(contenuto)) scritture.add(r.name);
 
       if (r.name === 'quando_c_e_posto' && contenuto.includes('"trovato":false')) ricercaAVuoto = true;
 
