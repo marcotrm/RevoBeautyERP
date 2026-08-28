@@ -85,7 +85,7 @@ async def fish():
         ws = await asyncio.wait_for(
             websocket_connect(
                 "wss://api.fish.audio/v1/tts/live",
-                additional_headers={**testa, "model": os.getenv("FISH_MODEL", "s2-pro")},
+                additional_headers={**testa, "model": os.getenv("FISH_MODEL", "s2.1-pro-free")},
             ),
             timeout=6,
         )
