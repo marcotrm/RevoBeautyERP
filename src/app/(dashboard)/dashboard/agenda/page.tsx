@@ -24,7 +24,7 @@ import {
 import {
   formatDateLong, timeToMinutes, minutesToTime, getStatusLabel,
   getStatusColor, formatCurrency, getInitials, getCategoryLabel, guessGenderFromName,
-  cifreTelefono, numeroCorrisponde,
+  cifreTelefono, numeroCorrisponde, formatBirthDate,
 } from '@/lib/helpers';
 import { resolveTreatmentForPackage } from '@/lib/packageTreatment';
 import { GIFT_OPTIONS, isGiftPackage } from '@/lib/giftOptions';
@@ -4024,7 +4024,24 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
               <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: appointment.color }}>
                 {appointment.clientName.split(' ').map(n => n[0]).join('')}
               </div>
-              <div><p className="font-medium text-text-primary">{appointment.clientName}</p><p className="text-xs text-text-secondary">Cliente</p></div>
+              {/*
+                Sotto al nome, la nascita e gli anni.
+
+                "Cliente" era una parola che non diceva niente: si legge in una
+                scheda che si e' aperta proprio per vedere una cliente. Al posto
+                suo l'unica cosa che serve saperla prima di entrare in cabina —
+                quanti anni ha — e la data per fare gli auguri. Se manca, lo
+                dice: senza data di nascita il check-in non si chiude.
+              */}
+              <div>
+                <p className="font-medium text-text-primary">{appointment.clientName}</p>
+                {(() => {
+                  const nascita = allClients.find(c => c.id === appointment.clientId)?.birthDate;
+                  return nascita
+                    ? <p className="text-xs text-text-secondary">🎂 {formatBirthDate(nascita)}</p>
+                    : <p className="text-xs text-warning">Data di nascita mancante</p>;
+                })()}
+              </div>
             </div>
           </div>
           <div className="space-y-3 mb-6">
