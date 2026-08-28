@@ -130,7 +130,7 @@ function ShiftEditModal({ operator, day, dayDate, shift, onClose, onSave }: {
             </div>
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
           </div>
-          <div className="px-6 py-5 space-y-4 max-h-[calc(100vh-14rem)] overflow-y-auto">
+          <div className="px-6 py-5 space-y-4 max-h-[calc(100dvh-14rem)] overflow-y-auto">
             {/* Working toggle */}
             <div className="flex items-center justify-between p-3 rounded-xl bg-bg-tertiary">
               <span className="text-sm font-medium text-text-primary">In servizio</span>
@@ -281,7 +281,7 @@ function AddStaffModal({ onClose, onSave }: { onClose: () => void; onSave: (s: O
             <h3 className="text-lg font-display font-semibold text-text-primary">Aggiungi Membro Staff</h3>
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
           </div>
-          <div className="px-6 py-5 space-y-4 max-h-[calc(100vh-14rem)] overflow-y-auto">
+          <div className="px-6 py-5 space-y-4 max-h-[calc(100dvh-14rem)] overflow-y-auto">
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Nome *</label>
                 <input type="text" value={firstName} onChange={e => setFirstName(maiuscoleNome(e.target.value))} placeholder="Nome..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
@@ -301,7 +301,7 @@ function AddStaffModal({ onClose, onSave }: { onClose: () => void; onSave: (s: O
                 <input type="number" min="0" max="60" step="0.5" value={contractHours} onChange={e => setContractHours(e.target.value)} placeholder="es. 40" className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
             </div>
             <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Colore</label>
-              <div className="flex gap-2">{COLORS.map(c => <button key={c} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 ring-offset-bg-secondary ring-accent scale-110' : 'hover:scale-105'}`} style={{ backgroundColor: c }} />)}</div></div>
+              <div className="flex flex-wrap gap-2">{COLORS.map(c => <button key={c} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 ring-offset-bg-secondary ring-accent scale-110' : 'hover:scale-105'}`} style={{ backgroundColor: c }} />)}</div></div>
             {canSave && <div className="flex items-center gap-3 p-3 rounded-xl bg-bg-tertiary/50 border border-border/30">
               <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: color }}>{getInitials(firstName, lastName)}</div>
               <div>
@@ -394,7 +394,7 @@ function StaffDetailModal({ operator, onClose, onSave, onDelete }: {
             </div>
           </div>
 
-          <div className="px-6 py-5 space-y-4 max-h-[calc(100vh-16rem)] overflow-y-auto">
+          <div className="px-6 py-5 space-y-4 max-h-[calc(100dvh-16rem)] overflow-y-auto">
             {/* Ore da contratto */}
             <div className="p-4 rounded-xl bg-accent/5 border border-accent/20">
               <label className="block text-sm font-semibold text-text-primary mb-1.5">Ore settimanali da contratto</label>

@@ -84,39 +84,41 @@ export default function DettaglioPacchetto({ nome, onClose }: { nome: string; on
                       Chi l&apos;ha comprato, dal più recente
                     </p>
                     <div className="rounded-xl border border-border overflow-hidden">
-                      <table className="w-full text-left border-collapse">
-                        <thead className="bg-bg-tertiary/40">
-                          <tr>
-                            <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Cliente</th>
-                            <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Comprato</th>
-                            <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-center">Sedute</th>
-                            <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-right hidden sm:table-cell">Pagato</th>
-                            <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Scade</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/40">
-                          {dati.vendite.map((v, i) => {
-                            const restano = v.totali - v.fatte;
-                            return (
-                              <tr key={i} className="hover:bg-bg-hover/50">
-                                <td className="px-3 py-2 text-sm text-text-primary truncate max-w-[170px]">{v.cliente}</td>
-                                <td className="px-3 py-2 text-sm text-text-secondary whitespace-nowrap">{giorno(v.acquistato)}</td>
-                                <td className="px-3 py-2 text-sm text-center whitespace-nowrap">
-                                  <span className={restano === 0 ? 'text-success' : restano >= v.totali ? 'text-error font-semibold' : 'text-text-primary'}>
-                                    {v.fatte}/{v.totali}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2 text-sm text-right tabular-nums hidden sm:table-cell whitespace-nowrap">
-                                  {v.daIncassare > 0
-                                    ? <span className="text-error font-semibold">deve {formatCurrency(v.daIncassare)}</span>
-                                    : <span className="text-text-secondary">{formatCurrency(v.incassato)}</span>}
-                                </td>
-                                <td className="px-3 py-2 text-sm text-text-muted whitespace-nowrap">{giorno(v.scadenza)}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[480px] text-left border-collapse">
+                          <thead className="bg-bg-tertiary/40">
+                            <tr>
+                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Cliente</th>
+                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Comprato</th>
+                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-center">Sedute</th>
+                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-right hidden sm:table-cell">Pagato</th>
+                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Scade</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/40">
+                            {dati.vendite.map((v, i) => {
+                              const restano = v.totali - v.fatte;
+                              return (
+                                <tr key={i} className="hover:bg-bg-hover/50">
+                                  <td className="px-3 py-2 text-sm text-text-primary truncate max-w-[170px]">{v.cliente}</td>
+                                  <td className="px-3 py-2 text-sm text-text-secondary whitespace-nowrap">{giorno(v.acquistato)}</td>
+                                  <td className="px-3 py-2 text-sm text-center whitespace-nowrap">
+                                    <span className={restano === 0 ? 'text-success' : restano >= v.totali ? 'text-error font-semibold' : 'text-text-primary'}>
+                                      {v.fatte}/{v.totali}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-right tabular-nums hidden sm:table-cell whitespace-nowrap">
+                                    {v.daIncassare > 0
+                                      ? <span className="text-error font-semibold">deve {formatCurrency(v.daIncassare)}</span>
+                                      : <span className="text-text-secondary">{formatCurrency(v.incassato)}</span>}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-text-muted whitespace-nowrap">{giorno(v.scadenza)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                     <p className="text-[10px] text-text-muted mt-2">
                       In rosso chi non ha ancora fatto nessuna seduta e chi deve ancora dei soldi: sono le due

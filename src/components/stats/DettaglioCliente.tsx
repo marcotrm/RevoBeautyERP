@@ -100,61 +100,63 @@ export default function DettaglioCliente({ clientId, onClose }: { clientId: stri
                         Ogni volta che è venuta — dalla più recente
                       </p>
                       <div className="rounded-xl border border-border overflow-hidden">
-                        <table className="w-full text-left border-collapse">
-                          <thead className="bg-bg-tertiary/40">
-                            <tr>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Quando</th>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Cosa ha fatto</th>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Con chi</th>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-right">Speso</th>
-                              <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-right hidden sm:table-cell">Totale</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/40">
-                            {dati.visite2.map((v, i) => (
-                              <tr key={i} className="hover:bg-bg-hover/50 align-top">
-                                <td className="px-3 py-2 text-sm text-text-primary whitespace-nowrap">
-                                  {giorno(v.data)} <span className="text-text-muted">{v.ora}</span>
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[480px] text-left border-collapse">
+                            <thead className="bg-bg-tertiary/40">
+                              <tr>
+                                <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Quando</th>
+                                <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Cosa ha fatto</th>
+                                <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase">Con chi</th>
+                                <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-right">Speso</th>
+                                <th className="px-3 py-2 text-[11px] font-bold text-text-muted uppercase text-right hidden sm:table-cell">Totale</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/40">
+                              {dati.visite2.map((v, i) => (
+                                <tr key={i} className="hover:bg-bg-hover/50 align-top">
+                                  <td className="px-3 py-2 text-sm text-text-primary whitespace-nowrap">
+                                    {giorno(v.data)} <span className="text-text-muted">{v.ora}</span>
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-text-secondary">
+                                    {v.trattamenti.length > 0
+                                      ? v.trattamenti.map((t, k) => (
+                                          <span key={k} className="block truncate max-w-[220px]">{t.nome}</span>
+                                        ))
+                                      : <span className="text-text-muted italic">solo passaggio in cassa</span>}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-text-secondary">
+                                    {v.trattamenti.length > 0
+                                      ? v.trattamenti.map((t, k) => (
+                                          <span key={k} className="block truncate max-w-[150px]">{t.operatrice}</span>
+                                        ))
+                                      : <span className="text-text-muted">—</span>}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-right tabular-nums whitespace-nowrap">
+                                    {/* Zero non vuol dire gratis: quel giorno non è
+                                        passata in cassa (pacchetto, omaggio, o non
+                                        incassato). Scriverlo evita la domanda. */}
+                                    {v.senzaIncasso
+                                      ? <span className="text-[11px] text-accent">niente in cassa</span>
+                                      : <span className="font-semibold text-text-primary">{formatCurrency(v.speso)}</span>}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-accent text-right tabular-nums hidden sm:table-cell">
+                                    {formatCurrency(v.progressivo)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr className="bg-bg-tertiary/40 border-t border-border">
+                                <td colSpan={3} className="px-3 py-2 text-sm font-semibold text-text-primary">
+                                  {dati.visite2.length} {dati.visite2.length === 1 ? 'volta' : 'volte'} · totale speso
                                 </td>
-                                <td className="px-3 py-2 text-sm text-text-secondary">
-                                  {v.trattamenti.length > 0
-                                    ? v.trattamenti.map((t, k) => (
-                                        <span key={k} className="block truncate max-w-[220px]">{t.nome}</span>
-                                      ))
-                                    : <span className="text-text-muted italic">solo passaggio in cassa</span>}
-                                </td>
-                                <td className="px-3 py-2 text-sm text-text-secondary">
-                                  {v.trattamenti.length > 0
-                                    ? v.trattamenti.map((t, k) => (
-                                        <span key={k} className="block truncate max-w-[150px]">{t.operatrice}</span>
-                                      ))
-                                    : <span className="text-text-muted">—</span>}
-                                </td>
-                                <td className="px-3 py-2 text-sm text-right tabular-nums whitespace-nowrap">
-                                  {/* Zero non vuol dire gratis: quel giorno non è
-                                      passata in cassa (pacchetto, omaggio, o non
-                                      incassato). Scriverlo evita la domanda. */}
-                                  {v.senzaIncasso
-                                    ? <span className="text-[11px] text-accent">niente in cassa</span>
-                                    : <span className="font-semibold text-text-primary">{formatCurrency(v.speso)}</span>}
-                                </td>
-                                <td className="px-3 py-2 text-sm text-accent text-right tabular-nums hidden sm:table-cell">
-                                  {formatCurrency(v.progressivo)}
+                                <td colSpan={2} className="px-3 py-2 text-sm font-bold text-accent text-right tabular-nums">
+                                  {formatCurrency(dati.totale)}
                                 </td>
                               </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            <tr className="bg-bg-tertiary/40 border-t border-border">
-                              <td colSpan={3} className="px-3 py-2 text-sm font-semibold text-text-primary">
-                                {dati.visite2.length} {dati.visite2.length === 1 ? 'volta' : 'volte'} · totale speso
-                              </td>
-                              <td colSpan={2} className="px-3 py-2 text-sm font-bold text-accent text-right tabular-nums">
-                                {formatCurrency(dati.totale)}
-                              </td>
-                            </tr>
-                          </tfoot>
-                        </table>
+                            </tfoot>
+                          </table>
+                        </div>
                       </div>
                       <p className="text-[10px] text-text-muted mt-2">
                         La colonna <b>Totale</b> è la somma che cresce riga dopo riga: l&apos;ultima in basso è la prima

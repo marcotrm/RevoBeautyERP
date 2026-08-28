@@ -61,7 +61,7 @@ export default function AutomationsPage() {
         <p className="text-sm text-text-secondary">Reminder, alert e notifiche automatiche</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-bg-secondary border border-border rounded-2xl p-5 text-center">
           <p className="text-3xl font-display font-bold text-success">{Object.values(activeMap).filter(Boolean).length}</p>
           <p className="text-xs text-text-muted mt-1">Attive</p>

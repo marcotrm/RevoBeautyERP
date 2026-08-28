@@ -121,7 +121,7 @@ function CreateGiftCardModal({ onClose, onSave }: { onClose: () => void; onSave:
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
           </div>
 
-          <div className="px-6 py-5 space-y-4 max-h-[calc(100vh-14rem)] overflow-y-auto">
+          <div className="px-6 py-5 space-y-4 max-h-[calc(100dvh-14rem)] overflow-y-auto">
             {step === 'details' && (
               <>
                 {/* Buyer */}
@@ -158,7 +158,7 @@ function CreateGiftCardModal({ onClose, onSave }: { onClose: () => void; onSave:
                 {/* Amount */}
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-2">Importo *</label>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {PRESET_AMOUNTS.map(a => (
                       <button key={a} onClick={() => { setAmount(a); setCustomAmount(''); }}
                         className={`py-2.5 rounded-xl text-sm font-semibold transition-all ${amount === a ? 'gradient-accent text-white shadow-lg shadow-accent/20' : 'bg-bg-tertiary border border-border text-text-primary hover:border-border-light'}`}>

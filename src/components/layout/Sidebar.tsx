@@ -51,6 +51,17 @@ const menuItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const { sidebarCollapsed, toggleSidebar, sidebarMobileOpen, setSidebarMobileOpen } = useUIStore();
+
+  /*
+    Sul telefono il menu e' sempre quello intero.
+
+    `sidebarCollapsed` e' una preferenza da schermo grande: chi restringe il
+    menu sul computer per guadagnare spazio non sta chiedendo di ritrovarsi,
+    sul telefono, un cassetto di sole icone senza etichette. E il cassetto
+    mobile e' visibile solo quando `sidebarMobileOpen` e' vero — l'hamburger
+    che lo apre esiste solo sotto `lg` — quindi quel caso E' il telefono.
+  */
+  const compresso = sidebarCollapsed && !sidebarMobileOpen;
   // Il tema si cambia in Impostazioni → Aspetto, dove ci sono le due
   // anteprime: qui rubava una riga al menu e faceva comparire la barra
   // di scorrimento. Qui serve solo il logo del centro.
@@ -120,19 +131,19 @@ export default function Sidebar() {
           bg-bg-secondary border-r border-border
           flex flex-col
           transition-all duration-300 ease-in-out
-          ${sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'}
+          ${compresso ? 'w-[72px]' : 'w-[260px] max-w-[85vw]'}
           ${sidebarMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
         {/* Header */}
-        <div className={`flex items-center h-16 px-4 border-b border-border ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
+        <div className={`flex items-center h-16 px-4 border-b border-border ${compresso ? 'justify-center' : 'justify-between'}`}>
           {logoUrl ? (
-            <Link href="/dashboard" className={`flex items-center ${sidebarCollapsed ? 'justify-center' : ''}`}>
-              <img src={logoUrl} alt="Logo" className={`object-contain ${sidebarCollapsed ? 'h-9 w-9 rounded-lg' : 'h-10 max-w-[180px]'}`} />
+            <Link href="/dashboard" className={`flex items-center ${compresso ? 'justify-center' : ''}`}>
+              <img src={logoUrl} alt="Logo" className={`object-contain ${compresso ? 'h-9 w-9 rounded-lg' : 'h-10 max-w-[180px]'}`} />
             </Link>
           ) : (
             <>
-              {!sidebarCollapsed && (
+              {!compresso && (
                 <Link href="/dashboard" className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg gradient-accent flex items-center justify-center">
                     <Sparkles className="w-4 h-4 text-white" />
@@ -142,7 +153,7 @@ export default function Sidebar() {
                   </span>
                 </Link>
               )}
-              {sidebarCollapsed && (
+              {compresso && (
                 <div className="w-8 h-8 rounded-lg gradient-accent flex items-center justify-center">
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
@@ -198,7 +209,7 @@ export default function Sidebar() {
                     ? 'bg-accent/10 text-accent'
                     : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
                   }
-                  ${sidebarCollapsed ? 'justify-center' : ''}
+                  ${compresso ? 'justify-center' : ''}
                 `}
               >
                 {/* Active indicator */}
@@ -218,16 +229,16 @@ export default function Sidebar() {
                     </>
                   )}
                 </div>
-                {!sidebarCollapsed && (
+                {!compresso && (
                   <span className={`text-sm font-medium truncate ${blinking ? 'text-error font-bold' : ''}`}>{item.label}</span>
                 )}
-                {!sidebarCollapsed && badgeCount > 0 && (
+                {!compresso && badgeCount > 0 && (
                   <span className={`ml-auto px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-error text-white ${blinking ? 'animate-pulse' : ''}`}>
                     {badgeCount}
                   </span>
                 )}
                 {/* Tooltip for collapsed */}
-                {sidebarCollapsed && (
+                {compresso && (
                   <div className="
                     absolute left-full ml-2 px-2.5 py-1.5 rounded-lg
                     bg-bg-tertiary text-text-primary text-sm font-medium
@@ -251,13 +262,13 @@ export default function Sidebar() {
         <div className="p-2 border-t border-border">
           {/* User Profile */}
           {user && (
-            <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl ${sidebarCollapsed ? 'justify-center' : ''}`}>
+            <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl ${compresso ? 'justify-center' : ''}`}>
               <div className="w-8 h-8 rounded-full gradient-accent flex items-center justify-center flex-shrink-0">
                 <span className="text-xs font-bold text-white">
                   {getInitials(user.firstName, user.lastName)}
                 </span>
               </div>
-              {!sidebarCollapsed && (
+              {!compresso && (
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-text-primary truncate">
                     {user.firstName} {user.lastName}
@@ -265,7 +276,7 @@ export default function Sidebar() {
                   <p className="text-xs text-text-muted truncate">{roleName}</p>
                 </div>
               )}
-              {!sidebarCollapsed && (
+              {!compresso && (
                 <button
                   onClick={logout}
                   className="p-1.5 rounded-lg hover:bg-bg-hover text-text-secondary hover:text-error transition-colors"

@@ -68,7 +68,7 @@ export default function GoalsPage() {
       </div>
 
       {/* Overview */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-bg-secondary border border-border rounded-2xl p-5 text-center">
           <p className="text-3xl font-display font-bold text-success">{monthly.filter(g => (g.current / g.target) >= 1).length}</p>
           <p className="text-xs text-text-muted mt-1">Obiettivi Raggiunti</p>

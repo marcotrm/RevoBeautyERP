@@ -59,7 +59,7 @@ function InvestmentModal({ onClose, onSave, initialData }: { onClose: () => void
             <h3 className="text-lg font-display font-semibold text-text-primary">{initialData ? 'Modifica Investimento' : 'Nuovo Investimento'}</h3>
             <button onClick={onClose} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary"><X className="w-5 h-5" /></button>
           </div>
-          <div className="px-6 py-5 space-y-4 max-h-[calc(100vh-14rem)] overflow-y-auto">
+          <div className="px-6 py-5 space-y-4 max-h-[calc(100dvh-14rem)] overflow-y-auto">
             <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Nome Investimento *</label>
               <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Es. Laser a diodo, Ristrutturazione..." className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" /></div>
             <div className="grid grid-cols-2 gap-3">
@@ -78,7 +78,7 @@ function InvestmentModal({ onClose, onSave, initialData }: { onClose: () => void
                   <option>Bonifico</option><option>Finanziamento</option><option>Leasing</option><option>Carta</option>
                 </select></div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">ROI Stimato %</label>
                 <input type="number" value={estimatedROI} onChange={e => setEstimatedROI(e.target.value)} className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary focus:outline-none focus:border-accent/50 transition-all" /></div>
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Ammort. Anni</label>

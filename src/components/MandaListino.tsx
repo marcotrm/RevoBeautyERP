@@ -123,7 +123,7 @@ export default function MandaListino({ phone, nome, className = '', soloIcona = 
         className={soloIcona
           ? `p-1.5 rounded-lg text-text-muted hover:bg-bg-hover transition-colors ${className}`
           : `flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-bg-tertiary border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover transition-colors ${className}`}>
-        <Receipt className="w-3.5 h-3.5" />{soloIcona ? null : ' Manda il listino'}
+        <Receipt className="w-3.5 h-3.5" />{soloIcona ? null : <span className="hidden sm:inline"> Manda il listino</span>}
       </button>
 
       <AnimatePresence>

@@ -123,7 +123,10 @@ export default function CampoData({
     const sopra = r.bottom + ALTEZZA > window.innerHeight && r.top > ALTEZZA;
     setPosizione({
       top: sopra ? r.top - 8 : r.bottom + 8,
-      left: Math.min(r.left, window.innerWidth - 300),
+      // Mai piu' a sinistra di 8px e mai oltre il bordo destro: su uno schermo
+      // sotto i 300px il vecchio calcolo (innerWidth - 300) diventava negativo
+      // e il calendario partiva fuori dallo schermo.
+      left: Math.max(8, Math.min(r.left, window.innerWidth - 288)),
       sopra,
     });
   }, []);
@@ -239,7 +242,7 @@ export default function CampoData({
             transform: posizione.sopra ? 'translateY(-100%)' : undefined,
           }}
           // Sopra al velo delle schede (z-60/61), o resterebbe sotto.
-          className="z-[80] w-[280px] rounded-2xl bg-bg-secondary border border-border shadow-2xl p-3 animate-scale-in"
+          className="z-[80] w-[280px] max-w-[calc(100vw-1rem)] rounded-2xl bg-bg-secondary border border-border shadow-2xl p-3 animate-scale-in"
         >
           <div className="flex items-center gap-1.5 mb-2">
             <button type="button" onClick={() => cambiaMese(-1)} title="Mese precedente"

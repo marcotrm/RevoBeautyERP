@@ -73,7 +73,7 @@ export default function AggiornaNote({ attuali, onApplica }: {
       {proposta && (
         <div className="rounded-xl border border-accent/30 bg-accent/5 p-3 space-y-2">
           <p className="text-[11px] font-medium text-text-primary">Come verrebbero le note</p>
-          <pre className="whitespace-pre-wrap text-[11px] text-text-secondary bg-bg-secondary border border-border rounded-lg p-3 max-h-64 overflow-auto">
+          <pre className="whitespace-pre-wrap break-words text-[11px] text-text-secondary bg-bg-secondary border border-border rounded-lg p-3 max-h-64 overflow-auto">
             {proposta.note}
           </pre>
 

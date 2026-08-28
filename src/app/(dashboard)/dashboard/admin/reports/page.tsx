@@ -99,26 +99,28 @@ export default function AdminReportsPage() {
             <Scissors className="w-4 h-4 text-accent" />
             <h3 className="text-base font-display font-semibold text-text-primary">Trattamenti più Redditizi</h3>
           </div>
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left px-5 py-2.5 text-[10px] font-semibold text-text-muted uppercase">Trattamento</th>
-                <th className="text-right px-3 py-2.5 text-[10px] font-semibold text-text-muted uppercase">Fatturato</th>
-                <th className="text-right px-5 py-2.5 text-[10px] font-semibold text-text-muted uppercase">N°</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/30">
-              {topTreatments.length === 0 ? (
-                <tr><td colSpan={3} className="px-5 py-8 text-center text-sm text-text-muted">Nessun dato ancora</td></tr>
-              ) : topTreatments.map(t => (
-                <tr key={t.name} className="hover:bg-bg-hover transition-colors">
-                  <td className="px-5 py-3 text-sm font-medium text-text-primary">{t.name}</td>
-                  <td className="px-3 py-3 text-sm font-semibold text-text-primary text-right">{formatCurrency(t.revenue)}</td>
-                  <td className="px-5 py-3 text-sm text-text-secondary text-right">{t.count}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[420px]">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-5 py-2.5 text-[10px] font-semibold text-text-muted uppercase">Trattamento</th>
+                  <th className="text-right px-3 py-2.5 text-[10px] font-semibold text-text-muted uppercase">Fatturato</th>
+                  <th className="text-right px-5 py-2.5 text-[10px] font-semibold text-text-muted uppercase">N°</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border/30">
+                {topTreatments.length === 0 ? (
+                  <tr><td colSpan={3} className="px-5 py-8 text-center text-sm text-text-muted">Nessun dato ancora</td></tr>
+                ) : topTreatments.map(t => (
+                  <tr key={t.name} className="hover:bg-bg-hover transition-colors">
+                    <td className="px-5 py-3 text-sm font-medium text-text-primary">{t.name}</td>
+                    <td className="px-3 py-3 text-sm font-semibold text-text-primary text-right">{formatCurrency(t.revenue)}</td>
+                    <td className="px-5 py-3 text-sm text-text-secondary text-right">{t.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Top Staff */}
