@@ -1173,7 +1173,7 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
             messaggio: 'Quel posto nel frattempo l\'ha preso qualcun altro.',
             alternative: alt,
             daScrivere: alt.length > 0
-              ? `Mi dispiace, nel frattempo quel posto è stato preso. ${alt.length === 1 ? 'Ho libero' : 'Ho libero'} ${alt.map(a => `${a.giorno} alle ${a.ora}`).join(' oppure ')}. Ti va bene?`
+              ? `Ah, quel posto nel frattempo l'hanno preso. Ho libero ${alt.map(a => `${a.giorno} alle ${a.ora}`).join(' oppure ')}, ti va bene?`
               : null,
             nota: 'DILLE CHE IL POSTO NON C\'E\' PIU\', non fare finta di niente e non prenotare altro senza chiederglielo. '
               + 'Se ci sono alternative proponile nello stesso messaggio: e\' una cliente che stava per prenotare, non farla scappare.',
@@ -1219,7 +1219,7 @@ async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<stri
             messaggio: 'Quel posto e\' stato preso mentre aspettavamo la conferma. NON e\' stato prenotato niente.',
             alternative: alt,
             daScrivere: alt.length > 0
-              ? `Mi dispiace, mentre aspettavo la conferma quel posto è stato preso. Ho libero ${alt.map(a => `${a.giorno} alle ${a.ora}`).join(' oppure ')}. Ti va bene?`
+              ? `Scusa, mentre aspettavo il tuo ok quel posto l'hanno preso. Ho libero ${alt.map(a => `${a.giorno} alle ${a.ora}`).join(' oppure ')}, ti va bene?`
               : null,
             nota: 'Non dire che hai prenotato: non hai prenotato niente. Dille com\'e\' andata e proponi un altro orario.',
           });
