@@ -44,7 +44,7 @@ $whatsapp = rb_whatsapp_url();
 		</div>
 	</div>
 	<div class="fondo-legale">
-		<p>© <?php echo esc_html( gmdate( 'Y' ) ); ?> RevoBeauty · Maddaloni (CE)</p>
+		<p>© <?php echo esc_html( gmdate( 'Y' ) ); ?> RevoBeauty · Maddaloni (CE) · P.IVA 10625841217</p>
 		<nav aria-label="Note legali">
 			<a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>">Privacy</a>
 			<a href="<?php echo esc_url( home_url( '/cookie-policy/' ) ); ?>">Cookie</a>
