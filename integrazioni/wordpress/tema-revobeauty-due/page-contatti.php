@@ -13,7 +13,7 @@ $mappa    = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( '
 <section class="sezione testata-pagina">
 	<p class="occhiello sale">Contatti</p>
 	<h1 class="titolone sale">Scrivici: ti rispondiamo su WhatsApp.</h1>
-	<p class="sottotitolo sale">Lasciaci il numero e ti scriviamo noi per fissare l'appuntamento. Se preferisci fare da sola, la prenotazione online è aperta a qualsiasi ora.</p>
+	<p class="sottotitolo sale">Lasciaci il numero e ti scriviamo noi su WhatsApp per fissare l'appuntamento. Se preferisci sentire una voce, il telefono è qui sotto.</p>
 </section>
 
 <section class="sezione contatti-griglia">

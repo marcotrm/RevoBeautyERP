@@ -160,3 +160,64 @@
 
 	applica();
 })();
+
+/*
+ * Ripiego per i browser senza timeline di scorrimento (iPhone, Firefox).
+ *
+ * Dove `animation-timeline` esiste non gira una riga di questo: le
+ * animazioni le fa il CSS da solo, senza costi. Dove non esiste, senza
+ * questo blocco il sito arriva completamente fermo — ed è quello che
+ * succede oggi su iPhone, cioè sulla metà buona di chi ci arriva.
+ *
+ * L'ordine conta: la classe che nasconde si mette solo dopo aver
+ * verificato che c'è un osservatore per toglierla. Al primo giro tutto
+ * quello che è già a schermo si accende subito, senza attesa e senza
+ * transizione, così sopra la piega non si vede niente di strano.
+ */
+(function () {
+	var moto = window.matchMedia && window.matchMedia('(prefers-reduced-motion: no-preference)');
+	if (moto && !moto.matches) return;
+	if (window.CSS && CSS.supports && CSS.supports('animation-timeline: view()')) return;
+	if (!('IntersectionObserver' in window)) return;
+
+	var pezzi = document.querySelectorAll('.sale, .sipario, .righe .riga');
+	if (!pezzi.length) return;
+
+	document.documentElement.classList.add('rb-ripiego');
+
+	/* Rete di sicurezza: se qualcosa va storto — un errore più avanti, una
+	   pagina aperta a metà da un'ancora — dopo tre secondi si vede tutto.
+	   Un testo invisibile è un guasto, un'animazione mancata è un dettaglio. */
+	var salvagente = setTimeout(function () {
+		for (var i = 0; i < pezzi.length; i++) pezzi[i].classList.add('rb-dentro');
+	}, 3000);
+
+	var osservatore = new IntersectionObserver(function (voci) {
+		voci.forEach(function (voce) {
+			if (!voce.isIntersecting) return;
+			voce.target.classList.add('rb-dentro');
+			osservatore.unobserve(voce.target);
+		});
+	}, { rootMargin: '0px 0px -12% 0px', threshold: 0.08 });
+
+	var alto = window.innerHeight;
+	for (var i = 0; i < pezzi.length; i++) {
+		var pezzo = pezzi[i];
+		if (pezzo.getBoundingClientRect().top < alto) {
+			/* Già a schermo quando la pagina arriva. Le righe del titolo
+			   dell'eroe salgono lo stesso — è l'ingresso della pagina, e
+			   Chrome le anima allo stesso modo con `animation-timeline: auto`;
+			   tutto il resto si accende e basta, perché un blocco che compare
+			   mentre lo stai già leggendo è un difetto, non un effetto. */
+			if (pezzo.closest('.eroe')) {
+				(function (p) { requestAnimationFrame(function () { p.classList.add('rb-dentro'); }); })(pezzo);
+			} else {
+				pezzo.classList.add('rb-dentro');
+			}
+		} else {
+			osservatore.observe(pezzo);
+		}
+	}
+
+	window.addEventListener('load', function () { clearTimeout(salvagente); }, { once: true });
+})();

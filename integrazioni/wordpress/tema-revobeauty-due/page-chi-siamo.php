@@ -28,7 +28,7 @@ $centro = rb_centro();
 
 <?php if ( $staff ) : ?>
 <section class="sezione">
-	<h2 class="titolone sale">Il team</h2>
+	<h2 class="titolone sale">Le persone</h2>
 	<div class="squadra-griglia">
 		<?php foreach ( $staff as $persona ) :
 			$categorie = array_map( 'rb_nome_categoria', (array) ( $persona['categorie'] ?? array() ) );

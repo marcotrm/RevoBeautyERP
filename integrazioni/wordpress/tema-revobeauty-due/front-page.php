@@ -140,7 +140,7 @@ for ( $i = 1; $i <= 4; $i++ ) {
 			</div>
 		<?php endforeach; ?>
 	</div>
-	<p class="sale"><a class="collega" href="<?php echo esc_url( home_url( '/chi-siamo/' ) ); ?>">Conosci il team →</a></p>
+	<p class="sale"><a class="collega" href="<?php echo esc_url( home_url( '/chi-siamo/' ) ); ?>">Conosci chi ti accoglie →</a></p>
 </section>
 <?php endif; ?>
 

@@ -100,6 +100,46 @@
   }
 }
 
+/*
+ * Le stesse animazioni dove la timeline di scorrimento non esiste.
+ *
+ * `animation-timeline` oggi la conosce Chrome; su iPhone e su Firefox il
+ * blocco qui sopra viene saltato in blocco, e il sito arriva fermo — che è
+ * esattamente quello che si è visto aprendo l'anteprima dal telefono.
+ * Qui le stesse tre animazioni sono rifatte con transizioni normali, accese
+ * da un osservatore in JavaScript.
+ *
+ * Lo stato di partenza (invisibile) sta tutto dietro `.rb-ripiego`, che
+ * mette il JS solo dopo aver verificato di poterlo togliere: se lo script
+ * non parte, non arriva o si rompe, la classe non c'è e la pagina resta
+ * finita e leggibile. Nascondere per primi e sperare nel JS è il modo
+ * classico di pubblicare un sito bianco.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .rb-ripiego .sale {
+    opacity: 0; transform: translateY(24px) scale(.97);
+    transition: opacity 600ms var(--uscita), transform 600ms var(--uscita);
+  }
+  .rb-ripiego .sale.rb-dentro { opacity: 1; transform: none; }
+
+  .rb-ripiego .sipario { overflow: hidden; }
+  .rb-ripiego .sipario img, .rb-ripiego .sipario > picture > img {
+    clip-path: inset(0 0 100% 0); transform: scale(1.06);
+    transition: clip-path 900ms var(--uscita), transform 900ms var(--uscita);
+  }
+  .rb-ripiego .sipario.rb-dentro img, .rb-ripiego .sipario.rb-dentro > picture > img {
+    clip-path: inset(0 0 0 0); transform: scale(1);
+  }
+
+  .rb-ripiego .righe .riga > span {
+    transform: translateY(105%);
+    transition: transform 800ms var(--uscita);
+  }
+  .rb-ripiego .righe .riga.rb-dentro > span { transform: none; }
+  .rb-ripiego .righe .riga:nth-child(2).rb-dentro > span { transition-delay: 80ms; }
+  .rb-ripiego .righe .riga:nth-child(3).rb-dentro > span { transition-delay: 160ms; }
+}
+
 /* Feedback al tocco: su un telefono non esiste il passaggio del mouse,
    esiste solo il dito. Senza questa risposta il sito sembra rotto anche
    quando funziona. touch-action toglie i 300ms di attesa del doppio tocco:
@@ -183,6 +223,14 @@
   font-family: var(--serif); font-size: 34px; color: var(--oro-scuro);
 }
 .persona-nome { font-size: 14px; }
+/* Su un telefono tre tondi da 110 non ci stanno in fila e il terzo va a capo
+   da solo, lasciando mezza schermata bianca accanto. Rimpiccioliti entrano
+   tutti e tre: meglio un ritratto più piccolo che un buco. */
+@media (max-width: 560px) {
+  .squadra-fila { gap: 14px; justify-content: space-between; }
+  .persona-foto { width: 96px; height: 96px; }
+  .persona-foto-vuota { font-size: 30px; }
+}
 .collega { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--oro-scuro); }
 .collega:hover { color: var(--bordeaux); }
 .collega-chiaro { color: var(--crema); }
@@ -191,7 +239,16 @@
 .squadra-griglia {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding-top: 8px;
 }
-@media (min-width: 700px) { .squadra-griglia { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 22px; } }
+/* Stesso motivo, con le schede: se sono dispari l'ultima resta sola in una
+   griglia da due. Centrata a metà larghezza sembra una chiusura, spostata a
+   sinistra sembra una scheda che manca. */
+.squadra-griglia > .scheda-persona:last-child:nth-child(odd) {
+  grid-column: 1 / -1; width: calc(50% - 8px); margin-inline: auto;
+}
+@media (min-width: 700px) {
+  .squadra-griglia { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 22px; }
+  .squadra-griglia > .scheda-persona:last-child:nth-child(odd) { grid-column: auto; width: auto; margin-inline: 0; }
+}
 .scheda-persona { display: flex; flex-direction: column; gap: 10px; }
 .scheda-foto { width: 100%; aspect-ratio: 7/8; object-fit: cover; background: var(--crema-scura); border: 1px solid var(--crema-scura); }
 .scheda-foto-vuota { display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 54px; color: var(--oro-scuro); }
