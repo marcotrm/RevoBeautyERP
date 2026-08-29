@@ -48,28 +48,12 @@ $centro = rb_centro();
 </section>
 <?php endif; ?>
 
-<?php /*
-	Il metodo, raccontato una battuta per volta mentre si scorre. Dove le
-	timeline non ci sono resta la fascia di prima, con i tre passi in fila:
-	stesso testo, stesso ordine, nessun buco.
-*/ ?>
-<section class="fascia-bordeaux scena scena-metodo">
-	<div class="scena-fissa">
-		<div class="scena-passo">
-			<p class="occhiello occhiello-chiaro">Il metodo · 1</p>
-			<p class="scena-frase">Consulenza gratuita.</p>
-			<p class="scena-testo">Pelle, obiettivi, tempi: prima di proporti qualcosa, ti ascoltiamo.</p>
-		</div>
-		<div class="scena-passo">
-			<p class="occhiello occhiello-chiaro">Il metodo · 2</p>
-			<p class="scena-frase">Il percorso.</p>
-			<p class="scena-testo">Il trattamento giusto, con prezzi e durate chiari dal listino.</p>
-		</div>
-		<div class="scena-passo">
-			<p class="occhiello occhiello-chiaro">Il metodo · 3</p>
-			<p class="scena-frase">I risultati.</p>
-			<p class="scena-testo">Seduta dopo seduta, con controlli e follow-up — mai promesse a vuoto.</p>
-		</div>
+<section class="fascia-bordeaux">
+	<p class="occhiello occhiello-chiaro sale">Il metodo</p>
+	<div class="metodo sale">
+		<div class="metodo-passo"><span class="metodo-numero">1</span><span class="metodo-nome">Consulenza gratuita</span><span class="metodo-testo">Pelle, obiettivi, tempi: prima di proporti qualcosa, ti ascoltiamo.</span></div>
+		<div class="metodo-passo"><span class="metodo-numero">2</span><span class="metodo-nome">Il percorso</span><span class="metodo-testo">Il trattamento giusto, con prezzi e durate chiari dal listino.</span></div>
+		<div class="metodo-passo"><span class="metodo-numero">3</span><span class="metodo-nome">I risultati</span><span class="metodo-testo">Seduta dopo seduta, con controlli e follow-up — mai promesse a vuoto.</span></div>
 	</div>
 </section>
 
