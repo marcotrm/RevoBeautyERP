@@ -46,3 +46,4 @@ next-env.d.ts
 # roba di lavoro, non del progetto.
 *.whl
 *.tar.gz
+integrazioni/wordpress/revobeauty-due.zip

@@ -33,9 +33,8 @@ for ( $i = 1; $i <= 4; $i++ ) {
 			<span class="riga"><span>avanzata <em>a Maddaloni.</em></span></span>
 		</h1>
 		<div class="eroe-azioni">
-			<a class="bottone bottone-oro" href="<?php echo esc_url( rb_prenota_url() ); ?>">Prenota online</a>
 			<?php if ( $whatsapp ) : ?>
-				<a class="bottone bottone-scuro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">WhatsApp</a>
+				<a class="bottone bottone-oro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">Prenota su WhatsApp</a>
 			<?php endif; ?>
 		</div>
 	</div>
@@ -53,9 +52,8 @@ for ( $i = 1; $i <= 4; $i++ ) {
 	</h1>
 	<p class="eroe-riga">Estetica avanzata · Maddaloni</p>
 	<div class="eroe-azioni">
-		<a class="bottone bottone-oro" href="<?php echo esc_url( rb_prenota_url() ); ?>">Prenota online</a>
 		<?php if ( $whatsapp ) : ?>
-			<a class="bottone bottone-scuro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">WhatsApp</a>
+			<a class="bottone bottone-oro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">Prenota su WhatsApp</a>
 		<?php endif; ?>
 	</div>
 </section>
@@ -118,12 +116,55 @@ for ( $i = 1; $i <= 4; $i++ ) {
 </section>
 <?php endif; ?>
 
+<?php if ( ! empty( $categorie ) ) : ?>
+<?php /* Il nastro non gira da solo: si muove mentre si scorre. Un marquee in
+	loop consumerebbe batteria per sempre, anche fuori schermo. */ ?>
+<div class="nastro" aria-hidden="true">
+	<span><?php
+		$nomi = array();
+		foreach ( array_keys( $categorie ) as $slug ) {
+			$nomi[] = rb_nome_categoria( $slug );
+		}
+		echo esc_html( implode( ' — ', array_merge( $nomi, $nomi ) ) );
+	?></span>
+</div>
+<?php endif; ?>
+
 <section class="fascia-bordeaux">
 	<p class="occhiello occhiello-chiaro sale">Dicono di noi</p>
 	<blockquote class="citazione sale">
 		<p>«<?php echo esc_html( get_option( 'rb_recensione_testo', 'Ambiente curato e personale preparato: mi sono sentita seguita dal primo giorno.' ) ); ?>»</p>
 		<cite><?php echo esc_html( get_option( 'rb_recensione_autrice', 'Dalle recensioni Google' ) ); ?></cite>
 	</blockquote>
+</section>
+
+<?php /*
+	La scena incollata. È la sezione che risponde alla domanda che ferma le
+	persone un attimo prima di scrivere: «e poi che succede?». Tre frasi che
+	non si possono saltare con l'occhio, e in fondo il tasto.
+	Un solo collegamento, nell'ultimo passo: i passi sono sovrapposti e restano
+	raggiungibili col tasto di tabulazione anche quando non si vedono, quindi
+	più di un tasto qui dentro significherebbe mandare il fuoco su qualcosa di
+	invisibile.
+*/ ?>
+<section class="scena scena-scritta">
+	<div class="scena-fissa">
+		<div class="scena-passo">
+			<p class="occhiello">Primo</p>
+			<p class="scena-frase">Ci scrivi su WhatsApp.<br />Anche solo per chiedere un prezzo.</p>
+		</div>
+		<div class="scena-passo">
+			<p class="occhiello">Poi</p>
+			<p class="scena-frase">Ti rispondiamo con gli orari veri<br />e la consulenza gratuita in agenda.</p>
+		</div>
+		<div class="scena-passo">
+			<p class="occhiello">E basta</p>
+			<p class="scena-frase">Decidi tu.<br />Nessun impegno, nessuna caparra.</p>
+			<?php if ( $whatsapp ) : ?>
+				<span class="alone"><a class="bottone bottone-oro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">Scrivici ora</a></span>
+			<?php endif; ?>
+		</div>
+	</div>
 </section>
 
 <?php $staff = rb_staff(); ?>
@@ -142,7 +183,7 @@ for ( $i = 1; $i <= 4; $i++ ) {
 			</div>
 		<?php endforeach; ?>
 	</div>
-	<p class="sale"><a class="collega" href="<?php echo esc_url( home_url( '/chi-siamo/' ) ); ?>">Conosci il team →</a></p>
+	<p class="sale"><a class="collega" href="<?php echo esc_url( home_url( '/chi-siamo/' ) ); ?>">Conosci chi ti accoglie →</a></p>
 </section>
 <?php endif; ?>
 

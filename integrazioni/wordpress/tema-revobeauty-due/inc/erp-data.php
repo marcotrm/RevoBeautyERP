@@ -146,11 +146,6 @@ function rb_whatsapp_url( $motivo = '' ) {
 	return $url . '?text=' . rawurlencode( $testo );
 }
 
-/** L'URL della prenotazione online sul gestionale. */
-function rb_prenota_url() {
-	return rb_erp_base() . '/prenota';
-}
-
 /** I nomi delle categorie, dall'inglese del database all'italiano della vetrina. */
 function rb_nome_categoria( $slug ) {
 	$nomi = array(
