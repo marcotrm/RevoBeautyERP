@@ -16,6 +16,17 @@ $mappa    = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( '
 	<p class="sottotitolo sale">Lasciaci il numero e ti scriviamo noi su WhatsApp per fissare l'appuntamento. Se preferisci sentire una voce, il telefono è qui sotto.</p>
 </section>
 
+<?php /* La faccia del posto, prima del modulo: si scrive più volentieri a un
+	luogo che si è visto. La foto è il centro vero, in via Caudina. */ ?>
+<?php if ( is_readable( RB_DUE_DIR . '/assets/img/banco.webp' ) ) : ?>
+<section class="sezione foto-contatti sipario-taglio">
+	<picture>
+		<source type="image/avif" sizes="(max-width: 1120px) 100vw, 1072px" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/banco-800.avif 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/banco.avif 1400w" />
+		<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/banco.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/banco-800.webp 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/banco.webp 1400w" sizes="(max-width: 1120px) 100vw, 1072px" alt="Gli scaffali illuminati e il bancone di RevoBeauty in via Caudina 30 a Maddaloni" width="1400" height="1050" loading="lazy" decoding="async" />
+	</picture>
+</section>
+<?php endif; ?>
+
 <section class="sezione contatti-griglia">
 	<div class="contatti-modulo sale">
 		<?php echo rb_modulo_contatti(); // phpcs:ignore ?>

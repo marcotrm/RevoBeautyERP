@@ -22,12 +22,14 @@
 
 :root {
   --uscita: cubic-bezier(.23, 1, .32, 1);      /* entrate e uscite */
-  --dentro-fuori: cubic-bezier(.77, 0, .175, 1); /* movimento a schermo */
   --cassetto: cubic-bezier(.32, .72, 0, 1);    /* menu e pannelli, come iOS */
 }
 
 .righe .riga { display: block; overflow: hidden; }
 .righe .riga > span { display: block; }
+
+/* Il filo di lettura non esiste finché non sa muoversi: vedi dentro. */
+.filo-lettura { display: none; }
 
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {
@@ -91,12 +93,123 @@
       to   { transform: translateY(7%); }
     }
 
-    /* Filo d'oro che misura la lettura, in cima alla pagina. */
+    /* Filo d'oro che misura la lettura, in cima alla pagina.
+       Sta tutto qui dentro, `display` compreso: una barra di avanzamento che
+       non avanza sarebbe una riga d'oro sempre piena, cioè una bugia grafica.
+       Dove non sa muoversi, non c'è. */
     .filo-lettura {
+      display: block; position: fixed; inset: 0 0 auto 0; height: 2px; z-index: 50;
+      background: var(--oro); transform-origin: 0 50%;
       animation: rb-filo linear both;
       animation-timeline: scroll(root block);
     }
     @keyframes rb-filo { from { transform: scaleX(0); } }
+  }
+}
+
+/* ══ Le scene ══════════════════════════════════════════════════════════
+ *
+ * Il secondo livello del movimento. Tutto quello che sta qui dentro vale
+ * una regola sola, e vale la pena scriverla: **anche l'impalcatura della
+ * scena sta dentro @supports**, non solo l'animazione. Una sezione alta tre
+ * schermate con un figlio incollato, su un browser che non sa animarla, non
+ * è "la scena senza effetto": è un buco bianco lungo tre schermate. Dove le
+ * timeline non ci sono, queste sezioni restano la griglia normale di prima.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+
+    /* ── Scena incollata ────────────────────────────────────────────────
+       Tre passi sovrapposti nella stessa cella di griglia: la pagina scorre
+       sotto, il riquadro sta fermo, i passi si danno il cambio.
+
+       `cover` e non `contain`: quando il soggetto è più alto della finestra
+       l'intervallo `contain` ha lunghezza zero e l'animazione non parte mai.
+       È l'errore in cui si cade sempre alla prima scena incollata.
+
+       `svh` e non `vh`: su iPhone la barra di Safari che si ritira cambia
+       `vh` a metà scorrimento e la scena sobbalza. */
+    .scena { height: 260svh; view-timeline: --scena block; position: relative; }
+    .scena-fissa {
+      position: sticky; top: 0; min-height: 100svh;
+      display: grid; place-content: center; align-content: center;
+    }
+    .scena-passo {
+      grid-area: 1 / 1;
+      animation: rb-passo linear both;
+      animation-timeline: --scena;
+    }
+    /* Intervalli attaccati e dissolvenza corta: se si sovrappongono a lungo,
+       a metà scambio si leggono due frasi una sopra l'altra — che è il difetto
+       tipico delle scene incollate fatte in fretta. */
+    .scena-passo:nth-child(1) { animation-range: cover 8% cover 37%; }
+    .scena-passo:nth-child(2) { animation-range: cover 37% cover 66%; }
+    .scena-passo:nth-child(3) { animation-range: cover 66% cover 95%; }
+    @keyframes rb-passo {
+      0%        { opacity: 0; transform: translateY(16px) scale(.985); }
+      12%, 88%  { opacity: 1; transform: none; }
+      100%      { opacity: 0; transform: translateY(-10px) scale(.99); }
+    }
+
+    /* ── Nastro delle categorie ─────────────────────────────────────────
+       Si muove col dito, non da solo. Un marquee in loop pagherebbe CPU e
+       batteria per sempre, anche fuori schermo; questo si ferma quando si
+       ferma la mano, ed è anche più bello da guardare. */
+    .nastro > span {
+      animation: rb-nastro linear both;
+      animation-timeline: view();
+      animation-range: cover;
+    }
+    @keyframes rb-nastro { from { transform: translateX(4%); } to { transform: translateX(-16%); } }
+
+    /* ── La frase che si inchiostra ─────────────────────────────────────
+       Una sola in tutto il sito, l'ultima prima del tasto. Si parte da .22
+       e non da zero: se l'intervallo non si completa — un'ancora, il
+       telefono ruotato a metà strada — la frase resta comunque leggibile. */
+    .parola {
+      animation: rb-inchiostro linear both;
+      animation-timeline: view();
+      animation-range: entry calc(26% + var(--i) * 1.5%) entry calc(56% + var(--i) * 1.5%);
+    }
+    @keyframes rb-inchiostro { from { opacity: .22; } }
+
+    /* ── L'alone sul tasto che porta i contatti ─────────────────────────
+       Sul contenitore e non sul tasto: il tasto ha già il suo scale(.97) al
+       tocco, e due trasformazioni sullo stesso elemento litigano. */
+    .alone {
+      animation: rb-alone linear both;
+      animation-timeline: view();
+      animation-range: entry 20% entry 72%;
+    }
+    @keyframes rb-alone {
+      from { box-shadow: 0 0 0 0 rgba(181, 155, 83, 0); }
+      to   { box-shadow: 0 0 46px 0 rgba(181, 155, 83, .32); }
+    }
+
+    /* ── Sipario in diagonale, per la seconda foto ──────────────────── */
+    .sipario-taglio { overflow: hidden; }
+    .sipario-taglio img {
+      animation: rb-taglio 950ms var(--uscita) both;
+      animation-timeline: view();
+      animation-range: entry 10% entry 86%;
+    }
+    @keyframes rb-taglio {
+      from { clip-path: polygon(0 100%, 0 100%, 0 100%, 0 100%); transform: scale(1.05); }
+      to   { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);  transform: scale(1); }
+    }
+
+    /* ── L'indice della fila orizzontale, senza JavaScript ─────────────
+       Prima lo calcolava uno script a ogni evento di scorrimento: era
+       l'unico gestore ad alta frequenza rimasto nel sito. Una timeline
+       `inline` fa lo stesso lavoro fuori dal thread principale — e sono
+       tredici righe di JavaScript in meno. */
+    .trattamenti-casa { timeline-scope: --fila; }
+    .scorri { scroll-timeline: --fila inline; }
+    .scorri-indice {
+      animation: rb-indice linear both;
+      animation-timeline: --fila;
+    }
+    @keyframes rb-indice { to { transform: translateX(257%); } }
   }
 }
 
@@ -131,6 +244,15 @@
     clip-path: inset(0 0 0 0); transform: scale(1);
   }
 
+  .rb-ripiego .sipario-taglio { overflow: hidden; }
+  .rb-ripiego .sipario-taglio img {
+    clip-path: polygon(0 100%, 0 100%, 0 100%, 0 100%); transform: scale(1.05);
+    transition: clip-path 950ms var(--uscita), transform 950ms var(--uscita);
+  }
+  .rb-ripiego .sipario-taglio.rb-dentro img {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); transform: scale(1);
+  }
+
   .rb-ripiego .righe .riga > span {
     transform: translateY(105%);
     transition: transform 800ms var(--uscita);
@@ -144,7 +266,7 @@
    esiste solo il dito. Senza questa risposta il sito sembra rotto anche
    quando funziona. touch-action toglie i 300ms di attesa del doppio tocco:
    è la riga che fa più di qualunque animazione per la velocità percepita. */
-.bottone, .carta, .ancore a, .voce-apri {
+.bottone, .carta, .pastiglia, .voce-apri {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
@@ -173,7 +295,14 @@
 /* Passaggio fra le pagine senza il lampo bianco. Sei righe, e dove il
    browser non le conosce le ignora e la navigazione resta quella di sempre. */
 @view-transition { navigation: auto; }
+/* I nomi devono essere unici nel documento: `.marchio` esiste anche nel fondo
+   pagina, e un nome doppio fa fallire in silenzio la transizione di TUTTA la
+   pagina. Per questo si nomina solo quello della testata. */
+.testata .marchio { view-transition-name: marchio; }
+.testata-pagina .titolone { view-transition-name: titolo-pagina; }
 @media (prefers-reduced-motion: no-preference) {
+  ::view-transition-group(marchio),
+  ::view-transition-group(titolo-pagina) { animation-duration: 320ms; }
   ::view-transition-old(root) { animation: rb-esce 180ms ease-out both; }
   ::view-transition-new(root) { animation: rb-entra 320ms var(--uscita) both; }
   @keyframes rb-esce  { to   { opacity: 0; } }
@@ -193,7 +322,7 @@
 .carta {
   min-width: 232px; background: #ffffff; border: 1px solid var(--crema-scura);
   padding: 26px 22px 22px; display: flex; flex-direction: column; gap: 12px;
-  color: var(--inchiostro); transition: border-color .25s, transform .25s;
+  color: var(--inchiostro);
 }
 .carta:hover { border-color: var(--oro); transform: translateY(-4px); color: var(--inchiostro); }
 .carta-occhiello { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--oro-scuro); }
@@ -201,7 +330,38 @@
 .carta-prezzo { font-size: 13px; color: var(--grigio); border-top: 1px solid var(--crema-scura); padding-top: 12px; margin-top: auto; }
 .carta-freccia { color: var(--oro); font-size: 15px; }
 .scorri-barra { height: 2px; background: var(--crema-scura); margin: 0 24px; position: relative; overflow: hidden; }
-.scorri-indice { position: absolute; left: 0; top: 0; bottom: 0; width: 18%; background: var(--oro); transition: transform .2s linear; }
+/* La larghezza è fissa perché la corsa dell'indice è calcolata su quella:
+   28% di barra piena vuole 257% di corsa per arrivare in fondo. */
+.scorri-indice { position: absolute; left: 0; top: 0; bottom: 0; width: 28%; background: var(--oro); }
+
+/* ── Scene e nastro: l'aspetto di base ────────────────────────────────
+   Questo è ciò che si vede dove le timeline di scorrimento non esistono, ed
+   è anche la base su cui la scena si monta dove esistono: una sezione
+   normale, leggibile, senza buchi. */
+.scena { padding: 8px 24px 0; }
+.scena-fissa {
+  max-width: var(--largo); margin: 0 auto;
+  display: grid; gap: 34px; padding: 24px 0 8px;
+}
+.scena-passo { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.scena-frase {
+  font-family: var(--serif); font-size: clamp(24px, 5.4vw, 44px); line-height: 1.16;
+  margin: 0; max-width: 18ch;
+}
+.scena-passo .alone { display: inline-block; margin-top: 10px; }
+.scena-testo { font-size: 15px; color: var(--grigio); margin: 0; max-width: 46ch; }
+.fascia-bordeaux.scena .scena-testo { color: rgba(245, 240, 232, .78); }
+.fascia-bordeaux.scena { padding-top: 56px; padding-bottom: 56px; }
+
+.nastro {
+  overflow: hidden; white-space: nowrap; margin-top: 64px;
+  font-family: var(--serif); font-size: clamp(38px, 9vw, 96px); line-height: 1.1;
+  /* Oro leggibile e non crema: un testo di 90px che non si distingue dallo
+     sfondo lo segnala anche Lighthouse (contrasto 1,2:1). Questo sta a 4,2:1,
+     sopra la soglia dei caratteri grandi, e il nastro guadagna anche in forza. */
+  color: #8a7639; user-select: none;
+}
+.nastro > span { display: inline-block; }
 
 /* ── Fascia bordeaux ──────────────────────────────────────────────────── */
 .fascia-bordeaux { background: var(--bordeaux); color: var(--crema); padding: 64px 24px; margin-top: 72px; }
@@ -256,14 +416,10 @@
 .scheda-ruolo { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--oro-scuro); }
 
 /* ── Metodo (chi siamo) ───────────────────────────────────────────────── */
-.metodo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; }
-.metodo-passo { display: flex; flex-direction: column; gap: 8px; }
-.metodo-numero { font-family: var(--serif); font-size: 40px; color: var(--oro-chiaro); line-height: 1; }
-.metodo-nome { font-size: 14px; letter-spacing: .12em; text-transform: uppercase; }
-.metodo-testo { font-size: 14px; color: rgba(245,240,232,.75); }
-@media (max-width: 700px) { .metodo { grid-template-columns: 1fr; } }
 
 .foto-chi-siamo { padding-top: 12px; }
+.foto-contatti { padding-top: 12px; padding-bottom: 0; }
+.foto-contatti img { width: 100%; height: auto; display: block; }
 .foto-chi-siamo img { width: 100%; }
 .foto-attesa {
   aspect-ratio: 16/9; background: linear-gradient(160deg, var(--crema-scura), var(--oro-chiaro));
@@ -273,16 +429,13 @@
 
 /* ── Listino (/servizi) ───────────────────────────────────────────────── */
 .testata-pagina { padding-top: 64px; }
-.ancore {
   max-width: var(--largo); margin: 0 auto; padding: 8px 24px 0;
   display: flex; gap: 10px; flex-wrap: wrap;
 }
-.ancore a {
   display: inline-flex; align-items: center; min-height: 44px;
   font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
   border: 1px solid var(--crema-scura); padding: 0 18px; color: var(--grigio);
 }
-.ancore a:hover { border-color: var(--oro); color: var(--oro-scuro); }
 .blocco-listino { padding-top: 56px; scroll-margin-top: 24px; }
 .titolo-categoria { font-family: var(--serif); font-weight: 500; font-size: 28px; margin: 0 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--crema-scura); }
 .listino { list-style: none; margin: 0; padding: 0; }
@@ -406,6 +559,12 @@ address { font-style: normal; }
    dissolvenza breve resta, ed è più gentile di un contenuto che sbatte in
    pagina. Spegnere tutto toglierebbe anche i riscontri utili. */
 @media (prefers-reduced-motion: reduce) {
+  /* Le scene tornano elenchi, il nastro sta fermo, la frase è già scritta.
+     Ridurre il movimento non vuol dire togliere contenuto. */
+  .scena-passo, .parola, .nastro > span, .alone, .sipario-taglio img {
+    animation: none !important; opacity: 1 !important; transform: none !important;
+    clip-path: none !important; box-shadow: none !important;
+  }
   html { scroll-behavior: auto; }
   .sale, .sipario img, .righe .riga > span, .deriva img {
     animation: none !important; transform: none !important; clip-path: none !important;

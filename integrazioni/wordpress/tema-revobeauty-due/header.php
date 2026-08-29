@@ -26,6 +26,12 @@ $whatsapp = rb_whatsapp_url();
 
 <a class="salta" href="#contenuto">Vai al contenuto</a>
 
+<?php /* Il filo che misura la lettura: solo sugli articoli, dove esiste una
+	lettura da misurare. In home, fra le scene, non vorrebbe dire niente. */ ?>
+<?php if ( is_singular( 'post' ) ) : ?>
+	<div class="filo-lettura" aria-hidden="true"></div>
+<?php endif; ?>
+
 <header class="testata<?php echo is_front_page() ? ' testata-scura' : ''; ?>">
 	<div class="testata-dentro">
 		<a class="marchio" href="<?php echo esc_url( home_url( '/' ) ); ?>" aria-label="RevoBeauty — home">
