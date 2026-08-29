@@ -2740,6 +2740,30 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     return conflictsAt(timeToMinutes(startTime), totalDuration);
   }, [startTime, selectedServices, selectedOperatorId, conflictsAt, totalDuration]);
 
+  /**
+   * Quella persona, a quest'ora, è fuori turno?
+   *
+   * Serve nel menu «chi lo fa»: l'elenco mostra chi SA fare quel trattamento,
+   * che è una cosa sola e non cambia con l'orario. Ma se alle 18 in turno non
+   * c'è, sceglierla è quasi sempre uno sbaglio — e prima non c'era modo di
+   * accorgersene finché non compariva l'avviso in fondo alla scheda, cioè
+   * dopo aver scelto.
+   *
+   * Non toglie nessuno dall'elenco: capita davvero di prendere una cliente
+   * mezz'ora dopo la chiusura, e l'agenda deve poterlo scrivere.
+   */
+  const fuoriTurnoOra = (opId: string): boolean => {
+    const op = operators.find(o => o.id === opId);
+    if (!op || op.isResource) return false;
+    if (!operatorWorksOn(op, apptDateObj, apptWeekMap)) return true;
+    const da = timeToMinutes(startTime);
+    const durata = totalDuration || 15;
+    for (let t = da; t < da + durata; t += 5) {
+      if (isMinuteUnavailable(op, apptDateObj, t - START_HOUR * 60, apptWeekMap)) return true;
+    }
+    return false;
+  };
+
   // Chi, a quell'ora, non è in servizio. Avviso a parte: è un'altra cosa
   // rispetto all'essere occupata, e si prenota comunque.
   const fuoriServizio = useMemo(() => {
@@ -3056,7 +3080,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                           const sua = (t?.operatorSkills || []).find(k => k.operatorId === o.id)?.duration;
                           return (
                             <option key={o.id} value={o.id}>
-                              {o.firstName} {o.lastName}{sua ? ` · ${sua} min` : ''}
+                              {o.firstName} {o.lastName}{sua ? ` · ${sua} min` : ''}{fuoriTurnoOra(o.id) ? ' · fuori turno' : ''}
                             </option>
                           );
                         })}
