@@ -4104,6 +4104,20 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   };
 
   const schedaPronta = Boolean(schedaForm.birthDate && schedaForm.gender && schedaForm.address.trim() && schedaForm.city.trim());
+  /*
+    Cosa manca ancora, scritto.
+
+    Un tasto spento e basta e' un vicolo cieco: e' successo con una data
+    scritta «31/08/89», che a schermo sembra finita ma per il gestionale non
+    era una data. A schermo tutto pieno, il tasto morto, e nessun modo di
+    capire perche'.
+  */
+  const schedaMancante = [
+    !schedaForm.birthDate && 'la data di nascita',
+    !schedaForm.gender && 'se è donna o uomo',
+    !schedaForm.address.trim() && "l'indirizzo",
+    !schedaForm.city.trim() && 'la città',
+  ].filter(Boolean) as string[];
 
   /** Salva i dati completati e prosegue con il check-in. */
   const salvaSchedaEContinua = async () => {
@@ -5117,6 +5131,12 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
             </div>
 
             <div className="p-5 pt-0 space-y-2">
+              {schedaMancante.length > 0 && (
+                <p className="text-[11px] font-medium text-warning text-center">
+                  Manca ancora {schedaMancante.join(', ')}.
+                  {!schedaForm.birthDate ? ' La data va scritta per intero: 31/08/1989.' : ''}
+                </p>
+              )}
               <button onClick={salvaSchedaEContinua} disabled={!schedaPronta || schedaBusy}
                 className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed">
                 {schedaBusy ? 'Salvataggio…' : 'Salva la scheda e fai il check-in'}
