@@ -10,20 +10,44 @@
 (function () {
 	'use strict';
 
-	// Menu del telefono.
+	/*
+	 * Il menu del telefono.
+	 *
+	 * Copre lo schermo, quindi mentre è aperto la pagina sotto non deve
+	 * scorrere: un dito che scorre sul pannello e trova la pagina che si
+	 * muove dietro è la cosa che fa sembrare un sito fatto male. Si chiude
+	 * con Esc, toccando una voce, e col tasto che nel frattempo è diventato
+	 * una croce — perché aprire e chiudere devono essere lo stesso gesto.
+	 */
 	var apri = document.querySelector('.apri-menu');
 	var menu = document.getElementById('menu-mobile');
 	if (apri && menu) {
-		apri.addEventListener('click', function () {
-			var aperto = menu.hasAttribute('data-aperto');
-			if (aperto) {
+		var cambia = function (aprire) {
+			if (aprire) {
+				menu.hidden = false;
+				menu.setAttribute('data-aperto', '');
+				document.body.setAttribute('data-menu-aperto', '');
+			} else {
 				menu.removeAttribute('data-aperto');
 				menu.hidden = true;
-			} else {
-				menu.setAttribute('data-aperto', '');
-				menu.hidden = false;
+				document.body.removeAttribute('data-menu-aperto');
 			}
-			apri.setAttribute('aria-expanded', String(!aperto));
+			apri.setAttribute('aria-expanded', String(aprire));
+		};
+
+		apri.addEventListener('click', function () {
+			cambia(!menu.hasAttribute('data-aperto'));
+		});
+
+		menu.addEventListener('click', function (e) {
+			if (e.target.closest('a')) cambia(false);
+		});
+
+		document.addEventListener('keydown', function (e) {
+			if (e.key === 'Escape' && menu.hasAttribute('data-aperto')) {
+				cambia(false);
+				apri.focus();
+			}
 		});
 	}
 

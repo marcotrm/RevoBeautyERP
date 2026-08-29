@@ -74,17 +74,32 @@ add_action( 'wp_enqueue_scripts', function () {
 	}
 }, 20 );
 
-/** Le voci di menu quando nessun menu è stato configurato in bacheca. */
-function rb_menu_fallback() {
+/**
+ * Le voci di menu quando nessun menu è stato configurato in bacheca.
+ *
+ * Deve rispettare l'`items_wrap` di chi lo chiama, altrimenti succede quello
+ * che è successo: la testata chiede `<ul class="menu">` e il pannello del
+ * telefono chiede `<ul class="menu-mobile-voci">`, ma il ripiego stampava
+ * sempre la prima — e il menu del telefono usciva senza uno stile, con i
+ * puntini dell'elenco e il carattere di sistema.
+ */
+function rb_menu_fallback( $args = array() ) {
 	$voci = array(
 		home_url( '/servizi/' )   => 'Trattamenti',
 		home_url( '/chi-siamo/' ) => 'Chi siamo',
 		home_url( '/blog/' )      => 'Blog',
 		home_url( '/contatti/' )  => 'Contatti',
 	);
-	echo '<ul class="menu">';
+
+	$righe = '';
+	$qui   = untrailingslashit( home_url( add_query_arg( array() ) ) );
 	foreach ( $voci as $url => $etichetta ) {
-		printf( '<li><a href="%s">%s</a></li>', esc_url( $url ), esc_html( $etichetta ) );
+		$attuale = untrailingslashit( $url ) === $qui ? ' class="current-menu-item"' : '';
+		$righe  .= sprintf( '<li%s><a href="%s">%s</a></li>', $attuale, esc_url( $url ), esc_html( $etichetta ) );
 	}
-	echo '</ul>';
+
+	$involucro = $args['items_wrap'] ?? '<ul class="menu">%3$s</ul>';
+	// items_wrap usa i segnaposto numerati di wp_nav_menu: qui servono solo
+	// l'id (vuoto), la classe (già nell'involucro) e le voci.
+	echo sprintf( $involucro, '', '', $righe ); // phpcs:ignore
 }

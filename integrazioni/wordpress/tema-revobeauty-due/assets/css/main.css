@@ -293,7 +293,7 @@ address { font-style: normal; }
 /* ── Chiusura + fondo ─────────────────────────────────────────────────── */
 .chiusura { background: var(--nero); color: var(--crema); padding: 88px 24px; margin-top: 88px; text-align: center; }
 .chiusura-titolo { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: clamp(26px, 4vw, 38px); line-height: 1.25; max-width: 660px; margin: 0 auto 28px; }
-.chiusura-azioni { display: flex; gap: 16px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.chiusura-azioni { margin: 0 auto; }
 
 .fondo { background: var(--nero); color: var(--crema); border-top: 1px solid #1e1e1e; }
 .fondo-dentro {
