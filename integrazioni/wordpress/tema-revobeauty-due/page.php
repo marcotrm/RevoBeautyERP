@@ -6,7 +6,7 @@
 get_header();
 ?>
 <section class="sezione testata-pagina">
-	<h1 class="titolone rivela"><?php the_title(); ?></h1>
+	<h1 class="titolone sale"><?php the_title(); ?></h1>
 </section>
 <section class="sezione prosa">
 	<?php

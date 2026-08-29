@@ -51,7 +51,14 @@ add_action( 'wp_head', function () {
 		'openingHoursSpecification' => $apertura,
 	);
 
-	printf( "<script type=\"application/ld+json\">%s</script>\n", wp_json_encode( $dati, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) );
+	/*
+	 * JSON_HEX_TAG non è cosmesi: json_encode non tocca mai < e >, e senza
+	 * quel flag un indirizzo che contenga </script> chiuderebbe questo tag e
+	 * quello che segue verrebbe eseguito come JavaScript. Il dato arriva dal
+	 * gestionale e finisce nell'option di scorta, che non scade: una volta
+	 * entrato, resterebbe in pagina anche dopo averlo corretto in gestionale.
+	 */
+	printf( "<script type=\"application/ld+json\">%s</script>\n", wp_json_encode( $dati, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP ) );
 }, 5 );
 
 // Yoast stampa già Organization/WebSite: il local business lo mettiamo noi,

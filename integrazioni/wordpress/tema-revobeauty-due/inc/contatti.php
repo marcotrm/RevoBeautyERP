@@ -24,10 +24,29 @@ if ( ! defined( 'ABSPATH' ) ) {
 const RB_AZIONE = 'rb_contatto';
 const RB_NONCE  = 'rb_contatto_nonce';
 
+/**
+ * I messaggi d'errore, per codice.
+ *
+ * Nell'URL viaggia il codice, mai il testo: un indirizzo costruito ad arte
+ * potrebbe altrimenti far comparire la frase che vuole chi lo ha scritto
+ * dentro il riquadro d'errore del sito, sopra il modulo — che è come si
+ * confeziona un phishing credibile. Così l'unico testo che il sito può
+ * mostrare è uno dei nostri.
+ */
+function rb_errori() {
+	return array(
+		'nonce' => 'La pagina è rimasta aperta troppo a lungo. Ricaricala e riprova.',
+		'rete'  => 'Non siamo riusciti a inviare la richiesta. Riprova fra poco, o scrivici su WhatsApp.',
+		'dati'  => 'Controlla i dati inseriti e riprova.',
+		'tanti' => 'Hai già inviato più richieste. Se è urgente scrivici su WhatsApp.',
+	);
+}
+
 /** Il modulo, come shortcode e come funzione per i template. */
 function rb_modulo_contatti() {
 	$esito  = isset( $_GET['contatto'] ) ? sanitize_key( wp_unslash( $_GET['contatto'] ) ) : '';
-	$errore = isset( $_GET['errore'] ) ? sanitize_text_field( wp_unslash( $_GET['errore'] ) ) : '';
+	$codice = isset( $_GET['errore'] ) ? sanitize_key( wp_unslash( $_GET['errore'] ) ) : '';
+	$errore = rb_errori()[ $codice ] ?? '';
 
 	ob_start();
 
@@ -40,8 +59,16 @@ function rb_modulo_contatti() {
 		/* L'unico punto in cui si sa che la richiesta è arrivata davvero al
 		   gestionale: è qui che si misura la conversione, non al click. */
 		(function () {
+			/* gtag lo trattiene Consent Mode finché la persona non accetta.
+			   fbq no: il pixel di Meta il Consent Mode di Google non lo legge,
+			   quindi il consenso marketing glielo chiediamo noi — su una pagina
+			   in cui la persona ha appena lasciato nome, telefono ed email. */
 			try { if (typeof gtag === 'function') { gtag('event', 'generate_lead', { form: 'contatti' }); } } catch (e) {}
-			try { if (typeof fbq === 'function') { fbq('track', 'Lead'); } } catch (e) {}
+			try {
+				var riga = document.cookie.split('; ').find(function (r) { return r.indexOf('rb_consenso=') === 0; });
+				var scelte = riga ? JSON.parse(decodeURIComponent(riga.split('=')[1])) : {};
+				if (scelte.marketing && typeof fbq === 'function') { fbq('track', 'Lead'); }
+			} catch (e) {}
 		})();
 		</script>
 	<?php else :
@@ -138,13 +165,32 @@ function rb_invia_contatto() {
 	$pagina = isset( $_POST['pagina'] ) ? esc_url_raw( wp_unslash( $_POST['pagina'] ) ) : '';
 
 	if ( ! isset( $_POST[ RB_NONCE ] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ RB_NONCE ] ) ), RB_AZIONE ) ) {
-		rb_torna( $pagina, array( 'errore' => 'La pagina è rimasta aperta troppo a lungo. Riprova.' ) );
+		rb_torna( $pagina, array( 'errore' => 'nonce' ) );
 	}
 
 	// Trappola: risposta identica a quella buona, così il bot non impara niente.
 	if ( ! empty( $_POST['azienda'] ) ) {
 		rb_torna( $pagina, array( 'contatto' => 'ok' ) );
 	}
+
+	/*
+	 * Un tetto per numero di IP.
+	 *
+	 * Il nonce qui non difende da granché: per chi non è loggato WordPress lo
+	 * calcola sempre uguale, quindi basta leggerlo dalla pagina per riusarlo.
+	 * Senza un tetto, chiunque potrebbe far girare questo modulo a ripetizione:
+	 * ogni invio arriva al gestionale con il nostro segreto in testa, quindi
+	 * autenticato, e tiene occupato un processo del sito fino a quindici
+	 * secondi. Cinque richieste all'ora da uno stesso indirizzo sono tante per
+	 * una persona e poche per chi vuole fare rumore.
+	 */
+	$ip      = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+	$chiave  = 'rb_lead_' . md5( $ip );
+	$fatti   = (int) get_transient( $chiave );
+	if ( $fatti >= 5 ) {
+		rb_torna( $pagina, array( 'errore' => 'tanti' ) );
+	}
+	set_transient( $chiave, $fatti + 1, HOUR_IN_SECONDS );
 
 	$corpo = array(
 		'firstName' => sanitize_text_field( wp_unslash( $_POST['nome'] ?? '' ) ),
@@ -175,18 +221,18 @@ function rb_invia_contatto() {
 
 	if ( is_wp_error( $risposta ) ) {
 		error_log( '[revobeauty-due] gestionale irraggiungibile: ' . $risposta->get_error_message() );
-		rb_torna( $pagina, array( 'errore' => 'Non siamo riusciti a inviare la richiesta. Riprova fra poco, o scrivici su WhatsApp.' ) );
+		rb_torna( $pagina, array( 'errore' => 'rete' ) );
 	}
 
 	$stato = (int) wp_remote_retrieve_response_code( $risposta );
-	$dati  = json_decode( wp_remote_retrieve_body( $risposta ), true );
 
 	if ( $stato >= 200 && $stato < 300 ) {
 		rb_torna( $pagina, array( 'contatto' => 'ok' ) );
 	}
 
-	$messaggio = is_array( $dati ) && ! empty( $dati['message'] ) ? $dati['message'] : 'Controlla i dati e riprova.';
-	rb_torna( $pagina, array( 'errore' => $messaggio ) );
+	// Il perché preciso finisce nel log, non nell'URL della persona.
+	error_log( '[revobeauty-due] lead rifiutato dal gestionale, stato ' . $stato . ': ' . wp_remote_retrieve_body( $risposta ) );
+	rb_torna( $pagina, array( 'errore' => 'dati' ) );
 }
 add_action( 'admin_post_nopriv_' . RB_AZIONE, 'rb_invia_contatto' );
 add_action( 'admin_post_' . RB_AZIONE, 'rb_invia_contatto' );
