@@ -133,13 +133,55 @@ a:hover { color: var(--bordeaux); }
   .nav { display: none; }
   .apri-menu { display: inline-flex; }
   .testata-azioni .bottone { display: none; }
+  /* Il menu è un pannello che copre lo schermo, non un cassetto che spinge
+     giù la pagina: su un telefono lo spazio è tutto quello che c'è, e mezza
+     pagina che scivola sotto un elenco è più confusa di una schermata sola.
+     Sempre scuro, anche sulle pagine chiare: è un momento a parte. */
   .menu-mobile[data-aperto] {
-    display: flex; flex-direction: column; gap: 18px; padding: 24px;
-    background: inherit; border-top: 1px solid var(--crema-scura);
+    display: flex; flex-direction: column;
+    position: fixed; inset: 0; z-index: 60;
+    background: var(--nero); color: var(--crema);
+    padding: 88px 24px calc(28px + env(safe-area-inset-bottom));
+    overflow-y: auto; overscroll-behavior: contain;
   }
-  .testata-scura .menu-mobile[data-aperto] { border-top-color: #1e1e1e; }
-  .menu-mobile-voci { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
-  .menu-mobile-voci a { font-size: 15px; letter-spacing: .12em; text-transform: uppercase; color: inherit; }
+  .menu-mobile-voci {
+    list-style: none; margin: 0 0 auto; padding: 0;
+    display: flex; flex-direction: column;
+  }
+  .menu-mobile-voci li { border-bottom: 1px solid #1e1e1e; }
+  .menu-mobile-voci a {
+    display: flex; align-items: center; min-height: 62px;
+    font-family: var(--serif); font-size: 27px; font-weight: 500;
+    letter-spacing: .01em; text-transform: none; color: var(--crema);
+  }
+  .menu-mobile-voci .current-menu-item a { color: var(--oro-chiaro); }
+  .menu-mobile > .bottone { margin-top: 28px; }
+  /* Le voci entrano una dopo l'altra: settanta millesimi, che è il ritardo
+     che si legge come sequenza invece che come ritardo. */
+  @media (prefers-reduced-motion: no-preference) {
+    .menu-mobile[data-aperto] { animation: rb-pannello 280ms var(--cassetto) both; }
+    .menu-mobile[data-aperto] .menu-mobile-voci li,
+    .menu-mobile[data-aperto] > .bottone {
+      animation: rb-voce 420ms var(--uscita) both;
+    }
+    .menu-mobile[data-aperto] .menu-mobile-voci li:nth-child(1) { animation-delay: 90ms; }
+    .menu-mobile[data-aperto] .menu-mobile-voci li:nth-child(2) { animation-delay: 160ms; }
+    .menu-mobile[data-aperto] .menu-mobile-voci li:nth-child(3) { animation-delay: 230ms; }
+    .menu-mobile[data-aperto] .menu-mobile-voci li:nth-child(4) { animation-delay: 300ms; }
+    .menu-mobile[data-aperto] .menu-mobile-voci li:nth-child(5) { animation-delay: 370ms; }
+    .menu-mobile[data-aperto] > .bottone { animation-delay: 420ms; }
+    @keyframes rb-pannello { from { opacity: 0; transform: translateY(-12px); } }
+    @keyframes rb-voce { from { opacity: 0; transform: translateY(16px); } }
+  }
+  /* Con il menu aperto il tasto diventa una croce e resta sopra al pannello.
+     Il pannello vive DENTRO l'intestazione, quindi alzare l'intestazione non
+     basta: si alza la barra con marchio e tasto, che è l'unica cosa che deve
+     restare sopra. */
+  body[data-menu-aperto] { overflow: hidden; }
+  body[data-menu-aperto] .testata { background: var(--nero); }
+  body[data-menu-aperto] .testata-dentro { position: relative; z-index: 62; }
+  body[data-menu-aperto] .marchio { color: var(--crema); }
+  body[data-menu-aperto] .apri-menu { color: var(--crema); }
   .eroe { min-height: 72vh; }
   .eroe-strisce { gap: 8px; padding: 0 12px; }
 }
@@ -165,6 +207,31 @@ a:hover { color: var(--bordeaux); }
 .eroe-foto .eroe-riga { margin: 0; text-align: left; color: #d9d3c6; }
 .eroe-foto .eroe-azioni { margin-top: 12px; justify-content: flex-start; }
 @media (max-width: 760px) { .eroe-foto { min-height: 78vh; } .eroe-contenuto { padding-bottom: 44px; } }
+
+/* Menu o croce, mai tutti e due. */
+.segno-chiudi, .parola-chiudi { display: none; }
+body[data-menu-aperto] .segno-menu, body[data-menu-aperto] .parola-menu { display: none; }
+body[data-menu-aperto] .segno-chiudi, body[data-menu-aperto] .parola-chiudi { display: inline; }
+
+/* ── Bottoni tutti della stessa misura ────────────────────────────────── */
+/* Un tasto più corto di quello accanto fa sembrare che valga meno. Qui
+   hanno tutti la stessa larghezza minima e la stessa altezza, e dove stanno
+   in coppia si dividono lo spazio in parti uguali invece di prendersi
+   ciascuno quanto gli serve per il proprio testo. */
+.bottone { min-width: 220px; min-height: 52px; text-align: center; }
+.bottone-piccolo { min-width: 0; min-height: 42px; }
+
+.eroe-azioni, .chiusura-azioni {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 12px;
+}
+.chiusura-azioni { justify-content: center; }
+.chiusura-azioni .collega { grid-column: 1 / -1; justify-self: center; margin-top: 4px; }
+
+@media (max-width: 560px) {
+  .eroe-azioni, .chiusura-azioni { grid-template-columns: minmax(0, 1fr); max-width: 320px; }
+  .eroe-azioni { max-width: 100%; }
+  .bottone { min-width: 0; width: 100%; }
+}
 </style>
 <title>Servizi &#8211; RevoBeauty</title>
 <meta name='robots' content='noindex, nofollow' />
@@ -216,17 +283,19 @@ img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
 			<span class="marchio-revo">REVO</span><span class="marchio-beauty">BEAUTY</span>
 		</a>
 		<nav class="nav" aria-label="Principale">
-			<ul class="menu"><li><a href="/anteprima/servizi">Trattamenti</a></li><li><a href="/anteprima/chi-siamo">Chi siamo</a></li><li><a href="/anteprima/blog">Blog</a></li><li><a href="/anteprima/contatti">Contatti</a></li></ul>		</nav>
+			<ul class="menu"><li class="current-menu-item"><a href="/anteprima/servizi">Trattamenti</a></li><li><a href="/anteprima/chi-siamo">Chi siamo</a></li><li><a href="/anteprima/blog">Blog</a></li><li><a href="/anteprima/contatti">Contatti</a></li></ul>		</nav>
 		<div class="testata-azioni">
-			<a class="bottone bottone-oro bottone-piccolo" href="http://127.0.0.1:8331/prenota">Prenota online</a>
+			<a class="bottone bottone-oro bottone-piccolo" href="https://erp.revobeauty.it/prenota">Prenota online</a>
 						<button class="apri-menu" aria-expanded="false" aria-controls="menu-mobile">
-				<svg width="20" height="20" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-				<span>Menu</span>
+				<svg class="segno-menu" width="20" height="20" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+				<svg class="segno-chiudi" width="20" height="20" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M5 5l12 12M17 5L5 17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+				<span class="parola-menu">Menu</span>
+				<span class="parola-chiudi">Chiudi</span>
 			</button>
 		</div>
 	</div>
 	<div class="menu-mobile" id="menu-mobile" hidden>
-		<ul class="menu"><li><a href="/anteprima/servizi">Trattamenti</a></li><li><a href="/anteprima/chi-siamo">Chi siamo</a></li><li><a href="/anteprima/blog">Blog</a></li><li><a href="/anteprima/contatti">Contatti</a></li></ul>		<a class="bottone bottone-oro" href="http://127.0.0.1:8331/prenota">Prenota online</a>
+		<ul class="menu-mobile-voci"><li class="current-menu-item"><a href="/anteprima/servizi">Trattamenti</a></li><li><a href="/anteprima/chi-siamo">Chi siamo</a></li><li><a href="/anteprima/blog">Blog</a></li><li><a href="/anteprima/contatti">Contatti</a></li></ul>		<a class="bottone bottone-oro" href="https://erp.revobeauty.it/prenota">Prenota online</a>
 	</div>
 </header>
 
@@ -1234,7 +1303,7 @@ img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
 <section class="chiusura">
 	<h2 class="chiusura-titolo sale">Il posto giusto si riconosce da come ti senti quando esci.</h2>
 	<div class="chiusura-azioni sale">
-		<a class="bottone bottone-oro" href="http://127.0.0.1:8331/prenota">Prenota online</a>
+		<a class="bottone bottone-oro" href="https://erp.revobeauty.it/prenota">Prenota online</a>
 					<a class="bottone bottone-lineare-chiaro" href="https://wa.me/393312733414?text=Ciao%21%20Vorrei%20informazioni%20sui%20vostri%20trattamenti." rel="noopener">Scrivici su WhatsApp</a>
 							<a class="collega collega-chiaro" href="tel:+393312733414">oppure chiamaci</a>
 			</div>
@@ -1243,7 +1312,7 @@ img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
 </main>
 
 <div class="barra-pollice" id="barra-pollice" aria-label="Azioni rapide">
-	<a class="pollice-primario" href="http://127.0.0.1:8331/prenota">Prenota</a>
+	<a class="pollice-primario" href="https://erp.revobeauty.it/prenota">Prenota</a>
 			<a class="pollice-icona" href="https://wa.me/393312733414?text=Ciao%21%20Vorrei%20informazioni%20sui%20vostri%20trattamenti." rel="noopener" aria-label="Scrivici su WhatsApp">
 			<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm0 18.15h-.01a8.23 8.23 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.21 8.21 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.19 8.19 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.25-.64.8-.78.97-.14.16-.29.18-.54.06-.25-.13-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.51.11-.11.25-.29.37-.43.13-.15.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.48c-.16 0-.43.06-.65.31-.22.25-.85.84-.85 2.03s.87 2.35 1 2.51c.12.17 1.71 2.61 4.14 3.66.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.11-.23-.17-.48-.29Z"/></svg>
 		</a>
@@ -1257,7 +1326,7 @@ img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
 		<div class="fondo-colonna fondo-marchio">
 			<div class="marchio"><span class="marchio-revo">REVO</span><span class="marchio-beauty">BEAUTY</span></div>
 			<p class="fondo-claim">Innovazione &amp; bellezza, a Maddaloni.</p>
-			<a class="bottone bottone-oro" href="http://127.0.0.1:8331/prenota">Prenota online</a>
+			<a class="bottone bottone-oro" href="https://erp.revobeauty.it/prenota">Prenota online</a>
 		</div>
 
 		<div class="fondo-colonna">

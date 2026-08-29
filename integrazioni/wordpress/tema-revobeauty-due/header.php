@@ -46,8 +46,10 @@
 			<?php /* L'icona da sola non basta: senza la parola scritta, quante persone
 				trovano la navigazione si dimezza. Costa tre lettere. */ ?>
 			<button class="apri-menu" aria-expanded="false" aria-controls="menu-mobile">
-				<svg width="20" height="20" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-				<span>Menu</span>
+				<svg class="segno-menu" width="20" height="20" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+				<svg class="segno-chiudi" width="20" height="20" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M5 5l12 12M17 5L5 17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+				<span class="parola-menu">Menu</span>
+				<span class="parola-chiudi">Chiudi</span>
 			</button>
 		</div>
 	</div>
