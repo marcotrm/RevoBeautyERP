@@ -142,6 +142,13 @@ class Orecchie(FrameProcessor):
     scritta nel momento, quell'informazione e' persa.
     """
 
+    def __init__(self):
+        super().__init__()
+        #: Cosa fare quando qualcosa si rompe. Lo assegna chi monta la
+        #: telefonata, perche' qui dentro non si sa a chi passarla.
+        self.al_guasto = None
+        self._gia_scattato = False
+
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
         if isinstance(frame, TranscriptionFrame):
@@ -150,6 +157,11 @@ class Orecchie(FrameProcessor):
             logger.debug(f"sto capendo: {frame.text!r}")
         elif isinstance(frame, ErrorFrame):
             logger.error(f"errore in linea: {frame.error}")
+            # Una volta sola per telefonata: se il guasto si ripete a ogni
+            # turno, la cliente non deve sentirsi ripetere le scuse in loop.
+            if self.al_guasto and not self._gia_scattato:
+                self._gia_scattato = True
+                await self.al_guasto(str(frame.error))
         await self.push_frame(frame, direction)
 
 
@@ -334,16 +346,54 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
             # `model` e `reference_id` funzionano ancora ma sono tutti e due
             # deprecati, ed e' da questa famiglia di cambiamenti che e' arrivata
             # la caduta del telefono: meglio non lasciarne in giro nessuno.
+            # La taratura scelta dal centro ascoltando quattro prove della
+            # stessa frase con la sua voce.
+            #
+            # Senza questi parametri Fish parla con i suoi valori di partenza, e
+            # il risultato è la voce piatta e lenta che il centro ha descritto
+            # come «robotica». Non è il modello: è che non gli stavamo dicendo
+            # niente su come parlare.
+            #
+            # - `balanced` fa partire l'audio prima: al telefono l'attesa prima
+            #   della prima sillaba si sente più della qualità.
+            # - la cadenza a 1.12 toglie quella lentezza da lettura.
+            # - temperatura e top_p più alti danno variazione all'intonazione:
+            #   è quello che separa una persona da un annuncio in stazione.
+            # - `normalize` fa leggere numeri, orari e prezzi come si dicono.
             settings=FishAudioTTSService.Settings(
-                model=MODELLO_FISH, voice=os.environ["FISH_VOICE_ID"],
+                model=MODELLO_FISH,
+                voice=os.environ["FISH_VOICE_ID"],
+                latency=os.getenv("FISH_LATENZA", "balanced"),
+                normalize=True,
+                temperature=float(os.getenv("FISH_TEMPERATURA", "0.85")),
+                top_p=float(os.getenv("FISH_TOP_P", "0.85")),
+                prosody_speed=float(os.getenv("FISH_CADENZA", "1.12")),
             ),
             sample_rate=FREQUENZA,
         )
 
+    # Al telefono il tempo di risposta e' una funzione, non una rifinitura.
+    #
+    # Misurato sui log di una telefonata vera, dal momento in cui la frase e'
+    # stata capita a quello in cui l'assistente ha ricominciato a parlare:
+    # 2.8s, 4.2s, 6.7s. Chi chiama, in sei secondi di silenzio, riattacca — e
+    # infatti e' successo.
+    #
+    # Quel tempo se ne va quasi tutto nel ragionamento del modello, che di suo
+    # parte al massimo. Qui non serve: le regole che contano — non inventare i
+    # prezzi, ripetere e farsi confermare — non stanno nella profondita' del
+    # ragionamento, stanno negli strumenti, che rispondono coi dati veri o non
+    # rispondono affatto. Con lo sforzo basso il modello resta lo stesso, fa
+    # meno preamboli e risponde prima.
+    #
+    # E' una variabile perche' e' una manopola: se un giorno le risposte
+    # diventassero sbrigative, si alza a `medium` o `high` senza toccare il
+    # codice.
     llm = AnthropicLLMService(
         api_key=os.environ["ANTHROPIC_API_KEY"],
         settings=AnthropicLLMService.Settings(
             model=os.getenv("VOCE_MODEL", "claude-opus-5"),
+            extra={"output_config": {"effort": os.getenv("VOCE_SFORZO", "low")}},
         ),
     )
 
@@ -580,12 +630,13 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
 
     # ------------------------------------------------------------- pipeline
     microfono = Microfono()
+    orecchie = Orecchie()
 
     pipeline = Pipeline([
         transport.input(),
         microfono,
         stt,
-        Orecchie(),
+        orecchie,
         aggregator.user(),
         llm,
         tts,
@@ -598,6 +649,40 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
         audio_out_sample_rate=FREQUENZA,
         allow_interruptions=True,
     ))
+
+    # Se il cervello si ferma, la cliente non resta col vuoto in mano.
+    #
+    # E' successo davvero: il credito Anthropic e' finito e l'API ha risposto
+    # «Your credit balance is too low». La voce funzionava, l'orecchio pure,
+    # ma il modello non poteva ragionare — e chi aveva chiamato ha sentito il
+    # saluto e poi nient'altro, fino a riattaccare. Per la voce un ripiego
+    # c'era gia'; per il cervello no.
+    #
+    # Adesso al primo guasto la cliente sente una frase e viene passata a una
+    # persona vera. Non si scusa due volte: se il guasto si ripete a ogni
+    # turno, le scuse in loop sono peggio del silenzio.
+    async def _guasto(motivo: str):
+        logger.error(f"guasto in linea: {motivo[:200]}")
+        dati_centro = centro if isinstance(centro, dict) else {}
+        anagrafica = dati_centro.get("centro") or {}
+        numero = (anagrafica.get("telefonoPassaggio") or anagrafica.get("telefono") or "").strip()
+        aperto = bool((dati_centro.get("oggi") or {}).get("adessoAperto"))
+
+        if numero and aperto and await _trasferisci(numero):
+            _registra("trasferito")
+            await task.queue_frames([TTSSpeakFrame(
+                "Scusami, ho un problema tecnico. Ti passo subito una collega."
+            )])
+            return
+
+        # Nessuno a cui passarla: si dice com'e'. Una cliente che sa di essere
+        # richiamata riattacca tranquilla; una che sente il vuoto no.
+        await task.queue_frames([TTSSpeakFrame(
+            "Scusami, ho un problema tecnico e non riesco a proseguire. "
+            "Richiama fra poco o passa in centro, mi dispiace."
+        )])
+
+    orecchie.al_guasto = _guasto
 
     iniziata = datetime.datetime.now(datetime.timezone.utc)
 

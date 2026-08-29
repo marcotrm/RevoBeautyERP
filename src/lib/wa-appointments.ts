@@ -15,6 +15,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { seduraDaRadere, oraConNota } from '@/lib/epilazione';
 import { todayRome } from '@/lib/date';
 import { isWalkIn } from '@/lib/walkIn';
 import { sendTelegram } from '@/lib/telegram';
@@ -229,7 +230,9 @@ export async function sendAppointmentConfirmation(appointmentId: string): Promis
       sanitizeParam(appt.client?.firstName || appt.clientName.split(' ')[0]),
       sanitizeParam(appt.treatmentName, 'il tuo trattamento'),
       sanitizeParam(humanDate(appt.date)),
-      sanitizeParam(oraPerLaCliente(appt)),
+      // Sull'epilazione la zona va rasata prima: e' la sola cosa da dire
+      // adesso, perche' dopo non c'e' piu' tempo per farla.
+      sanitizeParam(oraConNota(oraPerLaCliente(appt), seduraDaRadere(appt))),
     ];
     const preview = WA_TEMPLATES.confirm.body.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1] ?? '');
 
@@ -309,7 +312,8 @@ export async function sendAppointmentMoved(appointmentId: string): Promise<{ sen
       sanitizeParam(appt.client?.firstName || appt.clientName.split(' ')[0]),
       sanitizeParam(appt.treatmentName, 'il tuo trattamento'),
       sanitizeParam(humanDate(appt.date)),
-      sanitizeParam(appt.startTime),
+      // Anche qui: se la seduta si sposta, la preparazione si sposta con lei.
+      sanitizeParam(oraConNota(appt.startTime, seduraDaRadere(appt))),
     ];
 
     /*

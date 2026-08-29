@@ -10,6 +10,7 @@
  *    mandare niente, finché non lo si spegne esplicitamente.
  */
 
+import { seduraDaRadere, oraConNota } from '@/lib/epilazione';
 import { prisma } from '@/lib/prisma';
 import { idClientiSegnalati } from '@/lib/segnalate';
 import { todayRome } from '@/lib/date';
@@ -474,7 +475,13 @@ export async function runReminders(dryRun: boolean): Promise<RunResult> {
         // Con più trattamenti in giornata il singolo nome sarebbe fuorviante.
         sanitizeParam(giornata.length > 1 ? 'i tuoi trattamenti' : a.treatmentName, 'il tuo trattamento'),
         sanitizeParam(humanDate(a.date)),
-        sanitizeParam(a.startTime),
+        /*
+          Il promemoria della sera prima e' l'ultimo momento utile per dire
+          «raditi»: si guardano TUTTI gli appuntamenti di domani, perche' il
+          messaggio e' uno solo per cliente e l'epilazione puo' essere il
+          secondo della giornata.
+        */
+        sanitizeParam(oraConNota(a.startTime, giornata.some(seduraDaRadere))),
       ],
     });
   }

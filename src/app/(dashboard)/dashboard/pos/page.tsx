@@ -44,7 +44,9 @@ const PAYMENT_METHODS = [
   { id: 'satispay', label: 'Satispay', icon: '📱' },
   { id: 'bonifico', label: 'Bonifico', icon: '🏦' },
   { id: 'buono', label: 'Buono Regalo', icon: '🎁' },
-  { id: 'misto', label: 'Misto', icon: '⚖️' },
+  // «Misto» non diceva niente: chi cercava il doppio pagamento non lo trovava
+  // e si arrangiava battendo due vendite separate.
+  { id: 'misto', label: 'Contanti + Carta', icon: '⚖️' },
 ];
 
 function NewSaleModal({ onClose, onComplete, initialData }: {
@@ -628,7 +630,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                   <label className="block text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wider">Metodo di Pagamento</label>
                   <div className="grid grid-cols-2 gap-3">
                     {PAYMENT_METHODS.map(m => (
-                      <button key={m.id} onClick={() => setPaymentMethod(m.id)}
+                      <button key={m.id} onClick={() => { setPaymentMethod(m.id); if (m.id !== 'misto') { setSplitCash(''); setSplitCard(''); } }}
                         className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${paymentMethod === m.id ? 'border-accent bg-accent/5' : 'border-border hover:border-border-light'}`}>
                         <span className="text-2xl">{m.icon}</span>
                         <span className={`text-sm font-medium ${paymentMethod === m.id ? 'text-accent' : 'text-text-primary'}`}>{m.label}</span>
@@ -683,7 +685,8 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
 
                   {paymentMethod === 'misto' && (
                     <div className="mt-4 p-4 rounded-xl bg-bg-tertiary/50 border border-border space-y-3">
-                      <p className="text-sm font-medium text-text-primary mb-2">Dividi Importo (Totale: {formatCurrency(finalTotal)})</p>
+                      <p className="text-sm font-medium text-text-primary">Dividi il totale di {formatCurrency(finalTotal)}</p>
+                      <p className="text-xs text-text-muted -mt-1.5">Scrivi quanto paga in contanti: il resto finisce sulla carta da solo.</p>
                       <div className="flex gap-4">
                         <div className="flex-1">
                           <label className="block text-xs text-text-secondary mb-1">Contanti</label>
@@ -700,8 +703,11 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                           </div>
                         </div>
                       </div>
-                      {Math.abs((Number(splitCash) + Number(splitCard)) - finalTotal) > 0.01 && (
-                        <p className="text-xs text-error font-medium">La somma deve essere uguale a {formatCurrency(finalTotal)} (Attuale: {formatCurrency(Number(splitCash) + Number(splitCard))})</p>
+                      {/* L'errore solo dopo che si e' scritto qualcosa: comparire
+                          in rosso su due campi ancora vuoti fa sembrare rotto
+                          quello che si e' appena aperto. */}
+                      {(splitCash !== '' || splitCard !== '') && Math.abs((Number(splitCash) + Number(splitCard)) - finalTotal) > 0.01 && (
+                        <p className="text-xs text-error font-medium">La somma deve fare {formatCurrency(finalTotal)} — adesso fa {formatCurrency(Number(splitCash) + Number(splitCard))}</p>
                       )}
                     </div>
                   )}

@@ -71,6 +71,28 @@ function testoAIso(testo: string): string | null {
   return iso(anno, mese, giorno);
 }
 
+/**
+ * L'anno scritto con due cifre: 89 → 1989, 04 → 2004.
+ *
+ * Al banco la data di nascita si detta cosi', «trentuno agosto ottantanove»,
+ * e chi scrive batte 310889. Prima quel campo restava vuoto per il gestionale
+ * — sei cifre non sono una data — con la differenza che a schermo si leggeva
+ * «31/08/89», che sembra una data finita: il tasto del check-in restava
+ * spento e non si capiva perche'.
+ *
+ * Il taglio e' due anni avanti a oggi: «27» e' il 2027 (un appuntamento
+ * lontano), «30» e' il 1930 (una signora). Nessuno prenota nel 2030 e nessuno
+ * e' nato nel 2027.
+ */
+function completaAnno(testo: string): string {
+  const c = testo.replace(/\D/g, '');
+  if (c.length !== 6) return testo;
+  const yy = Number(c.slice(4));
+  const soglia = (new Date().getFullYear() % 100) + 2;
+  const anno = yy <= soglia ? 2000 + yy : 1900 + yy;
+  return `${c.slice(0, 2)}/${c.slice(2, 4)}/${anno}`;
+}
+
 export default function CampoData({
   value,
   onChange,
@@ -165,6 +187,29 @@ export default function CampoData({
     setAperto(v => !v);
   };
 
+  /**
+   * Uscendo dal campo si sistema quello che si puo' e si dice cosa non va.
+   *
+   * Completare l'anno mentre si scrive sarebbe peggio del problema: chi sta
+   * battendo «31/08/1989» al sesto carattere si vedrebbe riscrivere il campo
+   * sotto le dita.
+   */
+  const [toccato, setToccato] = useState(false);
+  const esci = () => {
+    setToccato(true);
+    const completo = completaAnno(testo);
+    if (completo !== testo) {
+      setTesto(completo);
+      const nuovo = testoAIso(completo);
+      if (nuovo) {
+        onChange(nuovo);
+        const p = pezzi(nuovo)!;
+        setVistaAnno(p.anno);
+        setVistaMese(p.mese);
+      }
+    }
+  };
+
   const scriviTesto = (grezzo: string) => {
     const t = mascheraTesto(grezzo);
     setTesto(t);
@@ -207,7 +252,10 @@ export default function CampoData({
   );
 
   const isoOggi = iso(annoOggi, oggi.getMonth(), oggi.getDate());
-  const incompleto = testo.replace(/\D/g, '').length === 8 && !testoAIso(testo);
+  const cifre = testo.replace(/\D/g, '').length;
+  // Rosso solo quando c'e' qualcosa che non va davvero: una data impossibile,
+  // o una lasciata a meta' dopo essere usciti dal campo.
+  const incompleto = (cifre === 8 && !testoAIso(testo)) || (toccato && cifre > 0 && cifre < 8 && !testoAIso(completaAnno(testo)));
 
   return (
     <div ref={campoRef} className="relative">
@@ -218,10 +266,14 @@ export default function CampoData({
         value={testo}
         disabled={disabled}
         placeholder="gg/mm/aaaa"
-        onChange={e => scriviTesto(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setAperto(false); } }}
+        onChange={e => { setToccato(false); scriviTesto(e.target.value); }}
+        onBlur={esci}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); esci(); setAperto(false); } }}
         className={`${className} pr-10 ${incompleto ? 'border-error/60' : ''}`}
       />
+      {incompleto && (
+        <p className="mt-1 text-[11px] font-medium text-error">Data non completa: scrivila come 31/08/1989.</p>
+      )}
       <button
         type="button"
         onClick={apri}

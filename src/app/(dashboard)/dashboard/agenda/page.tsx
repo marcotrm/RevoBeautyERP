@@ -2740,6 +2740,30 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
     return conflictsAt(timeToMinutes(startTime), totalDuration);
   }, [startTime, selectedServices, selectedOperatorId, conflictsAt, totalDuration]);
 
+  /**
+   * Quella persona, a quest'ora, è fuori turno?
+   *
+   * Serve nel menu «chi lo fa»: l'elenco mostra chi SA fare quel trattamento,
+   * che è una cosa sola e non cambia con l'orario. Ma se alle 18 in turno non
+   * c'è, sceglierla è quasi sempre uno sbaglio — e prima non c'era modo di
+   * accorgersene finché non compariva l'avviso in fondo alla scheda, cioè
+   * dopo aver scelto.
+   *
+   * Non toglie nessuno dall'elenco: capita davvero di prendere una cliente
+   * mezz'ora dopo la chiusura, e l'agenda deve poterlo scrivere.
+   */
+  const fuoriTurnoOra = (opId: string): boolean => {
+    const op = operators.find(o => o.id === opId);
+    if (!op || op.isResource) return false;
+    if (!operatorWorksOn(op, apptDateObj, apptWeekMap)) return true;
+    const da = timeToMinutes(startTime);
+    const durata = totalDuration || 15;
+    for (let t = da; t < da + durata; t += 5) {
+      if (isMinuteUnavailable(op, apptDateObj, t - START_HOUR * 60, apptWeekMap)) return true;
+    }
+    return false;
+  };
+
   // Chi, a quell'ora, non è in servizio. Avviso a parte: è un'altra cosa
   // rispetto all'essere occupata, e si prenota comunque.
   const fuoriServizio = useMemo(() => {
@@ -3056,7 +3080,7 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                           const sua = (t?.operatorSkills || []).find(k => k.operatorId === o.id)?.duration;
                           return (
                             <option key={o.id} value={o.id}>
-                              {o.firstName} {o.lastName}{sua ? ` · ${sua} min` : ''}
+                              {o.firstName} {o.lastName}{sua ? ` · ${sua} min` : ''}{fuoriTurnoOra(o.id) ? ' · fuori turno' : ''}
                             </option>
                           );
                         })}
@@ -3122,11 +3146,16 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                         return (
                           <button key={t.id} type="button" onMouseDown={e => e.preventDefault()}
                             onClick={() => addService(t)}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-bg-hover transition-colors">
-                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
-                            <span className="text-sm text-text-primary flex-1 truncate">{t.name}{ct ? ' ✨' : ''}</span>
-                            <span className="text-xs text-text-muted flex-shrink-0">{dur}min · {formatCurrency(pr)}</span>
-                            <Plus className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                            className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-bg-hover transition-colors">
+                            <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: t.color }} />
+                            <span className="flex-1 min-w-0">
+                              {/* Il nome intero: fra «Inguine Completo + Ascelle» e
+                                  «Inguine Completo + Glutei» cambia solo la coda,
+                                  ed e' la coda che veniva tagliata. */}
+                              <span className="block text-sm text-text-primary leading-snug">{t.name}{ct ? ' ✨' : ''}</span>
+                              <span className="block text-xs text-text-muted">{dur}min · {formatCurrency(pr)}</span>
+                            </span>
+                            <Plus className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-1" />
                           </button>
                         );
                       })}
@@ -4099,6 +4128,20 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   };
 
   const schedaPronta = Boolean(schedaForm.birthDate && schedaForm.gender && schedaForm.address.trim() && schedaForm.city.trim());
+  /*
+    Cosa manca ancora, scritto.
+
+    Un tasto spento e basta e' un vicolo cieco: e' successo con una data
+    scritta «31/08/89», che a schermo sembra finita ma per il gestionale non
+    era una data. A schermo tutto pieno, il tasto morto, e nessun modo di
+    capire perche'.
+  */
+  const schedaMancante = [
+    !schedaForm.birthDate && 'la data di nascita',
+    !schedaForm.gender && 'se è donna o uomo',
+    !schedaForm.address.trim() && "l'indirizzo",
+    !schedaForm.city.trim() && 'la città',
+  ].filter(Boolean) as string[];
 
   /** Salva i dati completati e prosegue con il check-in. */
   const salvaSchedaEContinua = async () => {
@@ -4199,7 +4242,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 <div key={`${s.treatmentId}-${i}`} className="flex items-center gap-2 rounded-lg bg-bg-secondary/70 border border-border/60 p-2.5">
                   <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: appointment.color }} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-text-primary truncate">{s.productId ? `🧴 ${s.treatmentName}` : s.treatmentName}</p>
+                    <p className="text-sm font-medium text-text-primary leading-snug">{s.productId ? `🧴 ${s.treatmentName}` : s.treatmentName}</p>
                     <p className="text-xs text-text-secondary">
                       {s.productId ? 'Prodotto' : `${s.duration} min`} · {formatCurrency(s.price)}
                     </p>
@@ -4328,14 +4371,25 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                     <button onClick={() => { setAddingTreatment(false); setTreatmentQuery(''); }}
                       className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text-primary"><X className="w-4 h-4" /></button>
                   </div>
-                  <div className="mt-1 max-h-44 overflow-y-auto rounded-xl border border-border bg-bg-secondary shadow-xl">
+                  <div className="mt-1 max-h-60 overflow-y-auto rounded-xl border border-border bg-bg-secondary shadow-xl">
                     {treatmentResults.length === 0 ? (
                       <p className="px-3 py-3 text-xs text-text-muted text-center">Nessun trattamento trovato</p>
                     ) : treatmentResults.map(t => (
+                      /*
+                        Il nome per intero, anche se e' lungo.
+
+                        Prima stava su una riga sola con durata e prezzo a
+                        destra, e veniva tagliato: cercando «laser inguine»
+                        uscivano tre righe che dicevano tutte «Epilazione Laser
+                        Inguine Completo …» e la parola che le distingue era
+                        proprio quella tagliata. Il pannello e' stretto e resta
+                        stretto — quello che cambia e' che il nome si prende
+                        tutta la larghezza, e durata e prezzo vanno sotto.
+                      */
                       <button key={t.id} onClick={() => addTreatmentToAppointment(t)}
-                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-bg-hover transition-colors text-left">
-                        <span className="flex-1 min-w-0 text-sm text-text-primary truncate">{t.name}</span>
-                        <span className="text-[11px] text-text-muted flex-shrink-0">
+                        className="w-full block px-3 py-2 hover:bg-bg-hover transition-colors text-left">
+                        <span className="block text-sm text-text-primary leading-snug">{t.name}</span>
+                        <span className="block text-[11px] text-text-muted mt-0.5">
                           {t.durationFemale ?? t.duration}min · {formatCurrency(t.priceFemale ?? t.price)}
                         </span>
                       </button>
@@ -4355,14 +4409,14 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                     <button onClick={() => { setAddingProduct(false); setProductQuery(''); }}
                       className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text-primary"><X className="w-4 h-4" /></button>
                   </div>
-                  <div className="mt-1 max-h-44 overflow-y-auto rounded-xl border border-border bg-bg-secondary shadow-xl">
+                  <div className="mt-1 max-h-60 overflow-y-auto rounded-xl border border-border bg-bg-secondary shadow-xl">
                     {productResults.length === 0 ? (
                       <p className="px-3 py-3 text-xs text-text-muted text-center">Nessun prodotto trovato</p>
                     ) : productResults.map(p => (
                       <button key={p.id} onClick={() => addProductToAppointment(p)}
-                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-bg-hover transition-colors text-left">
-                        <span className="flex-1 min-w-0 text-sm text-text-primary truncate">🧴 {p.name}</span>
-                        <span className="text-[11px] text-text-muted flex-shrink-0">
+                        className="w-full block px-3 py-2 hover:bg-bg-hover transition-colors text-left">
+                        <span className="block text-sm text-text-primary leading-snug">🧴 {p.name}</span>
+                        <span className="block text-[11px] text-text-muted mt-0.5">
                           {p.stock <= 0 ? 'esaurito · ' : p.stock <= p.minStock ? `${p.stock} rimasti · ` : ''}{formatCurrency(p.price)}
                         </span>
                       </button>
@@ -5101,6 +5155,12 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
             </div>
 
             <div className="p-5 pt-0 space-y-2">
+              {schedaMancante.length > 0 && (
+                <p className="text-[11px] font-medium text-warning text-center">
+                  Manca ancora {schedaMancante.join(', ')}.
+                  {!schedaForm.birthDate ? ' La data va scritta per intero: 31/08/1989.' : ''}
+                </p>
+              )}
               <button onClick={salvaSchedaEContinua} disabled={!schedaPronta || schedaBusy}
                 className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed">
                 {schedaBusy ? 'Salvataggio…' : 'Salva la scheda e fai il check-in'}
