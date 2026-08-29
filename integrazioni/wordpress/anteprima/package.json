@@ -1,7 +1,0 @@
-{
-  "name": "revobeauty-anteprima",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Copia statica del nuovo sito, per farlo vedere prima di pubblicarlo",
-  "scripts": { "start": "node server.js" }
-}
