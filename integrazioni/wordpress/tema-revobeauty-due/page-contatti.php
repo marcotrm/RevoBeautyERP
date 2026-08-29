@@ -41,7 +41,6 @@ $mappa    = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( '
 			<h2 class="fondo-titolo">Subito</h2>
 			<?php if ( $whatsapp ) : ?><p><a class="collega" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">WhatsApp →</a></p><?php endif; ?>
 			<?php if ( $telefono ) : ?><p><a class="collega" href="tel:<?php echo esc_attr( $telefono ); ?>"><?php echo esc_html( $centro['telefono'] ); ?></a></p><?php endif; ?>
-			<p><a class="collega" href="<?php echo esc_url( rb_prenota_url() ); ?>">Prenota online →</a></p>
 		</div>
 	</aside>
 </section>

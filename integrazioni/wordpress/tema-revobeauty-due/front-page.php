@@ -33,9 +33,8 @@ for ( $i = 1; $i <= 4; $i++ ) {
 			<span class="riga"><span>avanzata <em>a Maddaloni.</em></span></span>
 		</h1>
 		<div class="eroe-azioni">
-			<a class="bottone bottone-oro" href="<?php echo esc_url( rb_prenota_url() ); ?>">Prenota online</a>
 			<?php if ( $whatsapp ) : ?>
-				<a class="bottone bottone-scuro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">WhatsApp</a>
+				<a class="bottone bottone-oro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">Prenota su WhatsApp</a>
 			<?php endif; ?>
 		</div>
 	</div>
@@ -53,9 +52,8 @@ for ( $i = 1; $i <= 4; $i++ ) {
 	</h1>
 	<p class="eroe-riga">Estetica avanzata · Maddaloni</p>
 	<div class="eroe-azioni">
-		<a class="bottone bottone-oro" href="<?php echo esc_url( rb_prenota_url() ); ?>">Prenota online</a>
 		<?php if ( $whatsapp ) : ?>
-			<a class="bottone bottone-scuro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">WhatsApp</a>
+			<a class="bottone bottone-oro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">Prenota su WhatsApp</a>
 		<?php endif; ?>
 	</div>
 </section>

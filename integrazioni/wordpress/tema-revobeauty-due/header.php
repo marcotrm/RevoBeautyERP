@@ -2,6 +2,7 @@
 /**
  * Testa della pagina: il critico inline, i font in preload, il resto defer.
  */
+$whatsapp = rb_whatsapp_url();
 ?><!doctype html>
 <html <?php language_attributes(); ?>>
 <head>
@@ -42,7 +43,9 @@
 			?>
 		</nav>
 		<div class="testata-azioni">
-			<a class="bottone bottone-oro bottone-piccolo" href="<?php echo esc_url( rb_prenota_url() ); ?>">Prenota online</a>
+			<?php if ( $whatsapp ) : ?>
+				<a class="bottone bottone-oro bottone-piccolo" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">Prenota su WhatsApp</a>
+			<?php endif; ?>
 			<?php /* L'icona da sola non basta: senza la parola scritta, quante persone
 				trovano la navigazione si dimezza. Costa tre lettere. */ ?>
 			<button class="apri-menu" aria-expanded="false" aria-controls="menu-mobile">
@@ -63,7 +66,9 @@
 			'depth'          => 1,
 		) );
 		?>
-		<a class="bottone bottone-oro" href="<?php echo esc_url( rb_prenota_url() ); ?>">Prenota online</a>
+		<?php if ( $whatsapp ) : ?>
+			<a class="bottone bottone-oro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">Prenota su WhatsApp</a>
+		<?php endif; ?>
 	</div>
 </header>
 
