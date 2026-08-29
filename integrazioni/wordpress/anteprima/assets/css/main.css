@@ -1,0 +1,457 @@
+/* ── Il resto del tema: tutto ciò che non serve al primo dipinto ──────── */
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * IL MOVIMENTO
+ *
+ * Regola che tiene insieme tutto: lo stato di partenza sta DENTRO i
+ * fotogrammi, mai nella classe. Così un browser che non conosce le timeline
+ * di scorrimento non vede niente di invisibile — legge una regola che non
+ * capisce, la salta, e mostra la pagina finita. Nessun JavaScript, nessun
+ * contenuto che resta nascosto se qualcosa va storto.
+ *
+ * È il contrario di come si faceva con IntersectionObserver, dove
+ * l'elemento partiva a opacità zero e serviva il JavaScript per accenderlo:
+ * se quel JavaScript non arrivava — o se la persona saltava a un'ancora
+ * scavalcando l'osservatore — restava una pagina bianca di contenuti veri.
+ *
+ * Durate: sotto i 300ms tutto ciò che è comando (tasti, menu, fisarmoniche),
+ * perché lì la lentezza si sente come ritardo. Sopra, solo le rivelazioni
+ * decorative — foto e titoli — dove 600-900ms è il respiro editoriale.
+ * Mai ease-in su un comando: parte lenta proprio nell'istante che si guarda.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --uscita: cubic-bezier(.23, 1, .32, 1);      /* entrate e uscite */
+  --dentro-fuori: cubic-bezier(.77, 0, .175, 1); /* movimento a schermo */
+  --cassetto: cubic-bezier(.32, .72, 0, 1);    /* menu e pannelli, come iOS */
+}
+
+.righe .riga { display: block; overflow: hidden; }
+.righe .riga > span { display: block; }
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+
+    /* Salita con dissolvenza: griglie, carte, blocchi di testo.
+       24px e non 100: su un telefono uno spostamento lungo si legge come
+       scatto. E si parte da scale(.97), mai da zero. */
+    .sale {
+      animation: rb-sale 600ms var(--uscita) both;
+      animation-timeline: view();
+      animation-range: entry 8% entry 58%;
+    }
+    @keyframes rb-sale {
+      from { opacity: 0; transform: translateY(24px) scale(.97); }
+    }
+
+    /* Sipario sulle fotografie: la firma del sito. L'immagine non compare,
+       si scopre dal basso mentre si posa da 1.06 a 1. */
+    .sipario { overflow: hidden; }
+    .sipario img, .sipario > picture > img {
+      animation: rb-sipario 900ms var(--uscita) both;
+      animation-timeline: view();
+      animation-range: entry 12% entry 88%;
+    }
+    @keyframes rb-sipario {
+      from { clip-path: inset(0 0 100% 0); transform: scale(1.06); }
+      to   { clip-path: inset(0 0 0 0);    transform: scale(1); }
+    }
+
+    /* Righe di titolo che salgono da dietro una maschera.
+       Quelle dentro la pagina aspettano lo scorrimento; quella dell'eroe no.
+       Sopra la piega non si aspetta niente: il titolo è già a schermo quando
+       la pagina arriva, e legarlo allo scorrimento significherebbe lasciarlo
+       fermo sotto la maschera finché qualcuno non tocca lo schermo. */
+    .righe .riga > span {
+      animation: rb-riga 800ms var(--uscita) both;
+      animation-timeline: view();
+      animation-range: entry 18% entry 72%;
+    }
+    .eroe .righe .riga > span {
+      animation: rb-riga 800ms var(--uscita) both;
+      animation-timeline: auto;
+    }
+    .righe .riga:nth-child(2) > span { animation-delay: 80ms; }
+    .righe .riga:nth-child(3) > span { animation-delay: 160ms; }
+    @keyframes rb-riga { from { transform: translateY(105%); } }
+
+    /* Deriva della foto nel suo telaio: 8% per lato, non mezza schermata.
+       Su una timeline di scorrimento l'andamento resta lineare: il ritmo lo
+       dà già il dito di chi scorre, metterci sopra un'accelerazione è
+       l'errore classico. */
+    .deriva { overflow: hidden; }
+    .deriva img { height: 116%; object-fit: cover; }
+    .deriva img {
+      animation: rb-deriva linear both;
+      animation-timeline: view();
+      animation-range: cover;
+    }
+    @keyframes rb-deriva {
+      from { transform: translateY(-7%); }
+      to   { transform: translateY(7%); }
+    }
+
+    /* Filo d'oro che misura la lettura, in cima alla pagina. */
+    .filo-lettura {
+      animation: rb-filo linear both;
+      animation-timeline: scroll(root block);
+    }
+    @keyframes rb-filo { from { transform: scaleX(0); } }
+  }
+}
+
+/* Feedback al tocco: su un telefono non esiste il passaggio del mouse,
+   esiste solo il dito. Senza questa risposta il sito sembra rotto anche
+   quando funziona. touch-action toglie i 300ms di attesa del doppio tocco:
+   è la riga che fa più di qualunque animazione per la velocità percepita. */
+.bottone, .carta, .ancore a, .voce-apri {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.bottone { transition: transform 160ms var(--uscita), background-color 160ms var(--uscita), border-color 160ms var(--uscita), color 160ms var(--uscita); }
+.bottone:active { transform: scale(.97); }
+.carta { transition: transform 200ms var(--uscita), border-color 200ms var(--uscita); }
+.carta:active { transform: scale(.985); }
+
+/* Filetto d'oro sotto i collegamenti: entra da sinistra, esce a destra.
+   Solo dove esiste un puntatore vero — su touch il :hover resta appiccicato
+   dopo il tocco, ed è peggio del non averlo. */
+@media (hover: hover) and (pointer: fine) {
+  .collega, .nav .menu a, .fondo-link {
+    position: relative; text-decoration: none;
+  }
+  .collega::after, .fondo-link::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -.18em; height: 1px;
+    background: currentColor; transform: scaleX(0); transform-origin: 100% 50%;
+    transition: transform 300ms var(--uscita);
+  }
+  .collega:hover::after, .fondo-link:hover::after {
+    transform: scaleX(1); transform-origin: 0 50%;
+  }
+}
+
+/* Passaggio fra le pagine senza il lampo bianco. Sei righe, e dove il
+   browser non le conosce le ignora e la navigazione resta quella di sempre. */
+@view-transition { navigation: auto; }
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root) { animation: rb-esce 180ms ease-out both; }
+  ::view-transition-new(root) { animation: rb-entra 320ms var(--uscita) both; }
+  @keyframes rb-esce  { to   { opacity: 0; } }
+  @keyframes rb-entra { from { opacity: 0; } }
+}
+
+
+/* ── Casa: carte trattamenti a scorrimento orizzontale ────────────────── */
+.riga-titolo { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; flex-wrap: wrap; }
+.nota-listino { font-size: 12px; color: var(--grigio); letter-spacing: .06em; margin: 0; }
+.scorri {
+  display: flex; gap: 16px; overflow-x: auto; padding: 18px 24px 22px;
+  margin: 0 -24px; scroll-snap-type: x mandatory; scrollbar-width: none;
+}
+.scorri::-webkit-scrollbar { display: none; }
+.scorri > * { scroll-snap-align: start; }
+.carta {
+  min-width: 232px; background: #ffffff; border: 1px solid var(--crema-scura);
+  padding: 26px 22px 22px; display: flex; flex-direction: column; gap: 12px;
+  color: var(--inchiostro); transition: border-color .25s, transform .25s;
+}
+.carta:hover { border-color: var(--oro); transform: translateY(-4px); color: var(--inchiostro); }
+.carta-occhiello { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--oro-scuro); }
+.carta-nome { font-family: var(--serif); font-size: 22px; font-weight: 500; line-height: 1.15; }
+.carta-prezzo { font-size: 13px; color: var(--grigio); border-top: 1px solid var(--crema-scura); padding-top: 12px; margin-top: auto; }
+.carta-freccia { color: var(--oro); font-size: 15px; }
+.scorri-barra { height: 2px; background: var(--crema-scura); margin: 0 24px; position: relative; overflow: hidden; }
+.scorri-indice { position: absolute; left: 0; top: 0; bottom: 0; width: 18%; background: var(--oro); transition: transform .2s linear; }
+
+/* ── Fascia bordeaux ──────────────────────────────────────────────────── */
+.fascia-bordeaux { background: var(--bordeaux); color: var(--crema); padding: 64px 24px; margin-top: 72px; }
+.fascia-bordeaux > * { max-width: var(--largo); margin-left: auto; margin-right: auto; }
+.occhiello-chiaro { color: var(--oro-chiaro); }
+.citazione { margin: 0; }
+.citazione p { font-family: var(--serif); font-style: italic; font-size: clamp(20px, 3vw, 26px); line-height: 1.45; max-width: 640px; margin: 0 0 14px; }
+.citazione cite { font-style: normal; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--oro-chiaro); }
+
+/* ── Squadra ──────────────────────────────────────────────────────────── */
+.squadra-fila { display: flex; gap: 26px; flex-wrap: wrap; align-items: center; padding: 10px 0 16px; }
+.persona { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.persona-foto {
+  width: 110px; height: 110px; border-radius: 50%; object-fit: cover;
+  border: 1px solid var(--oro); background: var(--crema-scura);
+}
+.persona-foto-vuota {
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-size: 34px; color: var(--oro-scuro);
+}
+.persona-nome { font-size: 14px; }
+.collega { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--oro-scuro); }
+.collega:hover { color: var(--bordeaux); }
+.collega-chiaro { color: var(--crema); }
+.collega-chiaro:hover { color: var(--oro-chiaro); }
+
+.squadra-griglia {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding-top: 8px;
+}
+@media (min-width: 700px) { .squadra-griglia { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 22px; } }
+.scheda-persona { display: flex; flex-direction: column; gap: 10px; }
+.scheda-foto { width: 100%; aspect-ratio: 7/8; object-fit: cover; background: var(--crema-scura); border: 1px solid var(--crema-scura); }
+.scheda-foto-vuota { display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 54px; color: var(--oro-scuro); }
+.scheda-nome { font-family: var(--serif); font-size: 20px; font-weight: 500; }
+.scheda-ruolo { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--oro-scuro); }
+
+/* ── Metodo (chi siamo) ───────────────────────────────────────────────── */
+.metodo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; }
+.metodo-passo { display: flex; flex-direction: column; gap: 8px; }
+.metodo-numero { font-family: var(--serif); font-size: 40px; color: var(--oro-chiaro); line-height: 1; }
+.metodo-nome { font-size: 14px; letter-spacing: .12em; text-transform: uppercase; }
+.metodo-testo { font-size: 14px; color: rgba(245,240,232,.75); }
+@media (max-width: 700px) { .metodo { grid-template-columns: 1fr; } }
+
+.foto-chi-siamo { padding-top: 12px; }
+.foto-chi-siamo img { width: 100%; }
+.foto-attesa {
+  aspect-ratio: 16/9; background: linear-gradient(160deg, var(--crema-scura), var(--oro-chiaro));
+  display: flex; align-items: flex-end; padding: 18px;
+}
+.foto-attesa span { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--oro-scuro); background: var(--avorio); padding: 8px 14px; }
+
+/* ── Listino (/servizi) ───────────────────────────────────────────────── */
+.testata-pagina { padding-top: 64px; }
+.ancore {
+  max-width: var(--largo); margin: 0 auto; padding: 8px 24px 0;
+  display: flex; gap: 10px; flex-wrap: wrap;
+}
+.ancore a {
+  display: inline-flex; align-items: center; min-height: 44px;
+  font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+  border: 1px solid var(--crema-scura); padding: 0 18px; color: var(--grigio);
+}
+.ancore a:hover { border-color: var(--oro); color: var(--oro-scuro); }
+.blocco-listino { padding-top: 56px; scroll-margin-top: 24px; }
+.titolo-categoria { font-family: var(--serif); font-weight: 500; font-size: 28px; margin: 0 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--crema-scura); }
+.listino { list-style: none; margin: 0; padding: 0; }
+.voce { padding: 11px 0; border-bottom: 1px solid rgba(232,226,214,.6); }
+.voce-riga { display: flex; align-items: baseline; gap: 10px; }
+.voce-nome { font-size: 15.5px; font-weight: 400; }
+.voce-varianti { display: block; font-size: 12.5px; color: var(--grigio); margin-top: 2px; }
+.voce-punti { flex: 1; min-width: 14px; border-bottom: 1px dotted var(--crema-scura); transform: translateY(-4px); }
+.voce-dati { font-size: 14.5px; white-space: nowrap; color: var(--inchiostro); font-variant-numeric: tabular-nums; }
+.pacchetti { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.pacchetto { background: #ffffff; border: 1px solid var(--crema-scura); padding: 22px; display: flex; flex-direction: column; gap: 8px; }
+.pacchetto-nome { font-family: var(--serif); font-size: 19px; font-weight: 500; }
+.pacchetto-dettagli { font-size: 13px; color: var(--grigio); }
+.pacchetto-prezzo { font-size: 15px; color: var(--oro-scuro); margin-top: auto; padding-top: 10px; }
+
+/* ── Contatti ─────────────────────────────────────────────────────────── */
+.contatti-griglia { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 44px; padding-top: 28px; }
+@media (max-width: 860px) { .contatti-griglia { grid-template-columns: 1fr; } }
+.contatti-lato { display: flex; flex-direction: column; gap: 30px; }
+.lato-blocco p { margin: 4px 0; font-size: 14.5px; }
+address { font-style: normal; }
+
+.form-contatti { display: flex; flex-direction: column; gap: 20px; }
+.form-riga { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 560px) { .form-riga { grid-template-columns: 1fr; } }
+.form-campo label { display: block; font-size: 11px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; margin-bottom: 8px; }
+.form-campo input, .form-campo select, .form-campo textarea {
+  /* 16px non è una scelta tipografica: sotto questa misura Safari su iPhone
+     ingrandisce la pagina appena si tocca il campo, e chi stava compilando si
+     ritrova il modulo fuori schermo. */
+  width: 100%; padding: 14px 14px; min-height: 48px; font-family: var(--sans); font-size: 16px; color: var(--inchiostro);
+  background: #ffffff; border: 1px solid var(--crema-scura); border-radius: 0; outline: none;
+  transition: border-color .2s;
+}
+.form-campo input:focus, .form-campo select:focus, .form-campo textarea:focus { border-color: var(--oro); }
+.form-campo textarea { resize: vertical; }
+.form-nota { font-size: 12px; color: var(--grigio); margin: 6px 0 0; }
+.form-check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--grigio); cursor: pointer; }
+.form-check input { width: 22px; height: 22px; margin-top: 2px; accent-color: var(--oro); flex-shrink: 0; }
+.form-invia { width: 100%; }
+.oro { color: var(--oro-scuro); }
+.hp { position: absolute; left: -9999px; }
+.form-errore { background: #fdf3f3; border: 1px solid #e6c9c9; color: #8a3b3b; font-size: 13px; padding: 12px 16px; margin-bottom: 18px; }
+.form-esito { background: var(--crema); border: 1px solid var(--crema-scura); padding: 36px; text-align: center; }
+.form-esito-titolo { font-family: var(--serif); font-size: 26px; font-weight: 500; margin: 0 0 10px; }
+.form-esito-testo { font-size: 14.5px; color: var(--grigio); margin: 0; }
+
+/* ── Blog ─────────────────────────────────────────────────────────────── */
+.elenco-articoli { display: flex; flex-direction: column; }
+.anteprima { border-bottom: 1px solid var(--crema-scura); }
+.anteprima-collega { display: flex; flex-direction: column; gap: 8px; padding: 30px 0; color: var(--inchiostro); }
+.anteprima-data { font-size: 11px; letter-spacing: .25em; text-transform: uppercase; color: var(--oro-scuro); }
+.anteprima-titolo { font-family: var(--serif); font-weight: 500; font-size: 26px; margin: 0; line-height: 1.2; }
+.anteprima-riassunto { font-size: 15px; color: var(--grigio); max-width: 640px; margin: 0; }
+.paginazione { padding: 26px 0; font-size: 14px; }
+.paginazione .nav-links { display: flex; gap: 18px; }
+
+.prosa { font-size: 16.5px; max-width: 720px; }
+.prosa p { margin: 0 0 1.3em; }
+.prosa h2 { font-family: var(--serif); font-weight: 500; font-size: 27px; margin: 1.7em 0 .6em; }
+.prosa h3 { font-family: var(--serif); font-weight: 500; font-size: 22px; margin: 1.5em 0 .5em; }
+.prosa ul, .prosa ol { padding-left: 1.2em; margin: 0 0 1.3em; }
+.prosa a { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── Chiusura + fondo ─────────────────────────────────────────────────── */
+.chiusura { background: var(--nero); color: var(--crema); padding: 88px 24px; margin-top: 88px; text-align: center; }
+.chiusura-titolo { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: clamp(26px, 4vw, 38px); line-height: 1.25; max-width: 660px; margin: 0 auto 28px; }
+.chiusura-azioni { display: flex; gap: 16px; justify-content: center; align-items: center; flex-wrap: wrap; }
+
+.fondo { background: var(--nero); color: var(--crema); border-top: 1px solid #1e1e1e; }
+.fondo-dentro {
+  max-width: var(--largo); margin: 0 auto; padding: 60px 24px 40px;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px;
+}
+@media (max-width: 760px) { .fondo-dentro { grid-template-columns: 1fr; } }
+.fondo .marchio { color: var(--crema); }
+.fondo-claim { color: #9a9a9a; font-size: 14px; margin: 12px 0 22px; }
+.fondo-titolo { font-size: 12px; letter-spacing: .25em; text-transform: uppercase; color: var(--oro); margin: 0 0 16px; font-weight: 500; }
+.fondo-testo { color: #c9c4b8; font-size: 14.5px; margin: 0 0 8px; }
+.fondo-link { color: var(--crema); font-size: 14.5px; }
+.fondo-link:hover { color: var(--oro-chiaro); }
+.orari { margin: 0; }
+.orari-riga { display: flex; justify-content: space-between; gap: 14px; padding: 6px 0; border-bottom: 1px solid #1e1e1e; font-size: 14px; }
+.orari-riga dt { color: #9a9a9a; }
+.orari-riga dd { margin: 0; }
+.fondo-legale {
+  border-top: 1px solid #1e1e1e; padding: 20px 24px; display: flex; justify-content: space-between;
+  align-items: center; gap: 14px; flex-wrap: wrap; max-width: var(--largo); margin: 0 auto;
+}
+.fondo-legale p { margin: 0; font-size: 12.5px; color: #9a9a9a; }
+.fondo-legale nav { display: flex; gap: 18px; align-items: center; }
+.fondo-legale a, .gestisci-cookie { font-size: 12.5px; color: #9a9a9a; background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--sans); }
+.fondo-legale a:hover, .gestisci-cookie:hover { color: var(--oro-chiaro); }
+
+/* ── Banner del consenso ──────────────────────────────────────────────── */
+.consenso { position: fixed; inset: auto 0 0 0; z-index: 60; padding: 16px; }
+.consenso-scatola {
+  max-width: 660px; margin: 0 auto; background: var(--nero); color: var(--crema);
+  border: 1px solid #2a2a2a; padding: 26px; box-shadow: 0 12px 40px rgba(0,0,0,.4);
+}
+.consenso-titolo { font-family: var(--serif); font-size: 20px; font-weight: 500; margin: 0 0 8px; }
+.consenso-testo { font-size: 13.5px; color: #c9c4b8; margin: 0 0 16px; }
+.consenso-testo a { color: var(--oro-chiaro); text-decoration: underline; }
+.consenso-scelte { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 18px; }
+.consenso-scelte label { display: flex; gap: 8px; align-items: center; font-size: 13.5px; cursor: pointer; }
+.consenso-scelte input { accent-color: var(--oro); width: 16px; height: 16px; }
+.consenso-azioni { display: flex; gap: 12px; flex-wrap: wrap; }
+.consenso-azioni .bottone { padding: 11px 20px; min-height: 42px; font-size: 12px; }
+
+/* Dentro il banner (fondo scuro) i bottoni secondari usano la variante chiara. */
+.consenso .bottone-lineare { border-color: #3a3a3a; color: var(--crema); }
+.consenso .bottone-lineare:hover { border-color: var(--oro); color: var(--oro-chiaro); }
+
+/* Tabelle nella prosa (cookie policy). */
+.prosa table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 0 0 1.4em; }
+.prosa th, .prosa td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--crema-scura); }
+.prosa th { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--oro-scuro); }
+
+/* Movimento ridotto non vuol dire nessun movimento: vuol dire niente
+   spostamenti, niente ingrandimenti, niente scorrimenti automatici. Una
+   dissolvenza breve resta, ed è più gentile di un contenuto che sbatte in
+   pagina. Spegnere tutto toglierebbe anche i riscontri utili. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .sale, .sipario img, .righe .riga > span, .deriva img {
+    animation: none !important; transform: none !important; clip-path: none !important;
+  }
+  .deriva img { height: 100%; }
+  .bottone:active, .carta:active { transform: none; }
+}
+
+/* ── La barra del pollice (solo telefono) ─────────────────────────────── */
+.barra-pollice { display: none; }
+@media (max-width: 760px) {
+  .barra-pollice {
+    display: flex; gap: 10px; align-items: center;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(10, 10, 10, .94);
+    border-top: 1px solid #241f16;
+    transform: translateY(120%);
+    transition: transform 280ms var(--cassetto);
+  }
+  .barra-pollice[data-visibile] { transform: translateY(0); }
+  .pollice-primario {
+    flex: 1; display: inline-flex; align-items: center; justify-content: center;
+    min-height: 48px; background: var(--oro); color: var(--nero);
+    font-size: 13px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    transition: transform 160ms var(--uscita);
+  }
+  .pollice-primario:active { transform: scale(.97); }
+  .pollice-icona {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 48px; height: 48px; flex-shrink: 0;
+    border: 1px solid #3a3a3a; color: var(--crema);
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    transition: transform 160ms var(--uscita), border-color 160ms var(--uscita);
+  }
+  .pollice-icona:active { transform: scale(.94); border-color: var(--oro); }
+  /* Spazio in fondo, o la barra copre l'ultima riga del piè di pagina. */
+  .fondo-legale { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .barra-pollice { transition: none; }
+}
+
+/* ── Filtri del listino ───────────────────────────────────────────────── */
+.filtri {
+  max-width: var(--largo); margin: 0 auto; padding: 12px 24px 0;
+  position: sticky; top: 0; z-index: 15; background: var(--avorio);
+}
+.cerca-riga { padding: 8px 0 12px; }
+.cerca-etichetta {
+  display: block; font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--oro-scuro); margin-bottom: 8px;
+}
+.filtri input[type="search"] {
+  width: 100%; min-height: 48px; padding: 12px 14px; font-size: 16px;
+  font-family: var(--sans); color: var(--inchiostro);
+  background: #fff; border: 1px solid var(--crema-scura); border-radius: 0; outline: none;
+  transition: border-color 200ms var(--uscita);
+}
+.filtri input[type="search"]:focus { border-color: var(--oro); }
+.pastiglie {
+  display: flex; gap: 8px; overflow-x: auto; padding: 0 0 14px;
+  scrollbar-width: none; overscroll-behavior-x: contain;
+}
+.pastiglie::-webkit-scrollbar { display: none; }
+.pastiglia {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px;
+  min-height: 44px; padding: 0 16px; cursor: pointer;
+  font-family: var(--sans); font-size: 12.5px; letter-spacing: .1em; text-transform: uppercase;
+  background: none; color: var(--grigio); border: 1px solid var(--crema-scura);
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  transition: background-color 200ms var(--uscita), color 200ms var(--uscita), border-color 200ms var(--uscita), transform 160ms var(--uscita);
+}
+.pastiglia:active { transform: scale(.97); }
+.pastiglia[aria-pressed="true"] { background: var(--nero); color: var(--crema); border-color: var(--nero); }
+.pastiglia-conto { font-size: 11px; opacity: .55; font-variant-numeric: tabular-nums; }
+.voce-dati { font-variant-numeric: tabular-nums; }
+.blocco-listino[hidden], .voce[hidden] { display: none; }
+.nessun-esito { padding: 10px 0 0; color: var(--grigio); font-size: 15px; }
+@media (max-width: 760px) {
+  .filtri { padding-left: 20px; padding-right: 20px; }
+  .blocco-listino { padding-top: 26px; }
+}
+
+/* L'hamburger etichettato, e abbastanza grande da toccarlo. */
+.apri-menu {
+  align-items: center; gap: 7px; min-height: 44px; padding: 0 6px 0 10px;
+  font-family: var(--sans); font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+}
+
+/* Sul telefono il banner non deve diventare una pagina: tasti in fila,
+   testo corto, e mai più di un terzo dello schermo. */
+@media (max-width: 560px) {
+  .consenso { padding: 10px; }
+  .consenso-scatola { padding: 18px 16px; }
+  .consenso-titolo { font-size: 17px; margin-bottom: 6px; }
+  .consenso-testo { font-size: 13px; margin-bottom: 12px; }
+  .consenso-scelte { gap: 14px; margin-bottom: 14px; font-size: 13px; }
+  .consenso-azioni { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .consenso-azioni .bottone { padding: 0 10px; min-height: 46px; font-size: 11px; letter-spacing: .1em; }
+  .consenso-azioni .bottone:first-child { grid-column: 1 / -1; }
+}
+
+/* Un pacchetto è anche una "voce" (per ricerca e filtri) ma resta una scheda. */
+.pacchetto.voce { padding: 22px; border-bottom: 0; }

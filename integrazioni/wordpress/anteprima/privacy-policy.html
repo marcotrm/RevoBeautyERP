@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en-US">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preload" href="assets/fonts/bodoni-moda-normal-400-700-latin.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="assets/fonts/archivo-normal-300-600-latin.woff2" as="font" type="font/woff2" crossorigin />
+<style>/* ── Token e font: la parte che serve prima del primo dipinto ─────────── */
+@font-face {
+  font-family: 'Bodoni Moda';
+  src: url('assets/fonts/bodoni-moda-normal-400-700-latin.woff2') format('woff2');
+  font-weight: 400 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Bodoni Moda';
+  src: url('assets/fonts/bodoni-moda-italic-400-700-latin.woff2') format('woff2');
+  font-weight: 400 700; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: 'Archivo';
+  src: url('assets/fonts/archivo-normal-300-600-latin.woff2') format('woff2');
+  font-weight: 300 600; font-style: normal; font-display: swap;
+}
+
+:root {
+  --oro: #b59b53; --oro-chiaro: #d4c08a; --oro-scuro: #7d6b33;
+  --nero: #0a0a0a; --inchiostro: #1a1a1a; --grigio: #6b6b6b;
+  --crema: #f5f0e8; --crema-scura: #e8e2d6; --avorio: #faf8f4;
+  --bordeaux: #5e0f26;
+  --serif: 'Bodoni Moda', 'Didot', 'Bodoni MT', 'Georgia', serif;
+  --sans: 'Archivo', 'Helvetica Neue', 'Arial', sans-serif;
+  --largo: 1120px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--avorio); color: var(--inchiostro);
+  font-family: var(--sans); font-weight: 300; font-size: 16px; line-height: 1.65;
+  text-rendering: optimizeLegibility;
+}
+img { max-width: 100%; height: auto; display: block; }
+a { color: var(--oro-scuro); text-decoration: none; }
+a:hover { color: var(--bordeaux); }
+
+.salta { position: absolute; left: -9999px; }
+.salta:focus { left: 16px; top: 12px; background: var(--nero); color: var(--crema); padding: 10px 16px; z-index: 99; }
+
+/* ── Bottoni ──────────────────────────────────────────────────────────── */
+.bottone {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 15px 30px; min-height: 48px; font-family: var(--sans); font-size: 13px;
+  font-weight: 500; letter-spacing: .16em; text-transform: uppercase;
+  border: 1px solid transparent; cursor: pointer; transition: background .25s, color .25s, border-color .25s;
+}
+.bottone-oro { background: var(--oro); color: var(--nero); }
+.bottone-oro:hover { background: var(--oro-chiaro); color: var(--nero); }
+.bottone-scuro { border-color: #3a3a3a; color: var(--crema); background: transparent; }
+.bottone-scuro:hover { border-color: var(--oro); color: var(--oro-chiaro); }
+.bottone-lineare { border-color: var(--crema-scura); color: var(--inchiostro); background: transparent; }
+.bottone-lineare:hover { border-color: var(--oro); color: var(--oro-scuro); }
+.bottone-lineare-chiaro { border-color: rgba(245,240,232,.35); color: var(--crema); background: transparent; }
+.bottone-lineare-chiaro:hover { border-color: var(--oro); color: var(--oro-chiaro); }
+.bottone-piccolo { padding: 10px 20px; min-height: 40px; font-size: 12px; }
+
+/* ── Testata ──────────────────────────────────────────────────────────── */
+.testata { background: var(--avorio); border-bottom: 1px solid var(--crema-scura); position: relative; z-index: 20; }
+.testata-scura { background: var(--nero); border-bottom-color: #1e1e1e; }
+.testata-dentro {
+  max-width: var(--largo); margin: 0 auto; padding: 16px 24px;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+}
+.marchio { font-family: var(--serif); font-size: 21px; letter-spacing: .18em; color: var(--inchiostro); }
+.marchio-revo { font-weight: 600; }
+.marchio-beauty { font-weight: 400; color: var(--oro); }
+.testata-scura .marchio { color: var(--crema); }
+.nav .menu { display: flex; gap: 26px; list-style: none; margin: 0; padding: 0; }
+.nav .menu a {
+  font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--grigio);
+  padding: 6px 2px; border-bottom: 1px solid transparent;
+}
+.nav .menu a:hover, .nav .menu .current-menu-item a { color: var(--oro-scuro); border-bottom-color: var(--oro); }
+.testata-scura .nav .menu a { color: #9a9a9a; }
+.testata-scura .nav .menu a:hover, .testata-scura .nav .menu .current-menu-item a { color: var(--oro-chiaro); }
+.testata-azioni { display: flex; align-items: center; gap: 14px; }
+.apri-menu { display: none; background: none; border: 0; color: inherit; padding: 10px; cursor: pointer; }
+.testata-scura .apri-menu { color: var(--crema); }
+.menu-mobile { display: none; }
+
+/* ── Eroe ─────────────────────────────────────────────────────────────── */
+.eroe {
+  position: relative; background: var(--nero); color: var(--crema);
+  min-height: 82vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  overflow: hidden; padding: 48px 24px 56px;
+}
+.eroe-strisce { position: absolute; inset: 0; display: flex; gap: 14px; padding: 0 24px; }
+.eroe-striscia {
+  flex: 1; background: linear-gradient(180deg, #2a2118 0%, #14100c 100%);
+  background-size: cover; background-position: center;
+  filter: brightness(.6) saturate(.9);
+}
+.eroe-striscia:nth-child(even) { margin-top: 40px; }
+.eroe-logotipo { position: relative; margin: 0; text-align: center; line-height: .95; }
+.eroe-revo {
+  display: block; font-family: var(--serif); font-weight: 500;
+  font-size: clamp(64px, 13vw, 150px); letter-spacing: .06em; color: var(--crema);
+  mix-blend-mode: difference;
+}
+.eroe-beauty {
+  display: block; font-family: var(--serif); font-style: italic; font-weight: 400;
+  font-size: clamp(64px, 13vw, 150px); letter-spacing: .06em; color: var(--oro);
+  margin-top: -.18em;
+}
+.eroe-riga {
+  position: relative; margin: 26px 0 0; font-size: 12px; letter-spacing: .38em;
+  text-transform: uppercase; color: #9a9a9a; text-align: center;
+}
+.eroe-azioni { position: relative; display: flex; gap: 14px; margin-top: 30px; flex-wrap: wrap; justify-content: center; }
+
+/* ── Impalcatura delle sezioni (sopra la piega può esserci l'intro) ───── */
+.sezione { max-width: var(--largo); margin: 0 auto; padding: 72px 24px 24px; }
+.occhiello {
+  font-size: 11px; letter-spacing: .35em; text-transform: uppercase;
+  color: var(--oro-scuro); margin: 0 0 18px;
+}
+.titolone {
+  font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 4.6vw, 46px);
+  line-height: 1.12; margin: 0 0 18px; max-width: 640px;
+}
+.sottotitolo { font-size: 16px; color: var(--grigio); max-width: 560px; margin: 0 0 8px; }
+
+@media (max-width: 760px) {
+  .nav { display: none; }
+  .apri-menu { display: inline-flex; }
+  .testata-azioni .bottone { display: none; }
+  .menu-mobile[data-aperto] {
+    display: flex; flex-direction: column; gap: 18px; padding: 24px;
+    background: inherit; border-top: 1px solid var(--crema-scura);
+  }
+  .testata-scura .menu-mobile[data-aperto] { border-top-color: #1e1e1e; }
+  .menu-mobile-voci { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .menu-mobile-voci a { font-size: 15px; letter-spacing: .12em; text-transform: uppercase; color: inherit; }
+  .eroe { min-height: 72vh; }
+  .eroe-strisce { gap: 8px; padding: 0 12px; }
+}
+
+/* ── Eroe fotografico (quando le foto vere ci sono) ───────────────────── */
+.eroe-foto { justify-content: flex-end; align-items: stretch; padding: 0; min-height: 86vh; }
+.eroe-sfondo { position: absolute; inset: 0; }
+.eroe-sfondo img { width: 100%; height: 100%; object-fit: cover; object-position: center 42%; }
+.eroe-velo {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(10,10,10,.30) 0%, rgba(10,10,10,.12) 42%, rgba(10,10,10,.82) 100%);
+}
+.eroe-contenuto {
+  position: relative; max-width: var(--largo); width: 100%;
+  margin: 0 auto; padding: 0 24px 64px;
+  display: flex; flex-direction: column; gap: 18px; align-items: flex-start;
+}
+.eroe-titolo {
+  font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 5.6vw, 62px);
+  line-height: 1.08; margin: 0; max-width: 640px; color: var(--crema);
+}
+.eroe-titolo em { font-style: italic; color: var(--oro-chiaro); }
+.eroe-foto .eroe-riga { margin: 0; text-align: left; color: #d9d3c6; }
+.eroe-foto .eroe-azioni { margin-top: 12px; justify-content: flex-start; }
+@media (max-width: 760px) { .eroe-foto { min-height: 78vh; } .eroe-contenuto { padding-bottom: 44px; } }
+</style>
+<title>Privacy Policy &#8211; RevoBeauty</title>
+<meta name='robots' content='noindex, nofollow' />
+	<script>
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){ dataLayer.push(arguments); }
+	gtag('consent', 'default', {
+		analytics_storage: 'denied',
+		ad_storage: 'denied',
+		ad_user_data: 'denied',
+		ad_personalization: 'denied',
+		wait_for_update: 500
+	});
+	(function () {
+		try {
+			var salvato = document.cookie.split('; ').find(function (r) { return r.indexOf('rb_consenso=') === 0; });
+			if (!salvato) return;
+			var scelte = JSON.parse(decodeURIComponent(salvato.split('=')[1]));
+			gtag('consent', 'update', {
+				analytics_storage: scelte.statistiche ? 'granted' : 'denied',
+				ad_storage: scelte.marketing ? 'granted' : 'denied',
+				ad_user_data: scelte.marketing ? 'granted' : 'denied',
+				ad_personalization: scelte.marketing ? 'granted' : 'denied'
+			});
+		} catch (e) {}
+	})();
+	</script>
+	
+<style id="wp-img-auto-sizes-contain-inline-css">
+img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
+/*# sourceURL=wp-img-auto-sizes-contain-inline-css */
+</style>
+
+<style id="global-styles-inline-css">
+:root{--wp--preset--aspect-ratio--square: 1;--wp--preset--aspect-ratio--4-3: 4/3;--wp--preset--aspect-ratio--3-4: 3/4;--wp--preset--aspect-ratio--3-2: 3/2;--wp--preset--aspect-ratio--2-3: 2/3;--wp--preset--aspect-ratio--16-9: 16/9;--wp--preset--aspect-ratio--9-16: 9/16;--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: #abb8c3;--wp--preset--color--white: #ffffff;--wp--preset--color--pale-pink: #f78da7;--wp--preset--color--vivid-red: #cf2e2e;--wp--preset--color--luminous-vivid-orange: #ff6900;--wp--preset--color--luminous-vivid-amber: #fcb900;--wp--preset--color--light-green-cyan: #7bdcb5;--wp--preset--color--vivid-green-cyan: #00d084;--wp--preset--color--pale-cyan-blue: #8ed1fc;--wp--preset--color--vivid-cyan-blue: #0693e3;--wp--preset--color--vivid-purple: #9b51e0;--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple: linear-gradient(135deg,rgb(6,147,227) 0%,rgb(155,81,224) 100%);--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan: linear-gradient(135deg,rgb(122,220,180) 0%,rgb(0,208,130) 100%);--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange: linear-gradient(135deg,rgb(252,185,0) 0%,rgb(255,105,0) 100%);--wp--preset--gradient--luminous-vivid-orange-to-vivid-red: linear-gradient(135deg,rgb(255,105,0) 0%,rgb(207,46,46) 100%);--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray: linear-gradient(135deg,rgb(238,238,238) 0%,rgb(169,184,195) 100%);--wp--preset--gradient--cool-to-warm-spectrum: linear-gradient(135deg,rgb(74,234,220) 0%,rgb(151,120,209) 20%,rgb(207,42,186) 40%,rgb(238,44,130) 60%,rgb(251,105,98) 80%,rgb(254,248,76) 100%);--wp--preset--gradient--blush-light-purple: linear-gradient(135deg,rgb(255,206,236) 0%,rgb(152,150,240) 100%);--wp--preset--gradient--blush-bordeaux: linear-gradient(135deg,rgb(254,205,165) 0%,rgb(254,45,45) 50%,rgb(107,0,62) 100%);--wp--preset--gradient--luminous-dusk: linear-gradient(135deg,rgb(255,203,112) 0%,rgb(199,81,192) 50%,rgb(65,88,208) 100%);--wp--preset--gradient--pale-ocean: linear-gradient(135deg,rgb(255,245,203) 0%,rgb(182,227,212) 50%,rgb(51,167,181) 100%);--wp--preset--gradient--electric-grass: linear-gradient(135deg,rgb(202,248,128) 0%,rgb(113,206,126) 100%);--wp--preset--gradient--midnight: linear-gradient(135deg,rgb(2,3,129) 0%,rgb(40,116,252) 100%);--wp--preset--font-size--small: 13px;--wp--preset--font-size--medium: 20px;--wp--preset--font-size--large: 36px;--wp--preset--font-size--x-large: 42px;--wp--preset--spacing--20: 0.44rem;--wp--preset--spacing--30: 0.67rem;--wp--preset--spacing--40: 1rem;--wp--preset--spacing--50: 1.5rem;--wp--preset--spacing--60: 2.25rem;--wp--preset--spacing--70: 3.38rem;--wp--preset--spacing--80: 5.06rem;--wp--preset--shadow--natural: 6px 6px 9px rgba(0, 0, 0, 0.2);--wp--preset--shadow--deep: 12px 12px 50px rgba(0, 0, 0, 0.4);--wp--preset--shadow--sharp: 6px 6px 0px rgba(0, 0, 0, 0.2);--wp--preset--shadow--outlined: 6px 6px 0px -3px rgb(255, 255, 255), 6px 6px rgb(0, 0, 0);--wp--preset--shadow--crisp: 6px 6px 0px rgb(0, 0, 0);}.wp-block-button{--wp--preset--dimension--25: 25%;--wp--preset--dimension--50: 50%;--wp--preset--dimension--75: 75%;--wp--preset--dimension--100: 100%;}:where(body) { margin: 0; }:where(.is-layout-flex){gap: 0.5em;}:where(.is-layout-grid){gap: 0.5em;}body .is-layout-flex{display: flex;}.is-layout-flex{flex-wrap: wrap;align-items: center;}.is-layout-flex > :is(*, div){margin: 0;}body .is-layout-grid{display: grid;}.is-layout-grid > :is(*, div){margin: 0;}body{padding-top: 0px;padding-right: 0px;padding-bottom: 0px;padding-left: 0px;}:root :where(.wp-element-button, .wp-block-button__link){background-color: #32373c;border-width: 0;color: #fff;font-family: inherit;font-size: inherit;font-style: inherit;font-weight: inherit;letter-spacing: inherit;line-height: inherit;padding-top: calc(0.667em + 2px);padding-right: calc(1.333em + 2px);padding-bottom: calc(0.667em + 2px);padding-left: calc(1.333em + 2px);text-decoration: none;text-transform: inherit;}.has-black-color{color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-color{color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-color{color: var(--wp--preset--color--white) !important;}.has-pale-pink-color{color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-color{color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-color{color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-color{color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-color{color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-color{color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-color{color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-color{color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-color{color: var(--wp--preset--color--vivid-purple) !important;}.has-black-background-color{background-color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-background-color{background-color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-background-color{background-color: var(--wp--preset--color--white) !important;}.has-pale-pink-background-color{background-color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-background-color{background-color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-background-color{background-color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-background-color{background-color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-background-color{background-color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-background-color{background-color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-background-color{background-color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-background-color{background-color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-background-color{background-color: var(--wp--preset--color--vivid-purple) !important;}.has-black-border-color{border-color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-border-color{border-color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-border-color{border-color: var(--wp--preset--color--white) !important;}.has-pale-pink-border-color{border-color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-border-color{border-color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-border-color{border-color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-border-color{border-color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-border-color{border-color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-border-color{border-color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-border-color{border-color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-border-color{border-color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-border-color{border-color: var(--wp--preset--color--vivid-purple) !important;}.has-vivid-cyan-blue-to-vivid-purple-gradient-background{background: var(--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple) !important;}.has-light-green-cyan-to-vivid-green-cyan-gradient-background{background: var(--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan) !important;}.has-luminous-vivid-amber-to-luminous-vivid-orange-gradient-background{background: var(--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange) !important;}.has-luminous-vivid-orange-to-vivid-red-gradient-background{background: var(--wp--preset--gradient--luminous-vivid-orange-to-vivid-red) !important;}.has-very-light-gray-to-cyan-bluish-gray-gradient-background{background: var(--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray) !important;}.has-cool-to-warm-spectrum-gradient-background{background: var(--wp--preset--gradient--cool-to-warm-spectrum) !important;}.has-blush-light-purple-gradient-background{background: var(--wp--preset--gradient--blush-light-purple) !important;}.has-blush-bordeaux-gradient-background{background: var(--wp--preset--gradient--blush-bordeaux) !important;}.has-luminous-dusk-gradient-background{background: var(--wp--preset--gradient--luminous-dusk) !important;}.has-pale-ocean-gradient-background{background: var(--wp--preset--gradient--pale-ocean) !important;}.has-electric-grass-gradient-background{background: var(--wp--preset--gradient--electric-grass) !important;}.has-midnight-gradient-background{background: var(--wp--preset--gradient--midnight) !important;}.has-small-font-size{font-size: var(--wp--preset--font-size--small) !important;}.has-medium-font-size{font-size: var(--wp--preset--font-size--medium) !important;}.has-large-font-size{font-size: var(--wp--preset--font-size--large) !important;}.has-x-large-font-size{font-size: var(--wp--preset--font-size--x-large) !important;}
+/*# sourceURL=global-styles-inline-css */
+</style>
+
+<link rel='stylesheet' id='rb-due-css' href='assets/css/main.css?ver=2.0.0' media='all' />
+<script data-wp-strategy="defer" defer id="rb-due-motion-js" src="assets/js/motion.js?ver=2.0.0"></script>
+<link rel="canonical" href="privacy-policy.html" />
+</head>
+<body class="privacy-policy wp-singular page-template-default page page-id-3 wp-theme-revobeauty-due">
+
+<a class="salta" href="#contenuto">Vai al contenuto</a>
+
+<header class="testata">
+	<div class="testata-dentro">
+		<a class="marchio" href="index.html" aria-label="RevoBeauty — home">
+			<span class="marchio-revo">REVO</span><span class="marchio-beauty">BEAUTY</span>
+		</a>
+		<nav class="nav" aria-label="Principale">
+			<ul class="menu"><li><a href="servizi.html">Trattamenti</a></li><li><a href="chi-siamo.html">Chi siamo</a></li><li><a href="blog.html">Blog</a></li><li><a href="contatti.html">Contatti</a></li></ul>		</nav>
+		<div class="testata-azioni">
+			<a class="bottone bottone-oro bottone-piccolo" href="http://127.0.0.1:8331/prenota">Prenota online</a>
+						<button class="apri-menu" aria-expanded="false" aria-controls="menu-mobile">
+				<svg width="20" height="20" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+				<span>Menu</span>
+			</button>
+		</div>
+	</div>
+	<div class="menu-mobile" id="menu-mobile" hidden>
+		<ul class="menu"><li><a href="servizi.html">Trattamenti</a></li><li><a href="chi-siamo.html">Chi siamo</a></li><li><a href="blog.html">Blog</a></li><li><a href="contatti.html">Contatti</a></li></ul>		<a class="bottone bottone-oro" href="http://127.0.0.1:8331/prenota">Prenota online</a>
+	</div>
+</header>
+
+<main id="contenuto">
+<section class="sezione testata-pagina">
+	<h1 class="titolone sale">Privacy Policy</h1>
+</section>
+<section class="sezione prosa">
+	<p><em>Informativa ai sensi degli artt. 13-14 del Regolamento (UE) 2016/679 (&#8220;GDPR&#8221;). Ultimo aggiornamento: agosto 2026.</em></p>
+<h2>Chi tratta i tuoi dati</h2>
+<p>Il titolare del trattamento è <strong>RevoBeauty</strong>, con sede in Via Caudina 30, Maddaloni (CE), P. IVA e C.F. <strong>10625841217</strong> (&#8220;RevoBeauty&#8221;, &#8220;noi&#8221;). Puoi scriverci per qualsiasi richiesta sulla privacy ai contatti indicati nella pagina <a href="/contatti/">Contatti</a>.</p>
+<h2>Quali dati raccogliamo e perché</h2>
+<h3>Modulo contatti</h3>
+<p>Quando compili il modulo raccogliamo nome, cognome (facoltativo), numero di cellulare, email (facoltativa), il servizio di interesse e il messaggio. Li usiamo per una cosa sola: <strong>risponderti e fissare l&#8217;appuntamento</strong>. La base giuridica è l&#8217;esecuzione di misure precontrattuali adottate su tua richiesta (art. 6.1.b GDPR).</p>
+<p>La risposta arriva di norma su <strong>WhatsApp</strong>, al numero che ci hai lasciato: per inviare i messaggi usiamo WhatsApp Business Platform tramite il fornitore 360dialog GmbH (i dati di contatto necessari all&#8217;invio sono trattati da 360dialog e da Meta come responsabili/autonomi titolari secondo i rispettivi termini). La prima risposta può essere gestita da un assistente automatico; puoi sempre chiedere di parlare con una persona.</p>
+<h3>Comunicazioni promozionali</h3>
+<p>Solo se hai spuntato la casella facoltativa dedicata, usiamo il tuo numero o la tua email per inviarti promozioni e novità del centro (art. 6.1.a GDPR — consenso). Puoi revocare il consenso in ogni momento scrivendoci o rispondendo &#8220;STOP&#8221; ai messaggi: la revoca non pregiudica la risposta alla tua richiesta.</p>
+<h3>Navigazione e cookie</h3>
+<p>I dati di navigazione e i cookie sono descritti nella <a href="/cookie-policy/">Cookie Policy</a>: gli strumenti di statistica e marketing si attivano solo con il tuo consenso, dal banner.</p>
+<h3>Prenotazione online</h3>
+<p>Se prenoti dalla pagina di prenotazione online, i dati dell&#8217;appuntamento (nome, telefono, trattamento scelto, data e ora) sono trattati per erogare il servizio richiesto e gestire l&#8217;agenda del centro.</p>
+<h2>Dove stanno i dati e per quanto tempo</h2>
+<p>Le richieste dal sito vengono registrate nel gestionale interno del centro, ospitato su infrastruttura cloud nell&#8217;Unione Europea o con garanzie adeguate ai sensi degli artt. 44 e ss. GDPR. Le richieste di contatto che non diventano un appuntamento vengono conservate per il tempo necessario a gestirle e comunque non oltre 12 mesi; i dati di chi diventa cliente sono conservati per la durata del rapporto e per gli obblighi fiscali di legge. I consensi marketing restano validi fino a revoca.</p>
+<h2>A chi comunichiamo i dati</h2>
+<p>Non vendiamo i tuoi dati e non li comunichiamo a terzi per finalità loro. Li trattano, per nostro conto e solo per quanto serve, i fornitori tecnici: hosting del sito e del gestionale, 360dialog/Meta per i messaggi WhatsApp, gli strumenti di statistica solo se acconsenti. L&#8217;elenco aggiornato dei responsabili del trattamento è disponibile su richiesta.</p>
+<h2>I tuoi diritti</h2>
+<p>Puoi chiederci in ogni momento accesso, rettifica, cancellazione, limitazione, portabilità dei tuoi dati e opporti al trattamento (artt. 15-22 GDPR), scrivendoci ai contatti della pagina <a href="/contatti/">Contatti</a>. Se ritieni che un trattamento violi la legge puoi proporre reclamo al Garante per la protezione dei dati personali (www.garanteprivacy.it).</p>
+<h2>Minori</h2>
+<p>Il sito e i servizi si rivolgono a persone maggiorenni. Per i trattamenti estetici su minori è richiesto il consenso di chi esercita la responsabilità genitoriale.</p>
+</section>
+</main>
+
+<div class="barra-pollice" id="barra-pollice" aria-label="Azioni rapide">
+	<a class="pollice-primario" href="http://127.0.0.1:8331/prenota">Prenota</a>
+			<a class="pollice-icona" href="https://wa.me/393312733414?text=Ciao%21%20Vorrei%20informazioni%20sui%20vostri%20trattamenti." rel="noopener" aria-label="Scrivici su WhatsApp">
+			<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm0 18.15h-.01a8.23 8.23 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.21 8.21 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.19 8.19 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.25-.64.8-.78.97-.14.16-.29.18-.54.06-.25-.13-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.51.11-.11.25-.29.37-.43.13-.15.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.48c-.16 0-.43.06-.65.31-.22.25-.85.84-.85 2.03s.87 2.35 1 2.51c.12.17 1.71 2.61 4.14 3.66.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.11-.23-.17-.48-.29Z"/></svg>
+		</a>
+				<a class="pollice-icona" href="tel:+393312733414" aria-label="Chiama il centro">
+			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.7a2 2 0 0 1-.5 2.1L8.1 9.6a16 16 0 0 0 6 6l1.1-1.1a2 2 0 0 1 2.1-.5c.9.3 1.8.5 2.7.6a2 2 0 0 1 1.7 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+		</a>
+	</div>
+
+<footer class="fondo">
+	<div class="fondo-dentro">
+		<div class="fondo-colonna fondo-marchio">
+			<div class="marchio"><span class="marchio-revo">REVO</span><span class="marchio-beauty">BEAUTY</span></div>
+			<p class="fondo-claim">Innovazione &amp; bellezza, a Maddaloni.</p>
+			<a class="bottone bottone-oro" href="http://127.0.0.1:8331/prenota">Prenota online</a>
+		</div>
+
+		<div class="fondo-colonna">
+			<h2 class="fondo-titolo">Orari</h2>
+										<dl class="orari">
+											<div class="orari-riga"><dt>Lun – Sab</dt><dd>09:00 – 19:00</dd></div>
+											<div class="orari-riga"><dt>Dom</dt><dd>Chiuso</dd></div>
+									</dl>
+					</div>
+
+		<div class="fondo-colonna">
+			<h2 class="fondo-titolo">Contatti</h2>
+			<address class="fondo-testo">
+				Via Caudina 30, Maddaloni (CE)			</address>
+							<p><a class="fondo-link" href="tel:+393312733414">+39 331 273 3414</a></p>
+										<p><a class="fondo-link" href="https://wa.me/393312733414?text=Ciao%21%20Vorrei%20informazioni%20sui%20vostri%20trattamenti." rel="noopener">Scrivici su WhatsApp</a></p>
+					</div>
+	</div>
+	<div class="fondo-legale">
+		<p>© 2026 RevoBeauty · Maddaloni (CE) · P.IVA 10625841217</p>
+		<nav aria-label="Note legali">
+			<a href="privacy-policy.html">Privacy</a>
+			<a href="cookie-policy.html">Cookie</a>
+			<button type="button" class="gestisci-cookie" id="rb-gestisci-cookie">Gestisci cookie</button>
+		</nav>
+	</div>
+</footer>
+
+<script type="speculationrules">
+{"prefetch":[{"source":"document","where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/wp-*.php","/wp-admin/*","/wp-content/uploads/*","/wp-content/*","/wp-content/plugins/*","/wp-content/themes/revobeauty-due/*","/*\\?(.+)"]}},{"not":{"selector_matches":"a[rel~=\"nofollow\"]"}},{"not":{"selector_matches":".no-prefetch, .no-prefetch a"}}]},"eagerness":"conservative"}]}
+</script>
+	<div class="consenso" id="rb-consenso" hidden>
+		<div class="consenso-scatola">
+			<p class="consenso-titolo">Rispettiamo la tua privacy</p>
+			<p class="consenso-testo">Usiamo cookie tecnici sempre attivi e, solo se accetti, cookie di statistica e marketing. Dettagli nella <a href="cookie-policy.html">cookie policy</a>.</p>
+			<div class="consenso-scelte">
+				<label><input type="checkbox" checked disabled /> Necessari</label>
+				<label><input type="checkbox" id="rb-c-statistiche" /> Statistiche</label>
+				<label><input type="checkbox" id="rb-c-marketing" /> Marketing</label>
+			</div>
+			<div class="consenso-azioni">
+				<button type="button" class="bottone bottone-oro" id="rb-c-accetta">Accetta tutti</button>
+				<button type="button" class="bottone bottone-lineare" id="rb-c-salva">Salva le scelte</button>
+				<button type="button" class="bottone bottone-lineare" id="rb-c-rifiuta">Solo necessari</button>
+			</div>
+		</div>
+	</div>
+	<script src="assets/js/consent.js?v=2.0.0" defer></script>
+	<div style="position:fixed;left:0;right:0;bottom:0;z-index:99;background:#5e0f26;color:#f5f0e8;font:11px/1.4 system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;text-align:center;padding:7px 12px">Anteprima &middot; non &egrave; il sito pubblico</div><style>.barra-pollice{bottom:30px!important}</style></body>
+</html>
