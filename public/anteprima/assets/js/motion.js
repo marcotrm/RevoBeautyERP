@@ -74,9 +74,20 @@
 		barra.setAttribute('data-visibile', '');
 	}
 
-	/* L'indice della fila orizzontale lo muove ora il CSS con una
-	   `scroll-timeline`: era l'unico gestore ad alta frequenza del sito, e
-	   toglierlo è insieme meno codice e meno lavoro sul thread principale. */
+	// A che punto è la fila orizzontale.
+	document.querySelectorAll('.scorri').forEach(function (scorri) {
+		var barra = scorri.parentElement.querySelector('.scorri-indice');
+		if (!barra) return;
+		var aggiorna = function () {
+			var max = scorri.scrollWidth - scorri.clientWidth;
+			var quota = max > 0 ? scorri.scrollLeft / max : 0;
+			var larghezza = Math.max(0.18, scorri.clientWidth / scorri.scrollWidth);
+			barra.style.width = (larghezza * 100) + '%';
+			barra.style.transform = 'translateX(' + (quota * (100 / larghezza - 100)) + '%)';
+		};
+		scorri.addEventListener('scroll', function () { requestAnimationFrame(aggiorna); }, { passive: true });
+		aggiorna();
+	});
 })();
 
 /**
@@ -169,18 +180,7 @@
 	if (window.CSS && CSS.supports && CSS.supports('animation-timeline: view()')) return;
 	if (!('IntersectionObserver' in window)) return;
 
-	/* Le carte dentro una fila orizzontale non entrano mai nel campo visivo
-	   finché non le si scorre di lato: osservate una per una resterebbero
-	   invisibili per sempre a chi non trascina la fila. Si accendono insieme
-	   alla fila, che invece nel campo ci entra. */
-	var pezzi = [].filter.call(
-		document.querySelectorAll('.sale, .sipario, .sipario-taglio, .righe .riga'),
-		function (e) { return !e.closest('.scorri'); }
-	);
-	/* La fila si osserva come un pezzo unico: quando entra lei, accende le
-	   proprie carte (vedi sotto). Non porta classi di animazione, quindi
-	   osservarla non le fa nulla di suo. */
-	pezzi = pezzi.concat([].slice.call(document.querySelectorAll('.scorri')));
+	var pezzi = document.querySelectorAll('.sale, .sipario, .righe .riga');
 	if (!pezzi.length) return;
 
 	document.documentElement.classList.add('rb-ripiego');
@@ -190,17 +190,12 @@
 	   Un testo invisibile è un guasto, un'animazione mancata è un dettaglio. */
 	var salvagente = setTimeout(function () {
 		for (var i = 0; i < pezzi.length; i++) pezzi[i].classList.add('rb-dentro');
-		var fila = document.querySelectorAll('.scorri .sale');
-		for (var j = 0; j < fila.length; j++) fila[j].classList.add('rb-dentro');
 	}, 3000);
 
 	var osservatore = new IntersectionObserver(function (voci) {
 		voci.forEach(function (voce) {
 			if (!voce.isIntersecting) return;
 			voce.target.classList.add('rb-dentro');
-			/* Una fila orizzontale accende anche quello che tiene dentro. */
-			var dentro = voce.target.querySelectorAll ? voce.target.querySelectorAll('.scorri .sale') : [];
-			for (var k = 0; k < dentro.length; k++) dentro[k].classList.add('rb-dentro');
 			osservatore.unobserve(voce.target);
 		});
 	}, { rootMargin: '0px 0px -12% 0px', threshold: 0.08 });
