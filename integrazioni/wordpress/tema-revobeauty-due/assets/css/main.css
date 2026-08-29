@@ -1,24 +1,145 @@
 /* ── Il resto del tema: tutto ciò che non serve al primo dipinto ──────── */
 
-/* Rivelazioni allo scroll: parte tutto visibile; il JS aggiunge .pronto e
-   da lì gli elementi .rivela entrano quando toccano il viewport. Con
-   prefers-reduced-motion niente si muove. */
-.pronto .rivela { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s cubic-bezier(.2,.6,.2,1); }
-.pronto .rivela.in-vista { opacity: 1; transform: none; }
-@media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  .pronto .rivela { opacity: 1; transform: none; transition: none; }
+/* ─────────────────────────────────────────────────────────────────────────
+ * IL MOVIMENTO
+ *
+ * Regola che tiene insieme tutto: lo stato di partenza sta DENTRO i
+ * fotogrammi, mai nella classe. Così un browser che non conosce le timeline
+ * di scorrimento non vede niente di invisibile — legge una regola che non
+ * capisce, la salta, e mostra la pagina finita. Nessun JavaScript, nessun
+ * contenuto che resta nascosto se qualcosa va storto.
+ *
+ * È il contrario di come si faceva con IntersectionObserver, dove
+ * l'elemento partiva a opacità zero e serviva il JavaScript per accenderlo:
+ * se quel JavaScript non arrivava — o se la persona saltava a un'ancora
+ * scavalcando l'osservatore — restava una pagina bianca di contenuti veri.
+ *
+ * Durate: sotto i 300ms tutto ciò che è comando (tasti, menu, fisarmoniche),
+ * perché lì la lentezza si sente come ritardo. Sopra, solo le rivelazioni
+ * decorative — foto e titoli — dove 600-900ms è il respiro editoriale.
+ * Mai ease-in su un comando: parte lenta proprio nell'istante che si guarda.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --uscita: cubic-bezier(.23, 1, .32, 1);      /* entrate e uscite */
+  --dentro-fuori: cubic-bezier(.77, 0, .175, 1); /* movimento a schermo */
+  --cassetto: cubic-bezier(.32, .72, 0, 1);    /* menu e pannelli, come iOS */
 }
 
-/* Parallasse leggero sulle strisce dell'eroe, solo dove il browser sa farlo. */
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .eroe-striscia { animation: scivola linear both; animation-timeline: view(); animation-range: entry 0% exit 100%; }
-    .eroe-striscia:nth-child(even) { animation-name: scivola-giu; }
-    @keyframes scivola { from { transform: translateY(3%); } to { transform: translateY(-6%); } }
-    @keyframes scivola-giu { from { transform: translateY(-3%); } to { transform: translateY(6%); } }
+.righe .riga { display: block; overflow: hidden; }
+.righe .riga > span { display: block; }
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+
+    /* Salita con dissolvenza: griglie, carte, blocchi di testo.
+       24px e non 100: su un telefono uno spostamento lungo si legge come
+       scatto. E si parte da scale(.97), mai da zero. */
+    .sale {
+      animation: rb-sale 600ms var(--uscita) both;
+      animation-timeline: view();
+      animation-range: entry 8% entry 58%;
+    }
+    @keyframes rb-sale {
+      from { opacity: 0; transform: translateY(24px) scale(.97); }
+    }
+
+    /* Sipario sulle fotografie: la firma del sito. L'immagine non compare,
+       si scopre dal basso mentre si posa da 1.06 a 1. */
+    .sipario { overflow: hidden; }
+    .sipario img, .sipario > picture > img {
+      animation: rb-sipario 900ms var(--uscita) both;
+      animation-timeline: view();
+      animation-range: entry 12% entry 88%;
+    }
+    @keyframes rb-sipario {
+      from { clip-path: inset(0 0 100% 0); transform: scale(1.06); }
+      to   { clip-path: inset(0 0 0 0);    transform: scale(1); }
+    }
+
+    /* Righe di titolo che salgono da dietro una maschera.
+       Quelle dentro la pagina aspettano lo scorrimento; quella dell'eroe no.
+       Sopra la piega non si aspetta niente: il titolo è già a schermo quando
+       la pagina arriva, e legarlo allo scorrimento significherebbe lasciarlo
+       fermo sotto la maschera finché qualcuno non tocca lo schermo. */
+    .righe .riga > span {
+      animation: rb-riga 800ms var(--uscita) both;
+      animation-timeline: view();
+      animation-range: entry 18% entry 72%;
+    }
+    .eroe .righe .riga > span {
+      animation: rb-riga 800ms var(--uscita) both;
+      animation-timeline: auto;
+    }
+    .righe .riga:nth-child(2) > span { animation-delay: 80ms; }
+    .righe .riga:nth-child(3) > span { animation-delay: 160ms; }
+    @keyframes rb-riga { from { transform: translateY(105%); } }
+
+    /* Deriva della foto nel suo telaio: 8% per lato, non mezza schermata.
+       Su una timeline di scorrimento l'andamento resta lineare: il ritmo lo
+       dà già il dito di chi scorre, metterci sopra un'accelerazione è
+       l'errore classico. */
+    .deriva { overflow: hidden; }
+    .deriva img { height: 116%; object-fit: cover; }
+    .deriva img {
+      animation: rb-deriva linear both;
+      animation-timeline: view();
+      animation-range: cover;
+    }
+    @keyframes rb-deriva {
+      from { transform: translateY(-7%); }
+      to   { transform: translateY(7%); }
+    }
+
+    /* Filo d'oro che misura la lettura, in cima alla pagina. */
+    .filo-lettura {
+      animation: rb-filo linear both;
+      animation-timeline: scroll(root block);
+    }
+    @keyframes rb-filo { from { transform: scaleX(0); } }
   }
 }
+
+/* Feedback al tocco: su un telefono non esiste il passaggio del mouse,
+   esiste solo il dito. Senza questa risposta il sito sembra rotto anche
+   quando funziona. touch-action toglie i 300ms di attesa del doppio tocco:
+   è la riga che fa più di qualunque animazione per la velocità percepita. */
+.bottone, .carta, .ancore a, .voce-apri {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.bottone { transition: transform 160ms var(--uscita), background-color 160ms var(--uscita), border-color 160ms var(--uscita), color 160ms var(--uscita); }
+.bottone:active { transform: scale(.97); }
+.carta { transition: transform 200ms var(--uscita), border-color 200ms var(--uscita); }
+.carta:active { transform: scale(.985); }
+
+/* Filetto d'oro sotto i collegamenti: entra da sinistra, esce a destra.
+   Solo dove esiste un puntatore vero — su touch il :hover resta appiccicato
+   dopo il tocco, ed è peggio del non averlo. */
+@media (hover: hover) and (pointer: fine) {
+  .collega, .nav .menu a, .fondo-link {
+    position: relative; text-decoration: none;
+  }
+  .collega::after, .fondo-link::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -.18em; height: 1px;
+    background: currentColor; transform: scaleX(0); transform-origin: 100% 50%;
+    transition: transform 300ms var(--uscita);
+  }
+  .collega:hover::after, .fondo-link:hover::after {
+    transform: scaleX(1); transform-origin: 0 50%;
+  }
+}
+
+/* Passaggio fra le pagine senza il lampo bianco. Sei righe, e dove il
+   browser non le conosce le ignora e la navigazione resta quella di sempre. */
+@view-transition { navigation: auto; }
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root) { animation: rb-esce 180ms ease-out both; }
+  ::view-transition-new(root) { animation: rb-entra 320ms var(--uscita) both; }
+  @keyframes rb-esce  { to   { opacity: 0; } }
+  @keyframes rb-entra { from { opacity: 0; } }
+}
+
 
 /* ── Casa: carte trattamenti a scorrimento orizzontale ────────────────── */
 .riga-titolo { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; flex-wrap: wrap; }
@@ -67,7 +188,10 @@
 .collega-chiaro { color: var(--crema); }
 .collega-chiaro:hover { color: var(--oro-chiaro); }
 
-.squadra-griglia { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 22px; padding-top: 8px; }
+.squadra-griglia {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding-top: 8px;
+}
+@media (min-width: 700px) { .squadra-griglia { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 22px; } }
 .scheda-persona { display: flex; flex-direction: column; gap: 10px; }
 .scheda-foto { width: 100%; aspect-ratio: 7/8; object-fit: cover; background: var(--crema-scura); border: 1px solid var(--crema-scura); }
 .scheda-foto-vuota { display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 54px; color: var(--oro-scuro); }
@@ -97,19 +221,20 @@
   display: flex; gap: 10px; flex-wrap: wrap;
 }
 .ancore a {
+  display: inline-flex; align-items: center; min-height: 44px;
   font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
-  border: 1px solid var(--crema-scura); padding: 9px 16px; color: var(--grigio);
+  border: 1px solid var(--crema-scura); padding: 0 18px; color: var(--grigio);
 }
 .ancore a:hover { border-color: var(--oro); color: var(--oro-scuro); }
 .blocco-listino { padding-top: 56px; scroll-margin-top: 24px; }
 .titolo-categoria { font-family: var(--serif); font-weight: 500; font-size: 28px; margin: 0 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--crema-scura); }
 .listino { list-style: none; margin: 0; padding: 0; }
-.voce { display: flex; align-items: baseline; gap: 12px; padding: 13px 0; border-bottom: 1px solid rgba(232,226,214,.6); }
-.voce-testo { display: flex; flex-direction: column; gap: 3px; }
+.voce { padding: 11px 0; border-bottom: 1px solid rgba(232,226,214,.6); }
+.voce-riga { display: flex; align-items: baseline; gap: 10px; }
 .voce-nome { font-size: 15.5px; font-weight: 400; }
-.voce-varianti { font-size: 13px; color: var(--grigio); }
-.voce-punti { flex: 1; border-bottom: 1px dotted var(--crema-scura); transform: translateY(-4px); }
-.voce-dati { font-size: 14.5px; white-space: nowrap; color: var(--inchiostro); }
+.voce-varianti { display: block; font-size: 12.5px; color: var(--grigio); margin-top: 2px; }
+.voce-punti { flex: 1; min-width: 14px; border-bottom: 1px dotted var(--crema-scura); transform: translateY(-4px); }
+.voce-dati { font-size: 14.5px; white-space: nowrap; color: var(--inchiostro); font-variant-numeric: tabular-nums; }
 .pacchetti { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
 .pacchetto { background: #ffffff; border: 1px solid var(--crema-scura); padding: 22px; display: flex; flex-direction: column; gap: 8px; }
 .pacchetto-nome { font-family: var(--serif); font-size: 19px; font-weight: 500; }
@@ -128,7 +253,10 @@ address { font-style: normal; }
 @media (max-width: 560px) { .form-riga { grid-template-columns: 1fr; } }
 .form-campo label { display: block; font-size: 11px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; margin-bottom: 8px; }
 .form-campo input, .form-campo select, .form-campo textarea {
-  width: 100%; padding: 13px 14px; font-family: var(--sans); font-size: 15px; color: var(--inchiostro);
+  /* 16px non è una scelta tipografica: sotto questa misura Safari su iPhone
+     ingrandisce la pagina appena si tocca il campo, e chi stava compilando si
+     ritrova il modulo fuori schermo. */
+  width: 100%; padding: 14px 14px; min-height: 48px; font-family: var(--sans); font-size: 16px; color: var(--inchiostro);
   background: #ffffff; border: 1px solid var(--crema-scura); border-radius: 0; outline: none;
   transition: border-color .2s;
 }
@@ -136,7 +264,7 @@ address { font-style: normal; }
 .form-campo textarea { resize: vertical; }
 .form-nota { font-size: 12px; color: var(--grigio); margin: 6px 0 0; }
 .form-check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--grigio); cursor: pointer; }
-.form-check input { width: 17px; height: 17px; margin-top: 2px; accent-color: var(--oro); flex-shrink: 0; }
+.form-check input { width: 22px; height: 22px; margin-top: 2px; accent-color: var(--oro); flex-shrink: 0; }
 .form-invia { width: 100%; }
 .oro { color: var(--oro-scuro); }
 .hp { position: absolute; left: -9999px; }
@@ -215,3 +343,115 @@ address { font-style: normal; }
 .prosa table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 0 0 1.4em; }
 .prosa th, .prosa td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--crema-scura); }
 .prosa th { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--oro-scuro); }
+
+/* Movimento ridotto non vuol dire nessun movimento: vuol dire niente
+   spostamenti, niente ingrandimenti, niente scorrimenti automatici. Una
+   dissolvenza breve resta, ed è più gentile di un contenuto che sbatte in
+   pagina. Spegnere tutto toglierebbe anche i riscontri utili. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .sale, .sipario img, .righe .riga > span, .deriva img {
+    animation: none !important; transform: none !important; clip-path: none !important;
+  }
+  .deriva img { height: 100%; }
+  .bottone:active, .carta:active { transform: none; }
+}
+
+/* ── La barra del pollice (solo telefono) ─────────────────────────────── */
+.barra-pollice { display: none; }
+@media (max-width: 760px) {
+  .barra-pollice {
+    display: flex; gap: 10px; align-items: center;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(10, 10, 10, .94);
+    border-top: 1px solid #241f16;
+    transform: translateY(120%);
+    transition: transform 280ms var(--cassetto);
+  }
+  .barra-pollice[data-visibile] { transform: translateY(0); }
+  .pollice-primario {
+    flex: 1; display: inline-flex; align-items: center; justify-content: center;
+    min-height: 48px; background: var(--oro); color: var(--nero);
+    font-size: 13px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase;
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    transition: transform 160ms var(--uscita);
+  }
+  .pollice-primario:active { transform: scale(.97); }
+  .pollice-icona {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 48px; height: 48px; flex-shrink: 0;
+    border: 1px solid #3a3a3a; color: var(--crema);
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+    transition: transform 160ms var(--uscita), border-color 160ms var(--uscita);
+  }
+  .pollice-icona:active { transform: scale(.94); border-color: var(--oro); }
+  /* Spazio in fondo, o la barra copre l'ultima riga del piè di pagina. */
+  .fondo-legale { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .barra-pollice { transition: none; }
+}
+
+/* ── Filtri del listino ───────────────────────────────────────────────── */
+.filtri {
+  max-width: var(--largo); margin: 0 auto; padding: 12px 24px 0;
+  position: sticky; top: 0; z-index: 15; background: var(--avorio);
+}
+.cerca-riga { padding: 8px 0 12px; }
+.cerca-etichetta {
+  display: block; font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--oro-scuro); margin-bottom: 8px;
+}
+.filtri input[type="search"] {
+  width: 100%; min-height: 48px; padding: 12px 14px; font-size: 16px;
+  font-family: var(--sans); color: var(--inchiostro);
+  background: #fff; border: 1px solid var(--crema-scura); border-radius: 0; outline: none;
+  transition: border-color 200ms var(--uscita);
+}
+.filtri input[type="search"]:focus { border-color: var(--oro); }
+.pastiglie {
+  display: flex; gap: 8px; overflow-x: auto; padding: 0 0 14px;
+  scrollbar-width: none; overscroll-behavior-x: contain;
+}
+.pastiglie::-webkit-scrollbar { display: none; }
+.pastiglia {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px;
+  min-height: 44px; padding: 0 16px; cursor: pointer;
+  font-family: var(--sans); font-size: 12.5px; letter-spacing: .1em; text-transform: uppercase;
+  background: none; color: var(--grigio); border: 1px solid var(--crema-scura);
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  transition: background-color 200ms var(--uscita), color 200ms var(--uscita), border-color 200ms var(--uscita), transform 160ms var(--uscita);
+}
+.pastiglia:active { transform: scale(.97); }
+.pastiglia[aria-pressed="true"] { background: var(--nero); color: var(--crema); border-color: var(--nero); }
+.pastiglia-conto { font-size: 11px; opacity: .55; font-variant-numeric: tabular-nums; }
+.voce-dati { font-variant-numeric: tabular-nums; }
+.blocco-listino[hidden], .voce[hidden] { display: none; }
+.nessun-esito { padding: 10px 0 0; color: var(--grigio); font-size: 15px; }
+@media (max-width: 760px) {
+  .filtri { padding-left: 20px; padding-right: 20px; }
+  .blocco-listino { padding-top: 26px; }
+}
+
+/* L'hamburger etichettato, e abbastanza grande da toccarlo. */
+.apri-menu {
+  align-items: center; gap: 7px; min-height: 44px; padding: 0 6px 0 10px;
+  font-family: var(--sans); font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+}
+
+/* Sul telefono il banner non deve diventare una pagina: tasti in fila,
+   testo corto, e mai più di un terzo dello schermo. */
+@media (max-width: 560px) {
+  .consenso { padding: 10px; }
+  .consenso-scatola { padding: 18px 16px; }
+  .consenso-titolo { font-size: 17px; margin-bottom: 6px; }
+  .consenso-testo { font-size: 13px; margin-bottom: 12px; }
+  .consenso-scelte { gap: 14px; margin-bottom: 14px; font-size: 13px; }
+  .consenso-azioni { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .consenso-azioni .bottone { padding: 0 10px; min-height: 46px; font-size: 11px; letter-spacing: .1em; }
+  .consenso-azioni .bottone:first-child { grid-column: 1 / -1; }
+}
+
+/* Un pacchetto è anche una "voce" (per ricerca e filtri) ma resta una scheda. */
+.pacchetto.voce { padding: 22px; border-bottom: 0; }

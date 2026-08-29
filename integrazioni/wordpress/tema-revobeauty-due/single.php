@@ -5,8 +5,8 @@ get_header();
 <?php while ( have_posts() ) : the_post(); ?>
 <article>
 	<section class="sezione testata-pagina">
-		<p class="occhiello rivela"><?php echo esc_html( get_the_date( 'j F Y' ) ); ?></p>
-		<h1 class="titolone rivela"><?php the_title(); ?></h1>
+		<p class="occhiello sale"><?php echo esc_html( get_the_date( 'j F Y' ) ); ?></p>
+		<h1 class="titolone sale"><?php the_title(); ?></h1>
 	</section>
 	<section class="sezione prosa">
 		<?php the_content(); ?>

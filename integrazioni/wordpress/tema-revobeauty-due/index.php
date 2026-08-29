@@ -6,14 +6,14 @@
 get_header();
 ?>
 <section class="sezione testata-pagina">
-	<p class="occhiello rivela">Blog</p>
-	<h1 class="titolone rivela"><?php echo is_home() ? 'Consigli e guide' : esc_html( get_the_archive_title() ); ?></h1>
-	<p class="sottotitolo rivela">Come funzionano i trattamenti, come prepararsi, cosa aspettarsi: le risposte che diamo ogni giorno al banco, scritte bene.</p>
+	<p class="occhiello sale">Blog</p>
+	<h1 class="titolone sale"><?php echo is_home() ? 'Consigli e guide' : esc_html( get_the_archive_title() ); ?></h1>
+	<p class="sottotitolo sale">Come funzionano i trattamenti, come prepararsi, cosa aspettarsi: le risposte che diamo ogni giorno al banco, scritte bene.</p>
 </section>
 <section class="sezione elenco-articoli">
 	<?php if ( have_posts() ) : ?>
 		<?php while ( have_posts() ) : the_post(); ?>
-			<article class="anteprima rivela">
+			<article class="anteprima sale">
 				<a class="anteprima-collega" href="<?php the_permalink(); ?>">
 					<span class="anteprima-data"><?php echo esc_html( get_the_date( 'j F Y' ) ); ?></span>
 					<h2 class="anteprima-titolo"><?php the_title(); ?></h2>

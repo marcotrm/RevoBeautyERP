@@ -11,22 +11,22 @@ $mappa    = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( '
 ?>
 
 <section class="sezione testata-pagina">
-	<p class="occhiello rivela">Contatti</p>
-	<h1 class="titolone rivela">Scrivici: ti rispondiamo su WhatsApp.</h1>
-	<p class="sottotitolo rivela">Lasciaci il numero e ti scriviamo noi per fissare l'appuntamento. Se preferisci fare da sola, la prenotazione online è aperta a qualsiasi ora.</p>
+	<p class="occhiello sale">Contatti</p>
+	<h1 class="titolone sale">Scrivici: ti rispondiamo su WhatsApp.</h1>
+	<p class="sottotitolo sale">Lasciaci il numero e ti scriviamo noi per fissare l'appuntamento. Se preferisci fare da sola, la prenotazione online è aperta a qualsiasi ora.</p>
 </section>
 
 <section class="sezione contatti-griglia">
-	<div class="contatti-modulo rivela">
+	<div class="contatti-modulo sale">
 		<?php echo rb_modulo_contatti(); // phpcs:ignore ?>
 	</div>
 	<aside class="contatti-lato">
-		<div class="lato-blocco rivela">
+		<div class="lato-blocco sale">
 			<h2 class="fondo-titolo">Dove siamo</h2>
 			<p><?php echo esc_html( $centro['indirizzo'] ?? 'Maddaloni (CE)' ); ?></p>
 			<p><a class="collega" href="<?php echo esc_url( $mappa ); ?>" rel="noopener">Apri in Google Maps →</a></p>
 		</div>
-		<div class="lato-blocco rivela">
+		<div class="lato-blocco sale">
 			<h2 class="fondo-titolo">Orari</h2>
 			<?php $righe = rb_orari_righe(); ?>
 			<?php if ( $righe ) : ?>
@@ -37,7 +37,7 @@ $mappa    = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( '
 				</dl>
 			<?php endif; ?>
 		</div>
-		<div class="lato-blocco rivela">
+		<div class="lato-blocco sale">
 			<h2 class="fondo-titolo">Subito</h2>
 			<?php if ( $whatsapp ) : ?><p><a class="collega" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">WhatsApp →</a></p><?php endif; ?>
 			<?php if ( $telefono ) : ?><p><a class="collega" href="tel:<?php echo esc_attr( $telefono ); ?>"><?php echo esc_html( $centro['telefono'] ); ?></a></p><?php endif; ?>

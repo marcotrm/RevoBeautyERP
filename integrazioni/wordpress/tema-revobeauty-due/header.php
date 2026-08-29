@@ -43,8 +43,11 @@
 		</nav>
 		<div class="testata-azioni">
 			<a class="bottone bottone-oro bottone-piccolo" href="<?php echo esc_url( rb_prenota_url() ); ?>">Prenota online</a>
-			<button class="apri-menu" aria-expanded="false" aria-controls="menu-mobile" aria-label="Apri il menu">
-				<svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+			<?php /* L'icona da sola non basta: senza la parola scritta, quante persone
+				trovano la navigazione si dimezza. Costa tre lettere. */ ?>
+			<button class="apri-menu" aria-expanded="false" aria-controls="menu-mobile">
+				<svg width="20" height="20" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+				<span>Menu</span>
 			</button>
 		</div>
 	</div>

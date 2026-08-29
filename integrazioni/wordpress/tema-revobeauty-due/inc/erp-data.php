@@ -120,8 +120,15 @@ function rb_telefono() {
 	return $pulito ?: '';
 }
 
-/** Link WhatsApp del centro (wa.me), o '' se il telefono non c'è. */
-function rb_whatsapp_url() {
+/**
+ * Link WhatsApp del centro, con il messaggio già scritto.
+ *
+ * Il modulo più corto è quello che non c'è: qui la persona tocca e si ritrova
+ * la chat aperta con la frase pronta, zero campi da compilare. Dove si sa di
+ * cosa sta leggendo — una categoria, un trattamento — glielo si mette dentro,
+ * così al centro arriva già la domanda giusta invece di un «salve».
+ */
+function rb_whatsapp_url( $motivo = '' ) {
 	$tel = rb_telefono();
 	if ( ! $tel ) {
 		return '';
@@ -130,7 +137,13 @@ function rb_whatsapp_url() {
 	if ( ! str_starts_with( $numero, '39' ) ) {
 		$numero = '39' . $numero;
 	}
-	return 'https://wa.me/' . $numero;
+	$url = 'https://wa.me/' . $numero;
+
+	$testo = $motivo
+		? sprintf( 'Ciao! Vorrei informazioni su %s.', $motivo )
+		: 'Ciao! Vorrei informazioni sui vostri trattamenti.';
+
+	return $url . '?text=' . rawurlencode( $testo );
 }
 
 /** L'URL della prenotazione online sul gestionale. */
@@ -165,6 +178,25 @@ function rb_ordina_categorie( $slugs ) {
 		return ( $peso[ $a ] ?? 99 ) <=> ( $peso[ $b ] ?? 99 );
 	} );
 	return $slugs;
+}
+
+/**
+ * Toglie dal nome del trattamento la categoria che lo sovrasta già.
+ *
+ * A listino le voci si chiamano «Epilazione Laser Ascelle», «Epilazione Laser
+ * Inguine»: giusto nel gestionale, dove la riga viaggia da sola. Sotto un
+ * titolo che dice già «Epilazione laser» quelle due parole si ripetono
+ * quarantatré volte, allungano ogni riga e su un telefono la mandano a capo.
+ * Il nome intero resta per la ricerca: chi scrive «epilazione» trova.
+ */
+function rb_nome_corto( $nome, $categoria ) {
+	$prefisso = rb_nome_categoria( $categoria );
+	if ( $prefisso && stripos( $nome, $prefisso . ' ' ) === 0 ) {
+		$corto = trim( substr( $nome, strlen( $prefisso ) ) );
+		// Se resta un moncone di una lettera meglio tenere il nome intero.
+		return mb_strlen( $corto ) > 2 ? $corto : $nome;
+	}
+	return $nome;
 }
 
 /** Prezzo in €: 20 → "20 €", 49.9 → "49,90 €". */
