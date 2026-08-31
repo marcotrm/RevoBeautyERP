@@ -391,6 +391,11 @@
    Texture come sfondo in parallasse, velo bordeaux sopra, parole davanti:
    la materia serve il contenuto. */
 .fascia-seta-sfondo { position: relative; overflow: clip; }
+/* La regola dei figli della fascia (larghezza massima e centratura) vale
+   per il CONTENUTO, non per lo sfondo: senza questa esclusione la seta
+   restava un rettangolo da 1440px centrato dentro una fascia più larga —
+   il banner a metà segnalato dall'utente. */
+.fascia-bordeaux > .fascia-seta { max-width: none; margin: 0; }
 .fascia-seta { position: absolute; inset: 0; z-index: 0; }
 /* Il <picture> è inline di suo: senza queste righe l'immagine restava alla
    larghezza naturale e la fascia mostrava il bordo — il bug segnalato
