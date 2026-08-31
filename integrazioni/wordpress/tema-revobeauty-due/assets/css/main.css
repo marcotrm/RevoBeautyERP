@@ -302,10 +302,22 @@
   }
 }
 
-/* ── La foto della specializzazione ───────────────────────────────────
-   Non a tutta larghezza: il sorgente è largo 1024px e stirarlo a 1900
-   lo sgrana. Alla sua larghezza vera, centrata, resta una fotografia. */
-.foto-categoria { overflow: clip; width: min(1024px, calc(100% - var(--lato) * 2)); margin-inline: auto; }
+/* ── La scena divisa: testo e fotografia nella stessa apertura ────────
+   La foto della specializzazione non è una fascia per conto suo: sta
+   dentro la scena nera, accanto al testo, come nelle righe editoriali
+   della home. Sul telefono si impila sotto il testo; su schermo largo
+   sono due colonne. A colonna (~40vw) il sorgente da 1024px non viene
+   mai stirato: niente grana. */
+.scena-divisa { display: grid; gap: 30px; }
+.scena-foto { margin: 0; aspect-ratio: 16 / 10; }
+.scena-foto picture { display: block; width: 100%; height: 100%; }
+.scena-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (min-width: 900px) {
+  .scena-divisa {
+    grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+    gap: clamp(36px, 5vw, 80px); align-items: center;
+  }
+}
 /* ── Gli effetti legati allo scorrimento ──────────────────────────────
    Tutto qui dentro è scrubbato: avanza e torna indietro col dito, che è
    ciò che rende un effetto visibile invece che sospettato. Cornice che si
@@ -437,7 +449,7 @@
 @media (max-width: 700px) { .passi-fila { grid-template-columns: 1fr; } }
 
 /* ── Fascia bordeaux ──────────────────────────────────────────────────── */
-.fascia-bordeaux { background: var(--bordeaux); color: var(--crema); padding: 60px var(--lato); margin-top: 56px; }
+.fascia-bordeaux { background: var(--bordeaux); color: var(--crema); padding: clamp(44px, 5vw, 60px) var(--lato); margin-top: clamp(28px, 4vw, 56px); }
 .fascia-bordeaux > * { max-width: var(--largo); margin-left: auto; margin-right: auto; }
 .occhiello-chiaro { color: var(--oro-chiaro); }
 .citazione { margin: 0; }
@@ -513,7 +525,9 @@
 .testata-pagina {
   max-width: none; margin: 0;
   background: var(--nero); color: var(--crema);
-  padding: clamp(72px, 11vh, 136px) max(var(--lato), calc((100% - var(--largo)) / 2)) clamp(44px, 6.5vh, 76px);
+  /* Il respiro verticale cresce con lo schermo: sul telefone la scena
+     non deve mangiarsi mezza schermata prima di dire qualcosa. */
+  padding: clamp(40px, 8vh, 128px) max(var(--lato), calc((100% - var(--largo)) / 2)) clamp(36px, 6vh, 72px);
 }
 .testata-pagina .occhiello { color: var(--oro-chiaro); }
 .testata-pagina .titolone { font-size: clamp(30px, 5vw, 64px); max-width: 1080px; letter-spacing: .04em; }
@@ -533,7 +547,7 @@
   border: 1px solid var(--crema-scura); padding: 0 18px; color: var(--grigio);
 }
 .ancore a:hover { border-color: var(--oro); color: var(--oro-scuro); }
-.blocco-listino { padding-top: 56px; scroll-margin-top: 24px; }
+.blocco-listino { padding-top: clamp(36px, 4.5vw, 56px); scroll-margin-top: 24px; }
 .titolo-categoria { font-weight: 600; font-size: 17px; text-transform: uppercase; letter-spacing: .16em; margin: 0 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--crema-scura); }
 .listino { list-style: none; margin: 0; padding: 0; }
 /* ── Il listino che si muove ──────────────────────────────────────────
@@ -543,7 +557,9 @@
    leggibile, non un acquerello. */
 .categoria-testa { margin: 0 0 14px; }
 .categoria-indice {
-  display: block; font-weight: 300; font-size: clamp(54px, 6.5vw, 104px);
+  /* Sul telefono il numero gigante mangiava mezza schermata prima dei
+     prezzi: cresce solo dove c'è la colonna ferma che lo giustifica. */
+  display: block; font-weight: 300; font-size: clamp(34px, 6.5vw, 104px);
   line-height: .95; color: #8a7639; font-variant-numeric: tabular-nums;
 }
 .categoria-testa .titolo-categoria { border-bottom: 0; padding-bottom: 0; margin: 10px 0 6px; }

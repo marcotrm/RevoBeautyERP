@@ -18,31 +18,36 @@ $whatsapp = rb_whatsapp_url( $nome );
 get_header();
 ?>
 
-<section class="sezione testata-pagina testata-categoria">
-	<p class="occhiello sale">Trattamenti · <?php echo count( $voci ); ?> voci<?php if ( null !== $da ) : ?> · da <?php echo esc_html( rb_prezzo( $da ) ); ?><?php endif; ?></p>
-	<h1 class="titolone titolone-categoria sale"><?php echo esc_html( $nome ); ?></h1>
-	<p class="sottotitolo sale"><?php echo esc_html( rb_categoria_intro( $slug ) ); ?></p>
-	<div class="categoria-azioni sale">
-		<?php if ( $whatsapp ) : ?>
-			<a class="bottone bottone-oro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">Chiedi di <?php echo esc_html( mb_strtolower( $nome ) ); ?></a>
-		<?php endif; ?>
-		<a class="collega" href="<?php echo esc_url( home_url( '/servizi/' ) ); ?>">Tutti i trattamenti →</a>
-	</div>
-</section>
-
 <?php
 /* La foto della specializzazione, se c'è: assets/img/categoria-<slug>.webp.
-   Il meccanismo è per nome di file: quando arriverà una foto nuova basta
-   metterla lì, senza toccare una riga. */
+   Non è una fascia decorativa per conto suo — sta DENTRO la scena
+   d'apertura, accanto al testo: mostra il trattamento di cui la pagina
+   parla. Il meccanismo resta per nome di file: quando arriverà una foto
+   nuova basta metterla lì, senza toccare una riga. */
 $foto_cat = 'categoria-' . $slug;
-if ( is_readable( RB_DUE_DIR . '/assets/img/' . $foto_cat . '.webp' ) ) : ?>
-<section class="foto-categoria quadro quadro-16x9">
-	<picture>
-		<source type="image/avif" sizes="(min-width: 1064px) 1024px, calc(100vw - 40px)" srcset="<?php echo esc_attr( RB_DUE_URI . '/assets/img/' . $foto_cat ); ?>-800.avif 800w, <?php echo esc_attr( RB_DUE_URI . '/assets/img/' . $foto_cat ); ?>.avif 1024w" />
-		<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/' . $foto_cat . '.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI . '/assets/img/' . $foto_cat ); ?>-800.webp 800w, <?php echo esc_attr( RB_DUE_URI . '/assets/img/' . $foto_cat ); ?>.webp 1024w" sizes="(min-width: 1064px) 1024px, calc(100vw - 40px)" alt="" width="1024" height="572" loading="lazy" decoding="async" />
-	</picture>
+$ha_foto  = is_readable( RB_DUE_DIR . '/assets/img/' . $foto_cat . '.webp' );
+?>
+<section class="sezione testata-pagina testata-categoria<?php echo $ha_foto ? ' scena-divisa' : ''; ?>">
+	<div class="scena-testo">
+		<p class="occhiello sale">Trattamenti · <?php echo count( $voci ); ?> voci<?php if ( null !== $da ) : ?> · da <?php echo esc_html( rb_prezzo( $da ) ); ?><?php endif; ?></p>
+		<h1 class="titolone titolone-categoria sale"><?php echo esc_html( $nome ); ?></h1>
+		<p class="sottotitolo sale"><?php echo esc_html( rb_categoria_intro( $slug ) ); ?></p>
+		<div class="categoria-azioni sale">
+			<?php if ( $whatsapp ) : ?>
+				<a class="bottone bottone-oro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">Chiedi di <?php echo esc_html( mb_strtolower( $nome ) ); ?></a>
+			<?php endif; ?>
+			<a class="collega" href="<?php echo esc_url( home_url( '/servizi/' ) ); ?>">Tutti i trattamenti →</a>
+		</div>
+	</div>
+	<?php if ( $ha_foto ) : ?>
+	<figure class="scena-foto quadro sale">
+		<picture>
+			<source type="image/avif" sizes="(min-width: 900px) 40vw, calc(100vw - 40px)" srcset="<?php echo esc_attr( RB_DUE_URI . '/assets/img/' . $foto_cat ); ?>-800.avif 800w, <?php echo esc_attr( RB_DUE_URI . '/assets/img/' . $foto_cat ); ?>.avif 1024w" />
+			<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/' . $foto_cat . '.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI . '/assets/img/' . $foto_cat ); ?>-800.webp 800w, <?php echo esc_attr( RB_DUE_URI . '/assets/img/' . $foto_cat ); ?>.webp 1024w" sizes="(min-width: 900px) 40vw, calc(100vw - 40px)" alt="<?php echo esc_attr( $nome ); ?> da RevoBeauty" width="1024" height="572" loading="eager" decoding="async" />
+		</picture>
+	</figure>
+	<?php endif; ?>
 </section>
-<?php endif; ?>
 
 <?php if ( $voci ) : ?>
 <section class="sezione blocco-listino">
