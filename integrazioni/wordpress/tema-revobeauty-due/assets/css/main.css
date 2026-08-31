@@ -289,8 +289,8 @@
 .riga-titolo { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; flex-wrap: wrap; }
 .nota-listino { font-size: 12px; color: var(--grigio); letter-spacing: .06em; margin: 0; }
 .scorri {
-  display: flex; gap: 16px; overflow-x: auto; padding: 18px 24px 22px;
-  margin: 0 -24px; scroll-snap-type: x mandatory; scrollbar-width: none;
+  display: flex; gap: 16px; overflow-x: auto; padding: 18px var(--lato) 22px;
+  margin: 0 calc(-1 * var(--lato)); scroll-snap-type: x mandatory; scrollbar-width: none;
 }
 .scorri::-webkit-scrollbar { display: none; }
 .scorri > * { scroll-snap-align: start; }
@@ -308,11 +308,11 @@
 .scorri-indice { position: absolute; left: 0; top: 0; bottom: 0; width: 18%; background: var(--oro); transition: transform .2s linear; }
 
 /* ── Fascia bordeaux ──────────────────────────────────────────────────── */
-.fascia-bordeaux { background: var(--bordeaux); color: var(--crema); padding: 64px 24px; margin-top: 72px; }
+.fascia-bordeaux { background: var(--bordeaux); color: var(--crema); padding: 60px var(--lato); margin-top: 56px; }
 .fascia-bordeaux > * { max-width: var(--largo); margin-left: auto; margin-right: auto; }
 .occhiello-chiaro { color: var(--oro-chiaro); }
 .citazione { margin: 0; }
-.citazione p { font-family: var(--serif); font-style: italic; font-size: clamp(20px, 3vw, 26px); line-height: 1.45; max-width: 640px; margin: 0 0 14px; }
+.citazione p { font-weight: 300; font-size: clamp(19px, 2.6vw, 25px); line-height: 1.55; max-width: 640px; margin: 0 0 14px; }
 .citazione cite { font-style: normal; font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--oro-chiaro); }
 
 /* ── Squadra ──────────────────────────────────────────────────────────── */
@@ -367,7 +367,7 @@
 .metodo-testo { font-size: 14px; color: rgba(245,240,232,.75); }
 @media (max-width: 700px) { .metodo { grid-template-columns: 1fr; } }
 
-.foto-chi-siamo { padding-top: 12px; }
+.foto-chi-siamo { padding: 12px 0 0; max-width: none; }
 .foto-chi-siamo img { width: 100%; }
 .foto-attesa {
   aspect-ratio: 16/9; background: linear-gradient(160deg, var(--crema-scura), var(--oro-chiaro));
@@ -388,8 +388,45 @@
 }
 .ancore a:hover { border-color: var(--oro); color: var(--oro-scuro); }
 .blocco-listino { padding-top: 56px; scroll-margin-top: 24px; }
-.titolo-categoria { font-family: var(--serif); font-weight: 500; font-size: 28px; margin: 0 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--crema-scura); }
+.titolo-categoria { font-weight: 600; font-size: 17px; text-transform: uppercase; letter-spacing: .16em; margin: 0 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--crema-scura); }
 .listino { list-style: none; margin: 0; padding: 0; }
+/* ── Il listino che si muove ──────────────────────────────────────────
+   Su schermo largo la testa di categoria è una colonna incollata: numero
+   d'ordine grande, nome, conteggio — resta lì mentre le voci le scorrono
+   accanto. L'oro del numero è lo stesso 4,2:1 del nastro: grande ma
+   leggibile, non un acquerello. */
+.categoria-testa { margin: 0 0 14px; }
+.categoria-indice {
+  display: block; font-weight: 300; font-size: clamp(54px, 6.5vw, 104px);
+  line-height: .95; color: #8a7639; font-variant-numeric: tabular-nums;
+}
+.categoria-testa .titolo-categoria { border-bottom: 0; padding-bottom: 0; margin: 10px 0 6px; }
+.categoria-conto { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--grigio); }
+@media (min-width: 900px) {
+  .blocco-listino {
+    display: grid; grid-template-columns: minmax(200px, 320px) 1fr;
+    gap: clamp(28px, 4vw, 80px); align-items: start;
+  }
+  .categoria-testa { position: sticky; top: 92px; margin: 0; }
+  .blocco-listino .listino { margin-top: 6px; }
+}
+
+/* Il passaggio del mouse riempie la riga d'oro da sinistra e la fa
+   scivolare di un soffio: è la riga di lindas, coi nostri colori.
+   Solo dove un puntatore esiste davvero. */
+@media (hover: hover) and (pointer: fine) {
+  .voce { position: relative; }
+  .voce::after {
+    content: ''; position: absolute; inset: 0 -10px;
+    background: linear-gradient(90deg, rgba(181, 155, 83, .16), rgba(181, 155, 83, 0) 65%);
+    transform: scaleX(0); transform-origin: 0 50%;
+    transition: transform 380ms var(--uscita); pointer-events: none;
+  }
+  .voce:hover::after { transform: scaleX(1); }
+  .voce-riga { transition: transform 380ms var(--uscita); }
+  .voce:hover .voce-riga { transform: translateX(8px); }
+}
+
 .voce { padding: 11px 0; border-bottom: 1px solid rgba(232,226,214,.6); }
 .voce-riga { display: flex; align-items: baseline; gap: 10px; }
 .voce-nome { font-size: 15.5px; font-weight: 400; }
@@ -459,12 +496,15 @@ address { font-style: normal; }
    Fascia d'invito, firma a piena larghezza, quattro colonne, riga legale.
    Le misure delle fasce vengono dal footer di lindas: fili di bianco al
    16%, titoli di colonna al 42%, testi all'85% in peso leggero. */
-.fondo { background: var(--nero); color: var(--crema); margin-top: 88px; }
+/* Attaccato a ciò che lo precede: quel margine crema fra la fascia bordeaux
+   e il nero del footer era il «buco» di chi-siamo. Il respiro il footer ce
+   l'ha già dentro, nel padding dell'invito. */
+.fondo { background: var(--nero); color: var(--crema); margin-top: 0; }
 
 .fondo-invito { padding: 88px 24px 40px; text-align: center; }
 .fondo-invito-titolo {
-  font-family: var(--serif); font-style: italic; font-weight: 400;
-  font-size: clamp(26px, 4vw, 38px); line-height: 1.25;
+  font-weight: 300;
+  font-size: clamp(22px, 3.2vw, 34px); line-height: 1.35;
   max-width: 660px; margin: 0 auto 28px;
 }
 .fondo-invito-azioni { display: flex; flex-direction: column; align-items: center; gap: 16px; }
@@ -473,12 +513,12 @@ address { font-style: normal; }
    caratteri, non in immagine: nitida a ogni misura e pesa zero. */
 .fondo-firma {
   padding: 24px 24px 0; text-align: center;
-  font-family: var(--serif); font-size: clamp(44px, 12.5vw, 190px);
-  line-height: .95; letter-spacing: .02em; white-space: nowrap;
+  font-size: clamp(30px, 8.6vw, 150px);
+  line-height: 1; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap;
   user-select: none;
 }
-.firma-revo { color: var(--crema); font-weight: 500; }
-.firma-beauty { color: var(--oro); font-style: italic; font-weight: 400; }
+.firma-revo { color: var(--crema); font-weight: 600; }
+.firma-beauty { color: var(--oro); font-weight: 300; }
 
 .fondo-dentro {
   max-width: var(--largo); margin: clamp(40px, 6vw, 88px) auto 0;

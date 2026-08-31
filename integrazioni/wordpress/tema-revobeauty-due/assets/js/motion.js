@@ -180,15 +180,18 @@
 	if (window.CSS && CSS.supports && CSS.supports('animation-timeline: view()')) return;
 	if (!('IntersectionObserver' in window)) return;
 
-	/* Le carte dentro una fila orizzontale non entrano mai nel campo visivo
-	   finché non le si scorre di lato: osservate una per una resterebbero
-	   invisibili per sempre a chi non trascina la fila. Si osserva la fila
-	   intera e si accende quello che tiene dentro. */
+	/* Due specie di contenitori si osservano interi, non pezzo per pezzo.
+	   Le file orizzontali, perché le carte fuori campo di lato non
+	   intersecherebbero mai e resterebbero invisibili per sempre. E i
+	   blocchi del listino, perché sono cento voci l'uno: cento osservatori
+	   per una pagina sola sono lavoro buttato — si accende il blocco, e il
+	   blocco accende le sue voci. */
+	var CONTENITORI = '.scorri, .blocco-listino';
 	var pezzi = [].filter.call(
 		document.querySelectorAll('.sale, .sipario, .righe .riga'),
-		function (e) { return !e.closest('.scorri'); }
+		function (e) { return !e.closest(CONTENITORI); }
 	);
-	pezzi = pezzi.concat([].slice.call(document.querySelectorAll('.scorri')));
+	pezzi = pezzi.concat([].slice.call(document.querySelectorAll(CONTENITORI)));
 	if (!pezzi.length) return;
 
 	document.documentElement.classList.add('rb-ripiego');
@@ -198,7 +201,7 @@
 	   Un testo invisibile è un guasto, un'animazione mancata è un dettaglio. */
 	var salvagente = setTimeout(function () {
 		for (var i = 0; i < pezzi.length; i++) pezzi[i].classList.add('rb-dentro');
-		var fila = document.querySelectorAll('.scorri .sale');
+		var fila = document.querySelectorAll('.scorri .sale, .blocco-listino .sale');
 		for (var j = 0; j < fila.length; j++) fila[j].classList.add('rb-dentro');
 	}, 3000);
 

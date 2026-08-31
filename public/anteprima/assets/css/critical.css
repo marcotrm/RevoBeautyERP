@@ -1,28 +1,33 @@
 /* ── Token e font: la parte che serve prima del primo dipinto ─────────── */
+/*
+ * Un solo font per tutto il sito: il sans geometrico del marchio.
+ *
+ * Sull'insegna e sul logo REVOBEAUTY è scritto così — REVO pieno, BEAUTY
+ * sottile, maiuscolo spaziato. Il serif che c'era prima era una scelta mia,
+ * non del brand: bello nei titoli enormi, illeggibile nei corsivi piccoli,
+ * e soprattutto un font che il centro non usa da nessun'altra parte.
+ * Montserrat è il geometrico aperto più vicino al lettering originale.
+ * Variabile 300–700: un file solo, meno byte dei due font di prima.
+ */
 @font-face {
-  font-family: 'Bodoni Moda';
-  src: url('__RB_FONTS__/bodoni-moda-normal-400-700-latin.woff2') format('woff2');
-  font-weight: 400 700; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: 'Bodoni Moda';
-  src: url('__RB_FONTS__/bodoni-moda-italic-400-700-latin.woff2') format('woff2');
-  font-weight: 400 700; font-style: italic; font-display: swap;
-}
-@font-face {
-  font-family: 'Archivo';
-  src: url('__RB_FONTS__/archivo-normal-300-600-latin.woff2') format('woff2');
-  font-weight: 300 600; font-style: normal; font-display: swap;
+  font-family: 'Montserrat';
+  src: url('__RB_FONTS__/montserrat-variabile-300-700-latin.woff2') format('woff2');
+  font-weight: 300 700; font-style: normal; font-display: swap;
 }
 
 :root {
-  --oro: #b59b53; --oro-chiaro: #d4c08a; --oro-scuro: #7d6b33;
+  --oro: #b59b53; --oro-chiaro: #d4c08a; --oro-scuro: #746030;
   --nero: #0a0a0a; --inchiostro: #1a1a1a; --grigio: #6b6b6b;
   --crema: #f5f0e8; --crema-scura: #e8e2d6; --avorio: #faf8f4;
   --bordeaux: #5e0f26;
-  --serif: 'Bodoni Moda', 'Didot', 'Bodoni MT', 'Georgia', serif;
-  --sans: 'Archivo', 'Helvetica Neue', 'Arial', sans-serif;
-  --largo: 1120px;
+  --sans: 'Montserrat', 'Helvetica Neue', 'Arial', sans-serif;
+  /* --serif resta come alias: tutto ciò che era serif ora è il sans del brand,
+     in pesi e spaziature diverse — così nessuna vecchia regola si rompe. */
+  --serif: var(--sans);
+  --largo: 1440px;
+  /* Il respiro laterale di tutto il sito: fluido, mai la scatola centrata
+     con due sponde di bianco che faceva dire «container» all'utente. */
+  --lato: clamp(20px, 4.5vw, 64px);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -40,32 +45,56 @@ a:hover { color: var(--bordeaux); }
 .salta:focus { left: 16px; top: 12px; background: var(--nero); color: var(--crema); padding: 10px 16px; z-index: 99; }
 
 /* ── Bottoni ──────────────────────────────────────────────────────────── */
+/* Il tasto: rettangolo puro con il riempimento che sale dal basso.
+   È la ricetta del bottone di lindas, senza il suo markup: il velo che
+   sale è un gradiente il cui `background-size` cresce da 0 al 100% in
+   altezza — così il testo resta sopra senza dover avvolgere niente in
+   uno span. Il colore del testo cambia un filo prima che il velo arrivi,
+   come nell'originale (testo .4s, velo .5s). */
 .bottone {
   display: inline-flex; align-items: center; justify-content: center;
   padding: 15px 30px; min-height: 48px; font-family: var(--sans); font-size: 13px;
   font-weight: 500; letter-spacing: .16em; text-transform: uppercase;
-  border: 1px solid transparent; cursor: pointer; transition: background .25s, color .25s, border-color .25s;
+  border: 1px solid transparent; cursor: pointer;
+  background-image: linear-gradient(var(--velo, transparent), var(--velo, transparent));
+  background-repeat: no-repeat; background-position: 0 100%; background-size: 100% 0%;
+  transition: background-size .5s cubic-bezier(.22, 1, .36, 1), color .4s cubic-bezier(.22, 1, .36, 1), border-color .4s;
 }
-.bottone-oro { background: var(--oro); color: var(--nero); }
-.bottone-oro:hover { background: var(--oro-chiaro); color: var(--nero); }
-.bottone-scuro { border-color: #3a3a3a; color: var(--crema); background: transparent; }
-.bottone-scuro:hover { border-color: var(--oro); color: var(--oro-chiaro); }
-.bottone-lineare { border-color: var(--crema-scura); color: var(--inchiostro); background: transparent; }
-.bottone-lineare:hover { border-color: var(--oro); color: var(--oro-scuro); }
-.bottone-lineare-chiaro { border-color: rgba(245,240,232,.35); color: var(--crema); background: transparent; }
-.bottone-lineare-chiaro:hover { border-color: var(--oro); color: var(--oro-chiaro); }
+.bottone:hover { background-size: 100% 101%; }
+.bottone-oro { background-color: var(--oro); color: var(--nero); --velo: var(--nero); }
+.bottone-oro:hover { color: var(--oro-chiaro); }
+.bottone-scuro { border-color: #3a3a3a; color: var(--crema); background-color: transparent; --velo: var(--oro); }
+.bottone-scuro:hover { border-color: var(--oro); color: var(--nero); }
+.bottone-lineare { border-color: var(--crema-scura); color: var(--inchiostro); background-color: transparent; --velo: var(--nero); }
+.bottone-lineare:hover { border-color: var(--nero); color: var(--crema); }
+.bottone-lineare-chiaro { border-color: rgba(245,240,232,.35); color: var(--crema); background-color: transparent; --velo: var(--oro); }
+.bottone-lineare-chiaro:hover { border-color: var(--oro); color: var(--nero); }
 .bottone-piccolo { padding: 10px 20px; min-height: 40px; font-size: 12px; }
 
 /* ── Testata ──────────────────────────────────────────────────────────── */
 .testata { background: var(--avorio); border-bottom: 1px solid var(--crema-scura); position: relative; z-index: 20; }
 .testata-scura { background: var(--nero); border-bottom-color: #1e1e1e; }
+/* In home la testata galleggia sull'eroe: fissa, trasparente, e il marchio
+   non si disegna — al suo posto arriva, scorrendo, il logotipo grande
+   (vedi .logotipo-volo in main.css). Quando l'eroe finisce, la classe
+   testata-agganciata (messa da motion.js) le ridà corpo e bordo. */
+.testata-cinema {
+  position: fixed; top: 0; left: 0; right: 0;
+  background: transparent; border-bottom-color: transparent;
+  transition: background-color .4s linear, border-color .4s linear;
+}
+.testata-cinema.testata-agganciata { background: var(--nero); border-bottom-color: #1e1e1e; }
+.con-volo .testata-cinema .marchio { visibility: hidden; }
 .testata-dentro {
-  max-width: var(--largo); margin: 0 auto; padding: 16px 24px;
+  max-width: none; margin: 0; padding: 16px var(--lato);
   display: flex; align-items: center; justify-content: space-between; gap: 24px;
 }
-.marchio { font-family: var(--serif); font-size: 21px; letter-spacing: .18em; color: var(--inchiostro); }
+.marchio { font-size: 17px; letter-spacing: .2em; text-transform: uppercase; color: var(--inchiostro); }
 .marchio-revo { font-weight: 600; }
-.marchio-beauty { font-weight: 400; color: var(--oro); }
+/* Sull'avorio l'oro pieno sta a 2,5:1: per il testo del marchio si usa
+   l'oro scuro; sulle testate scure resta l'oro vero. */
+.marchio-beauty { font-weight: 300; color: var(--oro-scuro); }
+.testata-scura .marchio-beauty { color: var(--oro); }
 .testata-scura .marchio { color: var(--crema); }
 .nav .menu { display: flex; gap: 26px; list-style: none; margin: 0; padding: 0; }
 .nav .menu a {
@@ -95,14 +124,13 @@ a:hover { color: var(--bordeaux); }
 .eroe-striscia:nth-child(even) { margin-top: 40px; }
 .eroe-logotipo { position: relative; margin: 0; text-align: center; line-height: .95; }
 .eroe-revo {
-  display: block; font-family: var(--serif); font-weight: 500;
-  font-size: clamp(64px, 13vw, 150px); letter-spacing: .06em; color: var(--crema);
+  display: inline; font-weight: 600;
+  font-size: clamp(34px, 8vw, 96px); letter-spacing: .12em; text-transform: uppercase; color: var(--crema);
   mix-blend-mode: difference;
 }
 .eroe-beauty {
-  display: block; font-family: var(--serif); font-style: italic; font-weight: 400;
-  font-size: clamp(64px, 13vw, 150px); letter-spacing: .06em; color: var(--oro);
-  margin-top: -.18em;
+  display: inline; font-weight: 300;
+  font-size: clamp(34px, 8vw, 96px); letter-spacing: .12em; text-transform: uppercase; color: var(--oro);
 }
 .eroe-riga {
   position: relative; margin: 26px 0 0; font-size: 12px; letter-spacing: .38em;
@@ -110,15 +138,114 @@ a:hover { color: var(--bordeaux); }
 }
 .eroe-azioni { position: relative; display: flex; gap: 14px; margin-top: 30px; flex-wrap: wrap; justify-content: center; }
 
+/* ── Eroe cinematografico ─────────────────────────────────────────────
+   Fotogrammi sovrapposti in dissolvenza (il ciclo è in main.css), velo in
+   gradiente sopra e sotto come nel riferimento, piede con la riga-firma,
+   il tasto e lo «Scorri». */
+.eroe-cinema { min-height: 100svh; display: grid; grid-template-rows: 1fr auto; padding: 0; }
+.eroe-media { position: absolute; inset: 0; }
+.eroe-fotogramma { position: absolute; inset: 0; opacity: 0; }
+.eroe-fotogramma.fotogramma-1 { opacity: 1; }
+.eroe-cinema .eroe-velo {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,.38) 0%, rgba(0,0,0,0) 32%, rgba(0,0,0,0) 56%, rgba(0,0,0,.52) 100%);
+}
+.eroe-piede {
+  position: relative; grid-row: 2; z-index: 2;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+  padding: 0 24px calc(28px + env(safe-area-inset-bottom));
+}
+.eroe-firma-riga {
+  font-weight: 300; font-size: clamp(18px, 2.2vw, 24px); letter-spacing: .02em;
+  line-height: 1.4; margin: 0; max-width: 420px; color: var(--crema);
+}
+.eroe-firma-riga em { font-style: normal; font-weight: 600; color: var(--oro-chiaro); }
+.eroe-scorri {
+  display: inline-flex; align-items: center; gap: 12px;
+  font-size: 11px; letter-spacing: .3em; text-transform: uppercase; color: rgba(245,240,232,.75);
+}
+.eroe-scorri i { display: block; width: 46px; height: 1px; background: currentColor; transform-origin: left; }
+@media (max-width: 760px) {
+  .eroe-piede { align-items: flex-start; flex-direction: column; gap: 18px; }
+  .eroe-scorri { order: 3; }
+}
+
+/* Il logotipo che vola: prima del volo è solo il titolo dell'eroe.
+   Fisso, centrato, in differenza: si inverte da solo su ogni fotogramma.
+   Il volo vero (trasformazione su timeline di scorrimento) sta in
+   main.css dietro @supports; qui c'è solo l'aspetto. */
+.logotipo-volo {
+  position: absolute; inset: 0; z-index: 21;
+  display: grid; place-content: center;
+  /* Alzato dal centro: sotto vive il piede (riga-firma, tasto, scorri) e
+     al centro esatto i due si pesterebbero i piedi sul telefono. */
+  padding-bottom: clamp(90px, 16svh, 200px);
+  pointer-events: none;
+  mix-blend-mode: difference; color: #fff;
+}
+.con-volo .logotipo-volo { position: fixed; }
+.volo-parola {
+  /* Piccolo di proposito: la prima versione era un monumento da 180px che
+     copriva la foto — «ingombrante», parola dell'utente. La firma
+     dell'insegna vera è discreta: maiuscolo spaziato, REVO pieno,
+     BEAUTY sottile. */
+  font-size: clamp(22px, 4.6vw, 54px);
+  line-height: 1; letter-spacing: .14em; text-transform: uppercase;
+  white-space: nowrap; max-width: 96vw;
+}
+.volo-revo { font-weight: 600; }
+.volo-beauty { font-weight: 300; }
+.logotipo-volo.volo-agganciato { mix-blend-mode: normal; }
+.logotipo-volo.volo-agganciato.tono-chiaro { color: var(--inchiostro); }
+.logotipo-volo.volo-agganciato.tono-scuro { color: var(--crema); }
+
+/* ── La schermata di entrata (solo prima visita, accesa dal JS) ───────
+   Spenta di fabbrica: senza JS l'attributo hidden resta e non esiste.
+   I due pannelli si sovrappongono dello 0,2% — al centro, senza quel
+   soffio, resterebbe una riga chiara di subpixel. */
+body[data-entrata] { overflow: hidden; }
+.entrata { position: fixed; inset: 0; z-index: 200; overflow: hidden; }
+.entrata-pannello { position: absolute; left: 0; right: 0; height: 50.2%; background: var(--nero); }
+.entrata-sopra { top: 0; }
+.entrata-sotto { bottom: 0; }
+.entrata-scena {
+  position: absolute; inset: 0; z-index: 2;
+  display: grid; place-content: center; justify-items: center; gap: 18px;
+  color: var(--crema); opacity: 0;
+}
+.entrata-logotipo { font-size: clamp(26px, 6vw, 64px); line-height: 1; letter-spacing: .16em; text-transform: uppercase; white-space: nowrap; }
+.entrata-riga { font-size: 11px; letter-spacing: .34em; text-transform: uppercase; color: #9a9a9a; }
+.entrata-barra { position: absolute; z-index: 2; left: 24px; right: 24px; bottom: 9vh; height: 1px; background: rgba(255,255,255,.18); }
+.entrata-barra span { display: block; height: 100%; width: 0%; background: var(--crema); }
+@media (prefers-reduced-motion: no-preference) {
+  .entrata-avviata .entrata-scena { animation: rb-entrata-scena 2.2s cubic-bezier(.22,1,.36,1) both; }
+  .entrata-avviata .entrata-barra span { animation: rb-entrata-barra 1.35s cubic-bezier(.45,0,.55,1) .25s both; }
+  .entrata-avviata .entrata-pannello,
+  .entrata-avviata .entrata-barra { animation-duration: .9s; animation-timing-function: cubic-bezier(.76,0,.24,1); animation-delay: 1.55s; animation-fill-mode: both; }
+  .entrata-avviata .entrata-sopra { animation-name: rb-sipario-su; }
+  .entrata-avviata .entrata-sotto { animation-name: rb-sipario-giu; }
+  .entrata-avviata .entrata-barra { animation-name: rb-entrata-via; }
+  @keyframes rb-entrata-scena {
+    0% { opacity: 0; transform: translateY(18px) scale(.96); }
+    26%, 62% { opacity: 1; transform: none; }
+    76%, 100% { opacity: 0; transform: scale(1.05); }
+  }
+  @keyframes rb-entrata-barra { from { width: 0%; } to { width: 100%; } }
+  @keyframes rb-sipario-su  { to { transform: translateY(-101%); } }
+  @keyframes rb-sipario-giu { to { transform: translateY(101%); } }
+  @keyframes rb-entrata-via { to { opacity: 0; } }
+}
+
 /* ── Impalcatura delle sezioni (sopra la piega può esserci l'intro) ───── */
-.sezione { max-width: var(--largo); margin: 0 auto; padding: 72px 24px 24px; }
+.sezione { max-width: var(--largo); margin: 0 auto; padding: clamp(52px, 6.5vw, 88px) var(--lato) 24px; }
 .occhiello {
   font-size: 11px; letter-spacing: .35em; text-transform: uppercase;
   color: var(--oro-scuro); margin: 0 0 18px;
 }
 .titolone {
-  font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 4.6vw, 46px);
-  line-height: 1.12; margin: 0 0 18px; max-width: 640px;
+  font-weight: 600; font-size: clamp(23px, 3.4vw, 38px);
+  text-transform: uppercase; letter-spacing: .05em;
+  line-height: 1.22; margin: 0 0 18px; max-width: 760px;
 }
 .sottotitolo { font-size: 16px; color: var(--grigio); max-width: 560px; margin: 0 0 8px; }
 
@@ -196,7 +323,7 @@ a:hover { color: var(--bordeaux); }
   font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 5.6vw, 62px);
   line-height: 1.08; margin: 0; max-width: 640px; color: var(--crema);
 }
-.eroe-titolo em { font-style: italic; color: var(--oro-chiaro); }
+.eroe-titolo em { font-style: normal; font-weight: 600; color: var(--oro-chiaro); }
 .eroe-foto .eroe-riga { margin: 0; text-align: left; color: #d9d3c6; }
 .eroe-foto .eroe-azioni { margin-top: 12px; justify-content: flex-start; }
 @media (max-width: 760px) { .eroe-foto { min-height: 78vh; } .eroe-contenuto { padding-bottom: 44px; } }
@@ -214,14 +341,12 @@ body[data-menu-aperto] .segno-chiudi, body[data-menu-aperto] .parola-chiudi { di
 .bottone { min-width: 220px; min-height: 52px; text-align: center; }
 .bottone-piccolo { min-width: 0; min-height: 42px; }
 
-.eroe-azioni, .chiusura-azioni {
+.eroe-azioni {
   display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 12px;
 }
-.chiusura-azioni { justify-content: center; }
-.chiusura-azioni .collega { grid-column: 1 / -1; justify-self: center; margin-top: 4px; }
 
 @media (max-width: 560px) {
-  .eroe-azioni, .chiusura-azioni { grid-template-columns: minmax(0, 1fr); max-width: 320px; }
+  .eroe-azioni { grid-template-columns: minmax(0, 1fr); max-width: 320px; }
   .eroe-azioni { max-width: 100%; }
   .bottone { min-width: 0; width: 100%; }
 }
