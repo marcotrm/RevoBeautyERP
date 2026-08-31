@@ -33,19 +33,19 @@ for ( $i = 1; $i <= 4; $i++ ) {
 			<picture class="eroe-sfondo">
 				<source type="image/avif" sizes="100vw" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-800.avif 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-1400.avif 1400w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-2000.avif 2000w" />
 				<source type="image/webp" sizes="100vw" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-800.webp 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-1400.webp 1400w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-2000.webp 2000w" />
-				<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/hero-full-1400.webp' ); ?>" alt="La vetrina illuminata di RevoBeauty in via Caudina a Maddaloni, al tramonto" width="2000" height="1494" fetchpriority="high" />
+				<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/hero-full-1400.webp' ); ?>" alt="L'ingresso illuminato di RevoBeauty in via Caudina a Maddaloni, all'imbrunire" width="2000" height="1107" fetchpriority="high" />
 			</picture>
 		</div>
 		<div class="eroe-fotogramma fotogramma-2" aria-hidden="true">
 			<picture class="eroe-sfondo">
 				<source type="image/avif" sizes="100vw" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-b-800.avif 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-b-1400.avif 1400w" />
-				<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/hero-b-1400.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-b-800.webp 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-b-1400.webp 1400w" sizes="100vw" alt="" width="1400" height="799" loading="lazy" decoding="async" />
+				<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/hero-b-1400.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-b-800.webp 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-b-1400.webp 1400w" sizes="100vw" alt="" width="1400" height="875" loading="lazy" decoding="async" />
 			</picture>
 		</div>
 		<div class="eroe-fotogramma fotogramma-3" aria-hidden="true">
 			<picture class="eroe-sfondo">
 				<source type="image/avif" sizes="100vw" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-c-800.avif 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-c-1400.avif 1400w" />
-				<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/hero-c-1400.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-c-800.webp 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-c-1400.webp 1400w" sizes="100vw" alt="" width="1400" height="799" loading="lazy" decoding="async" />
+				<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/hero-c-1400.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-c-800.webp 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-c-1400.webp 1400w" sizes="100vw" alt="" width="1400" height="877" loading="lazy" decoding="async" />
 			</picture>
 		</div>
 	</div>
@@ -150,7 +150,7 @@ $conta_categorie   = is_array( $listino ) && ! empty( $listino['categorie'] ) ? 
 	</div>
 	<div class="scorri" tabindex="0" aria-label="Le categorie di trattamenti, scorri in orizzontale">
 		<?php foreach ( $categorie as $slug => $info ) : ?>
-			<a class="carta sale" href="<?php echo esc_url( home_url( '/servizi/#' . $slug ) ); ?>">
+			<a class="carta sale" href="<?php echo esc_url( rb_categoria_url( $slug ) ); ?>">
 				<span class="carta-occhiello"><?php echo esc_html( $info['quante'] ); ?> trattamenti</span>
 				<span class="carta-nome"><?php echo esc_html( rb_nome_categoria( $slug ) ); ?></span>
 				<?php if ( $info['da'] ) : ?>
@@ -171,35 +171,7 @@ $conta_categorie   = is_array( $listino ) && ! empty( $listino['categorie'] ) ? 
 </section>
 <?php endif; ?>
 
-<?php $giro = rb_giostra_trattamenti(); ?>
-<?php if ( $giro ) : ?>
-<?php /*
-	La giostra: trattamenti veri dal listino che scorrono da soli. Il moto
-	è un keyframe CSS su metà della larghezza — il contenuto è stampato due
-	volte, la seconda nascosta agli assistivi — e si ferma quando ci passi
-	sopra, quando un elemento dentro prende il fuoco, e quando la giostra
-	esce dallo schermo (osservatore in motion.js: un'animazione infinita
-	fuori campo è solo batteria bruciata).
-*/ ?>
-<section class="giostra" aria-label="Alcuni trattamenti dal listino">
-	<div class="giostra-fila">
-		<?php for ( $copia = 0; $copia < 2; $copia++ ) : ?>
-		<div class="giostra-meta"<?php echo $copia ? ' aria-hidden="true"' : ''; ?>>
-			<?php foreach ( $giro as $t ) :
-				$donna = $t['donna'] ?? array();
-				$slug  = $t['categoria'] ?? '';
-				?>
-				<a class="giostra-scheda" href="<?php echo esc_url( home_url( '/servizi/#' . $slug ) ); ?>"<?php echo $copia ? ' tabindex="-1"' : ''; ?>>
-					<span class="giostra-occhiello"><?php echo esc_html( rb_nome_categoria( $slug ) ); ?></span>
-					<span class="giostra-nome"><?php echo esc_html( rb_nome_corto( $t['nome'] ?? '', $slug ) ); ?></span>
-					<span class="giostra-dati"><?php echo esc_html( rb_prezzo( $donna['prezzo'] ?? null ) ); ?> · <?php echo (int) ( $donna['durata'] ?? 0 ); ?>&thinsp;min</span>
-				</a>
-			<?php endforeach; ?>
-		</div>
-		<?php endfor; ?>
-	</div>
-</section>
-<?php endif; ?>
+
 
 <section class="fascia-bordeaux" data-tono="scuro">
 	<div class="fascia-due">

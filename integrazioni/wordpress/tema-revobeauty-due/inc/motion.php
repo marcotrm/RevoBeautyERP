@@ -40,36 +40,3 @@ function rb_parole( $testo ) {
 
 	return $out;
 }
-
-/**
- * I trattamenti per la giostra della home.
- *
- * Un paio per categoria, nell'ordine vero del listino: abbastanza varietà
- * da far vedere che il centro fa tante cose, abbastanza pochi da non
- * trasformare la home in un secondo listino. I dati sono quelli live del
- * gestionale: se un prezzo cambia lì, cambia anche qui.
- */
-function rb_giostra_trattamenti( $per_categoria = 2, $massimo = 14 ) {
-	$listino = rb_listino();
-	if ( ! is_array( $listino ) || empty( $listino['trattamenti'] ) ) {
-		return array();
-	}
-
-	$per_slug = array();
-	foreach ( $listino['trattamenti'] as $trattamento ) {
-		$slug = $trattamento['categoria'] ?? '';
-		if ( ! $slug || count( $per_slug[ $slug ] ?? array() ) >= $per_categoria ) {
-			continue;
-		}
-		$per_slug[ $slug ][] = $trattamento;
-	}
-
-	$scelti = array();
-	foreach ( rb_ordina_categorie( array_keys( $per_slug ) ) as $slug ) {
-		foreach ( $per_slug[ $slug ] as $trattamento ) {
-			$scelti[] = $trattamento;
-		}
-	}
-
-	return array_slice( $scelti, 0, $massimo );
-}

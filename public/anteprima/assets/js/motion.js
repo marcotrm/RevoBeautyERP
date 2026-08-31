@@ -336,7 +336,7 @@
  */
 (function () {
 	if (!('IntersectionObserver' in window)) return;
-	var pezzi = document.querySelectorAll('.giostra, .eroe-cinema');
+	var pezzi = document.querySelectorAll('.eroe-cinema');
 	if (!pezzi.length) return;
 	var occhio = new IntersectionObserver(function (voci) {
 		voci.forEach(function (voce) {
@@ -410,18 +410,4 @@
 		tasto.style.setProperty('--my', '0px');
 	}, { passive: true });
 
-	// ── Il tilt della giostra: ±6 gradi seguendo il mouse sulla scheda.
-	document.addEventListener('pointermove', function (e) {
-		var scheda = e.target.closest && e.target.closest('.giostra-scheda');
-		if (!scheda) return;
-		var r = scheda.getBoundingClientRect();
-		scheda.style.setProperty('--ry', ((e.clientX - r.left - r.width / 2) / r.width * 12).toFixed(1) + 'deg');
-		scheda.style.setProperty('--rx', (-(e.clientY - r.top - r.height / 2) / r.height * 12).toFixed(1) + 'deg');
-	}, { passive: true });
-	document.addEventListener('pointerout', function (e) {
-		var scheda = e.target.closest && e.target.closest('.giostra-scheda');
-		if (!scheda || (e.relatedTarget && scheda.contains(e.relatedTarget))) return;
-		scheda.style.setProperty('--rx', '0deg');
-		scheda.style.setProperty('--ry', '0deg');
-	}, { passive: true });
 })();

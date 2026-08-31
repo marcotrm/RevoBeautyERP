@@ -84,35 +84,6 @@
   }
 }
 
-/* ── La giostra dei trattamenti ───────────────────────────────────────
-   Metà + metà identica: quando la prima è uscita tutta, il giro riparte
-   da capo senza stacco. Si ferma sotto il dito, sotto il fuoco della
-   tastiera e fuori dallo schermo. */
-.giostra { overflow: hidden; margin-top: 34px; padding: 4px 0; }
-.giostra-fila { display: flex; width: max-content; }
-.giostra-meta { display: flex; gap: 14px; padding-right: 14px; }
-.giostra-scheda {
-  display: flex; flex-direction: column; gap: 6px;
-  min-width: 210px; padding: 18px 20px;
-  background: #ffffff; border: 1px solid var(--crema-scura);
-  color: var(--inchiostro);
-  transition: border-color .25s;
-}
-.giostra-scheda:hover { border-color: var(--oro); color: var(--inchiostro); }
-.giostra-occhiello { font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--oro-scuro); }
-.giostra-nome { font-family: var(--serif); font-size: 18px; line-height: 1.2; }
-.giostra-dati { font-size: 13px; color: var(--grigio); }
-@media (prefers-reduced-motion: no-preference) {
-  .giostra-fila { animation: rb-giostra 48s linear infinite; }
-  .giostra:hover .giostra-fila,
-  .giostra:focus-within .giostra-fila,
-  .giostra[data-fermo] .giostra-fila { animation-play-state: paused; }
-  @keyframes rb-giostra { to { transform: translateX(-50%); } }
-}
-@media (prefers-reduced-motion: reduce) {
-  .giostra { overflow-x: auto; }
-}
-
 /* ── Fascia bordeaux a due colonne: via il vuoto a destra ───────────── */
 .fascia-due { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 40px; align-items: end; }
 @media (max-width: 860px) { .fascia-due { grid-template-columns: 1fr; gap: 26px; } }
@@ -340,6 +311,14 @@
   }
 }
 
+/* ── Pagina di categoria ──────────────────────────────────────────────── */
+.titolone-categoria { font-size: clamp(34px, 6.5vw, 84px); max-width: none; letter-spacing: .04em; }
+.categoria-azioni { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; margin-top: 8px; }
+.passi-fila { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px; }
+.passo-breve { margin: 0; font-size: 15px; color: rgba(245, 240, 232, .85); font-weight: 300; }
+.passo-breve strong { display: block; font-weight: 600; letter-spacing: .04em; margin-bottom: 4px; color: var(--crema); }
+@media (max-width: 700px) { .passi-fila { grid-template-columns: 1fr; } }
+
 /* ── Fascia bordeaux ──────────────────────────────────────────────────── */
 .fascia-bordeaux { background: var(--bordeaux); color: var(--crema); padding: 60px var(--lato); margin-top: 56px; }
 .fascia-bordeaux > * { max-width: var(--largo); margin-left: auto; margin-right: auto; }
@@ -471,14 +450,6 @@
   .scheda-foto { transition: box-shadow .45s var(--uscita); }
   .scheda-persona:hover .scheda-foto { box-shadow: inset 0 0 0 2px var(--oro); }
 
-  /* Le schede della giostra si inclinano seguendo il mouse (il JS scrive
-     --rx/--ry) e il prezzo prende luce. */
-  .giostra-scheda {
-    transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
-    transition: transform .25s ease-out;
-  }
-  .giostra-scheda:hover { transition: transform .06s linear; }
-
   /* Le pastiglie del listino si riempiono dal basso come i tasti. */
   .pastiglia {
     background-image: linear-gradient(var(--nero), var(--nero));
@@ -516,7 +487,6 @@
 @media (prefers-reduced-motion: reduce) {
   .rb-cursore { display: none; }
   .carta::before { display: none; }
-  .giostra-scheda { transform: none !important; }
 }
 
 @media (hover: hover) and (pointer: fine) {
