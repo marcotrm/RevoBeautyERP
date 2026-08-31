@@ -149,8 +149,8 @@
     .deriva-forte img { height: 136%; }
     .deriva-forte img { animation-name: rb-deriva-forte; }
     @keyframes rb-deriva-forte {
-      from { transform: translateY(-13%); }
-      to   { transform: translateY(13%); }
+      from { transform: translateY(-22%); }
+      to   { transform: translateY(22%); }
     }
     @keyframes rb-deriva {
       from { transform: translateY(-7%); }
@@ -322,16 +322,20 @@
     .quadro {
       animation: rb-quadro linear both;
       animation-timeline: view();
-      animation-range: entry 5% entry 60%;
+      animation-range: entry 0% entry 85%;
     }
     .quadro img {
-      height: 122%;
-      animation: rb-deriva linear both;
+      height: 100%;
+      animation: rb-zumata linear both;
       animation-timeline: view();
       animation-range: cover;
     }
+    @keyframes rb-zumata {
+      from { transform: scale(1.32) translateY(-5%); }
+      to   { transform: scale(1) translateY(4%); }
+    }
     @keyframes rb-quadro {
-      from { clip-path: inset(14% 8% 14% 8%); }
+      from { clip-path: inset(38% 22% 38% 22%); }
       to   { clip-path: inset(0 0 0 0); }
     }
 
@@ -343,8 +347,8 @@
       animation-range: cover;
     }
     @keyframes rb-contro {
-      from { transform: translateY(34px); }
-      to   { transform: translateY(-34px); }
+      from { transform: translateY(64px); }
+      to   { transform: translateY(-64px); }
     }
     .editoriale-titolo {
       animation: rb-lato linear both;
@@ -352,8 +356,8 @@
       animation-range: entry 5% cover 42%;
     }
     .editoriale:nth-child(even) .editoriale-titolo { animation-name: rb-lato-inverso; }
-    @keyframes rb-lato { from { transform: translateX(-56px); } }
-    @keyframes rb-lato-inverso { from { transform: translateX(56px); } }
+    @keyframes rb-lato { from { transform: translateX(-140px); } }
+    @keyframes rb-lato-inverso { from { transform: translateX(140px); } }
 
     /* L'eroe congeda: mentre esce, la riga e il tasto salgono e sfumano. */
     .eroe-cinema .eroe-piede {
@@ -392,7 +396,7 @@
    larghezza naturale e la fascia mostrava il bordo — il bug segnalato
    dall'utente. Assoluto su tutto, con lo sbordo verticale che serve al
    parallasse. */
-.fascia-seta picture { position: absolute; inset: -18% 0; display: block; }
+.fascia-seta picture { position: absolute; inset: -26% 0; display: block; }
 .fascia-seta img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .fascia-seta::after { content: ''; position: absolute; inset: 0; background: rgba(74, 10, 28, .84); }
 .fascia-seta-sfondo > :not(.fascia-seta) { position: relative; z-index: 1; }
@@ -677,6 +681,19 @@ address { font-style: normal; }
 
 /* La firma: da bordo a bordo, come il logotipo gigante di lindas. In
    caratteri, non in immagine: nitida a ogni misura e pesa zero. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .fondo-firma { overflow: clip; }
+    .fondo-firma .firma-revo, .fondo-firma .firma-beauty {
+      display: inline-block;
+      animation: rb-firma-sale linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 90%;
+    }
+    .fondo-firma .firma-beauty { animation-range: entry 8% entry 98%; }
+    @keyframes rb-firma-sale { from { transform: translateY(84%); } }
+  }
+}
 .fondo-firma {
   padding: 24px 24px 0; text-align: center;
   font-size: clamp(30px, 8.6vw, 150px);

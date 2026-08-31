@@ -88,7 +88,8 @@ a:hover { color: var(--bordeaux); }
    testata-agganciata (messa da motion.js) le ridà corpo e bordo. */
 .testata-cinema {
   position: fixed; top: 0; left: 0; right: 0;
-  background: transparent; border-bottom-color: transparent;
+  background: linear-gradient(180deg, rgba(10, 10, 10, .72), rgba(10, 10, 10, 0));
+  border-bottom-color: transparent;
   transition: background-color .4s linear, border-color .4s linear;
 }
 .testata-cinema.testata-agganciata { background: var(--nero); border-bottom-color: #1e1e1e; }
@@ -219,8 +220,10 @@ a:hover { color: var(--bordeaux); }
    I due pannelli si sovrappongono dello 0,2% — al centro, senza quel
    soffio, resterebbe una riga chiara di subpixel. */
 body[data-entrata] { overflow: hidden; }
-.entrata { position: fixed; inset: 0; z-index: 200; overflow: hidden; }
-.entrata-pannello { position: absolute; left: 0; right: 0; height: 50.2%; background: var(--nero); }
+/* contain: quello che succede dentro l'entrata non può spostare fuori
+   nemmeno un pixel — è l'assicurazione contro i salti di layout. */
+.entrata { position: fixed; inset: 0; z-index: 200; overflow: hidden; contain: layout paint; }
+.entrata-pannello { position: absolute; left: 0; right: 0; height: 50.2%; background: var(--nero); will-change: transform; }
 .entrata-sopra { top: 0; }
 .entrata-sotto { bottom: 0; }
 .entrata-scena {
@@ -403,8 +406,8 @@ img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
 /*# sourceURL=global-styles-inline-css */
 </style>
 
-<link rel='stylesheet' id='rb-due-css' href='/anteprima/assets/css/main.css' media='all' />
-<script data-wp-strategy="defer" defer id="rb-due-motion-js" src="/anteprima/assets/js/motion.js"></script>
+<link rel='stylesheet' id='rb-due-css' href='/anteprima/assets/css/main.css?v=af98db9a' media='all' />
+<script data-wp-strategy="defer" defer id="rb-due-motion-js" src="/anteprima/assets/js/motion.js?v=af98db9a"></script>
 <link rel="canonical" href="/anteprima" />
 </head>
 <body class="home wp-singular page-template-default page page-id-5 wp-theme-revobeauty-due">
