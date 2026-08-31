@@ -349,3 +349,79 @@
 	}, { rootMargin: '80px 0px' });
 	for (var i = 0; i < pezzi.length; i++) occhio.observe(pezzi[i]);
 })();
+
+/*
+ * Il livello del mouse: cursore d'oro, tasti magnetici, tilt della giostra.
+ *
+ * Vive solo dove un puntatore fine esiste davvero e il moto non è ridotto:
+ * sul telefono questo blocco esce alla prima riga e non costa niente.
+ * Un solo pointermove per tutto, e la fisica in un requestAnimationFrame
+ * che si spegne quando il cursore è fermo.
+ */
+(function () {
+	var fine = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)');
+	var moto = window.matchMedia && window.matchMedia('(prefers-reduced-motion: no-preference)');
+	if (!fine || !fine.matches || !moto || !moto.matches) return;
+
+	// ── Il cursore: punto secco, anello che insegue con l'elastico.
+	var cursore = document.createElement('div');
+	cursore.className = 'rb-cursore';
+	cursore.setAttribute('aria-hidden', 'true');
+	cursore.innerHTML = '<i class="rb-anello"></i><i class="rb-punto"></i>';
+	document.body.appendChild(cursore);
+	var anello = cursore.firstChild;
+	var punto = cursore.lastChild;
+
+	var mx = -100, my = -100, ax = -100, ay = -100, vivo = false;
+
+	var PREMIBILI = 'a, button, .voce, .pastiglia, input, select, textarea, label';
+
+	document.addEventListener('pointermove', function (e) {
+		mx = e.clientX; my = e.clientY;
+		cursore.classList.toggle('su-attivo', !!(e.target.closest && e.target.closest(PREMIBILI)));
+		if (!vivo) { vivo = true; requestAnimationFrame(passo); }
+	}, { passive: true });
+
+	function passo() {
+		punto.style.transform = 'translate(' + (mx - 2.5) + 'px,' + (my - 2.5) + 'px)';
+		ax += (mx - ax) * 0.16;
+		ay += (my - ay) * 0.16;
+		anello.style.transform = 'translate(' + (ax - 17) + 'px,' + (ay - 17) + 'px)';
+		if (Math.abs(mx - ax) + Math.abs(my - ay) > 0.3) {
+			requestAnimationFrame(passo);
+		} else {
+			vivo = false;
+		}
+	}
+
+	// ── I tasti magnetici: dentro il tasto si spostano verso il mouse,
+	//    fuori mollano. Il limite è ±5px: è un cenno, non un inseguimento.
+	document.addEventListener('pointermove', function (e) {
+		var tasto = e.target.closest && e.target.closest('.bottone');
+		if (!tasto) return;
+		var r = tasto.getBoundingClientRect();
+		tasto.style.setProperty('--mx', ((e.clientX - r.left - r.width / 2) / r.width * 10).toFixed(1) + 'px');
+		tasto.style.setProperty('--my', ((e.clientY - r.top - r.height / 2) / r.height * 10).toFixed(1) + 'px');
+	}, { passive: true });
+	document.addEventListener('pointerout', function (e) {
+		var tasto = e.target.closest && e.target.closest('.bottone');
+		if (!tasto || (e.relatedTarget && tasto.contains(e.relatedTarget))) return;
+		tasto.style.setProperty('--mx', '0px');
+		tasto.style.setProperty('--my', '0px');
+	}, { passive: true });
+
+	// ── Il tilt della giostra: ±6 gradi seguendo il mouse sulla scheda.
+	document.addEventListener('pointermove', function (e) {
+		var scheda = e.target.closest && e.target.closest('.giostra-scheda');
+		if (!scheda) return;
+		var r = scheda.getBoundingClientRect();
+		scheda.style.setProperty('--ry', ((e.clientX - r.left - r.width / 2) / r.width * 12).toFixed(1) + 'deg');
+		scheda.style.setProperty('--rx', (-(e.clientY - r.top - r.height / 2) / r.height * 12).toFixed(1) + 'deg');
+	}, { passive: true });
+	document.addEventListener('pointerout', function (e) {
+		var scheda = e.target.closest && e.target.closest('.giostra-scheda');
+		if (!scheda || (e.relatedTarget && scheda.contains(e.relatedTarget))) return;
+		scheda.style.setProperty('--rx', '0deg');
+		scheda.style.setProperty('--ry', '0deg');
+	}, { passive: true });
+})();

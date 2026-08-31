@@ -91,6 +91,35 @@ for ( $i = 1; $i <= 4; $i++ ) {
 	<p class="sottotitolo sale">Epilazione laser, trattamenti viso e corpo, unghie. Ogni percorso parte da una consulenza gratuita: pelle, obiettivi, tempi. Poi il trattamento giusto — non quello di moda.</p>
 </section>
 
+<?php
+/*
+ * I numeri che contano da zero mentre entrano in campo — ma solo numeri
+ * VERI, contati adesso dal listino live. Un contatore che sale su un
+ * numero inventato è il modo più rapido di bruciare la fiducia che
+ * questa fascia esiste per costruire.
+ */
+$conta_trattamenti = is_array( $listino ) && ! empty( $listino['trattamenti'] ) ? count( $listino['trattamenti'] ) : 0;
+$conta_categorie   = is_array( $listino ) && ! empty( $listino['categorie'] ) ? count( $listino['categorie'] ) : 0;
+?>
+<?php if ( $conta_trattamenti ) : ?>
+<section class="sezione numeri" aria-label="RevoBeauty in numeri">
+	<div class="numeri-fila">
+		<div class="numero sale">
+			<span class="numero-cifra conta" style="--fine:<?php echo (int) $conta_trattamenti; ?>"><span class="conta-vero"><?php echo (int) $conta_trattamenti; ?></span><span class="conta-anim" aria-hidden="true"></span></span>
+			<span class="numero-voce">trattamenti a listino</span>
+		</div>
+		<div class="numero sale">
+			<span class="numero-cifra conta" style="--fine:<?php echo (int) $conta_categorie; ?>"><span class="conta-vero"><?php echo (int) $conta_categorie; ?></span><span class="conta-anim" aria-hidden="true"></span></span>
+			<span class="numero-voce">specializzazioni</span>
+		</div>
+		<div class="numero sale">
+			<span class="numero-cifra">0&thinsp;&euro;</span>
+			<span class="numero-voce">la prima consulenza</span>
+		</div>
+	</div>
+</section>
+<?php endif; ?>
+
 <?php if ( is_array( $listino ) && ! empty( $listino['trattamenti'] ) ) :
 	// Una carta per categoria: quante voci, prezzo "da". Tutto calcolato, niente a mano.
 	$categorie = array();
