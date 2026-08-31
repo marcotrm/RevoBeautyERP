@@ -44,7 +44,7 @@ $listino = rb_listino();
 		ma tutto lì e tutto leggibile.
 	*/ ?>
 	<?php if ( is_readable( RB_DUE_DIR . '/assets/img/servizi-testata.webp' ) ) : ?>
-<section class="foto-categoria sipario-taglio">
+<section class="foto-categoria quadro quadro-16x9">
 	<picture>
 		<source type="image/avif" sizes="100vw" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/servizi-testata-800.avif 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/servizi-testata.avif 1024w" />
 		<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/servizi-testata.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/servizi-testata-800.webp 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/servizi-testata.webp 1024w" sizes="100vw" alt="" width="1024" height="559" loading="lazy" decoding="async" />

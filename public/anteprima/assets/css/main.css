@@ -26,7 +26,7 @@
   --cassetto: cubic-bezier(.32, .72, 0, 1);    /* menu e pannelli, come iOS */
 }
 
-.righe .riga { display: block; overflow: hidden; }
+.righe .riga { display: block; overflow: clip; }
 .righe .riga > span { display: block; }
 
 /* ── Il respiro dell'eroe ─────────────────────────────────────────────
@@ -106,7 +106,7 @@
 
     /* Sipario sulle fotografie: la firma del sito. L'immagine non compare,
        si scopre dal basso mentre si posa da 1.06 a 1. */
-    .sipario { overflow: hidden; }
+    .sipario { overflow: clip; }
     .sipario img, .sipario > picture > img {
       animation: rb-sipario 900ms var(--uscita) both;
       animation-timeline: view();
@@ -139,7 +139,7 @@
        Su una timeline di scorrimento l'andamento resta lineare: il ritmo lo
        dà già il dito di chi scorre, metterci sopra un'accelerazione è
        l'errore classico. */
-    .deriva { overflow: hidden; }
+    .deriva { overflow: clip; }
     .deriva img { height: 116%; object-fit: cover; }
     .deriva img {
       animation: rb-deriva linear both;
@@ -188,7 +188,7 @@
   }
   .rb-ripiego .sale.rb-dentro { opacity: 1; transform: none; }
 
-  .rb-ripiego .sipario { overflow: hidden; }
+  .rb-ripiego .sipario { overflow: clip; }
   .rb-ripiego .sipario img, .rb-ripiego .sipario > picture > img {
     clip-path: inset(0 0 100% 0); transform: scale(1.06);
     transition: clip-path 900ms var(--uscita), transform 900ms var(--uscita);
@@ -303,14 +303,74 @@
 }
 
 /* ── Foto a tutta larghezza e bande di materia ────────────────────────── */
-.foto-categoria { overflow: hidden; max-height: 54vh; }
+.foto-categoria { overflow: clip; max-height: 54vh; }
 .foto-categoria img { width: 100%; height: auto; display: block; object-fit: cover; }
+/* ── Gli effetti legati allo scorrimento ──────────────────────────────
+   Tutto qui dentro è scrubbato: avanza e torna indietro col dito, che è
+   ciò che rende un effetto visibile invece che sospettato. Cornice che si
+   apre, immagine e testo a due velocità, titolo che scivola. Fuori da
+   @supports niente di tutto questo esiste: la pagina è ferma e completa. */
+/* `clip` e non `hidden`, ovunque dentro ci sia una timeline view():
+   `hidden` rende il contenitore uno scroll container e la timeline si
+   aggancia a lui — che non scorre mai — invece che alla pagina. Con
+   `clip` il ritaglio è identico e la timeline funziona. */
+.quadro { overflow: clip; }
+.quadro img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.quadro-16x9 { aspect-ratio: 16 / 9; }
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .quadro {
+      animation: rb-quadro linear both;
+      animation-timeline: view();
+      animation-range: entry 5% entry 60%;
+    }
+    .quadro img {
+      height: 122%;
+      animation: rb-deriva linear both;
+      animation-timeline: view();
+      animation-range: cover;
+    }
+    @keyframes rb-quadro {
+      from { clip-path: inset(14% 8% 14% 8%); }
+      to   { clip-path: inset(0 0 0 0); }
+    }
+
+    /* Il testo delle righe editoriali risale mentre la foto scende:
+       due velocità, la profondità si vede. */
+    .editoriale-testo {
+      animation: rb-contro linear both;
+      animation-timeline: view();
+      animation-range: cover;
+    }
+    @keyframes rb-contro {
+      from { transform: translateY(34px); }
+      to   { transform: translateY(-34px); }
+    }
+    .editoriale-titolo {
+      animation: rb-lato linear both;
+      animation-timeline: view();
+      animation-range: entry 5% cover 42%;
+    }
+    .editoriale:nth-child(even) .editoriale-titolo { animation-name: rb-lato-inverso; }
+    @keyframes rb-lato { from { transform: translateX(-56px); } }
+    @keyframes rb-lato-inverso { from { transform: translateX(56px); } }
+
+    /* L'eroe congeda: mentre esce, la riga e il tasto salgono e sfumano. */
+    .eroe-cinema .eroe-piede {
+      animation: rb-congedo linear both;
+      animation-timeline: view();
+      animation-range: exit 5% exit 75%;
+    }
+    @keyframes rb-congedo { to { opacity: 0; transform: translateY(-44px); } }
+  }
+}
+
 /* ── Le righe editoriali della home ───────────────────────────────────
    Foto e contenuto insieme, alternati destra/sinistra come in una rivista.
    Sotto gli 860px si impilano, foto prima. */
 .editoriale-blocco { display: grid; gap: clamp(56px, 8vw, 120px); padding-top: 40px; }
 .editoriale { display: grid; gap: 24px; align-items: center; }
-.editoriale-foto { overflow: hidden; }
+.editoriale-foto { overflow: clip; aspect-ratio: 1024 / 559; }
 .editoriale-foto img { width: 100%; height: auto; display: block; }
 .editoriale-titolo {
   font-weight: 600; font-size: clamp(24px, 3vw, 36px);
@@ -326,14 +386,14 @@
 /* ── La seta sotto la fascia delle recensioni ─────────────────────────
    Texture come sfondo in parallasse, velo bordeaux sopra, parole davanti:
    la materia serve il contenuto. */
-.fascia-seta-sfondo { position: relative; overflow: hidden; }
+.fascia-seta-sfondo { position: relative; overflow: clip; }
 .fascia-seta { position: absolute; inset: 0; z-index: 0; }
+/* Il <picture> è inline di suo: senza queste righe l'immagine restava alla
+   larghezza naturale e la fascia mostrava il bordo — il bug segnalato
+   dall'utente. Assoluto su tutto, con lo sbordo verticale che serve al
+   parallasse. */
+.fascia-seta picture { position: absolute; inset: -18% 0; display: block; }
 .fascia-seta img { width: 100%; height: 100%; object-fit: cover; display: block; }
-@media (prefers-reduced-motion: no-preference) {
-  @supports (animation-timeline: view()) {
-    .fascia-seta img { height: 136%; margin-top: -18%; }
-  }
-}
 .fascia-seta::after { content: ''; position: absolute; inset: 0; background: rgba(74, 10, 28, .84); }
 .fascia-seta-sfondo > :not(.fascia-seta) { position: relative; z-index: 1; }
 
