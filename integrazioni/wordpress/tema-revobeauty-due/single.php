@@ -13,5 +13,4 @@ get_header();
 	</section>
 </article>
 <?php endwhile; ?>
-<?php get_template_part( 'template-parts/cta-prenota' ); ?>
 <?php get_footer(); ?>
