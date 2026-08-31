@@ -22,6 +22,8 @@ const nextConfig: NextConfig = {
        */
       { source: '/anteprima', destination: '/anteprima/index.html' },
       { source: '/anteprima/:pagina', destination: '/anteprima/:pagina.html' },
+      // le pagine di categoria del tema: /anteprima/trattamenti/<categoria>
+      { source: '/anteprima/trattamenti/:pagina', destination: '/anteprima/trattamenti/:pagina.html' },
     ];
   },
 

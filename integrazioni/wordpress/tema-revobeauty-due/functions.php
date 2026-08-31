@@ -17,6 +17,7 @@ define( 'RB_DUE_URI', get_template_directory_uri() );
 
 require RB_DUE_DIR . '/inc/setup.php';
 require RB_DUE_DIR . '/inc/motion.php';
+require RB_DUE_DIR . '/inc/trattamenti.php';
 require RB_DUE_DIR . '/inc/erp-data.php';
 require RB_DUE_DIR . '/inc/contatti.php';
 require RB_DUE_DIR . '/inc/consent.php';
