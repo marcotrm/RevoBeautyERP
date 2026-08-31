@@ -8,8 +8,7 @@ $whatsapp = rb_whatsapp_url();
 <head>
 <meta charset="<?php bloginfo( 'charset' ); ?>" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="preload" href="<?php echo esc_url( RB_DUE_URI . '/assets/fonts/bodoni-moda-normal-400-700-latin.woff2' ); ?>" as="font" type="font/woff2" crossorigin />
-<link rel="preload" href="<?php echo esc_url( RB_DUE_URI . '/assets/fonts/archivo-normal-300-600-latin.woff2' ); ?>" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="<?php echo esc_url( RB_DUE_URI . '/assets/fonts/montserrat-variabile-300-700-latin.woff2' ); ?>" as="font" type="font/woff2" crossorigin />
 <style><?php
 	// Il CSS critico, inline: niente giro di rete prima del primo dipinto.
 	$critico = RB_DUE_DIR . '/assets/css/critical.css';

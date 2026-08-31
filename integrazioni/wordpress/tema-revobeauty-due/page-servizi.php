@@ -64,9 +64,16 @@ $listino = rb_listino();
 		</nav>
 	</div>
 
-	<?php foreach ( $per_categoria as $slug => $voci ) : ?>
+	<?php $indice = 0; foreach ( $per_categoria as $slug => $voci ) : $indice++; ?>
 	<section class="sezione blocco-listino" id="<?php echo esc_attr( $slug ); ?>" data-blocco="<?php echo esc_attr( $slug ); ?>">
-		<h2 class="titolo-categoria sale"><?php echo esc_html( rb_nome_categoria( $slug ) ); ?></h2>
+		<?php /* La testa di categoria è una colonna che resta ferma mentre le
+			voci scorrono: numero grande, nome, conteggio. Sul telefono torna
+			una testata normale sopra l'elenco. */ ?>
+		<header class="categoria-testa sale">
+			<span class="categoria-indice" aria-hidden="true"><?php printf( '%02d', $indice ); ?></span>
+			<h2 class="titolo-categoria"><?php echo esc_html( rb_nome_categoria( $slug ) ); ?></h2>
+			<span class="categoria-conto"><?php echo count( $voci ); ?> trattamenti</span>
+		</header>
 		<ul class="listino">
 			<?php foreach ( $voci as $t ) :
 				$donna = $t['donna'] ?? array();
@@ -97,7 +104,11 @@ $listino = rb_listino();
 
 	<?php if ( ! empty( $listino['pacchetti'] ) ) : ?>
 	<section class="sezione blocco-listino" id="pacchetti" data-blocco="pacchetti">
-		<h2 class="titolo-categoria sale">Pacchetti</h2>
+		<header class="categoria-testa sale">
+			<span class="categoria-indice" aria-hidden="true"><?php printf( '%02d', $indice + 1 ); ?></span>
+			<h2 class="titolo-categoria">Pacchetti</h2>
+			<span class="categoria-conto"><?php echo count( $listino['pacchetti'] ); ?> pacchetti</span>
+		</header>
 		<div class="pacchetti">
 			<?php foreach ( $listino['pacchetti'] as $p ) : ?>
 				<div class="pacchetto voce sale" data-nome="<?php echo esc_attr( mb_strtolower( ( $p['nome'] ?? '' ) . ' ' . ( $p['trattamento'] ?? '' ) ) ); ?>">
