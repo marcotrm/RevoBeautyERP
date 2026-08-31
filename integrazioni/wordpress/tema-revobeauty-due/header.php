@@ -61,7 +61,11 @@ $whatsapp = rb_whatsapp_url();
 </script>
 <?php endif; ?>
 
-<header class="testata<?php echo is_front_page() ? ' testata-scura testata-cinema' : ''; ?>">
+<?php /* La testata è scura ovunque: le pagine interne ora si aprono con
+	la loro scena nera (vedi .testata-pagina) e il footer chiude in nero —
+	il contenuto sta tra due bande scure, come un fotogramma. In home resta
+	anche il galleggiamento sull'eroe (testata-cinema). */ ?>
+<header class="testata testata-scura<?php echo is_front_page() ? ' testata-cinema' : ''; ?>">
 	<div class="testata-dentro">
 		<a class="marchio" href="<?php echo esc_url( home_url( '/' ) ); ?>" aria-label="RevoBeauty — home">
 			<span class="marchio-revo">REVO</span><span class="marchio-beauty">BEAUTY</span>
