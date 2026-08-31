@@ -68,6 +68,14 @@
     @keyframes rb-piede-via { to { opacity: 0; } }
   }
 }
+/* Cintura oltre alla bretella del JS: se con-volo è stata armata su uno
+   schermo largo poi ristretto, sul telefono il volo si spegne comunque —
+   logotipo fermo nell'eroe, marchio e hamburger al loro posto. */
+@media (max-width: 760px) {
+  .con-volo .logotipo-volo { position: absolute; }
+  .con-volo .volo-parola { animation: none; transform: none; }
+  .con-volo .testata-cinema .marchio { visibility: visible; }
+}
 
 /* ── Fascia bordeaux a due colonne: via il vuoto a destra ───────────── */
 .fascia-due { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 40px; align-items: end; }
@@ -385,8 +393,10 @@
       animation-range: entry 5% cover 42%;
     }
     .editoriale:nth-child(even) .editoriale-titolo { animation-name: rb-lato-inverso; }
-    @keyframes rb-lato { from { transform: translateX(-140px); } }
-    @keyframes rb-lato-inverso { from { transform: translateX(140px); } }
+    /* Corsa fluida: 140px su uno schermo da 390 spingevano il titolo
+       fuori dal quadro — su schermo stretto lo scivolo si accorcia. */
+    @keyframes rb-lato { from { transform: translateX(clamp(-140px, -9.7vw, -44px)); } }
+    @keyframes rb-lato-inverso { from { transform: translateX(clamp(44px, 9.7vw, 140px)); } }
 
     /* L'eroe congeda: mentre esce, la riga e il tasto salgono e sfumano. */
     .eroe-cinema .eroe-piede {
@@ -402,7 +412,11 @@
    Foto e contenuto insieme, alternati destra/sinistra come in una rivista.
    Sotto gli 860px si impilano, foto prima. */
 .editoriale-blocco { display: grid; gap: clamp(56px, 8vw, 120px); padding-top: 40px; }
-.editoriale { display: grid; gap: 24px; align-items: center; }
+/* clip solo in orizzontale: lo scivolo dei titoli non deve allargare il
+   documento (era LUI che sul telefono spingeva il layout a 414px, con
+   l'hamburger fuori schermo). In verticale resta visibile: il testo in
+   contro-scorrimento deve poter sconfinare dalla riga. */
+.editoriale { display: grid; gap: 24px; align-items: center; overflow-x: clip; }
 .editoriale-foto { overflow: clip; aspect-ratio: 1024 / 559; }
 .editoriale-foto img { width: 100%; height: auto; display: block; }
 .editoriale-titolo {

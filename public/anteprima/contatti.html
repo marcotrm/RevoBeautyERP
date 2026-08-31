@@ -39,7 +39,13 @@
 *, *::before, *::after { box-sizing: border-box; }
 /* Il canale della barra resta riservato: quando l'entrata blocca e
    sblocca lo scorrimento, la pagina non si sposta di lato. */
-html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scrollbar-gutter: stable; }
+/* overflow-x clip: nessun elemento — nemmeno un transform decorativo —
+   può allargare il documento oltre lo schermo. Senza, sul telefono il
+   layout viewport si espandeva (510px su uno schermo da 390): hamburger
+   fuori schermo, volo del logo che misurava coordinate sbagliate.
+   `clip` e non `hidden`: hidden creerebbe uno scroll container e
+   spezzerebbe le timeline view() (lezione già pagata). */
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scrollbar-gutter: stable; overflow-x: clip; }
 body {
   margin: 0; background: var(--avorio); color: var(--inchiostro);
   font-family: var(--sans); font-weight: 300; font-size: 16px; line-height: 1.65;
@@ -406,8 +412,8 @@ img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
 /*# sourceURL=global-styles-inline-css */
 </style>
 
-<link rel='stylesheet' id='rb-due-css' href='/anteprima/assets/css/main.css?v=7b753b76' media='all' />
-<script data-wp-strategy="defer" defer id="rb-due-motion-js" src="/anteprima/assets/js/motion.js?v=7b753b76"></script>
+<link rel='stylesheet' id='rb-due-css' href='/anteprima/assets/css/main.css?v=98687507' media='all' />
+<script data-wp-strategy="defer" defer id="rb-due-motion-js" src="/anteprima/assets/js/motion.js?v=98687507"></script>
 <link rel="canonical" href="/anteprima/contatti" />
 </head>
 <body class="wp-singular page-template-default page page-id-8 wp-theme-revobeauty-due">
@@ -611,6 +617,6 @@ img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
 			</div>
 		</div>
 	</div>
-	<script src="/anteprima/assets/js/consent.js?v=2.1.1" defer></script>
+	<script src="/anteprima/assets/js/consent.js?v=2.1.2" defer></script>
 	<div style="position:fixed;left:0;right:0;bottom:0;z-index:99;background:#5e0f26;color:#f5f0e8;font:11px/1.4 system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;text-align:center;padding:7px 12px">Anteprima &middot; non &egrave; il sito pubblico</div><style>.barra-pollice{bottom:30px!important}</style></body>
 </html>
