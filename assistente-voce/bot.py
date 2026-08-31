@@ -392,7 +392,22 @@ async def costruisci_bot(websocket, dati_chiamata: dict):
     llm = AnthropicLLMService(
         api_key=os.environ["ANTHROPIC_API_KEY"],
         settings=AnthropicLLMService.Settings(
-            model=os.getenv("VOCE_MODEL", "claude-opus-5"),
+            # Sonnet 5 invece di Opus 5, chiesto dal centro guardando il conto:
+            # 2 e 10 dollari per milione di token invece di 5 e 25, cioe' due
+            # volte e mezzo meno. Qui non si progetta niente — si legge un
+            # listino, si guarda un buco in agenda e si dicono due frasi — e
+            # quello che DEVE andare bene, l'appuntamento scritto, non lo
+            # protegge la stazza del modello: lo protegge il gettone di
+            # conferma, che e' una porta e non un consiglio.
+            model=os.getenv("VOCE_MODEL", "claude-sonnet-5"),
+            # Il blocco fisso si paga una volta, non a ogni battuta.
+            #
+            # Istruzioni e strumenti sono circa 6.000 token, e senza cache
+            # ripartivano interi a ogni turno: nei log si leggeva
+            # «Cache creation: 0 · Cache read: 0». Con la cache accesa, dal
+            # secondo turno in poi quella parte costa un decimo — e la soglia
+            # di Pipecat e' 1024 token, quindi con questo prompt scatta subito.
+            enable_prompt_caching=True,
             extra={"output_config": {"effort": os.getenv("VOCE_SFORZO", "low")}},
         ),
     )
