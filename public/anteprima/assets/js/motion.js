@@ -281,6 +281,11 @@
 
 	var ridotto = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 	if (ridotto) return;
+	/* Sul telefono il volo non si arma: lo slot d'atterraggio è a fianco
+	   dell'hamburger e il teatro del logotipo che viaggia ha senso solo
+	   dove c'è spazio per guardarlo. Il logotipo resta il titolo
+	   dell'eroe e il marchio in testata resta visibile. */
+	if (window.matchMedia && window.matchMedia('(max-width: 760px)').matches) return;
 	if (!(window.CSS && CSS.supports && CSS.supports('animation-timeline: scroll()'))) return;
 
 	var misura = function () {
