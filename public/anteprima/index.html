@@ -154,7 +154,10 @@ a:hover { color: var(--bordeaux); }
 .eroe-fotogramma.fotogramma-1 { opacity: 1; }
 .eroe-cinema .eroe-velo {
   position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,.38) 0%, rgba(0,0,0,0) 32%, rgba(0,0,0,0) 56%, rgba(0,0,0,.52) 100%);
+  /* Un velo pieno oltre ai gradienti: l'utente vuole la foto più scura,
+     e con la scritta in colori veri (niente più inversione) serve
+     contrasto garantito, non sperato. */
+  background: linear-gradient(180deg, rgba(0,0,0,.44) 0%, rgba(0,0,0,.22) 32%, rgba(0,0,0,.22) 56%, rgba(0,0,0,.6) 100%);
 }
 .eroe-piede {
   position: relative; grid-row: 2; z-index: 2;
@@ -187,8 +190,12 @@ a:hover { color: var(--bordeaux); }
      al centro esatto i due si pesterebbero i piedi sul telefono. */
   padding-bottom: clamp(90px, 16svh, 200px);
   pointer-events: none;
-  mix-blend-mode: difference; color: #fff;
+  /* Colori veri, niente inversione: sulla foto calda la differenza
+     produceva quel grigio-azzurro che l'utente ha giustamente scartato.
+     Il contrasto ora lo garantisce il velo scuro sotto. */
+  color: var(--crema);
 }
+.logotipo-volo .volo-beauty { color: var(--oro); }
 .con-volo .logotipo-volo { position: fixed; }
 .volo-parola {
   /* Piccolo di proposito: la prima versione era un monumento da 180px che
@@ -201,8 +208,8 @@ a:hover { color: var(--bordeaux); }
 }
 .volo-revo { font-weight: 600; }
 .volo-beauty { font-weight: 300; }
-.logotipo-volo.volo-agganciato { mix-blend-mode: normal; }
 .logotipo-volo.volo-agganciato.tono-chiaro { color: var(--inchiostro); }
+.logotipo-volo.volo-agganciato.tono-chiaro .volo-beauty { color: var(--oro-scuro); }
 .logotipo-volo.volo-agganciato.tono-scuro { color: var(--crema); }
 
 /* ── La schermata di entrata (solo prima visita, accesa dal JS) ───────
@@ -460,19 +467,7 @@ img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
 				<img src="/anteprima/assets/img/hero-full-1400.webp" alt="L'ingresso illuminato di RevoBeauty in via Caudina a Maddaloni, all'imbrunire" width="2000" height="1107" fetchpriority="high" />
 			</picture>
 		</div>
-		<div class="eroe-fotogramma fotogramma-2" aria-hidden="true">
-			<picture class="eroe-sfondo">
-				<source type="image/avif" sizes="100vw" srcset="/anteprima/assets/img/hero-b-800.avif 800w, /anteprima/assets/img/hero-b-1400.avif 1400w" />
-				<img src="/anteprima/assets/img/hero-b-1400.webp" srcset="/anteprima/assets/img/hero-b-800.webp 800w, /anteprima/assets/img/hero-b-1400.webp 1400w" sizes="100vw" alt="" width="1400" height="875" loading="lazy" decoding="async" />
-			</picture>
 		</div>
-		<div class="eroe-fotogramma fotogramma-3" aria-hidden="true">
-			<picture class="eroe-sfondo">
-				<source type="image/avif" sizes="100vw" srcset="/anteprima/assets/img/hero-c-800.avif 800w, /anteprima/assets/img/hero-c-1400.avif 1400w" />
-				<img src="/anteprima/assets/img/hero-c-1400.webp" srcset="/anteprima/assets/img/hero-c-800.webp 800w, /anteprima/assets/img/hero-c-1400.webp 1400w" sizes="100vw" alt="" width="1400" height="877" loading="lazy" decoding="async" />
-			</picture>
-		</div>
-	</div>
 	<div class="eroe-velo" aria-hidden="true"></div>
 
 	<div class="logotipo-volo" id="rb-volo" aria-hidden="true">
