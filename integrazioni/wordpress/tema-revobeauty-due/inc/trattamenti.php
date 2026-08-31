@@ -77,28 +77,60 @@ add_filter( 'template_include', function ( $template ) {
 } );
 
 /* Titolo e descrizione: la pagina non è in bacheca, quindi Yoast non la
-   conosce — title e meta li mette il tema, con i numeri veri. */
+   conosce — e sul sito vero la scambiava per il blog, stampando il SUO
+   titolo e soprattutto il canonical di /blog/: per Google ogni categoria
+   sarebbe diventata una copia del blog. La regola: i valori giusti
+   passano ANCHE dai filtri di Yoast, e i tag stampati a mano dal tema
+   escono solo quando Yoast non c'è — mai doppioni nell'head. */
+
+function rb_categoria_titolo_seo( $slug ) {
+	return rb_nome_categoria( $slug ) . ' a Maddaloni — prezzi e durate | RevoBeauty';
+}
+
+function rb_categoria_descrizione( $slug ) {
+	return sprintf(
+		'%s da RevoBeauty a Maddaloni (CE): %d trattamenti con prezzi e durate dal listino, sempre aggiornati. Prima consulenza gratuita, si prenota su WhatsApp.',
+		rb_nome_categoria( $slug ),
+		count( rb_categoria_dati( $slug )['voci'] )
+	);
+}
+
+/* Priorità 99: Yoast filtra lo stesso aggancio a 15 e vincerebbe lui. */
 add_filter( 'pre_get_document_title', function ( $titolo ) {
 	$slug = rb_categoria_corrente();
-	if ( ! $slug ) {
-		return $titolo;
-	}
-	return rb_nome_categoria( $slug ) . ' a Maddaloni — prezzi e durate | RevoBeauty';
+	return $slug ? rb_categoria_titolo_seo( $slug ) : $titolo;
+}, 99 );
+
+add_filter( 'wpseo_title', function ( $titolo ) {
+	$slug = rb_categoria_corrente();
+	return $slug ? rb_categoria_titolo_seo( $slug ) : $titolo;
+} );
+
+add_filter( 'wpseo_metadesc', function ( $desc ) {
+	$slug = rb_categoria_corrente();
+	return $slug ? rb_categoria_descrizione( $slug ) : $desc;
+} );
+
+add_filter( 'wpseo_canonical', function ( $canonico ) {
+	$slug = rb_categoria_corrente();
+	return $slug ? rb_categoria_url( $slug ) : $canonico;
+} );
+
+add_filter( 'wpseo_opengraph_url', function ( $url ) {
+	$slug = rb_categoria_corrente();
+	return $slug ? rb_categoria_url( $slug ) : $url;
 } );
 
 add_action( 'wp_head', function () {
 	$slug = rb_categoria_corrente();
-	if ( ! $slug ) {
+	if ( ! $slug || defined( 'WPSEO_VERSION' ) ) {
+		// Con Yoast attivo description e canonical li stampa lui, coi
+		// valori corretti dei filtri qui sopra.
 		return;
 	}
-	$dati = rb_categoria_dati( $slug );
 	printf(
 		"<meta name=\"description\" content=\"%s\" />\n<link rel=\"canonical\" href=\"%s\" />\n",
-		esc_attr( sprintf(
-			'%s da RevoBeauty a Maddaloni (CE): %d trattamenti con prezzi e durate dal listino, sempre aggiornati. Prima consulenza gratuita, si prenota su WhatsApp.',
-			rb_nome_categoria( $slug ),
-			count( $dati['voci'] )
-		) ),
+		esc_attr( rb_categoria_descrizione( $slug ) ),
 		esc_url( rb_categoria_url( $slug ) )
 	);
 }, 4 );
