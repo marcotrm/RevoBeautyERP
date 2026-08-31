@@ -303,7 +303,7 @@
 }
 
 /* ── Foto a tutta larghezza e bande di materia ────────────────────────── */
-.foto-categoria { overflow: clip; max-height: 54vh; }
+.foto-categoria { overflow: clip; height: clamp(240px, 46vh, 560px); width: 100%; aspect-ratio: auto; }
 .foto-categoria img { width: 100%; height: auto; display: block; object-fit: cover; }
 /* ── Gli effetti legati allo scorrimento ──────────────────────────────
    Tutto qui dentro è scrubbato: avanza e torna indietro col dito, che è
@@ -315,6 +315,12 @@
    aggancia a lui — che non scorre mai — invece che alla pagina. Con
    `clip` il ritaglio è identico e la timeline funziona. */
 .quadro { overflow: clip; }
+/* Il <picture> è inline: senza questa riga l'immagine si ferma alla sua
+   larghezza naturale e su uno schermo largo mezza cornice resta vuota —
+   il difetto già curato sulla seta, chiuso qui per tutte le cornici. */
+.quadro picture, .sipario picture, .sipario-taglio picture, .deriva picture {
+  display: block; width: 100%; height: 100%;
+}
 .quadro img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .quadro-16x9 { aspect-ratio: 16 / 9; }
 @media (prefers-reduced-motion: no-preference) {
