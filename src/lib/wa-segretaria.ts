@@ -386,7 +386,7 @@ export interface Poteri {
  * di conferma: le cose che non devono succedere non si scrivono nel prompt, si
  * tolgono dalla stanza.
  */
-function strumentiPer(poteri: Poteri): Anthropic.Tool[] {
+export function strumentiPer(poteri: Poteri): Anthropic.Tool[] {
   return STRUMENTI.filter(t => {
     if (t.name === 'verifica_prenotazione' || t.name === 'prenota') return poteri.prenota;
     if (t.name === 'sposta_appuntamento') return poteri.sposta;
@@ -403,7 +403,7 @@ function strumentiPer(poteri: Poteri): Anthropic.Tool[] {
  * resta convinta di avere un appuntamento che non esiste. Deve saperlo PRIMA,
  * per portare la conversazione dove serve.
  */
-function limitiDiOggi(poteri: Poteri): string {
+export function limitiDiOggi(poteri: Poteri): string {
   const righe: string[] = [];
 
   if (!poteri.prenota) {
@@ -517,7 +517,7 @@ function dichiaraDiAverFatto(testo: string): Array<'disdici_appuntamento' | 'spo
  * modello propone un appuntamento; «alle tre» non lo scrive nessuno, e
  * cercare i numeri sciolti farebbe scattare l'allarme su «3 sedute».
  */
-function orariIn(testo: string): string[] {
+export function orariIn(testo: string): string[] {
   const trovati: string[] = [];
   const re = /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/g;
   let m: RegExpExecArray | null;
@@ -555,7 +555,7 @@ function serviziDa(input: unknown): ServizioRichiesto[] {
     .filter(x => x.treatmentId);
 }
 
-interface Contesto {
+export interface Contesto {
   phone: string;
   clienteId: string | null;
   /** Riempita da "passa_a_persona": chiude il turno e fa tacere la segretaria. */
@@ -631,7 +631,7 @@ async function alternativeVicine(
 }
 
 /** Esegue uno strumento e torna il testo che il modello leggerà. */
-async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<string> {
+export async function esegui(nome: string, input: unknown, ctx: Contesto): Promise<string> {
   const dati = (input || {}) as Record<string, unknown>;
   const oggi = todayInItaly();
 
