@@ -302,9 +302,10 @@
   }
 }
 
-/* ── Foto a tutta larghezza e bande di materia ────────────────────────── */
-.foto-categoria { overflow: clip; height: clamp(240px, 46vh, 560px); width: 100%; aspect-ratio: auto; }
-.foto-categoria img { width: 100%; height: auto; display: block; object-fit: cover; }
+/* ── La foto della specializzazione ───────────────────────────────────
+   Non a tutta larghezza: il sorgente è largo 1024px e stirarlo a 1900
+   lo sgrana. Alla sua larghezza vera, centrata, resta una fotografia. */
+.foto-categoria { overflow: clip; width: min(1024px, calc(100% - var(--lato) * 2)); margin-inline: auto; }
 /* ── Gli effetti legati allo scorrimento ──────────────────────────────
    Tutto qui dentro è scrubbato: avanza e torna indietro col dito, che è
    ciò che rende un effetto visibile invece che sospettato. Cornice che si
