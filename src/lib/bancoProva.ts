@@ -287,7 +287,22 @@ async function unTurno(
   };
 }
 
-export async function corri(concorrenti: Concorrente[] = CONCORRENTI): Promise<Referto[]> {
+/**
+ * Quanto respiro lasciare fra un caso e l'altro.
+ *
+ * Serve a distinguere due 429 che si somigliano e vogliono dire cose opposte.
+ * Sette conversazioni sparate una dietro l'altra sono molto piu' violente di
+ * come scrivono le clienti vere: se il limite del piano gratuito e' AL MINUTO,
+ * il traffico di un centro estetico non lo tocca nemmeno e il modello si puo'
+ * usare; se e' AL GIORNO, non c'e' pausa che tenga.
+ *
+ * Senza questa pausa i due casi danno lo stesso errore e la differenza — usare
+ * Gemini o non usarlo — resterebbe un'opinione.
+ */
+export async function corri(
+  concorrenti: Concorrente[] = CONCORRENTI,
+  pausaSecondi = 0
+): Promise<Referto[]> {
   const istruzioni = await costruisciIstruzioni('whatsapp');
   /*
     Poteri pieni: si vuole vedere se il modello arriva a prenotare e con quali
@@ -314,8 +329,13 @@ export async function corri(concorrenti: Concorrente[] = CONCORRENTI): Promise<R
     }
 
     const casi: EsitoCaso[] = [];
+    let primo = true;
 
     for (const caso of CASI) {
+      if (!primo && pausaSecondi > 0) {
+        await new Promise(ok => setTimeout(ok, pausaSecondi * 1000));
+      }
+      primo = false;
       /*
         La conversazione si porta dietro i turni precedenti, come in chat vera:
         un modello che alla terza battuta si è dimenticato il trattamento è un

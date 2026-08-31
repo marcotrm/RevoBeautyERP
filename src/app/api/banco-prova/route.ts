@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
   Sette casi per tre modelli, con più turni ciascuno: sono minuti, non secondi.
   Il tetto di Vercel/Next di default taglierebbe a metà.
 */
-export const maxDuration = 800;
+export const maxDuration = 3000;
 
 /**
  * Fa correre i modelli sullo stesso lavoro e stampa i numeri.
@@ -57,8 +57,15 @@ export async function GET(request: Request) {
     scelti = [{ ...scelti[0], model: modello }];
   }
 
+  /*
+    `?pausa=` in secondi fra un caso e l'altro. Il tetto e' basso perche' la
+    richiesta deve comunque tornare: sette casi con due minuti di pausa sono
+    gia' un quarto d'ora di attesa.
+  */
+  const pausa = Math.min(Number(cerca.get('pausa') || 0) || 0, 90);
+
   try {
-    const referti = await corri(scelti);
+    const referti = await corri(scelti, pausa);
     console.log(tabella(referti));
 
     /*
