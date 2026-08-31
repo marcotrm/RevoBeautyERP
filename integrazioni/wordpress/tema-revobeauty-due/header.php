@@ -26,7 +26,43 @@ $whatsapp = rb_whatsapp_url();
 
 <a class="salta" href="#contenuto">Vai al contenuto</a>
 
-<header class="testata<?php echo is_front_page() ? ' testata-scura' : ''; ?>">
+<?php if ( is_front_page() ) : ?>
+<?php /*
+	La schermata di entrata: due pannelli neri, il logotipo che emerge, una
+	barra sottile, poi il sipario si apre. Parte SOLO alla prima visita
+	(localStorage, vedi motion.js) e solo se il movimento non è ridotto:
+	nell'HTML arriva spenta (hidden) e senza JS non esiste — la pagina
+	sotto è già completa. Coreografia presa dal preload di lindas,
+	compressa da 3,5 a ~2,2 secondi: l'attesa scenografica va bene una
+	volta, non a ogni caffè.
+*/ ?>
+<div class="entrata" id="rb-entrata" hidden aria-hidden="true">
+	<div class="entrata-pannello entrata-sopra"></div>
+	<div class="entrata-pannello entrata-sotto"></div>
+	<div class="entrata-scena">
+		<span class="entrata-logotipo"><span class="firma-revo">REVO</span><span class="firma-beauty">BEAUTY</span></span>
+		<span class="entrata-riga">Maddaloni · Via Caudina 30</span>
+	</div>
+	<div class="entrata-barra"><span></span></div>
+</div>
+<script>
+/* Acceso qui e non nel bundle: il bundle è differito e arriverebbe a pagina
+   già dipinta — l'intro deve esserci al primo pennello o non esserci. */
+(function () {
+	try {
+		if (localStorage.getItem('rb_intro')) return;
+		if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+		var e = document.getElementById('rb-entrata');
+		e.hidden = false;
+		e.classList.add('entrata-avviata');
+		document.body.setAttribute('data-entrata', '');
+		localStorage.setItem('rb_intro', '1');
+	} catch (err) {}
+})();
+</script>
+<?php endif; ?>
+
+<header class="testata<?php echo is_front_page() ? ' testata-scura testata-cinema' : ''; ?>">
 	<div class="testata-dentro">
 		<a class="marchio" href="<?php echo esc_url( home_url( '/' ) ); ?>" aria-label="RevoBeauty — home">
 			<span class="marchio-revo">REVO</span><span class="marchio-beauty">BEAUTY</span>

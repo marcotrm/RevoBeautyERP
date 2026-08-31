@@ -23,7 +23,7 @@
 }
 
 :root {
-  --oro: #b59b53; --oro-chiaro: #d4c08a; --oro-scuro: #7d6b33;
+  --oro: #b59b53; --oro-chiaro: #d4c08a; --oro-scuro: #746030;
   --nero: #0a0a0a; --inchiostro: #1a1a1a; --grigio: #6b6b6b;
   --crema: #f5f0e8; --crema-scura: #e8e2d6; --avorio: #faf8f4;
   --bordeaux: #5e0f26;
@@ -47,32 +47,56 @@ a:hover { color: var(--bordeaux); }
 .salta:focus { left: 16px; top: 12px; background: var(--nero); color: var(--crema); padding: 10px 16px; z-index: 99; }
 
 /* ── Bottoni ──────────────────────────────────────────────────────────── */
+/* Il tasto: rettangolo puro con il riempimento che sale dal basso.
+   È la ricetta del bottone di lindas, senza il suo markup: il velo che
+   sale è un gradiente il cui `background-size` cresce da 0 al 100% in
+   altezza — così il testo resta sopra senza dover avvolgere niente in
+   uno span. Il colore del testo cambia un filo prima che il velo arrivi,
+   come nell'originale (testo .4s, velo .5s). */
 .bottone {
   display: inline-flex; align-items: center; justify-content: center;
   padding: 15px 30px; min-height: 48px; font-family: var(--sans); font-size: 13px;
   font-weight: 500; letter-spacing: .16em; text-transform: uppercase;
-  border: 1px solid transparent; cursor: pointer; transition: background .25s, color .25s, border-color .25s;
+  border: 1px solid transparent; cursor: pointer;
+  background-image: linear-gradient(var(--velo, transparent), var(--velo, transparent));
+  background-repeat: no-repeat; background-position: 0 100%; background-size: 100% 0%;
+  transition: background-size .5s cubic-bezier(.22, 1, .36, 1), color .4s cubic-bezier(.22, 1, .36, 1), border-color .4s;
 }
-.bottone-oro { background: var(--oro); color: var(--nero); }
-.bottone-oro:hover { background: var(--oro-chiaro); color: var(--nero); }
-.bottone-scuro { border-color: #3a3a3a; color: var(--crema); background: transparent; }
-.bottone-scuro:hover { border-color: var(--oro); color: var(--oro-chiaro); }
-.bottone-lineare { border-color: var(--crema-scura); color: var(--inchiostro); background: transparent; }
-.bottone-lineare:hover { border-color: var(--oro); color: var(--oro-scuro); }
-.bottone-lineare-chiaro { border-color: rgba(245,240,232,.35); color: var(--crema); background: transparent; }
-.bottone-lineare-chiaro:hover { border-color: var(--oro); color: var(--oro-chiaro); }
+.bottone:hover { background-size: 100% 101%; }
+.bottone-oro { background-color: var(--oro); color: var(--nero); --velo: var(--nero); }
+.bottone-oro:hover { color: var(--oro-chiaro); }
+.bottone-scuro { border-color: #3a3a3a; color: var(--crema); background-color: transparent; --velo: var(--oro); }
+.bottone-scuro:hover { border-color: var(--oro); color: var(--nero); }
+.bottone-lineare { border-color: var(--crema-scura); color: var(--inchiostro); background-color: transparent; --velo: var(--nero); }
+.bottone-lineare:hover { border-color: var(--nero); color: var(--crema); }
+.bottone-lineare-chiaro { border-color: rgba(245,240,232,.35); color: var(--crema); background-color: transparent; --velo: var(--oro); }
+.bottone-lineare-chiaro:hover { border-color: var(--oro); color: var(--nero); }
 .bottone-piccolo { padding: 10px 20px; min-height: 40px; font-size: 12px; }
 
 /* ── Testata ──────────────────────────────────────────────────────────── */
 .testata { background: var(--avorio); border-bottom: 1px solid var(--crema-scura); position: relative; z-index: 20; }
 .testata-scura { background: var(--nero); border-bottom-color: #1e1e1e; }
+/* In home la testata galleggia sull'eroe: fissa, trasparente, e il marchio
+   non si disegna — al suo posto arriva, scorrendo, il logotipo grande
+   (vedi .logotipo-volo in main.css). Quando l'eroe finisce, la classe
+   testata-agganciata (messa da motion.js) le ridà corpo e bordo. */
+.testata-cinema {
+  position: fixed; top: 0; left: 0; right: 0;
+  background: transparent; border-bottom-color: transparent;
+  transition: background-color .4s linear, border-color .4s linear;
+}
+.testata-cinema.testata-agganciata { background: var(--nero); border-bottom-color: #1e1e1e; }
+.con-volo .testata-cinema .marchio { visibility: hidden; }
 .testata-dentro {
   max-width: var(--largo); margin: 0 auto; padding: 16px 24px;
   display: flex; align-items: center; justify-content: space-between; gap: 24px;
 }
 .marchio { font-family: var(--serif); font-size: 21px; letter-spacing: .18em; color: var(--inchiostro); }
 .marchio-revo { font-weight: 600; }
-.marchio-beauty { font-weight: 400; color: var(--oro); }
+/* Sull'avorio l'oro pieno sta a 2,5:1: per il testo del marchio si usa
+   l'oro scuro; sulle testate scure resta l'oro vero. */
+.marchio-beauty { font-weight: 400; color: var(--oro-scuro); }
+.testata-scura .marchio-beauty { color: var(--oro); }
 .testata-scura .marchio { color: var(--crema); }
 .nav .menu { display: flex; gap: 26px; list-style: none; margin: 0; padding: 0; }
 .nav .menu a {
@@ -116,6 +140,99 @@ a:hover { color: var(--bordeaux); }
   text-transform: uppercase; color: #9a9a9a; text-align: center;
 }
 .eroe-azioni { position: relative; display: flex; gap: 14px; margin-top: 30px; flex-wrap: wrap; justify-content: center; }
+
+/* ── Eroe cinematografico ─────────────────────────────────────────────
+   Fotogrammi sovrapposti in dissolvenza (il ciclo è in main.css), velo in
+   gradiente sopra e sotto come nel riferimento, piede con la riga-firma,
+   il tasto e lo «Scorri». */
+.eroe-cinema { min-height: 100svh; display: grid; grid-template-rows: 1fr auto; padding: 0; }
+.eroe-media { position: absolute; inset: 0; }
+.eroe-fotogramma { position: absolute; inset: 0; opacity: 0; }
+.eroe-fotogramma.fotogramma-1 { opacity: 1; }
+.eroe-cinema .eroe-velo {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,.38) 0%, rgba(0,0,0,0) 32%, rgba(0,0,0,0) 56%, rgba(0,0,0,.52) 100%);
+}
+.eroe-piede {
+  position: relative; grid-row: 2; z-index: 2;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+  padding: 0 24px calc(28px + env(safe-area-inset-bottom));
+}
+.eroe-firma-riga {
+  font-family: var(--serif); font-weight: 400; font-size: clamp(19px, 2.4vw, 26px);
+  line-height: 1.3; margin: 0; max-width: 380px; color: var(--crema);
+}
+.eroe-firma-riga em { color: var(--oro-chiaro); }
+.eroe-scorri {
+  display: inline-flex; align-items: center; gap: 12px;
+  font-size: 11px; letter-spacing: .3em; text-transform: uppercase; color: rgba(245,240,232,.75);
+}
+.eroe-scorri i { display: block; width: 46px; height: 1px; background: currentColor; transform-origin: left; }
+@media (max-width: 760px) {
+  .eroe-piede { align-items: flex-start; flex-direction: column; gap: 18px; }
+  .eroe-scorri { order: 3; }
+}
+
+/* Il logotipo che vola: prima del volo è solo il titolo dell'eroe.
+   Fisso, centrato, in differenza: si inverte da solo su ogni fotogramma.
+   Il volo vero (trasformazione su timeline di scorrimento) sta in
+   main.css dietro @supports; qui c'è solo l'aspetto. */
+.logotipo-volo {
+  position: absolute; inset: 0; z-index: 21;
+  display: grid; place-content: center;
+  /* Alzato dal centro: sotto vive il piede (riga-firma, tasto, scorri) e
+     al centro esatto i due si pesterebbero i piedi sul telefono. */
+  padding-bottom: clamp(140px, 26svh, 300px);
+  pointer-events: none;
+  mix-blend-mode: difference; color: #fff;
+}
+.con-volo .logotipo-volo { position: fixed; }
+.volo-parola {
+  font-family: var(--serif); font-size: clamp(34px, 11.2vw, 180px);
+  line-height: .95; letter-spacing: .015em; white-space: nowrap; max-width: 96vw;
+}
+.volo-revo { font-weight: 500; }
+.volo-beauty { font-style: italic; font-weight: 400; }
+.logotipo-volo.volo-agganciato { mix-blend-mode: normal; }
+.logotipo-volo.volo-agganciato.tono-chiaro { color: var(--inchiostro); }
+.logotipo-volo.volo-agganciato.tono-scuro { color: var(--crema); }
+
+/* ── La schermata di entrata (solo prima visita, accesa dal JS) ───────
+   Spenta di fabbrica: senza JS l'attributo hidden resta e non esiste.
+   I due pannelli si sovrappongono dello 0,2% — al centro, senza quel
+   soffio, resterebbe una riga chiara di subpixel. */
+body[data-entrata] { overflow: hidden; }
+.entrata { position: fixed; inset: 0; z-index: 200; overflow: hidden; }
+.entrata-pannello { position: absolute; left: 0; right: 0; height: 50.2%; background: var(--nero); }
+.entrata-sopra { top: 0; }
+.entrata-sotto { bottom: 0; }
+.entrata-scena {
+  position: absolute; inset: 0; z-index: 2;
+  display: grid; place-content: center; justify-items: center; gap: 18px;
+  color: var(--crema); opacity: 0;
+}
+.entrata-logotipo { font-family: var(--serif); font-size: clamp(38px, 9vw, 110px); line-height: 1; letter-spacing: .02em; white-space: nowrap; }
+.entrata-riga { font-size: 11px; letter-spacing: .34em; text-transform: uppercase; color: #9a9a9a; }
+.entrata-barra { position: absolute; z-index: 2; left: 24px; right: 24px; bottom: 9vh; height: 1px; background: rgba(255,255,255,.18); }
+.entrata-barra span { display: block; height: 100%; width: 0%; background: var(--crema); }
+@media (prefers-reduced-motion: no-preference) {
+  .entrata-avviata .entrata-scena { animation: rb-entrata-scena 2.2s cubic-bezier(.22,1,.36,1) both; }
+  .entrata-avviata .entrata-barra span { animation: rb-entrata-barra 1.35s cubic-bezier(.45,0,.55,1) .25s both; }
+  .entrata-avviata .entrata-pannello,
+  .entrata-avviata .entrata-barra { animation-duration: .9s; animation-timing-function: cubic-bezier(.76,0,.24,1); animation-delay: 1.55s; animation-fill-mode: both; }
+  .entrata-avviata .entrata-sopra { animation-name: rb-sipario-su; }
+  .entrata-avviata .entrata-sotto { animation-name: rb-sipario-giu; }
+  .entrata-avviata .entrata-barra { animation-name: rb-entrata-via; }
+  @keyframes rb-entrata-scena {
+    0% { opacity: 0; transform: translateY(18px) scale(.96); }
+    26%, 62% { opacity: 1; transform: none; }
+    76%, 100% { opacity: 0; transform: scale(1.05); }
+  }
+  @keyframes rb-entrata-barra { from { width: 0%; } to { width: 100%; } }
+  @keyframes rb-sipario-su  { to { transform: translateY(-101%); } }
+  @keyframes rb-sipario-giu { to { transform: translateY(101%); } }
+  @keyframes rb-entrata-via { to { opacity: 0; } }
+}
 
 /* ── Impalcatura delle sezioni (sopra la piega può esserci l'intro) ───── */
 .sezione { max-width: var(--largo); margin: 0 auto; padding: 72px 24px 24px; }
@@ -221,14 +338,12 @@ body[data-menu-aperto] .segno-chiudi, body[data-menu-aperto] .parola-chiudi { di
 .bottone { min-width: 220px; min-height: 52px; text-align: center; }
 .bottone-piccolo { min-width: 0; min-height: 42px; }
 
-.eroe-azioni, .chiusura-azioni {
+.eroe-azioni {
   display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 12px;
 }
-.chiusura-azioni { justify-content: center; }
-.chiusura-azioni .collega { grid-column: 1 / -1; justify-self: center; margin-top: 4px; }
 
 @media (max-width: 560px) {
-  .eroe-azioni, .chiusura-azioni { grid-template-columns: minmax(0, 1fr); max-width: 320px; }
+  .eroe-azioni { grid-template-columns: minmax(0, 1fr); max-width: 320px; }
   .eroe-azioni { max-width: 100%; }
   .bottone { min-width: 0; width: 100%; }
 }
@@ -277,6 +392,7 @@ img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
 <body class="wp-singular page-template-default page page-id-6 wp-theme-revobeauty-due">
 
 <a class="salta" href="#contenuto">Vai al contenuto</a>
+
 
 <header class="testata">
 	<div class="testata-dentro">
@@ -345,14 +461,6 @@ img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
 	</div>
 </section>
 
-<section class="chiusura">
-	<h2 class="chiusura-titolo sale">Il posto giusto si riconosce da come ti senti quando esci.</h2>
-	<div class="chiusura-azioni sale">
-					<a class="bottone bottone-oro" href="https://wa.me/393312733414?text=Ciao%21%20Vorrei%20informazioni%20sui%20vostri%20trattamenti." rel="noopener">Prenota su WhatsApp</a>
-							<a class="collega collega-chiaro" href="tel:+393312733414">oppure chiamaci</a>
-			</div>
-</section>
-
 </main>
 
 <div class="barra-pollice" id="barra-pollice" aria-label="Azioni rapide">
@@ -362,12 +470,35 @@ img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
 		</a>
 	</div>
 
-<footer class="fondo">
+<footer class="fondo" id="fondo">
+
+	<div class="fondo-invito">
+		<h2 class="fondo-invito-titolo sale">Il posto giusto si riconosce da come ti senti quando esci.</h2>
+		<div class="fondo-invito-azioni sale">
+							<a class="bottone bottone-oro" href="https://wa.me/393312733414?text=Ciao%21%20Vorrei%20informazioni%20sui%20vostri%20trattamenti." rel="noopener"><span>Prenota su WhatsApp</span></a>
+										<a class="collega collega-chiaro" href="tel:+393312733414">oppure chiamaci</a>
+					</div>
+	</div>
+
+		<div class="fondo-firma" aria-hidden="true">
+		<span class="firma-revo">REVO</span><span class="firma-beauty">BEAUTY</span>
+	</div>
+
 	<div class="fondo-dentro">
-		<div class="fondo-colonna fondo-marchio">
-			<div class="marchio"><span class="marchio-revo">REVO</span><span class="marchio-beauty">BEAUTY</span></div>
-			<p class="fondo-claim">Innovazione &amp; bellezza, a Maddaloni.</p>
-			<a class="bottone bottone-oro" href="https://wa.me/393312733414?text=Ciao%21%20Vorrei%20informazioni%20sui%20vostri%20trattamenti." rel="noopener">Prenota su WhatsApp</a>		</div>
+		<div class="fondo-colonna">
+			<h2 class="fondo-titolo">Il centro</h2>
+			<p class="fondo-testo">Estetica avanzata a Maddaloni: tecnologie recenti, un metodo semplice — prima ascoltare, poi trattare.</p>
+		</div>
+
+		<div class="fondo-colonna">
+			<h2 class="fondo-titolo">Naviga</h2>
+			<ul class="fondo-voci">
+				<li><a class="fondo-link" href="/anteprima/servizi">Trattamenti</a></li>
+				<li><a class="fondo-link" href="/anteprima/chi-siamo">Chi siamo</a></li>
+				<li><a class="fondo-link" href="/anteprima/blog">Blog</a></li>
+				<li><a class="fondo-link" href="/anteprima/contatti">Contatti</a></li>
+			</ul>
+		</div>
 
 		<div class="fondo-colonna">
 			<h2 class="fondo-titolo">Orari</h2>
@@ -379,12 +510,14 @@ img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
 
 		<div class="fondo-colonna">
 			<h2 class="fondo-titolo">Contatti</h2>
-			<address class="fondo-testo">
-				Via Caudina 30, Maddaloni (CE)			</address>
-							<p><a class="fondo-link" href="tel:+393312733414">+39 331 273 3414</a></p>
-										<p><a class="fondo-link" href="https://wa.me/393312733414?text=Ciao%21%20Vorrei%20informazioni%20sui%20vostri%20trattamenti." rel="noopener">Scrivici su WhatsApp</a></p>
-					</div>
+			<address class="fondo-testo">Via Caudina 30, Maddaloni (CE)</address>
+			<ul class="fondo-voci">
+									<li><a class="fondo-link" href="tel:+393312733414">+39 331 273 3414</a></li>
+													<li><a class="fondo-link" href="https://wa.me/393312733414?text=Ciao%21%20Vorrei%20informazioni%20sui%20vostri%20trattamenti." rel="noopener">WhatsApp</a></li>
+							</ul>
+		</div>
 	</div>
+
 	<div class="fondo-legale">
 		<p>© 2026 RevoBeauty · Maddaloni (CE) · P.IVA 10625841217</p>
 		<nav aria-label="Note legali">

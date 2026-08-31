@@ -113,10 +113,7 @@ $listino = rb_listino();
 <?php else : ?>
 	<section class="sezione">
 		<p class="sottotitolo">In questo momento non riusciamo a mostrarti il listino. Chiamaci o scrivici su WhatsApp: ti rispondiamo subito.</p>
-		<?php get_template_part( 'template-parts/cta-prenota' ); ?>
-	</section>
+			</section>
 <?php endif; ?>
-
-<?php get_template_part( 'template-parts/cta-prenota' ); ?>
 
 <?php get_footer(); ?>

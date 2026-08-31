@@ -180,7 +180,15 @@
 	if (window.CSS && CSS.supports && CSS.supports('animation-timeline: view()')) return;
 	if (!('IntersectionObserver' in window)) return;
 
-	var pezzi = document.querySelectorAll('.sale, .sipario, .righe .riga');
+	/* Le carte dentro una fila orizzontale non entrano mai nel campo visivo
+	   finché non le si scorre di lato: osservate una per una resterebbero
+	   invisibili per sempre a chi non trascina la fila. Si osserva la fila
+	   intera e si accende quello che tiene dentro. */
+	var pezzi = [].filter.call(
+		document.querySelectorAll('.sale, .sipario, .righe .riga'),
+		function (e) { return !e.closest('.scorri'); }
+	);
+	pezzi = pezzi.concat([].slice.call(document.querySelectorAll('.scorri')));
 	if (!pezzi.length) return;
 
 	document.documentElement.classList.add('rb-ripiego');
@@ -190,12 +198,16 @@
 	   Un testo invisibile è un guasto, un'animazione mancata è un dettaglio. */
 	var salvagente = setTimeout(function () {
 		for (var i = 0; i < pezzi.length; i++) pezzi[i].classList.add('rb-dentro');
+		var fila = document.querySelectorAll('.scorri .sale');
+		for (var j = 0; j < fila.length; j++) fila[j].classList.add('rb-dentro');
 	}, 3000);
 
 	var osservatore = new IntersectionObserver(function (voci) {
 		voci.forEach(function (voce) {
 			if (!voce.isIntersecting) return;
 			voce.target.classList.add('rb-dentro');
+			var dentro = voce.target.querySelectorAll ? voce.target.querySelectorAll('.sale') : [];
+			for (var k = 0; k < dentro.length; k++) dentro[k].classList.add('rb-dentro');
 			osservatore.unobserve(voce.target);
 		});
 	}, { rootMargin: '0px 0px -12% 0px', threshold: 0.08 });
@@ -220,4 +232,117 @@
 	}
 
 	window.addEventListener('load', function () { clearTimeout(salvagente); }, { once: true });
+})();
+
+/*
+ * Lo smontaggio della schermata di entrata.
+ *
+ * Ad accenderla è uno script inline in header.php (il bundle è differito e
+ * arriverebbe a pagina già dipinta). Qui si smonta a sipario aperto, con un
+ * salvagente: un'intro che resta appesa è un sito rotto.
+ */
+(function () {
+	var entrata = document.getElementById('rb-entrata');
+	if (!entrata) return;
+	if (!entrata.classList.contains('entrata-avviata')) { entrata.remove(); return; }
+
+	var via = function () {
+		if (!entrata.parentNode) return;
+		entrata.remove();
+		document.body.removeAttribute('data-entrata');
+	};
+	entrata.querySelector('.entrata-sopra').addEventListener('animationend', via);
+	setTimeout(via, 3500);
+})();
+
+/*
+ * Il volo del logotipo dall'eroe alla testata.
+ *
+ * Il movimento è un'animazione CSS su timeline di scorrimento: qui si fa
+ * solo quello che il CSS non può fare da solo — misurare dove deve
+ * atterrare. Le misure usano offsetLeft/offsetWidth e non
+ * getBoundingClientRect sul logotipo: i valori di layout ignorano il
+ * transform, così si può rimisurare al volo senza azzerarlo (trucco preso
+ * dai commenti del sito di riferimento). La classe con-volo si mette solo
+ * quando tutto il necessario c'è: senza, il logotipo resta il titolo
+ * dell'eroe e il marchio in testata torna visibile.
+ */
+(function () {
+	var volo = document.getElementById('rb-volo');
+	if (!volo) return;
+	var parola = volo.querySelector('.volo-parola');
+	var slot = document.querySelector('.testata-cinema .marchio');
+	var eroe = document.querySelector('.eroe-cinema');
+	var testata = document.querySelector('.testata-cinema');
+	if (!parola || !slot || !eroe || !testata) return;
+
+	var ridotto = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+	if (ridotto) return;
+	if (!(window.CSS && CSS.supports && CSS.supports('animation-timeline: scroll()'))) return;
+
+	var misura = function () {
+		var lw = parola.offsetWidth, lh = parola.offsetHeight;
+		var lx = 0, ly = 0, e = parola;
+		while (e) { lx += e.offsetLeft; ly += e.offsetTop; e = e.offsetParent; }
+		var s = slot.getBoundingClientRect();
+		if (!lw || !s.width) return;
+		var scala = s.width / lw;
+		if (!isFinite(scala) || scala <= 0.01 || scala > 1) return;
+		parola.style.setProperty('--scala', String(scala));
+		parola.style.setProperty('--dx', ((s.left + s.width / 2) - (lx + lw / 2)) + 'px');
+		parola.style.setProperty('--dy', ((s.top + s.height / 2) - (ly + lh / 2)) + 'px');
+	};
+
+	var arma = function () {
+		/* Prima la classe, poi la misura: da fisso, le coordinate del
+		   logotipo e quelle dello slot vivono nello stesso sistema (il
+		   viewport) anche se la pagina è ricaricata a metà scorrimento. */
+		document.documentElement.classList.add('con-volo');
+		requestAnimationFrame(misura);
+	};
+	if (document.fonts && document.fonts.ready) {
+		var fatto = false;
+		var una = function () { if (!fatto) { fatto = true; arma(); } };
+		document.fonts.ready.then(una);
+		setTimeout(una, 3000);
+	} else {
+		arma();
+	}
+	window.addEventListener('resize', misura);
+
+	/* L'aggancio: finito l'eroe, il logotipo smette di essere in
+	   differenza e la testata riprende corpo. Solo classi, niente stile
+	   inline: il lavoro per pixel lo fa la timeline CSS. */
+	var agganciato = false;
+	var controlla = function () {
+		var ora = window.scrollY >= eroe.offsetHeight - testata.offsetHeight;
+		if (ora === agganciato) return;
+		agganciato = ora;
+		volo.classList.toggle('volo-agganciato', ora);
+		volo.classList.toggle('tono-scuro', ora);
+		testata.classList.toggle('testata-agganciata', ora);
+	};
+	window.addEventListener('scroll', controlla, { passive: true });
+	controlla();
+})();
+
+/*
+ * Le animazioni infinite si fermano fuori dallo schermo: la giostra dei
+ * trattamenti e i fotogrammi dell'eroe non hanno motivo di girare quando
+ * nessuno li guarda.
+ */
+(function () {
+	if (!('IntersectionObserver' in window)) return;
+	var pezzi = document.querySelectorAll('.giostra, .eroe-cinema');
+	if (!pezzi.length) return;
+	var occhio = new IntersectionObserver(function (voci) {
+		voci.forEach(function (voce) {
+			if (voce.isIntersecting) {
+				voce.target.removeAttribute('data-fermo');
+			} else {
+				voce.target.setAttribute('data-fermo', '');
+			}
+		});
+	}, { rootMargin: '80px 0px' });
+	for (var i = 0; i < pezzi.length; i++) occhio.observe(pezzi[i]);
 })();

@@ -29,8 +29,109 @@
 .righe .riga { display: block; overflow: hidden; }
 .righe .riga > span { display: block; }
 
+/* ── Il ciclo dei fotogrammi dell'eroe ────────────────────────────────
+   Come la testata di lindas: tenuta 5,2s, dissolvenza 1,8s, Ken Burns da
+   1,10 a 1,02 — ma in keyframes puri, senza un motore. Il fotogramma 1 è
+   la base sempre accesa (è anche l'LCP: non si tocca); 2 e 3 si accendono
+   sopra, ciascuno nel proprio terzo del giro da 21 secondi.
+   `data-fermo` lo mette l'osservatore quando l'eroe esce dallo schermo:
+   un'animazione infinita fuori campo è batteria sprecata. */
+@media (prefers-reduced-motion: no-preference) {
+  .eroe-fotogramma img { transform-origin: 50% 40%; }
+  .fotogramma-1 img { animation: rb-respiro 21s ease-in-out infinite; }
+  .fotogramma-2, .fotogramma-3 { animation: rb-giro 21s linear infinite; }
+  .fotogramma-2 img, .fotogramma-3 img { animation: rb-burns 21s linear infinite; }
+  .fotogramma-3, .fotogramma-3 img { animation-delay: 7s; }
+  .eroe[data-fermo] .eroe-fotogramma, .eroe[data-fermo] .eroe-fotogramma img { animation-play-state: paused; }
+  @keyframes rb-giro {
+    0%, 33.3% { opacity: 0; }
+    41.9%, 66.6% { opacity: 1; }
+    75.2%, 100% { opacity: 0; }
+  }
+  @keyframes rb-burns {
+    0%, 33.3% { transform: scale(1.10); }
+    75.2%, 100% { transform: scale(1.02); }
+  }
+  @keyframes rb-respiro {
+    0%, 100% { transform: scale(1.02); }
+    50% { transform: scale(1.08); }
+  }
+}
+
+/* ── Il volo del logotipo ─────────────────────────────────────────────
+   La classe con-volo la mette il JS solo dove tutto il necessario esiste
+   (timeline di scorrimento, misure fatte): senza, il logotipo resta il
+   titolo dell'eroe e il marchio in testata torna visibile — meno teatro,
+   zero buchi. Le misure --dx/--dy/--scala le scrive motion.js leggendo lo
+   slot del marchio in testata; qui c'è solo la corsa, legata allo
+   scorrimento della pagina lungo l'altezza dell'eroe. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+    .con-volo .volo-parola {
+      animation: rb-volo linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0px calc(100svh - 72px);
+    }
+    @keyframes rb-volo {
+      to { transform: translate(var(--dx, 0px), var(--dy, 0px)) scale(var(--scala, .12)); }
+    }
+    .con-volo .eroe-piede {
+      animation: rb-piede-via linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0px 40svh;
+    }
+    @keyframes rb-piede-via { to { opacity: 0; } }
+  }
+}
+
+/* ── La giostra dei trattamenti ───────────────────────────────────────
+   Metà + metà identica: quando la prima è uscita tutta, il giro riparte
+   da capo senza stacco. Si ferma sotto il dito, sotto il fuoco della
+   tastiera e fuori dallo schermo. */
+.giostra { overflow: hidden; margin-top: 34px; padding: 4px 0; }
+.giostra-fila { display: flex; width: max-content; }
+.giostra-meta { display: flex; gap: 14px; padding-right: 14px; }
+.giostra-scheda {
+  display: flex; flex-direction: column; gap: 6px;
+  min-width: 210px; padding: 18px 20px;
+  background: #ffffff; border: 1px solid var(--crema-scura);
+  color: var(--inchiostro);
+  transition: border-color .25s;
+}
+.giostra-scheda:hover { border-color: var(--oro); color: var(--inchiostro); }
+.giostra-occhiello { font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--oro-scuro); }
+.giostra-nome { font-family: var(--serif); font-size: 18px; line-height: 1.2; }
+.giostra-dati { font-size: 13px; color: var(--grigio); }
+@media (prefers-reduced-motion: no-preference) {
+  .giostra-fila { animation: rb-giostra 48s linear infinite; }
+  .giostra:hover .giostra-fila,
+  .giostra:focus-within .giostra-fila,
+  .giostra[data-fermo] .giostra-fila { animation-play-state: paused; }
+  @keyframes rb-giostra { to { transform: translateX(-50%); } }
+}
+@media (prefers-reduced-motion: reduce) {
+  .giostra { overflow-x: auto; }
+}
+
+/* ── Fascia bordeaux a due colonne: via il vuoto a destra ───────────── */
+.fascia-due { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 40px; align-items: end; }
+@media (max-width: 860px) { .fascia-due { grid-template-columns: 1fr; gap: 26px; } }
+.fascia-lato { border-left: 1px solid rgba(245,240,232,.25); padding-left: 28px; }
+@media (max-width: 860px) { .fascia-lato { border-left: 0; padding-left: 0; } }
+.fascia-lato-testo { font-size: 15px; color: rgba(245,240,232,.8); margin: 0 0 14px; max-width: 40ch; }
+
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {
+
+    /* La frase che si inchiostra parola per parola: una sola in tutto il
+       sito. Partenza da .18 e mai da zero: se l'intervallo non si
+       completa, la frase resta comunque leggibile. */
+    .parola {
+      animation: rb-inchiostro linear both;
+      animation-timeline: view();
+      animation-range: entry calc(30% + var(--i) * 1.6%) entry calc(62% + var(--i) * 1.6%);
+    }
+    @keyframes rb-inchiostro { from { opacity: .18; } }
 
     /* Salita con dissolvenza: griglie, carte, blocchi di testo.
        24px e non 100: su un telefono uno spostamento lungo si legge come
@@ -38,9 +139,12 @@
     .sale {
       animation: rb-sale 600ms var(--uscita) both;
       animation-timeline: view();
-      animation-range: entry 8% entry 58%;
+      animation-range: entry 0% entry 18%;
     }
     @keyframes rb-sale {
+      /* Tutta dentro il primo 18% dell'ingresso: la finestra in cui un
+         testo può farsi leggere a metà dissolvenza — da una persona o da
+         un audit — si riduce a una manciata di pixel. */
       from { opacity: 0; transform: translateY(24px) scale(.97); }
     }
 
@@ -326,6 +430,10 @@ address { font-style: normal; }
 .oro { color: var(--oro-scuro); }
 .hp { position: absolute; left: -9999px; }
 .form-errore { background: #fdf3f3; border: 1px solid #e6c9c9; color: #8a3b3b; font-size: 13px; padding: 12px 16px; margin-bottom: 18px; }
+/* Il collegamento dentro il testo della casella privacy: sottolineato,
+   o non si distingue dal testo che lo circonda. */
+.form-check a { text-decoration: underline; text-underline-offset: 2px; }
+
 .form-esito { background: var(--crema); border: 1px solid var(--crema-scura); padding: 36px; text-align: center; }
 .form-esito-titolo { font-family: var(--serif); font-size: 26px; font-weight: 500; margin: 0 0 10px; }
 .form-esito-testo { font-size: 14.5px; color: var(--grigio); margin: 0; }
@@ -347,34 +455,60 @@ address { font-style: normal; }
 .prosa ul, .prosa ol { padding-left: 1.2em; margin: 0 0 1.3em; }
 .prosa a { text-decoration: underline; text-underline-offset: 3px; }
 
-/* ── Chiusura + fondo ─────────────────────────────────────────────────── */
-.chiusura { background: var(--nero); color: var(--crema); padding: 88px 24px; margin-top: 88px; text-align: center; }
-.chiusura-titolo { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: clamp(26px, 4vw, 38px); line-height: 1.25; max-width: 660px; margin: 0 auto 28px; }
-.chiusura-azioni { margin: 0 auto; }
+/* ── Il fondo pagina, in un pezzo solo ────────────────────────────────
+   Fascia d'invito, firma a piena larghezza, quattro colonne, riga legale.
+   Le misure delle fasce vengono dal footer di lindas: fili di bianco al
+   16%, titoli di colonna al 42%, testi all'85% in peso leggero. */
+.fondo { background: var(--nero); color: var(--crema); margin-top: 88px; }
 
-.fondo { background: var(--nero); color: var(--crema); border-top: 1px solid #1e1e1e; }
-.fondo-dentro {
-  max-width: var(--largo); margin: 0 auto; padding: 60px 24px 40px;
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px;
+.fondo-invito { padding: 88px 24px 40px; text-align: center; }
+.fondo-invito-titolo {
+  font-family: var(--serif); font-style: italic; font-weight: 400;
+  font-size: clamp(26px, 4vw, 38px); line-height: 1.25;
+  max-width: 660px; margin: 0 auto 28px;
 }
-@media (max-width: 760px) { .fondo-dentro { grid-template-columns: 1fr; } }
-.fondo .marchio { color: var(--crema); }
-.fondo-claim { color: #9a9a9a; font-size: 14px; margin: 12px 0 22px; }
-.fondo-titolo { font-size: 12px; letter-spacing: .25em; text-transform: uppercase; color: var(--oro); margin: 0 0 16px; font-weight: 500; }
-.fondo-testo { color: #c9c4b8; font-size: 14.5px; margin: 0 0 8px; }
-.fondo-link { color: var(--crema); font-size: 14.5px; }
+.fondo-invito-azioni { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+
+/* La firma: da bordo a bordo, come il logotipo gigante di lindas. In
+   caratteri, non in immagine: nitida a ogni misura e pesa zero. */
+.fondo-firma {
+  padding: 24px 24px 0; text-align: center;
+  font-family: var(--serif); font-size: clamp(44px, 12.5vw, 190px);
+  line-height: .95; letter-spacing: .02em; white-space: nowrap;
+  user-select: none;
+}
+.firma-revo { color: var(--crema); font-weight: 500; }
+.firma-beauty { color: var(--oro); font-style: italic; font-weight: 400; }
+
+.fondo-dentro {
+  max-width: var(--largo); margin: clamp(40px, 6vw, 88px) auto 0;
+  padding: 40px 24px 0;
+  border-top: 1px solid rgba(255, 255, 255, .16);
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 40px 32px;
+}
+@media (max-width: 860px) { .fondo-dentro { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .fondo-dentro { grid-template-columns: 1fr; gap: 32px; } }
+.fondo-titolo {
+  font-size: 11.5px; letter-spacing: .22em; text-transform: uppercase;
+  color: rgba(255, 255, 255, .56); margin: 0 0 16px; font-weight: 500;
+}
+.fondo-testo { color: rgba(255, 255, 255, .85); font-weight: 300; font-size: 14.5px; margin: 0 0 8px; font-style: normal; }
+.fondo-voci { list-style: none; margin: 0; padding: 0; }
+.fondo-voci li + li { margin-top: 9px; }
+.fondo-link { color: rgba(255, 255, 255, .85); font-weight: 300; font-size: 14.5px; }
 .fondo-link:hover { color: var(--oro-chiaro); }
 .orari { margin: 0; }
-.orari-riga { display: flex; justify-content: space-between; gap: 14px; padding: 6px 0; border-bottom: 1px solid #1e1e1e; font-size: 14px; }
-.orari-riga dt { color: #9a9a9a; }
-.orari-riga dd { margin: 0; }
+.orari-riga { display: flex; justify-content: space-between; gap: 14px; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, .1); font-size: 14px; }
+.orari-riga dt { color: rgba(255, 255, 255, .52); }
+.orari-riga dd { margin: 0; color: rgba(255, 255, 255, .85); }
 .fondo-legale {
-  border-top: 1px solid #1e1e1e; padding: 20px 24px; display: flex; justify-content: space-between;
-  align-items: center; gap: 14px; flex-wrap: wrap; max-width: var(--largo); margin: 0 auto;
+  max-width: var(--largo); margin: 56px auto 0; padding: 22px 24px 34px;
+  border-top: 1px solid rgba(255, 255, 255, .16);
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px 28px;
 }
-.fondo-legale p { margin: 0; font-size: 12.5px; color: #9a9a9a; }
+.fondo-legale p { margin: 0; font-size: 12.5px; letter-spacing: .06em; color: rgba(255, 255, 255, .52); }
 .fondo-legale nav { display: flex; gap: 18px; align-items: center; }
-.fondo-legale a, .gestisci-cookie { font-size: 12.5px; color: #9a9a9a; background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--sans); }
+.fondo-legale a, .gestisci-cookie { font-size: 12.5px; color: rgba(255, 255, 255, .52); background: none; border: 0; padding: 0; cursor: pointer; font-family: var(--sans); }
 .fondo-legale a:hover, .gestisci-cookie:hover { color: var(--oro-chiaro); }
 
 /* ── Banner del consenso ──────────────────────────────────────────────── */
@@ -407,6 +541,10 @@ address { font-style: normal; }
    pagina. Spegnere tutto toglierebbe anche i riscontri utili. */
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  .parola, .eroe-fotogramma.fotogramma-1, .fotogramma-1 img, .volo-parola, .giostra-fila {
+    animation: none !important; opacity: 1 !important; transform: none !important;
+  }
+  .fotogramma-2, .fotogramma-3 { animation: none !important; opacity: 0 !important; }
   .sale, .sipario img, .righe .riga > span, .deriva img {
     animation: none !important; transform: none !important; clip-path: none !important;
   }
@@ -482,7 +620,9 @@ address { font-style: normal; }
 }
 .pastiglia:active { transform: scale(.97); }
 .pastiglia[aria-pressed="true"] { background: var(--nero); color: var(--crema); border-color: var(--nero); }
-.pastiglia-conto { font-size: 11px; opacity: .55; font-variant-numeric: tabular-nums; }
+/* Niente opacità sul conteggio: sull'avorio scenderebbe a 2:1. */
+.pastiglia-conto { font-size: 11px; color: var(--grigio); font-variant-numeric: tabular-nums; }
+.pastiglia[aria-pressed="true"] .pastiglia-conto { color: rgba(245, 240, 232, .8); }
 .voce-dati { font-variant-numeric: tabular-nums; }
 .blocco-listino[hidden], .voce[hidden] { display: none; }
 .nessun-esito { padding: 10px 0 0; color: var(--grigio); font-size: 15px; }

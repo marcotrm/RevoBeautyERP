@@ -57,6 +57,4 @@ $centro = rb_centro();
 	</div>
 </section>
 
-<?php get_template_part( 'template-parts/cta-prenota' ); ?>
-
 <?php get_footer(); ?>

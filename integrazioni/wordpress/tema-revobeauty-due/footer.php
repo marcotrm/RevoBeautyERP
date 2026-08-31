@@ -27,12 +27,48 @@ $whatsapp = rb_whatsapp_url();
 	<?php endif; ?>
 </div>
 
-<footer class="fondo">
+<?php /*
+	Il fondo pagina, in un pezzo solo: invito, firma, colonne, riga legale.
+	Prima l'invito finale e il footer erano due blocchi neri staccati da un
+	filo di crema — il «footer spezzato» che il cliente ha segnalato. Il
+	modello è il footer di lindas: fascia d'invito, logotipo a piena
+	larghezza come firma, quattro colonne sopra un filo di bianco al 16%,
+	riga legale in fondo.
+*/ ?>
+<footer class="fondo" id="fondo">
+
+	<div class="fondo-invito">
+		<h2 class="fondo-invito-titolo sale">Il posto giusto si riconosce da come ti senti quando esci.</h2>
+		<div class="fondo-invito-azioni sale">
+			<?php if ( $whatsapp ) : ?>
+				<a class="bottone bottone-oro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener"><span>Prenota su WhatsApp</span></a>
+			<?php endif; ?>
+			<?php if ( $telefono ) : ?>
+				<a class="collega collega-chiaro" href="tel:<?php echo esc_attr( $telefono ); ?>">oppure chiamaci</a>
+			<?php endif; ?>
+		</div>
+	</div>
+
+	<?php /* La firma: il logotipo a tutta larghezza, in caratteri e non in
+		immagine — si ridisegna nitido a qualsiasi misura e non pesa nulla. */ ?>
+	<div class="fondo-firma" aria-hidden="true">
+		<span class="firma-revo">REVO</span><span class="firma-beauty">BEAUTY</span>
+	</div>
+
 	<div class="fondo-dentro">
-		<div class="fondo-colonna fondo-marchio">
-			<div class="marchio"><span class="marchio-revo">REVO</span><span class="marchio-beauty">BEAUTY</span></div>
-			<p class="fondo-claim">Innovazione &amp; bellezza, a Maddaloni.</p>
-			<?php if ( $whatsapp ) : ?><a class="bottone bottone-oro" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">Prenota su WhatsApp</a><?php endif; ?>
+		<div class="fondo-colonna">
+			<h2 class="fondo-titolo">Il centro</h2>
+			<p class="fondo-testo">Estetica avanzata a Maddaloni: tecnologie recenti, un metodo semplice — prima ascoltare, poi trattare.</p>
+		</div>
+
+		<div class="fondo-colonna">
+			<h2 class="fondo-titolo">Naviga</h2>
+			<ul class="fondo-voci">
+				<li><a class="fondo-link" href="<?php echo esc_url( home_url( '/servizi/' ) ); ?>">Trattamenti</a></li>
+				<li><a class="fondo-link" href="<?php echo esc_url( home_url( '/chi-siamo/' ) ); ?>">Chi siamo</a></li>
+				<li><a class="fondo-link" href="<?php echo esc_url( home_url( '/blog/' ) ); ?>">Blog</a></li>
+				<li><a class="fondo-link" href="<?php echo esc_url( home_url( '/contatti/' ) ); ?>">Contatti</a></li>
+			</ul>
 		</div>
 
 		<div class="fondo-colonna">
@@ -51,17 +87,18 @@ $whatsapp = rb_whatsapp_url();
 
 		<div class="fondo-colonna">
 			<h2 class="fondo-titolo">Contatti</h2>
-			<address class="fondo-testo">
-				<?php echo esc_html( $centro['indirizzo'] ?? 'Maddaloni (CE)' ); ?>
-			</address>
-			<?php if ( $telefono ) : ?>
-				<p><a class="fondo-link" href="tel:<?php echo esc_attr( $telefono ); ?>"><?php echo esc_html( $centro['telefono'] ); ?></a></p>
-			<?php endif; ?>
-			<?php if ( $whatsapp ) : ?>
-				<p><a class="fondo-link" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">Scrivici su WhatsApp</a></p>
-			<?php endif; ?>
+			<address class="fondo-testo"><?php echo esc_html( $centro['indirizzo'] ?? 'Maddaloni (CE)' ); ?></address>
+			<ul class="fondo-voci">
+				<?php if ( $telefono ) : ?>
+					<li><a class="fondo-link" href="tel:<?php echo esc_attr( $telefono ); ?>"><?php echo esc_html( $centro['telefono'] ); ?></a></li>
+				<?php endif; ?>
+				<?php if ( $whatsapp ) : ?>
+					<li><a class="fondo-link" href="<?php echo esc_url( $whatsapp ); ?>" rel="noopener">WhatsApp</a></li>
+				<?php endif; ?>
+			</ul>
 		</div>
 	</div>
+
 	<div class="fondo-legale">
 		<p>© <?php echo esc_html( gmdate( 'Y' ) ); ?> RevoBeauty · Maddaloni (CE) · P.IVA 10625841217</p>
 		<nav aria-label="Note legali">
