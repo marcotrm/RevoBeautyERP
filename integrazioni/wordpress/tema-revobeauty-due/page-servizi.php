@@ -43,7 +43,16 @@ $listino = rb_listino();
 		Senza JavaScript i filtri spariscono e resta l'elenco completo: lungo,
 		ma tutto lì e tutto leggibile.
 	*/ ?>
-	<div class="filtri" data-filtri>
+	<?php if ( is_readable( RB_DUE_DIR . '/assets/img/servizi-testata.webp' ) ) : ?>
+<section class="foto-categoria sipario-taglio">
+	<picture>
+		<source type="image/avif" sizes="100vw" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/servizi-testata-800.avif 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/servizi-testata.avif 1024w" />
+		<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/servizi-testata.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/servizi-testata-800.webp 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/servizi-testata.webp 1024w" sizes="100vw" alt="" width="1024" height="559" loading="lazy" decoding="async" />
+	</picture>
+</section>
+<?php endif; ?>
+
+<div class="filtri" data-filtri>
 		<div class="cerca-riga">
 			<label class="cerca-etichetta" for="cerca-trattamento">Cerca un trattamento</label>
 			<input type="search" id="cerca-trattamento" data-cerca placeholder="es. laser ascelle, pressoterapia&hellip;" autocomplete="off" />
