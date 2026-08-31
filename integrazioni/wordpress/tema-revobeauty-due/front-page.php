@@ -161,6 +161,16 @@ $conta_categorie   = is_array( $listino ) && ! empty( $listino['categorie'] ) ? 
 
 
 
+<?php /* La banda di materia: seta d'oro a tutta larghezza che scorre più
+	lenta della pagina. È il parallasse classico, fatto dal CSS. L'immagine è
+	generata, e fa la texture: non finge di essere il centro. */ ?>
+<div class="materia deriva deriva-forte" aria-hidden="true">
+	<picture>
+		<source type="image/avif" sizes="100vw" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/materia-seta-800.avif 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/materia-seta.avif 1024w" />
+		<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/materia-seta.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/materia-seta-800.webp 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/materia-seta.webp 1024w" sizes="100vw" alt="" loading="lazy" decoding="async" />
+	</picture>
+</div>
+
 <section class="fascia-bordeaux" data-tono="scuro">
 	<div class="fascia-due">
 		<div>
@@ -171,6 +181,16 @@ $conta_categorie   = is_array( $listino ) && ! empty( $listino['categorie'] ) ? 
 			</blockquote>
 		</div>
 		<div class="fascia-lato sale">
+			<?php
+			/* La valutazione vera della scheda Google, quando il gestionale
+			   la conosce (arriva dal monitoraggio recensioni via /api/listino).
+			   Numeri letti da Google, mai scritti a mano: se non ci sono
+			   ancora, questa riga semplicemente non esiste. */
+			$g = rb_centro()['recensioni'] ?? null;
+			if ( is_array( $g ) && ! empty( $g['totale'] ) ) : ?>
+				<p class="fascia-voto"><span class="fascia-voto-numero"><?php echo esc_html( number_format_i18n( (float) $g['media'], 1 ) ); ?></span> su 5 <span class="fascia-voto-stelle" aria-hidden="true">★★★★★</span></p>
+				<p class="fascia-voto-conto"><?php echo (int) $g['totale']; ?> recensioni su Google</p>
+			<?php endif; ?>
 			<p class="fascia-lato-testo">Le recensioni sono sulla nostra scheda Google: leggile prima di scriverci, è giusto così.</p>
 			<a class="collega collega-chiaro" href="<?php echo esc_url( 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode( 'RevoBeauty ' . ( rb_centro()['indirizzo'] ?? 'Maddaloni' ) ) ); ?>" rel="noopener">Leggi le recensioni →</a>
 		</div>

@@ -35,6 +35,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { corsLead } from '@/lib/lead';
 import { leggiCentro } from '@/lib/centro';
+import { leggiStato } from '@/lib/recensioni';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,7 +44,7 @@ export async function OPTIONS(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const [treatments, packages, centro] = await Promise.all([
+  const [treatments, packages, centro, recensioni] = await Promise.all([
     prisma.treatment.findMany({
       where: { isActive: true },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
@@ -55,6 +56,10 @@ export async function GET(request: Request) {
     }),
     prisma.package.findMany({ orderBy: { price: 'asc' } }),
     leggiCentro(),
+    // La media e il conteggio della scheda Google, dallo stato già letto dal
+    // monitoraggio: nessuna chiamata a Google per servire questa risposta.
+    // Sono numeri pubblici — chiunque li vede sulla scheda.
+    leggiStato().catch(() => null),
   ]);
 
   const voci = treatments.map(t => ({
@@ -83,6 +88,10 @@ export async function GET(request: Request) {
         telefono: centro.telefono,
         orari: centro.orari,
         chiusure: centro.chiusure,
+        recensioni:
+          recensioni && recensioni.totale > 0
+            ? { media: recensioni.media, totale: recensioni.totale }
+            : undefined,
       },
       categorie,
       trattamenti: voci,
