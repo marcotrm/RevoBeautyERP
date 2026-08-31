@@ -143,7 +143,13 @@ export async function handleAssistantMessage(params: {
     const history = log.turns.map(t => ({ role: t.role, content: t.text }));
 
     const response = await client.messages.create({
-      model: 'claude-opus-5',
+      // Sonnet 5 come il resto: due volte e mezzo meno di Opus.
+      //
+      // Qui la cache del prompt NON si mette: la parte fissa sono 436 token,
+      // sotto il minimo di 1024 sopra il quale Anthropic accetta di cachare.
+      // Un marcatore messo lo stesso verrebbe ignorato in silenzio, e in
+      // futuro farebbe credere a chi legge che qui si stia risparmiando.
+      model: process.env.WA_MODELLO_TESTA || 'claude-sonnet-5',
       max_tokens: 1000,
       system: `${SYSTEM_RULES}\n\n--- CONTESTO ---\n${context}`,
       messages: [...history, { role: 'user' as const, content: text }],

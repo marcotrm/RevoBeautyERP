@@ -59,9 +59,23 @@ export function modelloDiLavoro(): string {
   return process.env.WA_MODELLO_LAVORO || 'claude-haiku-4-5';
 }
 
-/** Il modello che decide quando si tocca l'agenda. */
+/**
+ * Il modello che decide quando si tocca l'agenda.
+ *
+ * Sonnet 5, non Opus: 2 e 10 dollari per milione di token invece di 5 e 25.
+ * Il centro ha guardato il conto di due giorni e ha chiesto di scendere, e la
+ * richiesta regge — perche' qui non si progetta niente. Si legge un listino,
+ * si guarda un buco in agenda, si scrivono due righe. E quello che DEVE
+ * andare bene, l'appuntamento scritto in agenda, non lo protegge la stazza
+ * del modello: lo protegge il gettone di conferma, che e' una porta e non un
+ * consiglio, e il controllo sugli orari, che rifiuta il messaggio se cita
+ * un'ora che nessuno strumento ha restituito.
+ *
+ * Resta una variabile: se le prenotazioni cominciassero a uscire storte, si
+ * torna a Opus cambiando WA_MODELLO_TESTA, senza rilasciare niente.
+ */
 export function modelloDiTesta(): string {
-  return process.env.WA_MODELLO_TESTA || process.env.WA_SEGRETARIA_MODEL || 'claude-opus-5';
+  return process.env.WA_MODELLO_TESTA || process.env.WA_SEGRETARIA_MODEL || 'claude-sonnet-5';
 }
 
 export function modelloPer(livello: Livello): string {
