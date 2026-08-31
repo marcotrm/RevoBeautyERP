@@ -152,6 +152,41 @@ $conta_categorie   = is_array( $listino ) && ! empty( $listino['categorie'] ) ? 
 	</div>
 	<div class="scorri-barra" aria-hidden="true"><span class="scorri-indice"></span></div>
 </section>
+
+<?php
+/*
+ * Le righe editoriali: l'immagine al servizio del contenuto, mai da sola.
+ * Tre specializzazioni di punta, alternate destra/sinistra come in una
+ * rivista: la foto si scopre col sipario, il testo sale, i prezzi sono
+ * quelli veri del listino. È il modo professionale di usare le immagini —
+ * una texture buttata fra due sezioni non lo era.
+ */
+$editoriali = array( 'laser', 'facial', 'body' );
+?>
+<section class="sezione editoriale-blocco" aria-label="Le specializzazioni di punta">
+	<?php foreach ( $editoriali as $slug ) :
+		if ( ! isset( $categorie[ $slug ] ) || ! is_readable( RB_DUE_DIR . '/assets/img/categoria-' . $slug . '.webp' ) ) {
+			continue;
+		}
+		$info = $categorie[ $slug ];
+		$base = RB_DUE_URI . '/assets/img/categoria-' . $slug;
+		?>
+	<article class="editoriale">
+		<div class="editoriale-foto sipario-taglio">
+			<picture>
+				<source type="image/avif" sizes="(max-width: 860px) 100vw, 50vw" srcset="<?php echo esc_attr( $base ); ?>-800.avif 800w, <?php echo esc_attr( $base ); ?>.avif 1024w" />
+				<img src="<?php echo esc_url( $base . '.webp' ); ?>" srcset="<?php echo esc_attr( $base ); ?>-800.webp 800w, <?php echo esc_attr( $base ); ?>.webp 1024w" sizes="(max-width: 860px) 100vw, 50vw" alt="" width="1024" height="559" loading="lazy" decoding="async" />
+			</picture>
+		</div>
+		<div class="editoriale-testo">
+			<p class="occhiello sale"><?php echo esc_html( $info['quante'] ); ?> trattamenti<?php if ( $info['da'] ) : ?> · da <?php echo esc_html( rb_prezzo( $info['da'] ) ); ?><?php endif; ?></p>
+			<h3 class="editoriale-titolo sale"><?php echo esc_html( rb_nome_categoria( $slug ) ); ?></h3>
+			<p class="editoriale-frase sale"><?php echo esc_html( rb_categoria_intro( $slug ) ); ?></p>
+			<a class="collega sale" href="<?php echo esc_url( rb_categoria_url( $slug ) ); ?>">Scopri e vedi i prezzi →</a>
+		</div>
+	</article>
+	<?php endforeach; ?>
+</section>
 <?php else : ?>
 <section class="sezione trattamenti-casa">
 	<h2 class="titolone sale">I trattamenti</h2>
@@ -161,17 +196,15 @@ $conta_categorie   = is_array( $listino ) && ! empty( $listino['categorie'] ) ? 
 
 
 
-<?php /* La banda di materia: seta d'oro a tutta larghezza che scorre più
-	lenta della pagina. È il parallasse classico, fatto dal CSS. L'immagine è
-	generata, e fa la texture: non finge di essere il centro. */ ?>
-<div class="materia deriva deriva-forte" aria-hidden="true">
-	<picture>
-		<source type="image/avif" sizes="100vw" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/materia-seta-800.avif 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/materia-seta.avif 1024w" />
-		<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/materia-seta.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/materia-seta-800.webp 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/materia-seta.webp 1024w" sizes="100vw" alt="" loading="lazy" decoding="async" />
-	</picture>
-</div>
-
-<section class="fascia-bordeaux" data-tono="scuro">
+<section class="fascia-bordeaux fascia-seta-sfondo" data-tono="scuro">
+	<?php /* La seta scorre più lenta sotto un velo bordeaux: la texture fa
+		da fondo alle parole, non da riempitivo fra due sezioni. */ ?>
+	<div class="fascia-seta deriva deriva-forte" aria-hidden="true">
+		<picture>
+			<source type="image/avif" sizes="100vw" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/materia-seta-800.avif 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/materia-seta.avif 1024w" />
+			<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/materia-seta.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/materia-seta-800.webp 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/materia-seta.webp 1024w" sizes="100vw" alt="" loading="lazy" decoding="async" />
+		</picture>
+	</div>
 	<div class="fascia-due">
 		<div>
 			<p class="occhiello occhiello-chiaro sale">Dicono di noi</p>
