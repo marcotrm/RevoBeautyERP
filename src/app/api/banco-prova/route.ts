@@ -39,14 +39,36 @@ export async function GET(request: Request) {
     metro di paragone fallisce e porta con sé sette errori che non dicono
     niente su nessuno.
   */
-  const solo = new URL(request.url).searchParams.get('solo');
-  const scelti = solo
+  const cerca = new URL(request.url).searchParams;
+  const solo = cerca.get('solo');
+  let scelti = solo
     ? CONCORRENTI.filter(c => solo.split(',').map(s => s.trim()).includes(c.fornitore))
     : CONCORRENTI;
+
+  /*
+    `?modello=` cambia il modello del concorrente scelto senza passare da una
+    variabile d'ambiente. Non è pigrizia: ogni variabile fa ripartire il
+    servizio, e per trovare quale Flash gratuito regge davvero bisogna provarne
+    tre o quattro. Rimettere in piedi la produzione quattro volte per cambiare
+    una stringa è un prezzo che non ha senso pagare.
+  */
+  const modello = cerca.get('modello');
+  if (modello && scelti.length === 1) {
+    scelti = [{ ...scelti[0], model: modello }];
+  }
 
   try {
     const referti = await corri(scelti);
     console.log(tabella(referti));
+
+    /*
+      Una corsa in cui NESSUNO ha risposto non è una misura: è il fornitore
+      che era chiuso. Non deve consumare il quarto d'ora, altrimenti per
+      riprovare un nome di modello si aspetta un quarto d'ora per niente.
+    */
+    const misurato = referti.some(r => r.casi.some(c => !c.errore));
+    if (!misurato) ultimaCorsa = 0;
+
     return Response.json({ referti });
   } catch (e) {
     ultimaCorsa = 0; // Un guasto non deve bloccare il prossimo tentativo.

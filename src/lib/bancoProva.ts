@@ -150,6 +150,7 @@ export interface EsitoCaso {
   giri: number;
   orariInventati: string[];
   chiuso: boolean;
+  ritentativi: number;
   ms: number;
   tokenIn: number;
   tokenOut: number;
@@ -166,6 +167,7 @@ export interface Referto {
     orariInventati: number;
     giriNonChiusi: number;
     errori: number;
+    ritentativi: number;
     msMedi: number;
     tokenIn: number;
     tokenOut: number;
@@ -196,6 +198,7 @@ async function unTurno(
   let testo = '';
   let giri = 0;
   let chiuso = false;
+  let ritentativi = 0;
 
   for (const o of orariIn(domanda)) orariLeciti.add(o);
 
@@ -210,6 +213,7 @@ async function unTurno(
       };
 
       const r = await chiedi(c.fornitore, richiesta);
+      ritentativi += r.ritentativi;
       tokenIn += r.tokenIn;
       tokenOut += r.tokenOut;
       testo = r.testo || testo;
@@ -262,6 +266,7 @@ async function unTurno(
       giri,
       orariInventati: [],
       chiuso: false,
+      ritentativi,
       ms: Date.now() - partito,
       tokenIn,
       tokenOut,
@@ -275,6 +280,7 @@ async function unTurno(
     giri,
     orariInventati: orariIn(testo).filter(o => !orariLeciti.has(o)),
     chiuso,
+    ritentativi,
     ms: Date.now() - partito,
     tokenIn,
     tokenOut,
@@ -299,7 +305,10 @@ export async function corri(concorrenti: Concorrente[] = CONCORRENTI): Promise<R
         fornitore: c.fornitore,
         disponibile: false,
         casi: [],
-        totali: { orariInventati: 0, giriNonChiusi: 0, errori: 0, msMedi: 0, tokenIn: 0, tokenOut: 0 },
+        totali: {
+          orariInventati: 0, giriNonChiusi: 0, errori: 0,
+          ritentativi: 0, msMedi: 0, tokenIn: 0, tokenOut: 0,
+        },
       });
       continue;
     }
@@ -335,6 +344,7 @@ export async function corri(concorrenti: Concorrente[] = CONCORRENTI): Promise<R
         orariInventati: casi.reduce((s, x) => s + x.orariInventati.length, 0),
         giriNonChiusi: casi.filter(x => !x.chiuso && !x.errore).length,
         errori: casi.filter(x => x.errore).length,
+        ritentativi: casi.reduce((s, x) => s + x.ritentativi, 0),
         msMedi: Math.round(casi.reduce((s, x) => s + x.ms, 0) / (casi.length || 1)),
         tokenIn: casi.reduce((s, x) => s + x.tokenIn, 0),
         tokenOut: casi.reduce((s, x) => s + x.tokenOut, 0),
@@ -357,7 +367,7 @@ export function tabella(referti: Referto[]): string {
     const t = r.totali;
     righe.push(
       `\n${r.concorrente}  [${r.model}]`,
-      `  orari inventati: ${t.orariInventati}   giri non chiusi: ${t.giriNonChiusi}   errori: ${t.errori}`,
+      `  orari inventati: ${t.orariInventati}   giri non chiusi: ${t.giriNonChiusi}   errori: ${t.errori}   ritentativi: ${t.ritentativi}`,
       `  tempo medio: ${t.msMedi}ms   token: ${t.tokenIn} in / ${t.tokenOut} out`
     );
     for (const c of r.casi) {
