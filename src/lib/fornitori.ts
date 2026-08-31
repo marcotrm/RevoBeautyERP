@@ -145,10 +145,48 @@ async function viaAnthropic(f: Fornitore, chiave: string, r: Richiesta): Promise
  */
 let contatore = 0;
 
+/**
+ * La firma del pensiero di Gemini.
+ *
+ * Dalla 3 in poi Gemini «pensa» prima di chiamare uno strumento, firma quel
+ * ragionamento e attacca la firma alla chiamata in un campo che nel formato
+ * OpenAI non esiste: `tool_calls[N].extra_content.google.thought_signature`.
+ * Al giro successivo pretende di ritrovarla, e se non c'è rifiuta tutto con
+ *
+ *     400 Function call is missing a thought_signature in functionCall parts
+ *
+ * Cioè: il modello risponde benissimo al primo colpo e muore al secondo, che
+ * è esattamente dove vive una segretaria — chiedi gli orari, leggi il
+ * risultato, rispondi. Ci sono inciampati VS Code, Codex e la libreria
+ * ufficiale di OpenAI, tutti per lo stesso motivo: chi ricostruisce la
+ * chiamata campo per campo butta via quello che non conosce.
+ *
+ * Noi la chiamata la ricostruiamo davvero — dentro passa per la forma di
+ * Anthropic, che una firma non ce l'ha — quindi la firma si tiene qui a
+ * parte, appesa all'id della chiamata. Il tetto serve a non far crescere la
+ * mappa all'infinito in un processo che non si spegne mai.
+ */
+const FIRME = new Map<string, string>();
+const MAX_FIRME = 500;
+
+function ricorda(id: string, firma: string | undefined): void {
+  if (!firma) return;
+  if (FIRME.size >= MAX_FIRME) {
+    const primo = FIRME.keys().next();
+    if (!primo.done) FIRME.delete(primo.value);
+  }
+  FIRME.set(id, firma);
+}
+
 interface MessaggioOpenAI {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content?: string | Array<Record<string, unknown>> | null;
-  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>;
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+    extra_content?: { google: { thought_signature: string } };
+  }>;
   tool_call_id?: string;
 }
 
@@ -182,10 +220,12 @@ function perGemini(r: Richiesta): MessaggioOpenAI[] {
           image_url: { url: `data:${b.source.media_type};base64,${b.source.data}` },
         });
       } else if (b.type === 'tool_use') {
+        const firma = FIRME.get(b.id);
         chiamate.push({
           id: b.id,
           type: 'function',
           function: { name: b.name, arguments: JSON.stringify(b.input ?? {}) },
+          ...(firma ? { extra_content: { google: { thought_signature: firma } } } : {}),
         });
       } else if (b.type === 'tool_result') {
         risultati.push({
@@ -242,7 +282,10 @@ function daGemini(dati: Record<string, unknown>): Risposta {
       // esattamente il tipo di sbaglio che il banco di prova deve contare.
       input = { _nonJson: fn.arguments };
     }
-    return { id: String(c.id || `chiamata_${++contatore}`), nome: String(fn.name || ''), input };
+    const id = String(c.id || `chiamata_${++contatore}`);
+    const extra = (c.extra_content || {}) as { google?: { thought_signature?: string } };
+    ricorda(id, extra.google?.thought_signature);
+    return { id, nome: String(fn.name || ''), input };
   });
 
   return {
@@ -278,5 +321,20 @@ async function viaGemini(chiave: string, r: Richiesta): Promise<Risposta> {
     throw new Error(`Gemini ${risposta.status}: ${corpo.slice(0, 300)}`);
   }
 
-  return daGemini(JSON.parse(corpo) as Record<string, unknown>);
+  const esito = daGemini(JSON.parse(corpo) as Record<string, unknown>);
+
+  /*
+    La spia sulla firma del pensiero.
+    
+    Se un domani Gemini rifiutasse ancora le chiamate, questa riga dice subito
+    di chi e' la colpa: «0 firmate su 2» vuol dire che il campo non arriva e il
+    percorso compatibile OpenAI non basta; «2 su 2» vuol dire che la firma c'e'
+    e il guasto e' altrove. Senza, si tira a indovinare due volte.
+  */
+  if (esito.chiamate.length > 0) {
+    const firmate = esito.chiamate.filter(c => FIRME.has(c.id)).length;
+    console.log(`[gemini] ${esito.chiamate.length} chiamate, ${firmate} con firma del pensiero`);
+  }
+
+  return esito;
 }
