@@ -307,6 +307,39 @@
 .scorri-barra { height: 2px; background: var(--crema-scura); margin: 0 24px; position: relative; overflow: hidden; }
 .scorri-indice { position: absolute; left: 0; top: 0; bottom: 0; width: 18%; background: var(--oro); transition: transform .2s linear; }
 
+/* ── I numeri veri, che contano da zero ───────────────────────────────
+   Il conteggio è CSS puro: una proprietà registrata che si anima sulla
+   timeline di visibilità e finisce in un counter(). Dove le timeline non
+   esistono, resta il numero pieno scritto nell'HTML — mai uno zero. */
+.numeri { padding-top: 30px; }
+.numeri-fila { display: flex; gap: clamp(28px, 6vw, 96px); flex-wrap: wrap; }
+.numero { display: flex; flex-direction: column; gap: 4px; }
+.numero-cifra {
+  font-weight: 300; font-size: clamp(46px, 6vw, 92px); line-height: 1;
+  color: #8a7639; font-variant-numeric: tabular-nums;
+}
+.numero-voce { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--grigio); }
+.conta-anim { display: none; }
+
+@property --rb-n { syntax: '<integer>'; inherits: false; initial-value: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .conta .conta-vero {
+      position: absolute; width: 1px; height: 1px; overflow: hidden;
+      clip-path: inset(50%); white-space: nowrap;
+    }
+    .conta { position: relative; }
+    .conta .conta-anim { display: inline; }
+    .conta .conta-anim::after {
+      counter-reset: rb-n var(--rb-n); content: counter(rb-n);
+      animation: rb-conta linear both;
+      animation-timeline: view();
+      animation-range: entry 15% entry 70%;
+    }
+    @keyframes rb-conta { from { --rb-n: 0; } to { --rb-n: var(--fine, 0); } }
+  }
+}
+
 /* ── Fascia bordeaux ──────────────────────────────────────────────────── */
 .fascia-bordeaux { background: var(--bordeaux); color: var(--crema); padding: 60px var(--lato); margin-top: 56px; }
 .fascia-bordeaux > * { max-width: var(--largo); margin-left: auto; margin-right: auto; }
@@ -414,6 +447,78 @@
 /* Il passaggio del mouse riempie la riga d'oro da sinistra e la fa
    scivolare di un soffio: è la riga di lindas, coi nostri colori.
    Solo dove un puntatore esiste davvero. */
+/* ── Il livello del mouse ─────────────────────────────────────────────
+   Tutto ciò che segue vive solo dove un puntatore esiste davvero: sul
+   telefono non c'è, non costa, non si vede. */
+@media (hover: hover) and (pointer: fine) {
+
+  /* Il riflesso sulle carte: una lama di luce che le attraversa. */
+  .carta { position: relative; overflow: hidden; }
+  .carta::before {
+    content: ''; position: absolute; top: -20%; bottom: -20%; left: -30%; width: 36%;
+    background: linear-gradient(105deg, transparent, rgba(212, 192, 138, .28), transparent);
+    transform: translateX(-160%) rotate(8deg);
+    transition: transform .8s var(--uscita); pointer-events: none;
+  }
+  .carta:hover::before { transform: translateX(420%) rotate(8deg); }
+  .carta-freccia { transition: transform .35s var(--uscita); }
+  .carta:hover .carta-freccia { transform: translateX(8px); }
+
+  /* Le persone: il cerchio d'oro si disegna intorno, la lettera si alza. */
+  .persona-foto { transition: box-shadow .45s var(--uscita), transform .45s var(--uscita); }
+  .persona:hover .persona-foto { box-shadow: 0 0 0 3px var(--oro); transform: translateY(-4px); }
+  .persona-foto-vuota span, .persona-foto-vuota { transition: transform .45s var(--uscita); }
+  .scheda-foto { transition: box-shadow .45s var(--uscita); }
+  .scheda-persona:hover .scheda-foto { box-shadow: inset 0 0 0 2px var(--oro); }
+
+  /* Le schede della giostra si inclinano seguendo il mouse (il JS scrive
+     --rx/--ry) e il prezzo prende luce. */
+  .giostra-scheda {
+    transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: transform .25s ease-out;
+  }
+  .giostra-scheda:hover { transition: transform .06s linear; }
+
+  /* Le pastiglie del listino si riempiono dal basso come i tasti. */
+  .pastiglia {
+    background-image: linear-gradient(var(--nero), var(--nero));
+    background-repeat: no-repeat; background-position: 0 100%; background-size: 100% 0%;
+    transition: background-size .35s var(--uscita), color .35s var(--uscita), border-color .35s var(--uscita);
+  }
+  .pastiglia:hover { background-size: 100% 101%; color: var(--crema); }
+
+  /* I tasti sono magnetici: il JS scrive --mx/--my quando il mouse è
+     vicino. La transizione di rientro è più lunga: l'elastico si sente
+     quando molla, non quando tira. */
+  .bottone { transform: translate(var(--mx, 0px), var(--my, 0px)); }
+  .bottone:active { transform: translate(var(--mx, 0px), var(--my, 0px)) scale(.97); }
+
+  /* Il cursore d'oro: un punto e un anello che insegue con un filo di
+     ritardo, e si allarga su tutto ciò che si può premere. Il cursore di
+     sistema resta: questo è un accento, non un sostituto. */
+  .rb-cursore { position: fixed; top: 0; left: 0; z-index: 300; pointer-events: none; }
+  .rb-cursore i {
+    position: absolute; display: block; border-radius: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .rb-punto { width: 5px; height: 5px; background: var(--oro); }
+  .rb-anello {
+    width: 34px; height: 34px; border: 1px solid rgba(181, 155, 83, .65);
+    transition: width .3s var(--uscita), height .3s var(--uscita),
+                border-color .3s var(--uscita), background-color .3s var(--uscita);
+  }
+  .rb-cursore.su-attivo .rb-anello {
+    width: 52px; height: 52px;
+    border-color: var(--oro); background: rgba(181, 155, 83, .1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rb-cursore { display: none; }
+  .carta::before { display: none; }
+  .giostra-scheda { transform: none !important; }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .voce { position: relative; }
   .voce::after {
