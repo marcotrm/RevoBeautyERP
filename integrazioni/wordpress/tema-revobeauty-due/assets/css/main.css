@@ -29,29 +29,14 @@
 .righe .riga { display: block; overflow: hidden; }
 .righe .riga > span { display: block; }
 
-/* ── Il ciclo dei fotogrammi dell'eroe ────────────────────────────────
-   Come la testata di lindas: tenuta 5,2s, dissolvenza 1,8s, Ken Burns da
-   1,10 a 1,02 — ma in keyframes puri, senza un motore. Il fotogramma 1 è
-   la base sempre accesa (è anche l'LCP: non si tocca); 2 e 3 si accendono
-   sopra, ciascuno nel proprio terzo del giro da 21 secondi.
-   `data-fermo` lo mette l'osservatore quando l'eroe esce dallo schermo:
-   un'animazione infinita fuori campo è batteria sprecata. */
+/* ── Il respiro dell'eroe ─────────────────────────────────────────────
+   Una sola immagine (scelta dell'utente: niente ciclo), con uno zoom
+   lentissimo che la tiene viva. `data-fermo` lo mette l'osservatore
+   quando l'eroe esce dallo schermo: un'animazione infinita fuori campo
+   è batteria sprecata. */
 @media (prefers-reduced-motion: no-preference) {
-  .eroe-fotogramma img { transform-origin: 50% 40%; }
-  .fotogramma-1 img { animation: rb-respiro 21s ease-in-out infinite; }
-  .fotogramma-2, .fotogramma-3 { animation: rb-giro 21s linear infinite; }
-  .fotogramma-2 img, .fotogramma-3 img { animation: rb-burns 21s linear infinite; }
-  .fotogramma-3, .fotogramma-3 img { animation-delay: 7s; }
-  .eroe[data-fermo] .eroe-fotogramma, .eroe[data-fermo] .eroe-fotogramma img { animation-play-state: paused; }
-  @keyframes rb-giro {
-    0%, 33.3% { opacity: 0; }
-    41.9%, 66.6% { opacity: 1; }
-    75.2%, 100% { opacity: 0; }
-  }
-  @keyframes rb-burns {
-    0%, 33.3% { transform: scale(1.10); }
-    75.2%, 100% { transform: scale(1.02); }
-  }
+  .eroe-fotogramma img { transform-origin: 50% 40%; animation: rb-respiro 24s ease-in-out infinite; }
+  .eroe[data-fermo] .eroe-fotogramma img { animation-play-state: paused; }
   @keyframes rb-respiro {
     0%, 100% { transform: scale(1.02); }
     50% { transform: scale(1.08); }
@@ -656,10 +641,9 @@ address { font-style: normal; }
    pagina. Spegnere tutto toglierebbe anche i riscontri utili. */
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .parola, .eroe-fotogramma.fotogramma-1, .fotogramma-1 img, .volo-parola, .giostra-fila {
+  .parola, .eroe-fotogramma, .eroe-fotogramma img, .volo-parola, .giostra-fila {
     animation: none !important; opacity: 1 !important; transform: none !important;
   }
-  .fotogramma-2, .fotogramma-3 { animation: none !important; opacity: 0 !important; }
   .sale, .sipario img, .righe .riga > span, .deriva img {
     animation: none !important; transform: none !important; clip-path: none !important;
   }

@@ -36,19 +36,7 @@ for ( $i = 1; $i <= 4; $i++ ) {
 				<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/hero-full-1400.webp' ); ?>" alt="L'ingresso illuminato di RevoBeauty in via Caudina a Maddaloni, all'imbrunire" width="2000" height="1107" fetchpriority="high" />
 			</picture>
 		</div>
-		<div class="eroe-fotogramma fotogramma-2" aria-hidden="true">
-			<picture class="eroe-sfondo">
-				<source type="image/avif" sizes="100vw" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-b-800.avif 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-b-1400.avif 1400w" />
-				<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/hero-b-1400.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-b-800.webp 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-b-1400.webp 1400w" sizes="100vw" alt="" width="1400" height="875" loading="lazy" decoding="async" />
-			</picture>
 		</div>
-		<div class="eroe-fotogramma fotogramma-3" aria-hidden="true">
-			<picture class="eroe-sfondo">
-				<source type="image/avif" sizes="100vw" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-c-800.avif 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-c-1400.avif 1400w" />
-				<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/hero-c-1400.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-c-800.webp 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-c-1400.webp 1400w" sizes="100vw" alt="" width="1400" height="877" loading="lazy" decoding="async" />
-			</picture>
-		</div>
-	</div>
 	<div class="eroe-velo" aria-hidden="true"></div>
 
 	<div class="logotipo-volo" id="rb-volo" aria-hidden="true">
