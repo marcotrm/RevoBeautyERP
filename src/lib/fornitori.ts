@@ -44,6 +44,41 @@ export interface Risposta {
   chiamate: Chiamata[];
   tokenIn: number;
   tokenOut: number;
+  /** Quante volte il fornitore ha detto «riprova» prima di rispondere. */
+  ritentativi: number;
+}
+
+/**
+ * «Riprova più tardi» non è un caso limite: sui piani gratuiti è la risposta
+ * normale. Chi vuole sapere se un modello gratuito regge un lavoro vero deve
+ * ritentare come ritenterebbe in produzione, altrimenti misura la fortuna e
+ * non il modello.
+ *
+ * Ma i tentativi si contano e finiscono nel referto: un modello che risponde
+ * solo al terzo colpo ha comunque lasciato la cliente ad aspettare quindici
+ * secondi, e quello è un difetto, non un dettaglio tecnico.
+ */
+const RITENTA = 3;
+const ATTESE_MS = [1500, 4000, 9000];
+
+function daRitentare(e: unknown): boolean {
+  const m = e instanceof Error ? e.message : String(e);
+  return / 429| 503| 529|RESOURCE_EXHAUSTED|UNAVAILABLE|overloaded/i.test(m);
+}
+
+async function insistendo(fai: () => Promise<Risposta>): Promise<Risposta> {
+  let ultimo: unknown;
+  for (let n = 0; n <= RITENTA; n++) {
+    try {
+      const r = await fai();
+      return { ...r, ritentativi: n };
+    } catch (e) {
+      ultimo = e;
+      if (n === RITENTA || !daRitentare(e)) break;
+      await new Promise(ok => setTimeout(ok, ATTESE_MS[n]));
+    }
+  }
+  throw ultimo;
 }
 
 /** Da dove si prende la chiave e a quale indirizzo si bussa. */
@@ -63,7 +98,7 @@ export function chiaveMancante(f: Fornitore): boolean {
 export async function chiedi(f: Fornitore, r: Richiesta): Promise<Risposta> {
   const chiave = process.env[CASA[f].chiave];
   if (!chiave) throw new Error(`Manca ${CASA[f].chiave}`);
-  return f === 'gemini' ? viaGemini(chiave, r) : viaAnthropic(f, chiave, r);
+  return insistendo(() => (f === 'gemini' ? viaGemini(chiave, r) : viaAnthropic(f, chiave, r)));
 }
 
 /* ------------------------------------------------------------------ */
@@ -92,6 +127,7 @@ async function viaAnthropic(f: Fornitore, chiave: string, r: Richiesta): Promise
       .map(b => ({ id: b.id, nome: b.name, input: b.input })),
     tokenIn: risposta.usage.input_tokens,
     tokenOut: risposta.usage.output_tokens,
+    ritentativi: 0,
   };
 }
 
@@ -214,6 +250,7 @@ function daGemini(dati: Record<string, unknown>): Risposta {
     chiamate,
     tokenIn: uso.prompt_tokens || 0,
     tokenOut: uso.completion_tokens || 0,
+    ritentativi: 0,
   };
 }
 
