@@ -37,7 +37,9 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+/* Il canale della barra resta riservato: quando l'entrata blocca e
+   sblocca lo scorrimento, la pagina non si sposta di lato. */
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scrollbar-gutter: stable; }
 body {
   margin: 0; background: var(--avorio); color: var(--inchiostro);
   font-family: var(--sans); font-weight: 300; font-size: 16px; line-height: 1.65;
@@ -119,7 +121,7 @@ a:hover { color: var(--bordeaux); }
 .eroe {
   position: relative; background: var(--nero); color: var(--crema);
   min-height: 82vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  overflow: hidden; padding: 48px 24px 56px;
+  overflow: clip; padding: 48px 24px 56px;
 }
 .eroe-strisce { position: absolute; inset: 0; display: flex; gap: 14px; padding: 0 24px; }
 .eroe-striscia {
@@ -148,7 +150,7 @@ a:hover { color: var(--bordeaux); }
    Fotogrammi sovrapposti in dissolvenza (il ciclo è in main.css), velo in
    gradiente sopra e sotto come nel riferimento, piede con la riga-firma,
    il tasto e lo «Scorri». */
-.eroe-cinema { min-height: 100svh; display: grid; grid-template-rows: 1fr auto; padding: 0; }
+.eroe-cinema { overflow: clip; min-height: 100svh; display: grid; grid-template-rows: 1fr auto; padding: 0; }
 .eroe-media { position: absolute; inset: 0; }
 .eroe-fotogramma { position: absolute; inset: 0; opacity: 0; }
 .eroe-fotogramma.fotogramma-1 { opacity: 1; }
@@ -439,7 +441,7 @@ img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
 	<p class="sottotitolo sale">Prezzi e durate arrivano dal gestionale del centro: quello che leggi qui è quello che paghi in cassa. Se un trattamento non c'è o hai un dubbio, scrivici — la consulenza è gratuita.</p>
 </section>
 
-		<section class="foto-categoria sipario-taglio">
+		<section class="foto-categoria quadro quadro-16x9">
 	<picture>
 		<source type="image/avif" sizes="100vw" srcset="/anteprima/assets/img/servizi-testata-800.avif 800w, /anteprima/assets/img/servizi-testata.avif 1024w" />
 		<img src="/anteprima/assets/img/servizi-testata.webp" srcset="/anteprima/assets/img/servizi-testata-800.webp 800w, /anteprima/assets/img/servizi-testata.webp 1024w" sizes="100vw" alt="" width="1024" height="559" loading="lazy" decoding="async" />

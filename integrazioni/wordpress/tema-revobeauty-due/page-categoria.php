@@ -36,7 +36,7 @@ get_header();
    metterla lì, senza toccare una riga. */
 $foto_cat = 'categoria-' . $slug;
 if ( is_readable( RB_DUE_DIR . '/assets/img/' . $foto_cat . '.webp' ) ) : ?>
-<section class="foto-categoria sipario-taglio">
+<section class="foto-categoria quadro quadro-16x9">
 	<picture>
 		<source type="image/avif" sizes="100vw" srcset="<?php echo esc_attr( RB_DUE_URI . '/assets/img/' . $foto_cat ); ?>-800.avif 800w, <?php echo esc_attr( RB_DUE_URI . '/assets/img/' . $foto_cat ); ?>.avif 1024w" />
 		<img src="<?php echo esc_url( RB_DUE_URI . '/assets/img/' . $foto_cat . '.webp' ); ?>" srcset="<?php echo esc_attr( RB_DUE_URI . '/assets/img/' . $foto_cat ); ?>-800.webp 800w, <?php echo esc_attr( RB_DUE_URI . '/assets/img/' . $foto_cat ); ?>.webp 1024w" sizes="100vw" alt="" width="1024" height="572" loading="lazy" decoding="async" />

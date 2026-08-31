@@ -172,7 +172,7 @@ $editoriali = array( 'laser', 'facial', 'body' );
 		$base = RB_DUE_URI . '/assets/img/categoria-' . $slug;
 		?>
 	<article class="editoriale">
-		<div class="editoriale-foto sipario-taglio">
+		<div class="editoriale-foto quadro">
 			<picture>
 				<source type="image/avif" sizes="(max-width: 860px) 100vw, 50vw" srcset="<?php echo esc_attr( $base ); ?>-800.avif 800w, <?php echo esc_attr( $base ); ?>.avif 1024w" />
 				<img src="<?php echo esc_url( $base . '.webp' ); ?>" srcset="<?php echo esc_attr( $base ); ?>-800.webp 800w, <?php echo esc_attr( $base ); ?>.webp 1024w" sizes="(max-width: 860px) 100vw, 50vw" alt="" width="1024" height="559" loading="lazy" decoding="async" />
