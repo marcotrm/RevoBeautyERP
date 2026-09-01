@@ -73,6 +73,10 @@ $listino = rb_listino();
 			<span class="categoria-indice" aria-hidden="true"><?php printf( '%02d', $indice ); ?></span>
 			<h2 class="titolo-categoria"><?php echo esc_html( rb_nome_categoria( $slug ) ); ?></h2>
 			<span class="categoria-conto"><?php echo count( $voci ); ?> trattamenti</span>
+			<?php /* Il ponte verso la pagina della specializzazione: serve a
+				chi legge (una pagina sola sull'argomento) e serve a Google,
+				che finora quelle pagine poteva raggiungerle solo dalla home. */ ?>
+			<a class="collega categoria-collega" href="<?php echo esc_url( rb_categoria_url( $slug ) ); ?>">Tutto su <?php echo esc_html( mb_strtolower( rb_nome_categoria( $slug ) ) ); ?> &rarr;</a>
 		</header>
 		<ul class="listino">
 			<?php foreach ( $voci as $t ) :

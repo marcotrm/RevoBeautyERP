@@ -38,6 +38,7 @@ function rb_categoria_url( $slug ) {
 
 add_action( 'init', function () {
 	add_rewrite_rule( '^trattamenti/([a-z-]+)/?$', 'index.php?rb_categoria=$matches[1]', 'top' );
+	add_rewrite_rule( '^sitemap-trattamenti\.xml$', 'index.php?rb_sitemap=trattamenti', 'top' );
 
 	/* Le regole di riscrittura vivono nel database: una regola nuova nel
 	   codice non esiste finché qualcuno non le rigenera. Lo si fa da soli,
@@ -51,6 +52,7 @@ add_action( 'init', function () {
 
 add_filter( 'query_vars', function ( $vars ) {
 	$vars[] = 'rb_categoria';
+	$vars[] = 'rb_sitemap';
 	return $vars;
 } );
 
@@ -173,3 +175,77 @@ function rb_categoria_intro( $slug ) {
 	);
 	return $testi[ $slug ] ?? 'Prezzi e durate qui sotto arrivano dal listino del centro, sempre aggiornati. Per qualsiasi dubbio, la consulenza è gratuita.';
 }
+
+/**
+ * Le pagine di categoria nella sitemap.
+ *
+ * Yoast elenca ciò che sta in bacheca: queste pagine non ci sono, e
+ * infatti non comparivano in nessuna sitemap — Google poteva scoprirle
+ * solo seguendo i link della home, cioè tardi e male. Qui il tema
+ * pubblica la propria sitemap (/sitemap-trattamenti.xml — nome invertito
+ * apposta: «<nome>-sitemap.xml» e' lo schema che Yoast si prende per se',
+ * e ci saremmo pestati i piedi) e la dichiara
+ * nei tre posti dove i motori la cercano: l'indice di Yoast, l'indice di
+ * WordPress e il robots.txt. Con o senza plugin, le pagine si trovano.
+ */
+
+function rb_trattamenti_sitemap_url() {
+	return home_url( '/sitemap-trattamenti.xml' );
+}
+
+/** Gli indirizzi delle categorie che hanno davvero voci a listino. */
+function rb_trattamenti_indirizzi() {
+	$listino = rb_listino();
+	$slug_visti = array();
+	if ( is_array( $listino ) && ! empty( $listino['trattamenti'] ) ) {
+		foreach ( $listino['trattamenti'] as $t ) {
+			$slug = $t['categoria'] ?? '';
+			// Solo le categorie che hanno un indirizzo proprio: le altre
+			// vivono come ancora dentro /servizi/ e non sono pagine.
+			if ( $slug && array_search( $slug, rb_categoria_percorsi(), true ) ) {
+				$slug_visti[ $slug ] = true;
+			}
+		}
+	}
+	return array_map( 'rb_categoria_url', array_keys( $slug_visti ) );
+}
+
+/* La sitemap vera e propria. Se il listino non risponde esce vuota ma
+   valida: meglio una sitemap senza righe che un XML rotto, che Google
+   segnalerebbe come errore per giorni. */
+/* WordPress mette lo slash finale a tutto cio' che sembra una pagina:
+   /trattamenti-sitemap.xml diventava /trattamenti-sitemap.xml/ con un 301,
+   e la sitemap non esisteva piu'. Qui la correzione canonica si ferma. */
+add_filter( 'redirect_canonical', function ( $indirizzo ) {
+	return get_query_var( 'rb_sitemap' ) ? false : $indirizzo;
+} );
+
+/* Priorita' 1: prima di chiunque altro possa scrivere o rimandare altrove. */
+add_action( 'template_redirect', function () {
+	if ( 'trattamenti' !== get_query_var( 'rb_sitemap' ) ) {
+		return;
+	}
+	$righe = '';
+	foreach ( rb_trattamenti_indirizzi() as $url ) {
+		$righe .= "\t<url>\n\t\t<loc>" . esc_url( $url ) . "</loc>\n\t\t<changefreq>weekly</changefreq>\n\t</url>\n";
+	}
+	status_header( 200 );
+	header( 'Content-Type: application/xml; charset=UTF-8' );
+	header( 'X-Robots-Tag: noindex, follow', true );
+	echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+	echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n" . $righe . '</urlset>';
+	exit;
+}, 1 );
+
+/* Nell'indice di Yoast, che è la sitemap che il sito pubblica davvero.
+   Il robots.txt qui sotto la dichiara comunque, anche senza plugin. */
+add_filter( 'wpseo_sitemap_index', function ( $extra ) {
+	return $extra . "<sitemap><loc>" . esc_url( rb_trattamenti_sitemap_url() ) . "</loc></sitemap>\n";
+} );
+
+add_filter( 'robots_txt', function ( $testo ) {
+	if ( false !== strpos( $testo, 'sitemap-trattamenti' ) ) {
+		return $testo;
+	}
+	return $testo . "\nSitemap: " . rb_trattamenti_sitemap_url() . "\n";
+}, 20 );
