@@ -81,10 +81,25 @@ function SignaturePad({ onChange }: { onChange: (data: string | null) => void })
 
 export default function ClientRecordTab({ clientId }: { clientId: string }) {
   /** Apre il modulo del consenso laser per questa cliente, su una scheda nuova. */
+  /*
+    La scheda si apre PRIMA di sapere l'indirizzo.
+
+    `window.open` funziona solo dentro al clic: se lo si chiama dopo aver
+    aspettato la risposta del server, il browser lo considera una finestra
+    aperta da sola e la blocca in silenzio — il tasto sembra rotto, e infatti
+    sembrava rotto. Quindi si apre subito una scheda vuota e la si manda
+    all'indirizzo appena arriva.
+  */
   const apriConsensoLaser = async () => {
+    const scheda = window.open('', '_blank');
     const l = await linkConsensoCliente(clientId).catch(() => null);
-    if (l?.ok && l.url) window.open(l.url, '_blank', 'noopener');
-    else alert(l?.errore || 'Non riesco ad aprire il modulo');
+    if (l?.ok && l.url) {
+      if (scheda) scheda.location.href = l.url;
+      else window.location.href = l.url;
+      return;
+    }
+    scheda?.close();
+    alert(l?.errore || 'Non riesco ad aprire il modulo');
   };
 
   const [loading, setLoading] = useState(true);

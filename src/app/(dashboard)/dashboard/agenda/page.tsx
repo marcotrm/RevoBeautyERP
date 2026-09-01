@@ -4130,10 +4130,25 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   };
 
   /** Apre il modulo sul tablet: stessa pagina che riceve la cliente per link. */
+  /*
+    La scheda si apre PRIMA di sapere l'indirizzo.
+
+    `window.open` funziona solo dentro al clic: se lo si chiama dopo aver
+    aspettato la risposta del server, il browser lo considera una finestra
+    aperta da sola e la blocca in silenzio — il tasto sembra rotto, e infatti
+    sembrava rotto. Quindi si apre subito una scheda vuota e la si manda
+    all'indirizzo appena arriva.
+  */
   const apriModuloSulTablet = async () => {
+    const scheda = window.open('', '_blank');
     const l = await linkConsensoLaser(appointment.id).catch(() => null);
-    if (l?.ok && l.url) window.open(l.url, '_blank', 'noopener');
-    else setEsitoLink(l?.errore || 'Non riesco a creare il link');
+    if (l?.ok && l.url) {
+      if (scheda) scheda.location.href = l.url;
+      else window.location.href = l.url;
+      return;
+    }
+    scheda?.close();
+    setEsitoLink(l?.errore || 'Non riesco a creare il link');
   };
 
   const mandaModuloInChat = async () => {
