@@ -239,24 +239,6 @@ body[data-entrata] { overflow: hidden; }
 .entrata-logotipo { font-size: clamp(26px, 6vw, 64px); line-height: 1; letter-spacing: .16em; text-transform: uppercase; white-space: nowrap; }
 .entrata-riga { font-size: 11px; letter-spacing: .34em; text-transform: uppercase; color: #9a9a9a; }
 .entrata-barra { position: absolute; z-index: 2; left: 24px; right: 24px; bottom: 9vh; height: 1px; background: rgba(255,255,255,.18); }
-/* ── Il filmato del marchio ──────────────────────────────────────────────
-   `contain` e non `cover`: il filmato e' 16:9 e la scritta REVOBEAUTY arriva
-   quasi da bordo a bordo — ritagliandolo sul telefono in verticale si
-   perderebbero le lettere ai lati. Il fondo del filmato e' nero come il
-   sipario, quindi le bande non si vedono nemmeno. */
-.entrata-video { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: contain; background: var(--nero); }
-.entrata-salta {
-  position: absolute; z-index: 3; left: 0; right: 0; bottom: calc(9vh + 18px);
-  text-align: center; font-size: 10px; letter-spacing: .28em; text-transform: uppercase;
-  color: rgba(255,255,255,.34); opacity: 0; pointer-events: none;
-}
-/* Col filmato la scena disegnata non serve: e' il filmato la scena. Le sue
-   animazioni non vengono proprio applicate, cosi' se il video fallisce e la
-   classe cade, ripartono da capo invece che a meta'. */
-.entrata-film .entrata-scena { display: none; }
-.entrata-film .entrata-pannello, .entrata-film .entrata-barra span { animation: none; }
-.entrata-film .entrata-barra span { width: 0; }
-.entrata:not(.entrata-film) .entrata-video, .entrata:not(.entrata-film) .entrata-salta { display: none; }
 .entrata-barra span { display: block; height: 100%; width: 0%; background: var(--crema); }
 @media (prefers-reduced-motion: no-preference) {
   /* Da 2,2 a 2,7 secondi. Mezzo secondo in piu' e' il prezzo del marchio che
@@ -300,18 +282,6 @@ body[data-entrata] { overflow: hidden; }
   @keyframes rb-sipario-su  { to { transform: translateY(-101%); } }
   @keyframes rb-sipario-giu { to { transform: translateY(101%); } }
   @keyframes rb-entrata-via { to { opacity: 0; } }
-
-  /* Col filmato il sipario non parte a tempo: parte quando il filmato
-     finisce, o quando qualcuno tocca per saltare. Lo dice `entrata-fine`. */
-  .entrata-film.entrata-fine .entrata-pannello,
-  .entrata-film.entrata-fine .entrata-barra { animation-duration: .9s; animation-timing-function: cubic-bezier(.76,0,.24,1); animation-delay: 0s; animation-fill-mode: both; }
-  .entrata-film.entrata-fine .entrata-sopra { animation-name: rb-sipario-su; }
-  .entrata-film.entrata-fine .entrata-sotto { animation-name: rb-sipario-giu; }
-  .entrata-film.entrata-fine .entrata-barra { animation-name: rb-entrata-via; }
-  .entrata-film.entrata-fine .entrata-video { animation: rb-entrata-via .5s ease both; }
-  /* L'invito a saltare compare dopo due secondi: prima si guarda. */
-  .entrata-film .entrata-salta { animation: rb-salta-appare .6s ease 2s both; }
-  @keyframes rb-salta-appare { to { opacity: 1; } }
 }
 
 /* ── Impalcatura delle sezioni (sopra la piega può esserci l'intro) ───── */

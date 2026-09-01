@@ -38,21 +38,6 @@ $whatsapp = rb_whatsapp_url();
 <div class="entrata" id="rb-entrata" hidden aria-hidden="true">
 	<div class="entrata-pannello entrata-sopra"></div>
 	<div class="entrata-pannello entrata-sotto"></div>
-	<?php /*
-		Il filmato del marchio. `data-film` e non `src`: cosi' il file NON si
-		scarica a chi l'intro non la vedra' — cioe' quasi tutti, visto che
-		parte una volta sola per visitatore. L'indirizzo lo mette il codice
-		qui sotto, solo quando l'intro parte davvero.
-
-		`muted` non e' una scelta di gusto: con l'audio i browser rifiutano
-		l'avvio automatico e resterebbe fermo sul primo fotogramma.
-		`playsinline` serve a iPhone, che se no lo apre a tutto schermo.
-	*/ ?>
-	<video class="entrata-video" muted playsinline preload="none"
-		poster="<?php echo esc_url( RB_DUE_URI . '/assets/video/intro-poster.jpg' ); ?>">
-		<source data-src="<?php echo esc_url( RB_DUE_URI . '/assets/video/intro.mp4' ); ?>" type="video/mp4" />
-		<source data-src="<?php echo esc_url( RB_DUE_URI . '/assets/video/intro.webm' ); ?>" type="video/webm" />
-	</video>
 	<div class="entrata-scena">
 		<?php /*
 			Il monogramma disegnato, non una figura da scaricare: l'entrata
@@ -88,7 +73,6 @@ $whatsapp = rb_whatsapp_url();
 		<span class="entrata-riga">Maddaloni · Via Caudina 30</span>
 	</div>
 	<div class="entrata-barra"><span></span></div>
-	<span class="entrata-salta">Tocca per saltare</span>
 </div>
 <script>
 /* Acceso qui e non nel bundle: il bundle è differito e arriverebbe a pagina
@@ -102,55 +86,6 @@ $whatsapp = rb_whatsapp_url();
 		e.classList.add('entrata-avviata');
 		document.body.setAttribute('data-entrata', '');
 		localStorage.setItem('rb_intro', '1');
-
-		var v = e.querySelector('.entrata-video');
-		var barra = e.querySelector('.entrata-barra span');
-		/* Il codec si chiede per nome. `canPlayType('video/mp4')` risponde
-		   "maybe" anche a chi l'H.264 non ce l'ha — succede sui Chromium
-		   compilati senza codec brevettati — e si finirebbe a scaricare un
-		   filmato che poi non parte. Due formati: quasi tutti prendono l'mp4,
-		   il webm copre chi l'H.264 non ce l'ha. */
-		var puo = v.canPlayType && (v.canPlayType('video/mp4; codecs="avc1.42E01E"')
-			|| v.canPlayType('video/webm; codecs="vp9"'));
-		if (!v || !puo) return;
-
-		/* Il filmato diventa LA scena: l'intro disegnata resta sotto, spenta,
-		   pronta a subentrare se il video non parte. */
-		e.classList.add('entrata-film');
-		var fonti = v.querySelectorAll('source');
-		for (var i = 0; i < fonti.length; i++) fonti[i].src = fonti[i].getAttribute('data-src');
-		v.load();
-
-		var finito = false;
-		function fine() {
-			if (finito) return;
-			finito = true;
-			e.classList.add('entrata-fine');
-		}
-		/* Se il filmato non parte — formato rifiutato, risparmio dati, rete
-		   morta — non si resta col nero fisso: si toglie la classe e riparte
-		   l'intro disegnata, che a quel punto e' ancora ferma al fotogramma
-		   zero perche' sotto `entrata-film` le sue animazioni non esistono. */
-		function senzaFilm() {
-			if (finito || !e.classList.contains('entrata-film')) return;
-			e.classList.remove('entrata-film');
-			v.remove();
-		}
-
-		v.addEventListener('ended', fine);
-		v.addEventListener('error', senzaFilm);
-		v.addEventListener('timeupdate', function () {
-			if (barra && v.duration) barra.style.width = (v.currentTime / v.duration * 100) + '%';
-		});
-		/* Sette secondi sono tanti da fermi: si salta con un tocco o un tasto. */
-		e.addEventListener('click', fine);
-		document.addEventListener('keydown', fine, { once: true });
-
-		var p = v.play();
-		if (p && p.catch) p.catch(senzaFilm);
-		/* Rete lenta: se dopo tre secondi non e' partito un fotogramma, si
-		   passa al disegnato invece di far aspettare davanti al nero. */
-		setTimeout(function () { if (!v.currentTime) senzaFilm(); }, 3000);
 	} catch (err) {}
 })();
 </script>
