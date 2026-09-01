@@ -78,6 +78,97 @@ export function nuovoToken(): string {
 /** Le ultime 9 cifre: come si riconosce lo stesso numero scritto in modi diversi. */
 const coda = (p: string | null | undefined) => (p || '').replace(/\D/g, '').slice(-9);
 
+/**
+ * La scheda cliente dietro un numero, o null.
+ *
+ * Il numero in anagrafica e' scritto in mille modi — con lo zero davanti, col
+ * prefisso, con gli spazi — quindi si confrontano le ultime nove cifre.
+ *
+ * Della stessa persona puo' esserci piu' di una scheda: il blocco sui doppioni
+ * e' arrivato dopo, e quelli gia' dentro sono rimasti. Se un account app esiste
+ * gia' per quel numero comanda lui, perche' e' quello che ha lo storico degli
+ * accessi e l'unicita' nel database e' sul numero, non sulla scheda.
+ */
+async function trovaCliente(phone: string) {
+  const chiave = coda(phone);
+  const candidati = await prisma.client.findMany({ select: { id: true, firstName: true, phone: true } });
+  const conQuelNumero = candidati.filter(c => coda(c.phone) === chiave);
+  if (conQuelNumero.length === 0) return null;
+
+  const perNumero = await prisma.mobileAccount.findUnique({ where: { phone } });
+  const cliente = (perNumero && conQuelNumero.find(c => c.id === perNumero.clientId)) || conQuelNumero[0];
+  const account = perNumero ?? await prisma.mobileAccount.findUnique({ where: { clientId: cliente.id } });
+  return { cliente, account };
+}
+
+/**
+ * Se all'accesso serve il codice usa-e-getta.
+ *
+ * Il centro ha chiesto di entrare col solo numero: chi scarica l'app e' gia'
+ * cliente, e il codice su WhatsApp arrivava solo a chi aveva scritto nelle
+ * ultime 24 ore — tutte le altre restavano fuori.
+ *
+ * L'interruttore vive QUI e non nell'app di proposito. Riaccendere il codice
+ * dovendo ricompilare l'app vorrebbe dire una nuova revisione di Apple e
+ * giorni di attesa; cosi' invece e' una variabile, e ha effetto al primo
+ * accesso successivo.
+ *
+ * Da sapere, perche' e' il prezzo di questa scelta: senza codice l'app
+ * verifica CHI E' (il numero e' in anagrafica) ma non che chi scrive quel
+ * numero abbia in mano quel telefono. Dentro ci sono appuntamenti, spese e le
+ * note su allergie e pelle.
+ */
+export function serveIlCodice(): boolean {
+  return /^(1|si|true|on)$/i.test(String(process.env.APP_CLIENTI_CHIEDI_CODICE || '').trim());
+}
+
+export type EsitoAccesso =
+  | { ok: true; token: string; clientId: string; nome: string }
+  | { ok: false; code: 'VALIDATION' | 'USER_NOT_FOUND' | 'CONFLICT'; error: string };
+
+/** Accesso col solo numero: se e' in anagrafica, si entra. */
+export async function entraDirettamente(telefonoGrezzo: string): Promise<EsitoAccesso> {
+  const phone = normalizePhone(String(telefonoGrezzo || ''));
+  if (!isSendablePhone(phone)) {
+    return { ok: false, code: 'VALIDATION', error: 'Numero di cellulare non valido. Scrivilo come 3401234567.' };
+  }
+
+  const trovata = await trovaCliente(phone);
+  if (!trovata) {
+    return {
+      ok: false,
+      code: 'USER_NOT_FOUND',
+      error: 'Questo numero non risulta fra le clienti del centro. Chiedi in negozio di essere registrata, poi riprova.',
+    };
+  }
+
+  const { cliente, account } = trovata;
+  const token = nuovoToken();
+  const adesso = new Date().toISOString();
+  const dati = {
+    sessionToken: hashToken(token),
+    lastLoginAt: adesso,
+    // Un codice eventualmente in attesa si butta: la sessione e' aperta.
+    otpHash: null, otpExpiresAt: null, otpAttempts: 0,
+  };
+
+  try {
+    if (account) {
+      await prisma.mobileAccount.update({ where: { id: account.id }, data: { phone, ...dati } });
+    } else {
+      // L'account nasce al primo accesso: chi e' gia' cliente del centro e'
+      // gia' "iscritto", non c'e' una registrazione da fare.
+      await prisma.mobileAccount.create({
+        data: { clientId: cliente.id, phone, createdAt: adesso, ...dati },
+      });
+    }
+  } catch {
+    return { ok: false, code: 'CONFLICT', error: 'Non siamo riusciti ad aprire la sessione. Riprova fra qualche secondo.' };
+  }
+
+  return { ok: true, token, clientId: cliente.id, nome: cliente.firstName };
+}
+
 export type EsitoRichiesta =
   | { ok: true; codice: string; phone: string; nome: string }
   | { ok: false; code: 'VALIDATION' | 'USER_NOT_FOUND' | 'TOO_MANY' | 'CONFLICT'; error: string; attesa?: number };
@@ -93,31 +184,16 @@ export async function preparaCodice(telefonoGrezzo: string): Promise<EsitoRichie
     return { ok: false, code: 'VALIDATION', error: 'Numero di cellulare non valido. Scrivilo come 3401234567.' };
   }
 
-  // Il numero in anagrafica è scritto in mille modi: si confronta la coda
-  const chiave = coda(phone);
-  const candidati = await prisma.client.findMany({ select: { id: true, firstName: true, phone: true } });
-  const conQuelNumero = candidati.filter(c => coda(c.phone) === chiave);
-  if (conQuelNumero.length === 0) {
+  const trovata = await trovaCliente(phone);
+  if (!trovata) {
     return {
       ok: false,
       code: 'USER_NOT_FOUND',
       error: 'Questo numero non risulta fra le clienti del centro. Chiedi in negozio di essere registrata, poi riprova.',
     };
   }
-
-  /**
-   * Della stessa persona può esserci più di una scheda: il blocco sui doppioni
-   * è arrivato dopo, e quelli già dentro sono rimasti. Se un account esiste già
-   * per questo numero comanda lui — è quello che ha lo storico degli accessi, e
-   * l'unicità nel database è sul numero, non sulla scheda. Sceglierne un'altra
-   * faceva fallire il salvataggio, e alla cliente arrivava un errore secco
-   * senza che il codice partisse.
-   */
-  const perNumero = await prisma.mobileAccount.findUnique({ where: { phone } });
-  const cliente = (perNumero && conQuelNumero.find(c => c.id === perNumero.clientId)) || conQuelNumero[0];
-
+  const { cliente, account } = trovata;
   const adesso = new Date();
-  const account = perNumero ?? await prisma.mobileAccount.findUnique({ where: { clientId: cliente.id } });
 
   // Il numero di prova non aspetta: se il revisore chiede due codici di fila
   // e si becca un errore, chiude l'app e scrive che non funziona.

@@ -75,6 +75,10 @@ export default function LoginScreen() {
     try {
       const esito = await richiediCodice(soloCifre);
       setNome(esito.nome ?? null);
+      // Accesso col solo numero: siamo gia' dentro, e il layout radice sta per
+      // portarci alla home. Passare alla schermata del codice farebbe comparire
+      // per un istante una domanda a cui nessuno deve rispondere.
+      if (esito.accessoDiretto) return;
       setPasso('codice');
       setAttesa(60);
       // Sui server di sviluppo WhatsApp non è configurato e il codice torna

@@ -21,7 +21,9 @@
  *     Finché la verifica non c'è, questa seconda strada non è percorribile.
  */
 
-import { preparaCodice, eNumeroDiProva, OTP_DURATA_MIN } from '@/lib/mobileAuth';
+import { preparaCodice, entraDirettamente, serveIlCodice, eNumeroDiProva, OTP_DURATA_MIN } from '@/lib/mobileAuth';
+import { utenteApp } from '@/lib/mobileUser';
+import { prisma } from '@/lib/prisma';
 import { sendD360Template, sendD360Text } from '@/lib/whatsapp360';
 import { WA_TEMPLATES } from '@/lib/wa-templates';
 import { conversationWindow, logOutbound } from '@/lib/wa-conversations';
@@ -39,6 +41,47 @@ function testoCodice(codice: string): string {
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const telefono = String(body?.telefono || body?.phone || '');
+
+  /*
+    Accesso col solo numero.
+
+    Il centro l'ha chiesto: chi scarica l'app e' gia' cliente, e il codice su
+    WhatsApp arrivava solo a chi aveva scritto nelle ultime 24 ore. Fuori da
+    quella finestra serve un modello approvato da Meta che non esiste, e la
+    richiesta moriva con "(#132001) Template name does not exist": tutte le
+    altre restavano fuori senza capire perche'.
+
+    La sessione nasce qui, e la risposta ha la stessa forma di quella di
+    verify-otp piu' il contrassegno `accessoDiretto`. L'app che lo vede entra
+    e basta; una versione vecchia non lo legge e mostra la schermata del
+    codice, cioe' esattamente quello che faceva prima.
+
+    Si rimette il codice con APP_CLIENTI_CHIEDI_CODICE=1, senza ricompilare
+    l'app: vedi `serveIlCodice`.
+  */
+  if (!serveIlCodice()) {
+    const entrata = await entraDirettamente(telefono);
+    if (!entrata.ok) {
+      const status = entrata.code === 'USER_NOT_FOUND' ? 404 : 400;
+      return Response.json({ error: entrata.error, code: entrata.code }, { status });
+    }
+    const cliente = await prisma.client.findUnique({ where: { id: entrata.clientId } });
+    if (!cliente) {
+      return Response.json({ error: 'Scheda cliente non trovata.', code: 'USER_NOT_FOUND' }, { status: 404 });
+    }
+    // Traccia dell'ingresso: senza codice questa riga e' l'unica cosa che
+    // resta per ricostruire chi e' entrato e quando, il giorno che serve.
+    console.log(`[app clienti] accesso diretto · ${entrata.clientId} · ${entrata.nome}`);
+    return Response.json({
+      ok: true,
+      accessoDiretto: true,
+      inviato: false,
+      scadeTraMinuti: 0,
+      nome: entrata.nome,
+      token: entrata.token,
+      user: utenteApp(cliente),
+    });
+  }
 
   const esito = await preparaCodice(telefono);
   if (!esito.ok) {

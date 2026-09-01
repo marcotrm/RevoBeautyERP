@@ -41,6 +41,18 @@ export interface RichiestaCodice {
   nome?: string;
   codiceDiProva?: string;
   avviso?: string;
+  /**
+   * Accesso col solo numero: il gestionale ha trovato la scheda in anagrafica
+   * e ha gia' aperto la sessione, che arriva qui dentro. Non c'e' nessun
+   * codice da chiedere.
+   *
+   * Lo decide il server (variabile APP_CLIENTI_CHIEDI_CODICE), non l'app:
+   * cosi' il centro puo' rimettere il codice senza una nuova versione da far
+   * passare da Apple.
+   */
+  accessoDiretto?: boolean;
+  token?: string;
+  user?: User;
 }
 
 // ---------- Listino (tab Pacchetti) ----------
