@@ -13,7 +13,7 @@
  *               (Client.marketingConsent) e costa di più.
  */
 
-import { listinoUrl, reviewRedirectUrl } from '@/lib/links';
+import { listinoUrl, reviewRedirectUrl, firmaBaseUrl } from '@/lib/links';
 
 export type TemplateCategory = 'UTILITY' | 'MARKETING';
 
@@ -24,7 +24,7 @@ export type TemplateCategory = 'UTILITY' | 'MARKETING';
  * dipendono dall'ambiente (ERP_URL). Il catalogo nomina la destinazione, chi
  * gliela serve è `resolveButtonUrl`.
  */
-export type ButtonLink = 'review-redirect' | 'listino';
+export type ButtonLink = 'review-redirect' | 'listino' | 'firma-consenso';
 
 /**
  * Bottone del template, come approvato su Meta.
@@ -427,6 +427,32 @@ export const WA_TEMPLATES = {
       'bottone punta al nostro /listino, che si aggiorna da solo dai trattamenti — quindi il ' +
       'template resta valido anche quando i prezzi cambiano.',
   },
+  /**
+   * Il consenso laser da firmare prima di venire.
+   *
+   * Nasce da una cosa pratica: il modulo si compila in cinque minuti, e farlo
+   * al banco vuol dire cinque minuti di cabina ferma con la cliente che
+   * aspetta. Mandato la sera prima, chi lo compila arriva e si comincia.
+   *
+   * UTILITY e non MARKETING: parla di un appuntamento suo e di un documento
+   * che serve a quella seduta: non e' pubblicita' e non chiede il consenso
+   * marketing. Il gettone della singola cliente viaggia nella coda del
+   * bottone, quindi il template si fa approvare una volta sola.
+   */
+  consensoLaser: {
+    name: 'consenso_laser',
+    category: 'UTILITY',
+    language: 'it',
+    params: ['nome cliente', 'quando'],
+    body:
+      'Ciao {{1}}, per la seduta laser di {{2}} serve il consenso informato.\n' +
+      'Puoi leggerlo e firmarlo dal telefono col bottone qui sotto: sono due minuti e all\'arrivo si comincia subito. ' +
+      'Se preferisci lo firmi in centro sul tablet.',
+    buttons: [{ type: 'URL', text: 'Leggi e firma', link: 'firma-consenso' }],
+    note:
+      'Il bottone porta a /firma/ piu\' il gettone della cliente, passato come coda dinamica in fase di invio. ' +
+      'Il gettone dura tre giorni: mandarlo la sera prima va bene, mandarlo la settimana prima no.',
+  },
 } as const satisfies Record<string, WaTemplate>;
 
 export type TemplateKey = keyof typeof WA_TEMPLATES;
@@ -483,6 +509,8 @@ export function resolveButtonUrl(link: ButtonLink): string {
       return reviewRedirectUrl();
     case 'listino':
       return listinoUrl();
+    case 'firma-consenso':
+      return firmaBaseUrl();
   }
 }
 

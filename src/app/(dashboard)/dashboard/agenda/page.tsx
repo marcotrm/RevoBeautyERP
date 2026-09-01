@@ -4115,7 +4115,16 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
       clientData?.id ? ultimoConsensoLaser(clientData.id).catch(() => null) : null,
       clientData?.id ? consensoLaserDi(clientData.id).catch(() => null) : null,
     ]);
-    setModuloFirmato(modulo);
+    /*
+      Chi ha gia' firmato non viene fermato.
+
+      Il popup serve a non far entrare in cabina senza consenso: se il modulo
+      e' stato compilato ieri sera dal telefono, quel controllo e' gia' passato
+      e fermare il check-in sarebbe solo un tasto in piu' con la cliente
+      davanti. Il consenso resta visibile nella sua scheda.
+    */
+    if (modulo) { proseguiCheckIn(); return; }
+    setModuloFirmato(null);
     setEsitoLink(null);
     setConsensoLaser({ ultima });
   };

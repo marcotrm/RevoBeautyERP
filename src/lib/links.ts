@@ -51,6 +51,17 @@ export function listinoUrl(): string {
 }
 
 /**
+ * La base del link del consenso laser.
+ *
+ * Il bottone del template approvato da Meta punta qui, e il gettone della
+ * singola cliente viaggia come coda dinamica: cosi' il template si fa
+ * approvare una volta sola e vale per tutte.
+ */
+export function firmaBaseUrl(): string {
+  return `${erpBaseUrl()}/firma/`;
+}
+
+/**
  * Da dove arriva chi apre il modulo del coupon.
  *
  * L'inaugurazione è passata: i contatti che arrivano adesso non vengono più dal

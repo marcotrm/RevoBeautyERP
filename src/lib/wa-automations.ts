@@ -11,6 +11,7 @@
  */
 
 import { seduraDaRadere, oraConNota } from '@/lib/epilazione';
+import { consensoLaserDi, mandaLinkConsenso } from '@/app/actions/consensoLaser';
 import { prisma } from '@/lib/prisma';
 import { idClientiSegnalati } from '@/lib/segnalate';
 import { todayRome } from '@/lib/date';
@@ -39,6 +40,11 @@ export interface WaAutomationsConfig {
    */
   confirm: boolean;
   reminder: boolean;
+  /**
+   * Il consenso laser mandato la sera prima, a chi non l'ha ancora firmato.
+   * Acceso di suo: e' un documento che serve alla seduta, non pubblicita'.
+   */
+  consensoLaser?: boolean;
   recall: boolean;
   birthday: boolean;
   review: boolean;
@@ -158,6 +164,15 @@ export interface WaAutomationsConfig {
 export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
   confirm: false,
   reminder: false,
+  /*
+    Acceso di suo, al contrario delle altre.
+
+    Le altre automazioni scrivono a chi non ha chiesto niente, e vanno accese
+    con consapevolezza. Questa manda a chi ha una seduta laser domani il
+    documento che serve a quella seduta: non mandarlo non protegge nessuno,
+    costa solo cinque minuti di cabina ferma il giorno dopo.
+  */
+  consensoLaser: true,
   recall: false,
   birthday: false,
   review: false,
@@ -191,7 +206,15 @@ export const DEFAULT_WA_CONFIG: WaAutomationsConfig = {
 export async function getWaAutomationsConfig(): Promise<WaAutomationsConfig> {
   try {
     const row = await prisma.adminEntry.findUnique({ where: { rowId: CONFIG_ROW } });
-    return { ...DEFAULT_WA_CONFIG, ...((row?.data as Partial<WaAutomationsConfig>) || {}) };
+    const salvata = (row?.data as Partial<WaAutomationsConfig>) || {};
+    return {
+      ...DEFAULT_WA_CONFIG,
+      ...salvata,
+      // Chi aveva gia' configurato le automazioni non ha questa chiave salvata:
+      // senza questa riga resterebbe spenta per sempre, senza un interruttore
+      // che qualcuno abbia mai toccato.
+      consensoLaser: salvata.consensoLaser !== false,
+    };
   } catch {
     return DEFAULT_WA_CONFIG;
   }
@@ -488,6 +511,64 @@ export async function runReminders(dryRun: boolean): Promise<RunResult> {
   return runJobs('reminder', jobs, dryRun);
 }
 
+/**
+ * Il consenso laser, mandato la sera prima.
+ *
+ * Il modulo si compila in cinque minuti: farlo al banco vuol dire cinque
+ * minuti di cabina ferma con la cliente che aspetta e l'operatrice che guarda.
+ * Mandato la sera prima, chi lo compila arriva e si comincia; chi non lo
+ * compila lo firma sul tablet come prima, e non abbiamo perso niente.
+ *
+ * Si manda solo a chi domani ha un'epilazione laser e non ha gia' un consenso
+ * firmato: un modulo gia' fatto non si richiede, e ricevere due volte lo
+ * stesso link fa pensare che il primo non fosse arrivato.
+ */
+async function runConsensiLaser(dryRun: boolean): Promise<RunResult> {
+  const target = shiftDate(todayRome(), 1);
+  const result: RunResult = { automation: 'consensoLaser', dryRun, candidates: 0, sent: 0, failed: 0, details: [] };
+
+  const appts = await prisma.appointment.findMany({
+    where: { date: target, status: { notIn: ['cancelled', 'completed', 'no-show', 'no_show'] } },
+    include: { client: true },
+    orderBy: { startTime: 'asc' },
+  });
+
+  // Una cliente sola, anche con due appuntamenti: il consenso e' suo, non della seduta.
+  const visti = new Set<string>();
+  for (const a of appts) {
+    if (!seduraDaRadere(a)) continue;
+    if (visti.has(a.clientId)) continue;
+    visti.add(a.clientId);
+    if (!isSendablePhone(a.client?.phone)) continue;
+
+    const gia = await consensoLaserDi(a.clientId).catch(() => null);
+    if (gia) continue;
+
+    result.candidates++;
+    const rowId = `wa:consenso:${a.clientId}:${target}`;
+    if (await alreadySent(rowId)) continue;
+
+    if (dryRun) {
+      result.details.push({ to: normalizePhone(a.client!.phone), name: a.clientName, ok: true, preview: 'link consenso laser' });
+      continue;
+    }
+
+    const esito = await mandaLinkConsenso(a.id).catch(() => ({ ok: false, errore: 'invio fallito' }));
+    if (esito.ok) result.sent++; else result.failed++;
+    result.details.push({ to: normalizePhone(a.client!.phone), name: a.clientName, ok: esito.ok, error: esito.ok ? undefined : esito.errore, preview: 'link consenso laser' });
+    await prisma.adminEntry.upsert({
+      where: { rowId },
+      update: { data: { automation: 'consensoLaser', clientId: a.clientId, ok: esito.ok, sentAt: new Date().toISOString() } },
+      create: {
+        rowId, kind: 'wa_log', entityId: a.clientId,
+        data: { automation: 'consensoLaser', clientId: a.clientId, ok: esito.ok, sentAt: new Date().toISOString() },
+        createdAt: new Date().toISOString(),
+      },
+    });
+  }
+  return result;
+}
+
 // ---- Recall clienti dormienti -------------------------------
 
 export async function runRecall(cfg: WaAutomationsConfig, dryRun: boolean): Promise<RunResult> {
@@ -772,6 +853,7 @@ export async function runWaAutomations(opts: RunOptions = {}): Promise<RunResult
   if (wants('recall')) results.push(await runRecall(cfg, dryRun));
   if (wants('birthday')) results.push(await runBirthdays(cfg, dryRun));
   if (wants('review')) results.push(await runReviewRequests(dryRun));
+  if (wants('consensoLaser')) results.push(await runConsensiLaser(dryRun));
   // 'omaggio' non ha un interruttore in configurazione: parte solo a mano
   // dalla pagina Inaugurazione (which='omaggio' + force), mai da sola.
   if (which === 'omaggio' && opts.force) results.push(await runOmaggioInaugurazione(dryRun, opts.giro ?? 1));
@@ -789,5 +871,8 @@ export const WA_SCHEDULE: Array<{ hhmm: string; which: TemplateKey }> = [
   { hhmm: '09:30', which: 'birthday' },
   { hhmm: '11:00', which: 'recall' },
   { hhmm: '18:00', which: 'reminder' },
+  // Dieci minuti dopo il promemoria: due messaggi di fila alla stessa persona
+  // si leggono come uno solo mal scritto.
+  { hhmm: '18:10', which: 'consensoLaser' },
   { hhmm: '19:30', which: 'review' },
 ];

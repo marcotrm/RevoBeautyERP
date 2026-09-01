@@ -18,6 +18,9 @@ import { prisma } from '@/lib/prisma';
 import { firmaConferma, leggiConferma } from '@/lib/conferma';
 import { seduraDaRadere } from '@/lib/epilazione';
 import { sendManualReply } from '@/app/actions/whatsapp';
+import { sendWhatsAppTemplate, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
+import { listD360Templates } from '@/lib/whatsapp360';
+import { WA_TEMPLATES } from '@/lib/wa-templates';
 
 const TITOLO = 'Consenso Laser/Epilazione';
 const GIORNI_GETTONE = 3;
@@ -216,30 +219,58 @@ export async function registraConsensoLaser(
 /**
  * Manda il link del modulo alla cliente su WhatsApp.
  *
- * Solo a testo libero, cioe' solo se la cliente ci ha scritto nelle ultime 24
- * ore: fuori da quella finestra Meta pretende un messaggio approvato, e un
- * template per il consenso va creato e fatto approvare. Finche' non c'e', al
- * banco resta il tablet — che poi e' il modo per cui questa cosa e' nata.
+ * Due strade, e si prova prima quella gratis. Dentro le 24 ore dall'ultimo
+ * messaggio della cliente si scrive a testo libero, col link per esteso: si
+ * legge meglio di un bottone e non costa niente. Fuori da quella finestra —
+ * che e' il caso normale, la sera prima — comanda Meta e serve il template
+ * approvato, col gettone attaccato in coda al bottone.
  */
 export async function mandaLinkConsenso(appointmentId: string): Promise<{ ok: boolean; errore?: string }> {
-  const l = await linkConsensoLaser(appointmentId);
-  if (!l.ok || !l.url) return { ok: false, errore: l.errore };
-
   const a = await prisma.appointment.findUnique({
     where: { id: appointmentId },
     include: { client: true },
   });
-  const telefono = a?.client?.phone;
-  if (!telefono) return { ok: false, errore: 'La cliente non ha un numero in scheda' };
+  if (!a) return { ok: false, errore: 'Appuntamento non trovato' };
+  const telefono = a.client?.phone;
+  if (!isSendablePhone(telefono)) return { ok: false, errore: 'La cliente non ha un numero valido in scheda' };
 
-  const nome = a?.client?.firstName || '';
+  const gettone = firmaConferma({ appointmentId: a.id, clientId: a.clientId } satisfies Gettone, GIORNI_GETTONE * 86_400_000);
+  if (!gettone) return { ok: false, errore: 'Manca VOICE_API_SECRET: il link non si può firmare' };
+  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://erp.revobeauty.it';
+  const url = `${base}/firma/${encodeURIComponent(gettone)}`;
+
+  const nome = a.client?.firstName || '';
+  const quando = `${a.date.split('-').reverse().join('/')} alle ${a.startTime}`;
   const testo = [
     `Ciao ${nome}!`.trim(),
-    'Prima della seduta laser serve il consenso informato: lo leggi e lo firmi da qui, ci vogliono due minuti.',
-    l.url,
+    `Per la seduta laser di ${quando} serve il consenso informato: lo leggi e lo firmi da qui, sono due minuti.`,
+    url,
     'Se preferisci lo firmi in centro sul tablet, come vuoi tu.',
   ].join('\n');
 
-  const res = await sendManualReply(telefono, testo);
-  return res.ok ? { ok: true } : { ok: false, errore: res.error };
+  const libero = await sendManualReply(telefono as string, testo);
+  if (libero.ok) return { ok: true };
+
+  /** Com'e' messo su Meta il template del consenso: ASSENTE finche' non lo si crea. */
+  const stato = await (async () => {
+    const e = await listD360Templates().catch(() => null);
+    if (!e?.ok) return 'ASSENTE';
+    return e.templates.find(t => t.name === WA_TEMPLATES.consensoLaser.name)?.status || 'ASSENTE';
+  })();
+  if (stato !== 'APPROVED') {
+    return {
+      ok: false,
+      errore: stato === 'ASSENTE'
+        ? 'Fuori dalle 24 ore serve un template approvato, e non è ancora stato creato. Mandalo in approvazione da Automazioni.'
+        : `Il template del consenso non è ancora approvato da Meta (${stato}). Intanto fallo firmare sul tablet.`,
+    };
+  }
+
+  const res = await sendWhatsAppTemplate(normalizePhone(telefono as string), 'consensoLaser', {
+    bodyParams: [nome || 'ciao', quando],
+    buttonUrlSuffix: encodeURIComponent(gettone),
+    fallbackText: testo,
+    source: 'automation',
+  });
+  return res.ok ? { ok: true } : { ok: false, errore: res.error || 'Invio fallito' };
 }
