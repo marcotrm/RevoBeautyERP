@@ -25,7 +25,15 @@ import { WA_TEMPLATES } from '@/lib/wa-templates';
 const TITOLO = 'Consenso Laser/Epilazione';
 const GIORNI_GETTONE = 3;
 
-interface Gettone { appointmentId: string; clientId: string }
+/**
+ * Il gettone porta sempre la cliente, l'appuntamento solo se c'e'.
+ *
+ * Il consenso e' della persona, non della seduta: si firma anche al banco
+ * mentre si prende l'appuntamento, o la volta che si e' dimenticato di farlo
+ * e la cliente e' gia' andata via. Con l'appuntamento il modulo si riempie da
+ * solo — data, ora, zone; senza, si scrivono le zone a mano.
+ */
+interface Gettone { appointmentId?: string; clientId: string }
 
 export interface ModuloLaser {
   ok: boolean;
@@ -56,16 +64,18 @@ export async function linkConsensoLaser(appointmentId: string): Promise<{ ok: bo
 /** Quello che la pagina della firma deve mostrare. */
 export async function apriModuloLaser(gettone: string): Promise<ModuloLaser> {
   const dati = leggiConferma<Gettone>(gettone);
-  if (!dati?.appointmentId) {
+  if (!dati?.clientId) {
     return { ok: false, errore: 'Il link non è più valido. Chiedine uno nuovo al centro.' };
   }
-  const a = await prisma.appointment.findUnique({
-    where: { id: dati.appointmentId },
-    include: { client: true },
-  });
-  if (!a) return { ok: false, errore: 'Appuntamento non trovato' };
+
+  const a = dati.appointmentId
+    ? await prisma.appointment.findUnique({ where: { id: dati.appointmentId }, include: { client: true } })
+    : null;
+  const cliente = a?.client || await prisma.client.findUnique({ where: { id: dati.clientId } });
+  if (!cliente) return { ok: false, errore: 'Scheda cliente non trovata' };
 
   const zone = (() => {
+    if (!a) return '';
     const sv = Array.isArray(a.services) ? (a.services as Array<{ treatmentName?: unknown }>) : [];
     const nomi = sv.map(s => String(s?.treatmentName || '')).filter(n => /^\s*epilazion/i.test(n));
     if (nomi.length > 0) return nomi.join(', ');
@@ -73,21 +83,31 @@ export async function apriModuloLaser(gettone: string): Promise<ModuloLaser> {
   })();
 
   const ultimo = await prisma.clientConsent.findFirst({
-    where: { clientId: a.clientId, title: TITOLO },
+    where: { clientId: dati.clientId, title: TITOLO },
     orderBy: { signedAt: 'desc' },
     select: { id: true, signedAt: true },
   });
 
   return {
     ok: true,
-    clientId: a.clientId,
-    nome: a.client ? `${a.client.firstName} ${a.client.lastName}`.trim() : a.clientName,
-    nato: a.client?.birthDate ?? null,
-    quando: `${a.date.split('-').reverse().join('/')} alle ${a.startTime}`,
+    clientId: dati.clientId,
+    nome: `${cliente.firstName} ${cliente.lastName}`.trim(),
+    nato: cliente.birthDate ?? null,
+    quando: a ? `${a.date.split('-').reverse().join('/')} alle ${a.startTime}` : undefined,
     zone,
-    operatrice: a.operatorName,
+    operatrice: a?.operatorName,
     giaFirmato: ultimo ? { id: ultimo.id, quando: ultimo.signedAt } : null,
   };
+}
+
+/** Lo stesso modulo, ma aperto dalla scheda della cliente e non da un appuntamento. */
+export async function linkConsensoCliente(clientId: string): Promise<{ ok: boolean; url?: string; errore?: string }> {
+  const c = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } });
+  if (!c) return { ok: false, errore: 'Cliente non trovata' };
+  const gettone = firmaConferma({ clientId } satisfies Gettone, GIORNI_GETTONE * 86_400_000);
+  if (!gettone) return { ok: false, errore: 'Manca VOICE_API_SECRET: il link non si può firmare' };
+  const base = process.env.NEXT_PUBLIC_APP_URL || 'https://erp.revobeauty.it';
+  return { ok: true, url: `${base}/firma/${encodeURIComponent(gettone)}` };
 }
 
 export interface RisposteLaser {

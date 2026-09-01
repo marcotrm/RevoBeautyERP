@@ -9,6 +9,7 @@ import {
   type ClientPhoto, type ClientConsent, type MedicalRecord,
 } from '@/app/actions/clientRecords';
 import { compressImage } from '@/lib/imageCompress';
+import { linkConsensoCliente } from '@/app/actions/consensoLaser';
 
 const SKIN_TYPES = ['Normale', 'Secca', 'Grassa', 'Mista', 'Sensibile', 'Asfittica'];
 const PHOTOTYPES = ['I', 'II', 'III', 'IV', 'V', 'VI'];
@@ -79,6 +80,13 @@ function SignaturePad({ onChange }: { onChange: (data: string | null) => void })
 }
 
 export default function ClientRecordTab({ clientId }: { clientId: string }) {
+  /** Apre il modulo del consenso laser per questa cliente, su una scheda nuova. */
+  const apriConsensoLaser = async () => {
+    const l = await linkConsensoCliente(clientId).catch(() => null);
+    if (l?.ok && l.url) window.open(l.url, '_blank', 'noopener');
+    else alert(l?.errore || 'Non riesco ad aprire il modulo');
+  };
+
   const [loading, setLoading] = useState(true);
   const [rec, setRec] = useState<MedicalRecord>({});
   const [photos, setPhotos] = useState<ClientPhoto[]>([]);
@@ -299,10 +307,24 @@ export default function ClientRecordTab({ clientId }: { clientId: string }) {
             <PenLine className="w-5 h-5 text-accent" />
             <h3 className="text-lg font-display font-semibold text-text-primary">Consensi firmati</h3>
           </div>
-          <button onClick={() => setShowConsent(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl gradient-accent text-white text-sm font-medium hover:scale-105 transition-all">
-            <Plus className="w-4 h-4" /> Nuovo consenso
-          </button>
+          <div className="flex items-center gap-2">
+            {/*
+              Il modulo del laser si apre da qui, non solo dal check-in.
+
+              Il check-in e' il momento giusto ma non e' l'unico: capita di
+              farlo firmare al banco mentre si prende l'appuntamento, o il
+              giorno dopo perche' ci si era dimenticati. Da qui il modulo si
+              apre per questa cliente, anche senza un appuntamento aperto.
+            */}
+            <button onClick={apriConsensoLaser}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+              <FileSignature className="w-4 h-4" /> Consenso laser sul tablet
+            </button>
+            <button onClick={() => setShowConsent(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl gradient-accent text-white text-sm font-medium hover:scale-105 transition-all">
+              <Plus className="w-4 h-4" /> Nuovo consenso
+            </button>
+          </div>
         </div>
 
         {consents.length === 0 ? (

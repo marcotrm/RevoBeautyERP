@@ -170,9 +170,13 @@ export default function PaginaFirma() {
           <p className="text-gray-600">Epilazione con laser diodo defocalizzato</p>
           <div className="mt-4 rounded-2xl bg-white border border-gray-200 p-4">
             <p className="font-semibold">{modulo.nome}</p>
-            <p className="text-sm text-gray-600">
-              Seduta del {modulo.quando}{modulo.operatrice ? ` · ${modulo.operatrice}` : ''}
-            </p>
+            {modulo.quando ? (
+              <p className="text-sm text-gray-600">
+                Seduta del {modulo.quando}{modulo.operatrice ? ` · ${modulo.operatrice}` : ''}
+              </p>
+            ) : (
+              <p className="text-sm text-gray-600">Consenso per i trattamenti di epilazione laser</p>
+            )}
             {modulo.giaFirmato && (
               <p className="mt-2 text-sm text-amber-700">
                 Risulta già un consenso firmato il{' '}
