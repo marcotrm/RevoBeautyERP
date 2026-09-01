@@ -9,6 +9,17 @@ $whatsapp = rb_whatsapp_url();
 <meta charset="<?php bloginfo( 'charset' ); ?>" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="preload" href="<?php echo esc_url( RB_DUE_URI . '/assets/fonts/montserrat-variabile-300-700-latin.woff2' ); ?>" as="font" type="font/woff2" crossorigin />
+<?php /* L'immagine dell'eroe e' l'elemento piu' grande della prima
+	schermata: senza preload il browser la scopre solo dopo aver letto
+	l'HTML, e sono decimi di secondo persi sul tempo che Google misura.
+	Il type= fa sì che chi non legge avif ignori la riga e resti sul webp
+	del <picture>: nessun byte sprecato. */ ?>
+<?php if ( is_front_page() && is_readable( RB_DUE_DIR . '/assets/img/hero-full-1400.avif' ) ) : ?>
+<link rel="preload" as="image" type="image/avif" fetchpriority="high"
+	href="<?php echo esc_url( RB_DUE_URI . '/assets/img/hero-full-1400.avif' ); ?>"
+	imagesrcset="<?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-800.avif 800w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-1400.avif 1400w, <?php echo esc_attr( RB_DUE_URI ); ?>/assets/img/hero-full-2000.avif 2000w"
+	imagesizes="100vw" />
+<?php endif; ?>
 <style><?php
 	// Il CSS critico, inline: niente giro di rete prima del primo dipinto.
 	$critico = RB_DUE_DIR . '/assets/css/critical.css';
