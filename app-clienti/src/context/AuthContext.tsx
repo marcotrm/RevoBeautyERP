@@ -91,9 +91,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  /**
+   * Primo passo dell'accesso.
+   *
+   * Se il gestionale risponde con una sessione gia' aperta (accesso col solo
+   * numero) si entra qui, senza passare dalla schermata del codice: la
+   * navigazione la fa da sola il layout radice appena `user` cambia.
+   */
   const richiediCodice = useCallback(
-    (telefono: string) => authService.richiediCodice(telefono),
-    []
+    async (telefono: string) => {
+      const esito = await authService.richiediCodice(telefono);
+      if (esito.accessoDiretto && esito.token && esito.user) {
+        await persistToken(esito.token);
+        setUser(esito.user);
+        setToken(esito.token);
+      }
+      return esito;
+    },
+    [persistToken]
   );
 
   const verificaCodice = useCallback(

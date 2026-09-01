@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'RB_DUE_VERSIONE', '2.1.5' );
+define( 'RB_DUE_VERSIONE', '2.3.3' );
 define( 'RB_DUE_DIR', get_template_directory() );
 define( 'RB_DUE_URI', get_template_directory_uri() );
 
