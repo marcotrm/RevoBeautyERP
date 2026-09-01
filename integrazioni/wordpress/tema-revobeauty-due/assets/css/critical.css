@@ -234,31 +234,35 @@ body[data-entrata] { overflow: hidden; }
 /* Il monogramma dell'entrata. `overflow: visible` perche' la R e la B
    partono fuori dal loro riquadro e ci rientrano: senza, le si vedrebbe
    spuntare da un bordo invece che arrivare da lontano. */
-.entrata-marchio { width: clamp(96px, 17vw, 168px); height: auto; display: block; overflow: visible; }
+.entrata-marchio { width: clamp(150px, 26vw, 250px); height: auto; display: block; overflow: visible; }
 .entrata-marchio .rb-erre, .entrata-marchio .rb-bi, .entrata-marchio .rb-lucido { transform-box: view-box; }
 .entrata-logotipo { font-size: clamp(26px, 6vw, 64px); line-height: 1; letter-spacing: .16em; text-transform: uppercase; white-space: nowrap; }
 .entrata-riga { font-size: 11px; letter-spacing: .34em; text-transform: uppercase; color: #9a9a9a; }
 .entrata-barra { position: absolute; z-index: 2; left: 24px; right: 24px; bottom: 9vh; height: 1px; background: rgba(255,255,255,.18); }
 .entrata-barra span { display: block; height: 100%; width: 0%; background: var(--crema); }
 @media (prefers-reduced-motion: no-preference) {
-  /* Da 2,2 a 2,7 secondi. Mezzo secondo in piu' e' il prezzo del marchio che
-     si compone: sotto i sei decimi le due lettere non arrivano, sfarfallano.
-     Resta una volta sola per visitatore (localStorage, vedi header.php). */
-  .entrata-avviata .entrata-scena { animation: rb-entrata-scena 2.7s cubic-bezier(.22,1,.36,1) both; }
-  .entrata-avviata .entrata-barra span { animation: rb-entrata-barra 1.75s cubic-bezier(.45,0,.55,1) .25s both; }
-  .entrata-avviata .entrata-pannello,
-  .entrata-avviata .entrata-barra { animation-duration: .9s; animation-timing-function: cubic-bezier(.76,0,.24,1); animation-delay: 1.95s; animation-fill-mode: both; }
+  /* Due secondi in tutto, e si parte dal marchio.
 
-  /* Le due lettere arrivano dai lati e si incontrano. La B parte con sei
-     centesimi di ritardo: partendo insieme sembrano un blocco unico che si
-     apre, sfalsate sembrano due pezzi che si cercano. */
-  .entrata-avviata .rb-erre { animation: rb-erre-entra .78s cubic-bezier(.22,1,.36,1) both; }
-  .entrata-avviata .rb-bi { animation: rb-bi-entra .78s cubic-bezier(.22,1,.36,1) .06s both; }
-  /* Il lampo di luce sull'oro, quando il marchio e' appena chiuso. */
-  .entrata-avviata .rb-lucido { animation: rb-lucido-passa .9s cubic-bezier(.4,0,.2,1) .66s both; }
+     La versione lunga - le lettere che arrivavano dai lati e si componevano -
+     e' stata provata e bocciata: chi apre il sito vuole entrare, non guardare
+     un filmato. Qui la RB c'e' SUBITO, si assesta in tre decimi, un lampo le
+     passa sopra, la firma sale, si apre. Nessun tempo morto.
+
+     Resta una volta sola per visitatore (localStorage, vedi header.php). */
+  .entrata-avviata .entrata-scena { animation: rb-entrata-scena 2.2s cubic-bezier(.22,1,.36,1) both; }
+  .entrata-avviata .entrata-barra span { animation: rb-entrata-barra 1.25s cubic-bezier(.45,0,.55,1) .1s both; }
+  .entrata-avviata .entrata-pannello,
+  .entrata-avviata .entrata-barra { animation-duration: .85s; animation-timing-function: cubic-bezier(.76,0,.24,1); animation-delay: 1.45s; animation-fill-mode: both; }
+
+  /* Il marchio non si costruisce: c'e' gia', e si assesta. Le due lettere
+     insieme, perche' e' un marchio solo e non due pezzi che si cercano. */
+  .entrata-avviata .rb-erre,
+  .entrata-avviata .rb-bi { animation: rb-marchio-posa .42s cubic-bezier(.22,1,.36,1) both; }
+  /* Il lampo di luce sull'oro, subito dopo che si e' posato. */
+  .entrata-avviata .rb-lucido { animation: rb-lucido-passa .75s cubic-bezier(.4,0,.2,1) .3s both; }
   /* La firma sale dopo, che e' il senso: prima il marchio, poi il nome. */
-  .entrata-avviata .entrata-logotipo { animation: rb-firma-sale .7s cubic-bezier(.22,1,.36,1) .82s both; }
-  .entrata-avviata .entrata-riga { animation: rb-firma-sale .7s cubic-bezier(.22,1,.36,1) .98s both; }
+  .entrata-avviata .entrata-logotipo { animation: rb-firma-sale .55s cubic-bezier(.22,1,.36,1) .42s both; }
+  .entrata-avviata .entrata-riga { animation: rb-firma-sale .55s cubic-bezier(.22,1,.36,1) .56s both; }
   .entrata-avviata .entrata-sopra { animation-name: rb-sipario-su; }
   .entrata-avviata .entrata-sotto { animation-name: rb-sipario-giu; }
   .entrata-avviata .entrata-barra { animation-name: rb-entrata-via; }
@@ -266,11 +270,14 @@ body[data-entrata] { overflow: hidden; }
      uno. Qui resta solo l'accensione e l'uscita. */
   @keyframes rb-entrata-scena {
     0% { opacity: 0; }
-    6%, 72% { opacity: 1; transform: none; }
-    88%, 100% { opacity: 0; transform: scale(1.05); }
+    5%, 66% { opacity: 1; transform: none; }
+    88%, 100% { opacity: 0; transform: scale(1.04); }
   }
-  @keyframes rb-erre-entra { from { opacity: 0; transform: translateX(-190px); } to { opacity: 1; transform: none; } }
-  @keyframes rb-bi-entra { from { opacity: 0; transform: translateX(190px); } to { opacity: 1; transform: none; } }
+  /* Si posa: entra appena piu' grande e si assesta, come un timbro. */
+  @keyframes rb-marchio-posa {
+    from { opacity: 0; transform: scale(1.16); }
+    to { opacity: 1; transform: none; }
+  }
   /* Lo `skewX` sta anche qui e non solo nell'attributo: una `transform` di
      CSS sostituisce quella scritta nell'SVG, non ci si somma. */
   @keyframes rb-lucido-passa {
