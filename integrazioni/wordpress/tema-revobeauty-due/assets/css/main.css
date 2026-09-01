@@ -112,6 +112,16 @@
       from { opacity: 0; transform: translateY(24px) scale(.97); }
     }
 
+    /* Le voci di listino si rivelano SOLO col movimento, senza dissolvenza.
+       Sono centododici righe di prezzi: con l'opacità, in ogni istante ce
+       n'è qualcuna a mezza strada, e un testo grigio a mezza opacità non
+       ha più contrasto sufficiente — Lighthouse la pesca e ha ragione lui.
+       Il prezzo di un trattamento non è mai mezzo leggibile. */
+    .listino .voce.sale, .pacchetti .voce.sale {
+      animation-name: rb-sale-solido;
+    }
+    @keyframes rb-sale-solido { from { transform: translateY(18px); } }
+
     /* Sipario sulle fotografie: la firma del sito. L'immagine non compare,
        si scopre dal basso mentre si posa da 1.06 a 1. */
     .sipario { overflow: clip; }
@@ -578,6 +588,10 @@
 }
 .categoria-testa .titolo-categoria { border-bottom: 0; padding-bottom: 0; margin: 10px 0 6px; }
 .categoria-conto { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--grigio); }
+/* Il ponte verso la pagina della specializzazione, sotto il conteggio:
+   discreto quanto basta per non competere col listino, visibile quanto
+   serve perche' qualcuno lo segua. */
+.categoria-collega { display: inline-block; margin-top: 12px; font-size: 12px; }
 @media (min-width: 900px) {
   .blocco-listino {
     display: grid; grid-template-columns: minmax(200px, 320px) 1fr;
