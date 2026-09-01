@@ -53,7 +53,7 @@ import CercaBuchiModal from '@/components/CercaBuchiModal';
 import AddClientModal from '@/components/AddClientModal';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { senzaOmaggioInaugurazione } from '@/lib/omaggioInaugurazione';
-import { esoneriScheda, esoneraScheda } from '@/app/actions/esoneroScheda';
+import { esoneriScheda, esoneraScheda, togliEsoneroScheda, type EsoneroScheda } from '@/app/actions/esoneroScheda';
 import { ultimoConsensoLaser, registraConsensoLaser, type FirmaLaser } from '@/app/actions/consensoLaser';
 import SegniCliente from '@/components/SegniCliente';
 import AvvisoCliente from '@/components/AvvisoCliente';
@@ -3445,6 +3445,8 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     un indirizzo si sa che è una scelta e non una dimenticanza.
   */
   const [esonerata, setEsonerata] = useState(false);
+  /** La deroga per esteso: chi l'ha data, quando e perché. */
+  const [esonero, setEsonero] = useState<EsoneroScheda | null>(null);
   const [esonerando, setEsonerando] = useState(false);
   const [schedaForm, setSchedaForm] = useState({ birthDate: '', gender: '' as '' | 'F' | 'M', address: '', city: '', email: '', marketing: false });
   const [schedaBusy, setSchedaBusy] = useState(false);
@@ -3729,7 +3731,12 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     let vivo = true;
     const id = clientData?.id;
     esoneriScheda()
-      .then(mappa => { if (vivo) setEsonerata(Boolean(id && mappa[id])); })
+      .then(mappa => {
+        if (!vivo) return;
+        const mia = id ? mappa[id] : undefined;
+        setEsonerata(Boolean(mia));
+        setEsonero(mia || null);
+      })
       .catch(() => {});
     return () => { vivo = false; };
   }, [clientData?.id]);
@@ -4210,10 +4217,34 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 <p className="font-medium text-text-primary">{appointment.clientName}</p>
                 {(() => {
                   const nascita = allClients.find(c => c.id === appointment.clientId)?.birthDate;
-                  return nascita
-                    ? <p className="text-xs text-text-secondary">🎂 {formatBirthDate(nascita)}</p>
-                    : <p className="text-xs text-warning">Data di nascita mancante</p>;
+                  if (nascita) return <p className="text-xs text-text-secondary">🎂 {formatBirthDate(nascita)}</p>;
+                  return <p className="text-xs text-warning">Data di nascita mancante</p>;
                 })()}
+                {/*
+                  Perche' quella scheda e' rimasta a meta'.
+
+                  Senza questa riga il check-in che passa liscio su una scheda
+                  incompleta sembra un buco del gestionale. Non lo e': qualcuno
+                  ha premuto «non vuole darli» — una volta, un giorno preciso —
+                  e da allora vale per sempre. Adesso si vede chi e quando, e si
+                  puo' rimettere la domanda con un tasto.
+                */}
+                {esonero && (
+                  <p className="text-[11px] text-text-muted mt-0.5">
+                    Esonerata dai dati{esonero.concessoDa ? ` da ${esonero.concessoDa}` : ''}
+                    {esonero.quando ? ` il ${esonero.quando.slice(0, 10).split('-').reverse().join('/')}` : ''}
+                    {esonero.motivo ? ` · ${esonero.motivo}` : ''}
+                    {' '}
+                    <button onClick={async () => {
+                      if (!clientData?.id) return;
+                      await togliEsoneroScheda(clientData.id);
+                      setEsonerata(false);
+                      setEsonero(null);
+                    }} className="font-semibold text-accent hover:underline">
+                      Chiedile di nuovo
+                    </button>
+                  </p>
+                )}
               </div>
             </div>
           </div>
