@@ -231,23 +231,53 @@ body[data-entrata] { overflow: hidden; }
   display: grid; place-content: center; justify-items: center; gap: 18px;
   color: var(--crema); opacity: 0;
 }
+/* Il monogramma dell'entrata. `overflow: visible` perche' la R e la B
+   partono fuori dal loro riquadro e ci rientrano: senza, le si vedrebbe
+   spuntare da un bordo invece che arrivare da lontano. */
+.entrata-marchio { width: clamp(96px, 17vw, 168px); height: auto; display: block; overflow: visible; }
+.entrata-marchio .rb-erre, .entrata-marchio .rb-bi, .entrata-marchio .rb-lucido { transform-box: view-box; }
 .entrata-logotipo { font-size: clamp(26px, 6vw, 64px); line-height: 1; letter-spacing: .16em; text-transform: uppercase; white-space: nowrap; }
 .entrata-riga { font-size: 11px; letter-spacing: .34em; text-transform: uppercase; color: #9a9a9a; }
 .entrata-barra { position: absolute; z-index: 2; left: 24px; right: 24px; bottom: 9vh; height: 1px; background: rgba(255,255,255,.18); }
 .entrata-barra span { display: block; height: 100%; width: 0%; background: var(--crema); }
 @media (prefers-reduced-motion: no-preference) {
-  .entrata-avviata .entrata-scena { animation: rb-entrata-scena 2.2s cubic-bezier(.22,1,.36,1) both; }
-  .entrata-avviata .entrata-barra span { animation: rb-entrata-barra 1.35s cubic-bezier(.45,0,.55,1) .25s both; }
+  /* Da 2,2 a 2,7 secondi. Mezzo secondo in piu' e' il prezzo del marchio che
+     si compone: sotto i sei decimi le due lettere non arrivano, sfarfallano.
+     Resta una volta sola per visitatore (localStorage, vedi header.php). */
+  .entrata-avviata .entrata-scena { animation: rb-entrata-scena 2.7s cubic-bezier(.22,1,.36,1) both; }
+  .entrata-avviata .entrata-barra span { animation: rb-entrata-barra 1.75s cubic-bezier(.45,0,.55,1) .25s both; }
   .entrata-avviata .entrata-pannello,
-  .entrata-avviata .entrata-barra { animation-duration: .9s; animation-timing-function: cubic-bezier(.76,0,.24,1); animation-delay: 1.55s; animation-fill-mode: both; }
+  .entrata-avviata .entrata-barra { animation-duration: .9s; animation-timing-function: cubic-bezier(.76,0,.24,1); animation-delay: 1.95s; animation-fill-mode: both; }
+
+  /* Le due lettere arrivano dai lati e si incontrano. La B parte con sei
+     centesimi di ritardo: partendo insieme sembrano un blocco unico che si
+     apre, sfalsate sembrano due pezzi che si cercano. */
+  .entrata-avviata .rb-erre { animation: rb-erre-entra .78s cubic-bezier(.22,1,.36,1) both; }
+  .entrata-avviata .rb-bi { animation: rb-bi-entra .78s cubic-bezier(.22,1,.36,1) .06s both; }
+  /* Il lampo di luce sull'oro, quando il marchio e' appena chiuso. */
+  .entrata-avviata .rb-lucido { animation: rb-lucido-passa .9s cubic-bezier(.4,0,.2,1) .66s both; }
+  /* La firma sale dopo, che e' il senso: prima il marchio, poi il nome. */
+  .entrata-avviata .entrata-logotipo { animation: rb-firma-sale .7s cubic-bezier(.22,1,.36,1) .82s both; }
+  .entrata-avviata .entrata-riga { animation: rb-firma-sale .7s cubic-bezier(.22,1,.36,1) .98s both; }
   .entrata-avviata .entrata-sopra { animation-name: rb-sipario-su; }
   .entrata-avviata .entrata-sotto { animation-name: rb-sipario-giu; }
   .entrata-avviata .entrata-barra { animation-name: rb-entrata-via; }
+  /* La scena non entra piu' da sola: adesso entrano i suoi pezzi, uno per
+     uno. Qui resta solo l'accensione e l'uscita. */
   @keyframes rb-entrata-scena {
-    0% { opacity: 0; transform: translateY(18px) scale(.96); }
-    26%, 62% { opacity: 1; transform: none; }
-    76%, 100% { opacity: 0; transform: scale(1.05); }
+    0% { opacity: 0; }
+    6%, 72% { opacity: 1; transform: none; }
+    88%, 100% { opacity: 0; transform: scale(1.05); }
   }
+  @keyframes rb-erre-entra { from { opacity: 0; transform: translateX(-190px); } to { opacity: 1; transform: none; } }
+  @keyframes rb-bi-entra { from { opacity: 0; transform: translateX(190px); } to { opacity: 1; transform: none; } }
+  /* Lo `skewX` sta anche qui e non solo nell'attributo: una `transform` di
+     CSS sostituisce quella scritta nell'SVG, non ci si somma. */
+  @keyframes rb-lucido-passa {
+    from { transform: skewX(-18deg) translateX(0); }
+    to { transform: skewX(-18deg) translateX(1750px); }
+  }
+  @keyframes rb-firma-sale { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
   @keyframes rb-entrata-barra { from { width: 0%; } to { width: 100%; } }
   @keyframes rb-sipario-su  { to { transform: translateY(-101%); } }
   @keyframes rb-sipario-giu { to { transform: translateY(101%); } }
