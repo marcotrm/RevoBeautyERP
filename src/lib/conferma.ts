@@ -50,11 +50,17 @@ export function confrontoSicuro(a: string, b: string): boolean {
   return timingSafeEqual(ba, bb);
 }
 
-/** Emette il gettone per dei dati già ripetuti alla cliente. */
-export function firmaConferma(dati: unknown): string | null {
+/**
+ * Emette il gettone per dei dati già ripetuti alla cliente.
+ *
+ * `validitaMs` serve a chi il gettone lo manda per posta invece che dirlo al
+ * telefono: il link del consenso laser parte il giorno prima e deve reggere
+ * fino alla seduta, mentre dieci minuti sono la durata di una telefonata.
+ */
+export function firmaConferma(dati: unknown, validitaMs = VALIDITA_MS): string | null {
   const chiave = segreto();
   if (!chiave) return null;
-  const corpo = b64url(Buffer.from(JSON.stringify({ dati, scade: Date.now() + VALIDITA_MS })));
+  const corpo = b64url(Buffer.from(JSON.stringify({ dati, scade: Date.now() + validitaMs })));
   const firma = b64url(createHmac('sha256', chiave).update(corpo).digest());
   return `${corpo}.${firma}`;
 }

@@ -54,7 +54,10 @@ import AddClientModal from '@/components/AddClientModal';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { senzaOmaggioInaugurazione } from '@/lib/omaggioInaugurazione';
 import { esoneriScheda, esoneraScheda, togliEsoneroScheda, type EsoneroScheda } from '@/app/actions/esoneroScheda';
-import { ultimoConsensoLaser, registraConsensoLaser, type FirmaLaser } from '@/app/actions/consensoLaser';
+import {
+  ultimoConsensoLaser, registraConsensoLaser, consensoLaserDi, linkConsensoLaser, mandaLinkConsenso,
+  type FirmaLaser,
+} from '@/app/actions/consensoLaser';
 import SegniCliente from '@/components/SegniCliente';
 import AvvisoCliente from '@/components/AvvisoCliente';
 import { nomiDoppi, omonimiDi, chiaveNome as chiaveOmonimi } from '@/lib/omonimi';
@@ -4101,12 +4104,33 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   });
   const [consensoLaser, setConsensoLaser] = useState<{ ultima: FirmaLaser | null } | null>(null);
   const [consensoBusy, setConsensoBusy] = useState(false);
+  /** Il modulo firmato sul tablet: e' la firma vera, la spunta al banco e' un'altra cosa. */
+  const [moduloFirmato, setModuloFirmato] = useState<{ quando: string; zone?: string } | null>(null);
+  const [esitoLink, setEsitoLink] = useState<string | null>(null);
 
   /** Dopo i promemoria: il consenso laser, se in questa seduta c'e' un laser. */
   const dopoPromemoria = async () => {
     if (trattamentiLaser.length === 0) { proseguiCheckIn(); return; }
-    const ultima = clientData?.id ? await ultimoConsensoLaser(clientData.id).catch(() => null) : null;
+    const [ultima, modulo] = await Promise.all([
+      clientData?.id ? ultimoConsensoLaser(clientData.id).catch(() => null) : null,
+      clientData?.id ? consensoLaserDi(clientData.id).catch(() => null) : null,
+    ]);
+    setModuloFirmato(modulo);
+    setEsitoLink(null);
     setConsensoLaser({ ultima });
+  };
+
+  /** Apre il modulo sul tablet: stessa pagina che riceve la cliente per link. */
+  const apriModuloSulTablet = async () => {
+    const l = await linkConsensoLaser(appointment.id).catch(() => null);
+    if (l?.ok && l.url) window.open(l.url, '_blank', 'noopener');
+    else setEsitoLink(l?.errore || 'Non riesco a creare il link');
+  };
+
+  const mandaModuloInChat = async () => {
+    setEsitoLink('Mando…');
+    const r = await mandaLinkConsenso(appointment.id).catch(() => ({ ok: false, errore: 'Invio non riuscito' }));
+    setEsitoLink(r.ok ? 'Link mandato su WhatsApp' : (r.errore || 'Invio non riuscito'));
   };
 
   /** Firma confermata: si registra e si va avanti col check-in. */
@@ -5352,6 +5376,34 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                 {trattamentiLaser.map((s, i) => (
                   <p key={`${s.treatmentId}-${i}`} className="text-sm text-text-primary">{s.treatmentName}</p>
                 ))}
+              </div>
+
+              {/*
+                Il modulo digitale viene prima di tutto: e' la firma vera, con
+                le risposte della cliente e la sua grafia. La spunta al banco
+                resta sotto, per i fogli firmati prima di oggi e per chi il
+                tablet non lo vuole toccare.
+              */}
+              <div className="rounded-xl border border-border bg-bg-tertiary/50 p-3 space-y-2">
+                {moduloFirmato ? (
+                  <p className="text-xs font-semibold text-success">
+                    ✓ Modulo firmato sul tablet il {new Date(moduloFirmato.quando).toLocaleDateString('it-IT')}
+                    {moduloFirmato.zone ? ` · ${moduloFirmato.zone}` : ''}
+                  </p>
+                ) : (
+                  <p className="text-xs text-text-secondary">Nessun modulo digitale per questa cliente.</p>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={apriModuloSulTablet}
+                    className="flex-1 py-2 rounded-lg gradient-accent text-white text-[11px] font-bold hover:opacity-90 transition-opacity">
+                    Apri sul tablet
+                  </button>
+                  <button onClick={mandaModuloInChat}
+                    className="flex-1 py-2 rounded-lg border border-border text-[11px] font-semibold text-text-secondary hover:bg-bg-hover transition-colors">
+                    Manda il link su WhatsApp
+                  </button>
+                </div>
+                {esitoLink && <p className="text-[11px] text-text-muted">{esitoLink}</p>}
               </div>
 
               {consensoLaser.ultima ? (

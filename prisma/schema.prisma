@@ -75,6 +75,10 @@ model ClientConsent {
   signatureData String? // firma disegnata in base64 (opzionale)
   signedAt      String
   notes         String?
+  /// Le risposte del modulo, quando il consenso nasce da un questionario e non
+  /// da una riga scritta a mano: per il laser sono lo storico dichiarato dalla
+  /// cliente, le zone concordate e la firma dell'operatrice.
+  data          Json?
 
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
