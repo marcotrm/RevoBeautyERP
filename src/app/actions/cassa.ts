@@ -120,8 +120,8 @@ export async function getCashRegister(limit = 300): Promise<CashRegisterState> {
   }
 
   for (const m of safeMoves) {
+    if (m.cash === 0) continue;
     if (m.type === 'deposit') {
-      if (m.cash === 0) continue;
       ledger.push({
         id: `safe-${m.id}`,
         when: m.createdAt,
@@ -134,7 +134,33 @@ export async function getCashRegister(limit = 300): Promise<CashRegisterState> {
         category: 'versamento',
         canDelete: false,
       });
+      continue;
     }
+    /*
+      I prelievi dalla cassaforte non comparivano da nessuna parte.
+
+      Il movimento veniva scritto e il saldo della cassaforte scendeva, ma in
+      cronologia c'era solo il ramo dei versamenti: chi prelevava 450 euro
+      vedeva il saldo calare e nessuna riga a dire dove fossero finiti. In un
+      registro di contanti una cifra che sparisce senza riga e' la cosa peggiore
+      che possa succedere.
+
+      L'importo e' negativo perche' quei contanti escono davvero
+      dall'attivita' — dal cassetto erano gia' usciti il giorno del
+      versamento, e infatti il saldo del cassetto non lo tocca nessuno qui.
+    */
+    ledger.push({
+      id: `safe-${m.id}`,
+      when: m.createdAt,
+      date: m.date,
+      label: 'Prelevato dalla cassaforte',
+      detail: m.note || 'Prelievo contanti',
+      operator: '',
+      amount: round2(-m.cash),
+      source: 'cassaforte',
+      category: 'prelievo',
+      canDelete: false,
+    });
   }
 
   ledger.sort((a, b) => (a.when < b.when ? 1 : a.when > b.when ? -1 : 0));
