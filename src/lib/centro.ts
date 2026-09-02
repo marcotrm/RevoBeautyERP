@@ -71,6 +71,15 @@ export interface Centro {
    */
   emailReport?: string;
   sito?: string;
+  /**
+   * Il link di Google Maps del centro, copiato dalla scheda.
+   *
+   * Serve a mandare la POSIZIONE su WhatsApp, non l'indirizzo scritto: chi
+   * chiede «dove siete» quasi sempre e' gia' in macchina, e una via da
+   * ricopiare a mano nel navigatore non e' una risposta. Da qui si tirano
+   * fuori le coordinate; se il link non ce le ha, si manda comunque il link.
+   */
+  mappa?: string;
   /** Da "1" (lunedì) a "7" (domenica). `null` = chiuso tutto il giorno. */
   orari?: Record<string, OrarioGiorno | null>;
   /** Chiusure straordinarie, formato YYYY-MM-DD: ferie, festivi, ponti. */
@@ -88,6 +97,7 @@ export const CENTRO: Centro = {
   telefonoPassaggio: '',
   emailReport: '',
   sito: 'revobeauty.it',
+  mappa: '',
   orari: {
     '1': { apre: '09:00', chiude: '19:00' },
     '2': { apre: '09:00', chiude: '19:00' },
@@ -191,4 +201,20 @@ export function eChiuso(centro: Centro, iso: string): boolean {
   if (centro.chiusure?.includes(iso)) return true;
   const dow = new Date(iso + 'T12:00:00').getDay();
   return (centro.orari?.[String(dow === 0 ? 7 : dow)] ?? null) === null;
+}
+
+/**
+ * Le coordinate dentro un link di Google Maps, se ci sono.
+ *
+ * Google ne usa due forme: `@41.03,14.38,17z` negli indirizzi copiati dalla
+ * barra, e `?q=41.03,14.38` nei link condivisi. Gli accorciati (maps.app.goo.gl)
+ * non le contengono: li' non si indovina niente e si manda il link.
+ */
+export function coordinateDa(link?: string | null): { lat: number; lng: number } | null {
+  const s = String(link || '');
+  const m = /@(-?\d+\.\d+),(-?\d+\.\d+)/.exec(s) || /[?&]q=(-?\d+\.\d+),\s*(-?\d+\.\d+)/.exec(s);
+  if (!m) return null;
+  const lat = Number(m[1]), lng = Number(m[2]);
+  if (!isFinite(lat) || !isFinite(lng)) return null;
+  return { lat, lng };
 }

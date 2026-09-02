@@ -162,6 +162,18 @@ const MALE_NAME_EXCEPTIONS = new Set([
 const FEMALE_NAME_EXCEPTIONS = new Set([
   'alice', 'beatrice', 'irene', 'adele', 'rachele', 'ester', 'nives', 'ines', 'iris',
   'carmen', 'miriam', 'noemi', 'ruth', 'consuelo', 'ingrid', 'agnese', 'gaia', 'dafne',
+  /*
+    I nomi stranieri, che la regola della vocale finale sbaglia in pieno.
+
+    "Finisce per -a e' donna, il resto e' uomo" vale per i nomi italiani.
+    Nicole, Michelle, Jennifer non finiscono per -a e verrebbero mandate al
+    listino uomo — e da noi la differenza sono cinque euro a seduta, che
+    nessuno si accorge di aver sbagliato.
+  */
+  'nicole', 'michelle', 'jennifer', 'jessy', 'jasmine', 'sharon', 'karen', 'kim',
+  'doris', 'esther', 'rachel', 'nicol', 'nicoll', 'jacqueline', 'catherine', 'caroline',
+  'madeleine', 'daphne', 'evelyn', 'marilyn', 'roxanne', 'yasmin', 'yasmine', 'ester',
+  'lisbeth', 'elisabeth', 'jasmin', 'kelly', 'shirley', 'joy', 'grace', 'hope',
 ]);
 
 // Deduce il sesso dal nome (euristica italiana). Usare il campo gender della scheda quando disponibile.

@@ -2336,13 +2336,28 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
 
   // Sceglie automaticamente il listino uomo/donna in base al cliente selezionato
   // (campo genere della scheda se presente, altrimenti dal nome). Modificabile a mano.
+  /*
+    Chi ha davanti decide il listino, e lo decide il NOME.
+
+    Prima vinceva il campo "sesso" della scheda, e sembrava giusto: e' un dato
+    esplicito. Ma quel campo si compila di fretta al check-in — cinquantadue
+    schede su quattrocento non ce l'hanno affatto, e quella di Vincenzo Ferro
+    diceva "donna". Il nome invece si scrive con attenzione, perche' e' come si
+    ritrova la cliente.
+
+    Quindi: il nome comanda, la scheda serve quando il nome non basta (i nomi
+    ambigui restano quelli, e per quelli c'e' la scritta da toccare).
+
+    E la dipendenza e' su `selectedClient`, non sul solo id: l'anagrafica
+    arriva dal server dopo l'apertura del modale, e guardando solo l'id il
+    riconoscimento non scattava mai — restava "donna" per tutti.
+  */
   useEffect(() => {
     if (editingAppointment || !selectedClient) return;
-    if (selectedClient.gender === 'M') setGender('male');
-    else if (selectedClient.gender === 'F') setGender('female');
-    else setGender(guessGenderFromName(`${selectedClient.firstName} ${selectedClient.lastName}`));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClientId]);
+    const dalNome = guessGenderFromName(`${selectedClient.firstName} ${selectedClient.lastName}`);
+    const inScheda = selectedClient.gender === 'M' ? 'male' : selectedClient.gender === 'F' ? 'female' : null;
+    setGender(dalNome || inScheda || 'female');
+  }, [selectedClient, editingAppointment]);
 
   // Prezzo/durata in base al sesso selezionato (fallback all'altro se mancante)
   const genderPrice = (t: Treatment) => gender === 'male' ? (t.priceMale ?? t.priceFemale ?? t.price) : (t.priceFemale ?? t.price);
@@ -3048,12 +3063,22 @@ function AppointmentModal({ onOpenWaitlist }: { onOpenWaitlist: (prefill: Partia
                     className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 transition-colors font-medium bg-accent/10 px-2 py-1 rounded-md">
                     <Package className="w-3.5 h-3.5" /> Vendi pacchetto
                   </button>
-                  <div className="flex rounded-lg border border-border overflow-hidden text-xs font-medium">
-                    <button type="button" onClick={() => setGender('female')}
-                      className={`px-2.5 py-1 transition-colors ${gender === 'female' ? 'bg-accent text-white' : 'text-text-secondary hover:bg-bg-hover'}`}>♀ Donna</button>
-                    <button type="button" onClick={() => setGender('male')}
-                      className={`px-2.5 py-1 transition-colors ${gender === 'male' ? 'bg-accent text-white' : 'text-text-secondary hover:bg-bg-hover'}`}>♂ Uomo</button>
-                  </div>
+                  {/*
+                    Il listino uomo/donna non si sceglie piu': lo decide il nome.
+
+                    Erano due tasti da premere prima di aggiungere i
+                    trattamenti, e chi ha fretta non li preme: a Vincenzo Ferro
+                    e' partito il prezzo donna — cinque euro in meno a seduta,
+                    e nessuno se ne accorge finche' non si guardano i conti.
+                    Adesso qui c'e' scritto solo QUALE listino sta usando, e si
+                    tocca solo se ha sbagliato — cosa che con "Andrea" o
+                    "Nicole" puo' succedere.
+                  */}
+                  <button type="button" onClick={() => setGender(gender === 'male' ? 'female' : 'male')}
+                    title="Il listino lo sceglie il nome. Tocca solo se ha sbagliato."
+                    className="flex items-center gap-1 text-xs font-medium text-text-secondary hover:text-accent px-2 py-1 rounded-md hover:bg-bg-hover transition-colors">
+                    {gender === 'male' ? '♂ listino uomo' : '♀ listino donna'}
+                  </button>
                 </div>
               </div>
 

@@ -132,6 +132,30 @@ export async function sendD360Text(to: string, text: string): Promise<D360Result
   });
 }
 
+/**
+ * La posizione: il cartoncino con la mappa, non un indirizzo scritto.
+ *
+ * Come il testo libero, vale solo dentro le 24 ore. Fuori si manda il link
+ * dentro a un template, che e' meno bello ma arriva.
+ */
+export async function sendD360Location(
+  to: string,
+  luogo: { lat: number; lng: number; nome?: string; indirizzo?: string },
+): Promise<D360Result> {
+  return d360Post('/messages', {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'location',
+    location: {
+      latitude: luogo.lat,
+      longitude: luogo.lng,
+      name: luogo.nome || '',
+      address: luogo.indirizzo || '',
+    },
+  });
+}
+
 export interface TemplateSendOptions {
   /** Parametri posizionali {{1}}, {{2}}, ... del corpo del template. */
   bodyParams?: string[];

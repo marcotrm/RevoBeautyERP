@@ -9,6 +9,7 @@
  * conferma una cosa e ne prenota un'altra.
  */
 
+import { guessGenderFromName } from '@/lib/helpers';
 import { prisma } from './prisma';
 import { slotDisponibili, type ServizioRichiesto, type SlotProposto } from './bookingEngine';
 import { quandoParlato } from './parlato';
@@ -89,9 +90,22 @@ export async function preparaPrenotazione(b: {
   if (services.length === 0) return no('VALIDATION', 'Manca il trattamento.');
 
   const cliente = await findClientByPhone(phone);
+  /*
+    Il listino uomo/donna, quando a prenotare non c'e' nessuno al banco.
+
+    Prima, senza indicazione, si ripiegava su "donna" — e per ogni uomo
+    prenotato da WhatsApp o dall'app partiva il prezzo sbagliato. Adesso decide
+    il nome, che e' l'unica cosa che si sa sempre; la scheda serve solo quando
+    il nome non e' in rubrica.
+  */
+  const nomeCompleto = cliente
+    ? `${cliente.firstName} ${cliente.lastName}`.trim()
+    : String(b.clientName || '').trim();
   const gender: 'male' | 'female' = (b.gender === 'male' || b.gender === 'female')
     ? b.gender
-    : (cliente?.gender === 'M' ? 'male' : 'female');
+    : nomeCompleto
+      ? guessGenderFromName(nomeCompleto)
+      : (cliente?.gender === 'M' ? 'male' : 'female');
 
   const { slots } = await slotDisponibili({ date, services, gender, oraDa: startTime });
   const slot = slots.find(s => s.time === startTime);
