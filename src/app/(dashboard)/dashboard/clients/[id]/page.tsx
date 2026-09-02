@@ -33,6 +33,7 @@ import BuonoCompleannoBadge from '@/components/BuonoCompleanno';
 import MandaListino from '@/components/MandaListino';
 import ClientRecordTab from './ClientRecordTab';
 import PromemoriaCliente from '@/components/PromemoriaCliente';
+import NienteRecensione from '@/components/NienteRecensione';
 import { valutaAffidabilita, dalQuando, MESI_AFFIDABILITA } from '@/lib/affidabilita';
 import { clientiDifficili, togliSegnalazione, type ClienteDifficile } from '@/app/actions/clientiDifficili';
 import { getClientValue, type ClientValue } from '@/app/actions/businessStats';
@@ -484,6 +485,11 @@ export default function ClientDetailPage() {
                     ))}
                   </select>
                 </div>
+
+                {/* Sta qui, fra le impostazioni personali, e non fra i segni:
+                    non e' un giudizio sulla cliente, e' una decisione su un
+                    messaggio. */}
+                <NienteRecensione clientId={client.id} />
               </div>
             </div>
 

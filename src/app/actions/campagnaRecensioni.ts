@@ -20,7 +20,7 @@ import { normalizePhone, isSendablePhone, waProvider } from '@/lib/whatsapp';
 import { logOutbound } from '@/lib/wa-conversations';
 import { sanitizeParam, WA_TEMPLATES } from '@/lib/wa-templates';
 import { isInterno } from '@/lib/clientiInterni';
-import { idClientiSegnalati } from '@/lib/segnalate';
+import { idClientiSegnalati, idSenzaRecensione } from '@/lib/segnalate';
 import { todayRome } from '@/lib/date';
 import { leggiStato } from '@/lib/recensioni';
 import { scegliRecensione } from '@/lib/sceltaRecensione';
@@ -73,13 +73,14 @@ export async function candidateRecensioni(giorni: number = GIORNI_FINESTRA): Pro
   if (ultima.size === 0) return { candidate: [], scartati: [], finestra: giorni };
 
   const ids = [...ultima.keys()];
-  const [clienti, righe, segnalate, tpl, cfg] = await Promise.all([
+  const [clienti, righe, segnalate, escluse, tpl, cfg] = await Promise.all([
     prisma.client.findMany({
       where: { id: { in: ids } },
       select: { id: true, firstName: true, lastName: true, phone: true, tags: true, marketingConsent: true },
     }),
     prisma.adminEntry.findMany({ where: { rowId: { in: ids.map(rigaRichiesta) } } }),
     idClientiSegnalati(),
+    idSenzaRecensione(),
     statoTemplateRecensione(),
     getWaAutomationsConfig(),
   ]);
@@ -100,6 +101,8 @@ export async function candidateRecensioni(giorni: number = GIORNI_FINESTRA): Pro
     if (isInterno(c)) continue; // schede di casa: non si contano nemmeno fra gli scarti
     // Alle segnalate non si chiede: sarebbe andare a cercarsi la stella storta.
     if (segnalate.has(c.id)) { scartati.push({ nome, motivo: 'segnalata: non le chiediamo la recensione' }); continue; }
+    // Esclusa a mano dalla sua scheda: e' una decisione presa, non un dato da rivedere.
+    if (escluse.has(c.id)) { scartati.push({ nome, motivo: 'esclusa dalla richiesta recensione' }); continue; }
     // Meta ha classificato promozionale il messaggio: vale il consenso marketing,
     // salvo quando il centro ha acceso "manda a tutte" nelle Automazioni.
     if (tpl.promozionale && !cfg.recensioneSenzaConsenso && !c.marketingConsent) {

@@ -13,7 +13,7 @@
 import { seduraDaRadere, oraConNota } from '@/lib/epilazione';
 import { consensoLaserDi, mandaLinkConsenso } from '@/app/actions/consensoLaser';
 import { prisma } from '@/lib/prisma';
-import { idClientiSegnalati } from '@/lib/segnalate';
+import { idClientiSegnalati, idSenzaRecensione } from '@/lib/segnalate';
 import { todayRome } from '@/lib/date';
 import { creaBuonoCompleanno, percentoDa } from '@/lib/buonoCompleanno';
 import { sendWhatsAppTemplate, normalizePhone, isSendablePhone, waProvider } from '@/lib/whatsapp';
@@ -684,12 +684,13 @@ export async function chiaveRichiestaRecensione(): Promise<{ chiave: TemplateKey
 export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
   const target = shiftDate(todayRome(), -1);
   const [scelta, cfg] = await Promise.all([chiaveRichiestaRecensione(), getWaAutomationsConfig()]);
-  const [appts, segnalate] = await Promise.all([
+  const [appts, segnalate, senzaRichiesta] = await Promise.all([
     prisma.appointment.findMany({
       where: { date: target, status: 'completed' },
       include: { client: true },
     }),
     idClientiSegnalati(),
+    idSenzaRecensione(),
   ]);
 
   // La recensione si chiede UNA VOLTA SOLA nella vita del cliente.
@@ -720,6 +721,15 @@ export async function runReviewRequests(dryRun: boolean): Promise<RunResult> {
       comunque; chi non ci aveva pensato non deve sentirselo suggerire da noi.
     */
     if (segnalate.has(clientId)) continue;
+
+    /*
+      E chi il centro ha deciso di lasciare fuori, punto.
+
+      Non e' una segnalazione e non vuol dire niente su di lei: vuol dire solo
+      che qualcuno al banco sa perche' a quella persona la recensione non si
+      chiede. Vale per sempre, finche' non la si rimette.
+    */
+    if (senzaRichiesta.has(clientId)) continue;
 
     // Se Meta l'ha classificato promozionale vale la regola delle promozioni,
     // a meno che il centro abbia deciso di mandarla comunque a tutte.

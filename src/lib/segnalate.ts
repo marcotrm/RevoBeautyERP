@@ -25,3 +25,31 @@ export async function idClientiSegnalati(): Promise<Set<string>> {
   });
   return new Set(righe.map(r => r.entityId));
 }
+
+/**
+ * Chi la recensione non la deve ricevere, e basta.
+ *
+ * Diverso dall'essere segnalata: quella e' una cliente con cui e' successo
+ * qualcosa, e il segno si vede in agenda. Questa e' una scelta sola —
+ * «a lei la recensione non chiedergliela» — e non deve appiccicare addosso a
+ * nessuno un'etichetta che significa un'altra cosa.
+ *
+ * Vale per sempre finche' non la si toglie: se una volta si e' deciso di non
+ * chiedergliela, chiedergliela l'anno prossimo e' lo stesso errore.
+ */
+export const KIND_NIENTE_RECENSIONE = 'cliente:niente-recensione';
+
+export async function idSenzaRecensione(): Promise<Set<string>> {
+  const righe = await prisma.adminEntry.findMany({
+    where: { kind: KIND_NIENTE_RECENSIONE },
+    select: { entityId: true },
+  });
+  return new Set(righe.map(r => r.entityId));
+}
+
+/** Vero se a questa cliente la recensione non si chiede. */
+export async function senzaRecensione(clientId: string): Promise<boolean> {
+  if (!clientId) return false;
+  const r = await prisma.adminEntry.findUnique({ where: { rowId: `${KIND_NIENTE_RECENSIONE}:${clientId}` } });
+  return Boolean(r);
+}
