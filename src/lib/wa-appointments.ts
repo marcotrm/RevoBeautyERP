@@ -26,6 +26,20 @@ import { getWaAutomationsConfig } from '@/lib/wa-automations';
 import { avviaSpostamento } from '@/lib/wa-spostamento';
 
 /**
+ * Lo stato su Meta di un template italiano, per nome.
+ *
+ * Un template approvato non si modifica: quando serve un testo diverso se ne
+ * fa approvare uno nuovo e si usa quello SOLO se e' passato. Finche' non lo e',
+ * parte il vecchio — meglio un messaggio con una parola in meno del silenzio.
+ */
+async function statoTemplateIt(nome: string): Promise<string> {
+  const remote = await listD360Templates().catch(() => null);
+  if (!remote?.ok) return 'SCONOSCIUTO';
+  const t = remote.templates.find(x => x.name === nome && x.language.toLowerCase().startsWith('it'));
+  return t ? t.status.toUpperCase() : 'ASSENTE';
+}
+
+/**
  * L'ora che si dice alla cliente: quando deve essere qui.
  *
  * Se un trattamento della seduta è affidato a un'altra operatrice e comincia
@@ -234,7 +248,17 @@ export async function sendAppointmentConfirmation(appointmentId: string): Promis
       // adesso, perche' dopo non c'e' piu' tempo per farla.
       sanitizeParam(oraConNota(oraPerLaCliente(appt), seduraDaRadere(appt))),
     ];
-    const preview = WA_TEMPLATES.confirm.body.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1] ?? '');
+    /*
+      Quale conferma parte: la v2 se Meta l'ha approvata, se no la vecchia.
+
+      Cambia una cosa sola, il numero civico dell'indirizzo — che pero' e'
+      quello che serve a chi al centro non c'e' mai stato, e la conferma e' il
+      primo messaggio che riceve. Il testo dell'anteprima segue il template
+      scelto: in archivio deve finire quello che la cliente legge davvero.
+    */
+    const chiave: 'confirm' | 'confirmV2' =
+      (await statoTemplateIt(WA_TEMPLATES.confirmV2.name)) === 'APPROVED' ? 'confirmV2' : 'confirm';
+    const preview = WA_TEMPLATES[chiave].body.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1] ?? '');
 
     // In simulazione si vede in archivio cosa sarebbe partito, senza mandarlo.
     if (cfg.dryRun) {
@@ -242,7 +266,7 @@ export async function sendAppointmentConfirmation(appointmentId: string): Promis
       return { sent: false, reason: 'simulazione attiva' };
     }
 
-    const res = await sendWhatsAppTemplate(normalizePhone(phone as string), 'confirm', {
+    const res = await sendWhatsAppTemplate(normalizePhone(phone as string), chiave, {
       bodyParams: params,
       fallbackText: preview,
       source: 'automation',

@@ -93,6 +93,32 @@ export const WA_TEMPLATES = {
   },
 
   /**
+   * La conferma con l'indirizzo per intero.
+   *
+   * `conferma_appuntamento` e' il template piu' vecchio del centro e ha
+   * l'indirizzo senza il numero civico — "Via Caudina, Maddaloni". Tutti gli
+   * altri approvati dopo ce l'hanno. Ed e' quello su cui pesa di piu': la
+   * conferma e' il PRIMO messaggio che riceve una cliente nuova, cioe' proprio
+   * chi il centro non l'ha mai trovato.
+   *
+   * Il corpo di un template approvato non si modifica: si fa approvare una
+   * versione nuova e si usa quella. Finche' Meta non risponde parte la
+   * vecchia, che dice comunque tutto il resto.
+   */
+  confirmV2: {
+    name: 'conferma_appuntamento_v2',
+    category: 'UTILITY',
+    language: 'it',
+    params: ['nome cliente', 'trattamento', 'data', 'ora'],
+    body:
+      'Ciao {{1}}, il tuo appuntamento da RevoBeauty per {{2}} è confermato: {{3}} alle {{4}}.\n' +
+      'Ti aspettiamo in Via Caudina 30, Maddaloni. Se ti serve spostarlo, rispondi a questo messaggio.',
+    note:
+      'Identico a conferma_appuntamento tranne il numero civico. Appena Meta lo approva il gestionale '
+      + 'usa questo; se lo rifiuta continua a partire il vecchio e non si rompe niente.',
+  },
+
+  /**
    * L'orario è cambiato.
    *
    * Prima, spostando un appuntamento dal gestionale, alla cliente non arrivava
