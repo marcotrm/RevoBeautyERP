@@ -171,7 +171,7 @@ export default function AssistentePage() {
           <Campo etichetta="Sito" valore={centro.sito || ''}
             onChange={v => { setCentro({ ...centro, sito: v }); setSalvato(false); }} />
           <Campo etichetta="Link Google Maps" valore={centro.mappa || ''}
-            aiuto="Aprite il centro su Google Maps, Condividi → Copia link, e incollatelo qui. Serve a mandare la POSIZIONE su WhatsApp: il riquadro con la mappa che si tocca e apre il navigatore. Senza, parte il link scritto."
+            aiuto="Serve a mandare su WhatsApp il riquadro con la mappa, quello che si tocca e apre il navigatore. Il modo piu' semplice: su Google Maps clic destro sul centro, la prima voce del menu sono le coordinate (es. 41.037, 14.389) — un clic le copia, incollale qui. Va bene anche l'indirizzo lungo copiato dalla barra del browser. Il link corto di Condividi no: le coordinate non ce le ha."
             onChange={v => { setCentro({ ...centro, mappa: v }); setSalvato(false); }} />
         </div>
       </Sezione>

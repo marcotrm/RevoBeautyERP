@@ -211,10 +211,24 @@ export function eChiuso(centro: Centro, iso: string): boolean {
  * non le contengono: li' non si indovina niente e si manda il link.
  */
 export function coordinateDa(link?: string | null): { lat: number; lng: number } | null {
-  const s = String(link || '');
-  const m = /@(-?\d+\.\d+),(-?\d+\.\d+)/.exec(s) || /[?&]q=(-?\d+\.\d+),\s*(-?\d+\.\d+)/.exec(s);
+  const s = String(link || '').trim();
+  const m =
+    // Indirizzo copiato dalla barra del browser.
+    /@(-?\d+\.\d+),(-?\d+\.\d+)/.exec(s)
+    // Link condiviso.
+    || /[?&]q=(-?\d+\.\d+),\s*(-?\d+\.\d+)/.exec(s)
+    /*
+      Le due cifre e basta.
+
+      E' il modo piu' semplice per chi le deve prendere: su Google Maps si fa
+      clic destro sul punto e la prima voce del menu SONO le coordinate, che si
+      copiano con un clic. Il link lungo invece bisogna saperlo cercare, e
+      quello del tasto Condividi le coordinate non ce le ha proprio.
+    */
+    || /^(-?\d{1,2}\.\d{3,}),\s*(-?\d{1,3}\.\d{3,})$/.exec(s);
   if (!m) return null;
   const lat = Number(m[1]), lng = Number(m[2]);
   if (!isFinite(lat) || !isFinite(lng)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
   return { lat, lng };
 }
