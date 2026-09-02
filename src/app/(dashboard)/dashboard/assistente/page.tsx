@@ -170,6 +170,9 @@ export default function AssistentePage() {
             onChange={v => { setCentro({ ...centro, emailReport: v }); setSalvato(false); }} />
           <Campo etichetta="Sito" valore={centro.sito || ''}
             onChange={v => { setCentro({ ...centro, sito: v }); setSalvato(false); }} />
+          <Campo etichetta="Link Google Maps" valore={centro.mappa || ''}
+            aiuto="Aprite il centro su Google Maps, Condividi → Copia link, e incollatelo qui. Serve a mandare la POSIZIONE su WhatsApp: il riquadro con la mappa che si tocca e apre il navigatore. Senza, parte il link scritto."
+            onChange={v => { setCentro({ ...centro, mappa: v }); setSalvato(false); }} />
         </div>
       </Sezione>
 

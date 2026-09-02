@@ -12,7 +12,8 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Bot as BotOn, Send, Loader2, Trash2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X, Search, Smile, BotOff } from 'lucide-react';
+import { MessageSquare, Bot as BotOn, Send, Loader2, Trash2, RefreshCw, AlertTriangle, Bot, CalendarPlus, User, Zap, Clock, Check, CheckCheck, Mic, FileText, Video, Image as ImageIcon, MailQuestion, ArrowDown, PenSquare, X, Search, Smile, BotOff, MapPin } from 'lucide-react';
+import { mandaPosizione } from '@/app/actions/posizione';
 import { loadConversations, loadConversation, sendManualReply, markConversationUnreadAction, apriConversazione, eliminaConversazione, segnaConversazioneGestita, statoSegretaria, riprendiSegretariaAction, spegniSegretariaAction } from '@/app/actions/whatsapp';
 import SegniCliente from '@/components/SegniCliente';
 import MandaListino from '@/components/MandaListino';
@@ -669,6 +670,17 @@ export default function WhatsAppChat() {
 
   const [eliminando, setEliminando] = useState(false);
   const [segnando, setSegnando] = useState(false);
+  const [posizioneInCorso, setPosizioneInCorso] = useState(false);
+
+  /** Manda la mappa del centro: cartoncino se abbiamo le coordinate, link se no. */
+  const inviaPosizione = async (phone: string) => {
+    setPosizioneInCorso(true);
+    try {
+      const r = await mandaPosizione(phone);
+      if (r.ok) await loadThread(phone);
+      else setError(r.errore || 'Posizione non inviata.');
+    } finally { setPosizioneInCorso(false); }
+  };
 
 
   const riprendi = async (phone: string) => {
@@ -954,6 +966,16 @@ export default function WhatsAppChat() {
                   con le etichette erano ~400px e su un telefono venivano
                   tagliati fuori — il `title` resta a spiegare cosa fanno. */}
               <MandaListino phone={active} nome={clientName || undefined} className="flex-shrink-0 py-1.5" />
+
+              {/* «Dove siete» e' la seconda domanda piu' frequente dopo «quanto
+                  viene». La risposta non e' una via da ricopiare a mano: e' la
+                  mappa da toccare, che apre il navigatore. */}
+              <button onClick={() => inviaPosizione(active)} disabled={posizioneInCorso}
+                title="Manda la posizione del centro"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-[11px] font-medium text-text-secondary hover:bg-bg-hover hover:text-accent transition-colors flex-shrink-0 disabled:opacity-50">
+                {posizioneInCorso ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">Posizione</span>
+              </button>
 
               {/* Rimette la chat fra le non lette: chiude il thread, altrimenti
                   restando aperta verrebbe subito risegnata come letta. */}

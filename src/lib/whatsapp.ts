@@ -15,7 +15,7 @@
  *  - EVOLUTION_URL / EVOLUTION_INSTANCE / EVOLUTION_APIKEY → provider Evolution
  */
 
-import { d360Configured, d360MissingVars, sendD360Text, sendD360Template, listD360Templates, type TemplateSendOptions } from './whatsapp360';
+import { d360Configured, d360MissingVars, sendD360Text, sendD360Location, sendD360Template, listD360Templates, type TemplateSendOptions } from './whatsapp360';
 import {
   WA_TEMPLATES, templateButtonLabels, sanitizeParam,
   NOME_APERTURA, TESTO_APERTURA, NOME_CONTATTO_SITO, TESTO_CONTATTO_SITO,
@@ -106,6 +106,41 @@ export async function sendWhatsApp(number: string, text: string, source: WaSourc
     : await sendViaEvolution(numero, text);
 
   await logOutbound({ phone: numero, text, source, messageId: res.messageId, ok: res.ok, error: res.error });
+  return res;
+}
+
+/**
+ * La posizione del centro: il cartoncino con la mappa.
+ *
+ * Non e' l'indirizzo scritto in un messaggio: e' il riquadro che si tocca e
+ * apre il navigatore. Chi chiede «dove siete» quasi sempre e' gia' in
+ * macchina, e una via da ricopiare a mano non e' una risposta.
+ *
+ * Vale solo dentro le 24 ore, come ogni messaggio libero: fuori Meta accetta
+ * solo template, e un template non puo' portare una mappa.
+ */
+export async function sendWhatsAppLocation(
+  number: string,
+  luogo: { lat: number; lng: number; nome?: string; indirizzo?: string },
+  source: WaSource = 'manual',
+): Promise<WaSendResult> {
+  const provider = waProvider();
+  if (provider !== '360dialog') {
+    return { ok: false, error: 'La posizione si manda solo dal canale ufficiale (360dialog)' };
+  }
+  const numero = normalizePhone(number);
+  const res: WaSendResult = { ...(await sendD360Location(numero, luogo)), provider };
+
+  // In archivio ci va una riga leggibile: "posizione" da sola, in una chat,
+  // non dice a chi rilegge che cosa e' stato mandato.
+  await logOutbound({
+    phone: numero,
+    text: `📍 ${luogo.nome || 'La nostra posizione'}${luogo.indirizzo ? ` — ${luogo.indirizzo}` : ''}`,
+    source,
+    messageId: res.messageId,
+    ok: res.ok,
+    error: res.error,
+  });
   return res;
 }
 
