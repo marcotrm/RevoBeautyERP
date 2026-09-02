@@ -63,6 +63,7 @@ import {
 } from './orchestrazione';
 import { listMessages, markConversationUnread, type WaMedia } from './wa-conversations';
 import { normalizePhone } from './whatsapp';
+import { chiedi, chiaveMancante, type Fornitore } from './fornitori';
 import {
   registraArrivo, attendiSilenzio, prendiTurno, rilasciaTurno, rispondiUnaVolta,
 } from './wa-antiflood';
@@ -1462,6 +1463,29 @@ type EsitoGiro =
   | { tipo: 'niente' }
   | { tipo: 'sali'; strumento: string };
 
+/**
+ * Da chi passa il cervello della segretaria.
+ *
+ * `anthropic` e' la strada di sempre. `omniroute` e' il centralino del centro:
+ * un indirizzo solo davanti a molti fornitori, che ripiega su un altro quando
+ * uno cade. Serve a non restare mai muti - e' successo davvero, un credito
+ * finito e la segretaria zitta per un giorno intero mentre le clienti
+ * scrivevano.
+ *
+ * Se il fornitore scelto non ha la chiave si torna ad Anthropic invece di
+ * lasciare la chat senza risposta: un errore di configurazione non deve
+ * costare una cliente.
+ */
+function fornitoreDelCervello(): Fornitore {
+  const scelto = String(process.env.WA_FORNITORE || 'anthropic').toLowerCase();
+  if (scelto === 'omniroute' && !chiaveMancante('omniroute')) return 'omniroute';
+  if (scelto === 'gemini' && !chiaveMancante('gemini')) return 'gemini';
+  if (scelto !== 'anthropic') {
+    console.warn(`[wa-segretaria] fornitore "${scelto}" chiesto ma senza chiave: uso anthropic`);
+  }
+  return 'anthropic';
+}
+
 async function eseguiTurno(
   phone: string,
   messaggi: string[],
@@ -1471,8 +1495,8 @@ async function eseguiTurno(
   ctx: Contesto,
   poteri: Poteri
 ): Promise<EsitoGiro> {
-  const client = new Anthropic();
-  const model = modelloPer(livello);
+  const fornitore = fornitoreDelCervello();
+  const model = modelloPer(livello, fornitore);
 
   const [istruzioni, contesto] = await Promise.all([
     costruisciIstruzioni('whatsapp'),
@@ -1534,9 +1558,9 @@ async function eseguiTurno(
   const scritture = new Set<string>();
 
   for (let giro = 0; giro < MAX_GIRI_STRUMENTI; giro++) {
-    const risposta = await client.messages.create({
+    const risposta = await chiedi(fornitore, {
       model,
-      max_tokens: 1200,
+      maxTokens: 1200,
       /*
         Il prompt è in due blocchi, e la divisione non è estetica.
 
@@ -1570,15 +1594,25 @@ async function eseguiTurno(
         sbagliarli non degrada: rifiuta la richiesta. Li sceglie
         `parametriRagionamento` insieme al modello, che è la stessa decisione.
       */
-      ...parametriRagionamento(model),
+      extra: fornitore === 'anthropic' ? parametriRagionamento(model) : undefined,
       messages: conversazione,
     });
 
-    const testo = risposta.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map(b => b.text).join('\n').trim();
+    const testo = risposta.testo;
 
-    const richieste = risposta.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
+    /*
+      La risposta torna in forma di Anthropic - blocchi di testo e chiamate -
+      perche' tutto il giro qui sotto e' scritto cosi': il controllo sugli
+      orari, il gettone di conferma, la memoria della conversazione. Il
+      traduttore cambia il fornitore, non il modo di ragionare del turno.
+    */
+    const richieste = risposta.chiamate.map(c => ({
+      type: 'tool_use' as const, id: c.id, name: c.nome, input: c.input,
+    }));
+    const dettoDalModello: Anthropic.ContentBlockParam[] = [
+      ...(testo ? [{ type: 'text' as const, text: testo }] : []),
+      ...richieste,
+    ];
 
     if (richieste.length === 0) {
       /*
@@ -1666,7 +1700,7 @@ async function eseguiTurno(
       bolla in più. Resta nella conversazione perché il modello si ricordi di
       averlo pensato, ma alla cliente arriva solo l'ultimo messaggio.
     */
-    conversazione.push({ role: 'assistant', content: risposta.content });
+    conversazione.push({ role: 'assistant', content: dettoDalModello });
 
     const risultati: Anthropic.ToolResultBlockParam[] = [];
     /*

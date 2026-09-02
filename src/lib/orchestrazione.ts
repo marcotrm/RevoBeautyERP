@@ -78,7 +78,22 @@ export function modelloDiTesta(): string {
   return process.env.WA_MODELLO_TESTA || process.env.WA_SEGRETARIA_MODEL || 'claude-sonnet-5';
 }
 
-export function modelloPer(livello: Livello): string {
+/**
+ * Il modello per questo livello, con QUESTO fornitore.
+ *
+ * I nomi non sono trasferibili: `claude-haiku-4-5` ad Anthropic vuol dire una
+ * cosa precisa, al centralino non vuol dire niente. Li' si chiedono famiglie
+ * — `auto/chat` per la conversazione normale, `auto/best-chat` quando si tocca
+ * l'agenda — e chi serve la richiesta lo sceglie lui, ripiegando su un altro
+ * fornitore se il primo non risponde. E' tutto il motivo per cui il centralino
+ * esiste: non restare mai muti.
+ */
+export function modelloPer(livello: Livello, fornitore = 'anthropic'): string {
+  if (fornitore === 'omniroute') {
+    return livello === 'testa'
+      ? process.env.OMNIROUTE_MODELLO_TESTA || 'auto/best-chat'
+      : process.env.OMNIROUTE_MODELLO_LAVORO || 'auto/chat';
+  }
   return livello === 'testa' ? modelloDiTesta() : modelloDiLavoro();
 }
 

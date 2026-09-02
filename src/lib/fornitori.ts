@@ -23,7 +23,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 
-export type Fornitore = 'anthropic' | 'zai' | 'gemini';
+export type Fornitore = 'anthropic' | 'zai' | 'gemini' | 'omniroute';
 
 export interface Chiamata {
   id: string;
@@ -33,10 +33,26 @@ export interface Chiamata {
 
 export interface Richiesta {
   model: string;
-  system: string;
+  /**
+   * A blocchi come li vuole Anthropic, o una stringa sola.
+   *
+   * I blocchi servono alla cache: il pezzo che non cambia mai — istruzioni e
+   * strumenti — porta il segnaposto e dal secondo giro costa un decimo. Chi
+   * parla in forma OpenAI la cache a blocchi non ce l'ha, e li' i blocchi
+   * vengono semplicemente incollati uno dopo l'altro.
+   */
+  system: string | Anthropic.TextBlockParam[];
   tools: Anthropic.Tool[];
   messages: Anthropic.MessageParam[];
   maxTokens: number;
+  /**
+   * Roba che capisce solo Anthropic: `thinking`, `output_config`.
+   *
+   * Non e' un di piu' opzionale, e' una trappola: Haiku 4.5 non conosce
+   * `effort` e risponde 400 se glielo mandi. Passando da un altro fornitore
+   * questi campi non hanno senso e vengono lasciati fuori.
+   */
+  extra?: Record<string, unknown>;
 }
 
 export interface Risposta {
@@ -89,7 +105,23 @@ const CASA: Record<Fornitore, { chiave: string; indirizzo?: string }> = {
     chiave: 'GEMINI_API_KEY',
     indirizzo: 'https://generativelanguage.googleapis.com/v1beta/openai',
   },
+  /*
+    Il centralino: un indirizzo solo davanti a molti fornitori, che sceglie
+    da se' e ripiega su un altro quando uno cade. Serve a non restare mai
+    muti — e' successo, un credito finito e la segretaria zitta per un
+    giorno intero.
+
+    L'indirizzo e' una variabile perche' e' un servizio del centro, non un
+    posto fisso su internet.
+  */
+  omniroute: {
+    chiave: 'OMNIROUTE_API_KEY',
+    indirizzo: process.env.OMNIROUTE_URL || '',
+  },
 };
+
+/** Chi parla la forma di OpenAI invece di quella di Anthropic. */
+const FORMA_OPENAI = new Set<Fornitore>(['gemini', 'omniroute']);
 
 export function chiaveMancante(f: Fornitore): boolean {
   return !process.env[CASA[f].chiave];
@@ -98,7 +130,7 @@ export function chiaveMancante(f: Fornitore): boolean {
 export async function chiedi(f: Fornitore, r: Richiesta): Promise<Risposta> {
   const chiave = process.env[CASA[f].chiave];
   if (!chiave) throw new Error(`Manca ${CASA[f].chiave}`);
-  return insistendo(() => (f === 'gemini' ? viaGemini(chiave, r) : viaAnthropic(f, chiave, r)));
+  return insistendo(() => (FORMA_OPENAI.has(f) ? viaOpenAI(f, chiave, r) : viaAnthropic(f, chiave, r)));
 }
 
 /* ------------------------------------------------------------------ */
@@ -113,8 +145,9 @@ async function viaAnthropic(f: Fornitore, chiave: string, r: Richiesta): Promise
     max_tokens: r.maxTokens,
     system: r.system,
     tools: r.tools,
+    ...(r.extra || {}),
     messages: r.messages,
-  });
+  } as Anthropic.MessageCreateParamsNonStreaming);
 
   return {
     testo: risposta.content
@@ -190,8 +223,11 @@ interface MessaggioOpenAI {
   tool_call_id?: string;
 }
 
-function perGemini(r: Richiesta): MessaggioOpenAI[] {
-  const fuori: MessaggioOpenAI[] = [{ role: 'system', content: r.system }];
+function perOpenAI(r: Richiesta): MessaggioOpenAI[] {
+  const sistema = typeof r.system === 'string'
+    ? r.system
+    : r.system.map(b => b.text).join('\n\n');
+  const fuori: MessaggioOpenAI[] = [{ role: 'system', content: sistema }];
 
   for (const m of r.messages) {
     if (typeof m.content === 'string') {
@@ -265,7 +301,7 @@ function perGemini(r: Richiesta): MessaggioOpenAI[] {
   return fuori;
 }
 
-function daGemini(dati: Record<string, unknown>): Risposta {
+function daOpenAI(dati: Record<string, unknown>): Risposta {
   const scelte = (dati.choices as Array<Record<string, unknown>> | undefined) || [];
   const messaggio = (scelte[0]?.message || {}) as Record<string, unknown>;
   const uso = (dati.usage || {}) as Record<string, number>;
@@ -297,14 +333,14 @@ function daGemini(dati: Record<string, unknown>): Risposta {
   };
 }
 
-async function viaGemini(chiave: string, r: Richiesta): Promise<Risposta> {
-  const risposta = await fetch(`${CASA.gemini.indirizzo}/chat/completions`, {
+async function viaOpenAI(f: Fornitore, chiave: string, r: Richiesta): Promise<Risposta> {
+  const risposta = await fetch(`${CASA[f].indirizzo}/chat/completions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${chiave}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: r.model,
       max_tokens: r.maxTokens,
-      messages: perGemini(r),
+      messages: perOpenAI(r),
       tools: r.tools.map(t => ({
         type: 'function',
         function: {
@@ -318,10 +354,10 @@ async function viaGemini(chiave: string, r: Richiesta): Promise<Risposta> {
 
   const corpo = await risposta.text();
   if (!risposta.ok) {
-    throw new Error(`Gemini ${risposta.status}: ${corpo.slice(0, 300)}`);
+    throw new Error(`${f} ${risposta.status}: ${corpo.slice(0, 300)}`);
   }
 
-  const esito = daGemini(JSON.parse(corpo) as Record<string, unknown>);
+  const esito = daOpenAI(JSON.parse(corpo) as Record<string, unknown>);
 
   /*
     La spia sulla firma del pensiero.
@@ -331,7 +367,7 @@ async function viaGemini(chiave: string, r: Richiesta): Promise<Risposta> {
     percorso compatibile OpenAI non basta; «2 su 2» vuol dire che la firma c'e'
     e il guasto e' altrove. Senza, si tira a indovinare due volte.
   */
-  if (esito.chiamate.length > 0) {
+  if (f === 'gemini' && esito.chiamate.length > 0) {
     const firmate = esito.chiamate.filter(c => FIRME.has(c.id)).length;
     console.log(`[gemini] ${esito.chiamate.length} chiamate, ${firmate} con firma del pensiero`);
   }

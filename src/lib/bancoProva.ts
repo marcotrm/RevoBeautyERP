@@ -86,6 +86,11 @@ export const CONCORRENTI: Concorrente[] = [
     fornitore: 'zai',
     model: process.env.BANCO_ZAI_MODEL || 'glm-4.7-flash',
   },
+  {
+    nome: 'Centralino OmniRoute',
+    fornitore: 'omniroute',
+    model: process.env.BANCO_OMNIROUTE_MODEL || 'auto/chat',
+  },
 ];
 
 export interface Caso {
