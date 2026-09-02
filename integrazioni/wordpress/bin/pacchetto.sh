@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 # Impacchetta il tema in revobeauty-due.zip, pronto per
 # wp-admin → Aspetto → Temi → Aggiungi → Carica tema.
+#
+# La cartella DENTRO lo zip si chiama come la cartella del tema sul
+# server: e' quella che decide quale tema viene sovrascritto. Finche' lo
+# zip diceva `revobeauty-due/` mentre sul sito era attivo
+# `tema-revobeauty-due/`, ogni caricamento andava a finire in una copia
+# dormiente: il tema si installava, la versione saliva, e sul sito non
+# cambiava niente. Un aggiornamento che sembra riuscito e non lo e' e'
+# peggio di uno fallito, quindi qui il nome non si tocca piu'.
 set -euo pipefail
 QUI="$(cd "$(dirname "$0")/.." && pwd)"
 USCITA="${1:-$QUI/revobeauty-due.zip}"
@@ -9,15 +17,4 @@ cd "$QUI"
 zip -qr "$USCITA" tema-revobeauty-due \
   -x "tema-revobeauty-due/**/.DS_Store" \
   -x "tema-revobeauty-due/node_modules/*"
-# dentro lo zip la cartella deve chiamarsi come il tema
-python3 - "$USCITA" <<'PY'
-import sys, zipfile, shutil, os, tempfile
-src = sys.argv[1]
-tmp = tempfile.mktemp(suffix='.zip')
-with zipfile.ZipFile(src) as zin, zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
-    for item in zin.infolist():
-        nuovo = item.filename.replace('tema-revobeauty-due/', 'revobeauty-due/', 1)
-        zout.writestr(nuovo, zin.read(item.filename))
-shutil.move(tmp, src)
-print('scritto', src)
-PY
+echo "scritto $USCITA"
