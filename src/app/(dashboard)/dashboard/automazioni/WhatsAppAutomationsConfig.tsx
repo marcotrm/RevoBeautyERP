@@ -12,6 +12,7 @@ import type { WaAutomationsConfig, RunResult } from '@/lib/wa-automations';
 import { GOOGLE_REVIEW_URL } from '@/lib/links';
 import { clientiDifficili, type ClienteDifficile } from '@/app/actions/clientiDifficili';
 import { statoTemplateRecensione, type StatoTemplateRecensione } from '@/app/actions/campagnaRecensioni';
+import { templateDiversi, type TemplateDiverso } from '@/app/actions/templateAllineati';
 
 type Key = 'reminder' | 'recall' | 'birthday' | 'review';
 
@@ -54,6 +55,15 @@ export default function WhatsAppAutomationsConfig() {
   const [segnalate, setSegnalate] = useState<ClienteDifficile[] | null>(null);
   /** Quale delle due richieste recensione parte davvero. */
   const [statoRec, setStatoRec] = useState<StatoTemplateRecensione | null>(null);
+  /*
+    I template che dicono una cosa qui e un'altra alla cliente.
+
+    Il corpo approvato vive su Meta e da qui non si tocca; quello scritto nel
+    gestionale serve all'anteprima e all'archivio. Quando divergono, in chat si
+    legge un messaggio che alla cliente non e' mai arrivato — e' successo con
+    l'indirizzo del centro, e per accorgersene e' servita una cliente.
+  */
+  const [tplDiversi, setTplDiversi] = useState<TemplateDiverso[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
@@ -61,6 +71,7 @@ export default function WhatsAppAutomationsConfig() {
     loadWaStatus().then(setStatus).catch(() => undefined);
     clientiDifficili().then(setSegnalate).catch(() => undefined);
     statoTemplateRecensione().then(setStatoRec).catch(() => undefined);
+    templateDiversi().then(r => setTplDiversi(r.diversi)).catch(() => undefined);
   }, []);
 
   const flash = (ok: boolean, text: string) => {
@@ -188,6 +199,35 @@ export default function WhatsAppAutomationsConfig() {
                 {status?.provider === 'evolution'
                   ? <>Stai ancora usando <b>Evolution</b> (non ufficiale). Aggiungi <code className="text-warning">D360_API_KEY</code> su Railway per passare a 360dialog.</>
                   : <>WhatsApp non collegato: manca <code className="text-warning">{status?.missing.join(', ') || 'D360_API_KEY'}</code> nelle variabili d&apos;ambiente su Railway.</>}
+              </div>
+            </div>
+          )}
+
+          {/*
+            Il testo del gestionale non e' quello che legge la cliente.
+
+            Va detto qui e non in un log: chi rilegge una chat dal gestionale
+            crede di vedere il messaggio partito, e finche' i due testi
+            coincidono e' vero. Quando divergono, non lo e' piu'.
+          */}
+          {tplDiversi.length > 0 && (
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-warning/10 border border-warning/30">
+              <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+              <div className="text-[11px] text-text-secondary leading-relaxed min-w-0">
+                <p className="font-semibold text-warning">
+                  {tplDiversi.length === 1 ? 'Un messaggio approvato è diverso' : `${tplDiversi.length} messaggi approvati sono diversi`} da quello che vedi in chat
+                </p>
+                <p className="mt-0.5">
+                  Alla cliente arriva il testo approvato da Meta, non quello del gestionale: in archivio leggi una cosa
+                  e a lei ne arriva un&apos;altra. Per cambiare quello che riceve serve una nuova approvazione.
+                </p>
+                {tplDiversi.map(t => (
+                  <div key={t.nome} className="mt-2 rounded-lg bg-bg-secondary/60 border border-border p-2">
+                    <p className="font-mono text-[10px] text-text-muted">{t.nome}</p>
+                    <p className="mt-1"><span className="text-text-muted">arriva:</span> {t.approvato}</p>
+                    <p className="mt-1"><span className="text-text-muted">qui si legge:</span> {t.nostro}</p>
+                  </div>
+                ))}
               </div>
             </div>
           )}

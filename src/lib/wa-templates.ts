@@ -70,9 +70,22 @@ export const WA_TEMPLATES = {
     category: 'UTILITY',
     language: 'it',
     params: ['nome cliente', 'trattamento', 'data', 'ora'],
+    /*
+      ATTENZIONE: questo testo deve essere IDENTICO a quello approvato su Meta.
+
+      Non e' il testo che parte — quello vive su Meta e non si puo' cambiare da
+      qui — ma e' quello che il gestionale mostra in anteprima e archivia in
+      chat. Quando i due divergono, in chat si legge una cosa e alla cliente ne
+      arriva un'altra: e' successo con l'indirizzo, che qui aveva il civico e
+      nel template approvato no. Chi rileggeva la chat non poteva accorgersene.
+
+      Se il testo va cambiato davvero, si crea una versione nuova e la si manda
+      in approvazione (come listino_link_v2): cambiarlo solo qui non cambia
+      niente per la cliente.
+    */
     body:
       'Ciao {{1}}, il tuo appuntamento da RevoBeauty per {{2}} è confermato: {{3}} alle {{4}}.\n' +
-      'Ti aspettiamo in Via Caudina 30, Maddaloni. Se ti serve spostarlo, rispondi a questo messaggio.',
+      'Ti aspettiamo in Via Caudina, Maddaloni. Se ti serve spostarlo, rispondi a questo messaggio.',
     note:
       'Parte subito dopo la creazione dell\'appuntamento, non a orario fisso. È il primo contatto ' +
       'della conversazione, quindi deve essere un template: a quel punto il cliente non ci ha ancora ' +
