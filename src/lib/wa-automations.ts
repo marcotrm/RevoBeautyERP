@@ -541,6 +541,15 @@ async function runConsensiLaser(dryRun: boolean): Promise<RunResult> {
     visti.add(a.clientId);
     if (!isSendablePhone(a.client?.phone)) continue;
 
+    /*
+      Chi ha gia' compilato non si disturba piu'.
+
+      Il consenso e' della persona e non della seduta: se l'ha firmato la
+      volta scorsa, il modulo c'e' gia' con dentro le sue risposte e il suo
+      documento. Rimandarle il link vuol dire chiederle di rifare tutto da
+      capo per niente — e a lei sembra che qui dentro non ci si ricordi di
+      niente di quello che ha fatto.
+    */
     const gia = await consensoLaserDi(a.clientId).catch(() => null);
     if (gia) continue;
 

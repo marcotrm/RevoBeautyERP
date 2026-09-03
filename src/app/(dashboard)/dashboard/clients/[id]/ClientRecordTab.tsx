@@ -11,6 +11,7 @@ import {
 import { compressImage } from '@/lib/imageCompress';
 import { linkConsensoCliente } from '@/app/actions/consensoLaser';
 import DettaglioConsenso from './DettaglioConsenso';
+import CaricaDocumento from './CaricaDocumento';
 
 const SKIN_TYPES = ['Normale', 'Secca', 'Grassa', 'Mista', 'Sensibile', 'Asfittica'];
 const PHOTOTYPES = ['I', 'II', 'III', 'IV', 'V', 'VI'];
@@ -109,6 +110,8 @@ export default function ClientRecordTab({ clientId }: { clientId: string }) {
   const [consents, setConsents] = useState<ClientConsent[]>([]);
   /** Il consenso che si sta leggendo, con dentro le risposte della cliente. */
   const [consensoAperto, setConsensoAperto] = useState<ClientConsent | null>(null);
+  /** Cambia quando si carica un documento nuovo: fa ricaricare quello mostrato. */
+  const [versioneDoc, setVersioneDoc] = useState(0);
 
   const [savingRec, setSavingRec] = useState(false);
   const [recSaved, setRecSaved] = useState(false);
@@ -334,6 +337,7 @@ export default function ClientRecordTab({ clientId }: { clientId: string }) {
               giorno dopo perche' ci si era dimenticati. Da qui il modulo si
               apre per questa cliente, anche senza un appuntamento aperto.
             */}
+            <CaricaDocumento clientId={clientId} onFatto={() => setVersioneDoc(v => v + 1)} />
             <button onClick={apriConsensoLaser}
               className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
               <FileSignature className="w-4 h-4" /> Consenso laser sul tablet
@@ -381,7 +385,7 @@ export default function ClientRecordTab({ clientId }: { clientId: string }) {
       {/* Il consenso firmato, per intero */}
       <AnimatePresence>
         {consensoAperto && (
-          <DettaglioConsenso consenso={consensoAperto} onChiudi={() => setConsensoAperto(null)} />
+          <DettaglioConsenso key={versioneDoc} consenso={consensoAperto} clientId={clientId} onChiudi={() => setConsensoAperto(null)} />
         )}
       </AnimatePresence>
 

@@ -23,6 +23,8 @@ import { listD360Templates } from '@/lib/whatsapp360';
 import { WA_TEMPLATES } from '@/lib/wa-templates';
 import { headers } from 'next/headers';
 import { descriviDispositivo } from '@/lib/dispositivo';
+import { leggiDocumento, type LetturaDocumento } from '@/lib/documento';
+import { salvaDocumento } from '@/app/actions/documenti';
 
 const TITOLO = 'Consenso Laser/Epilazione';
 const GIORNI_GETTONE = 3;
@@ -48,6 +50,14 @@ export interface ModuloLaser {
   operatrice?: string;
   /** Un consenso gia' firmato per questa cliente, se c'e'. */
   giaFirmato?: { quando: string; id: string } | null;
+  /**
+   * Il documento gia' agli atti, se la cliente lo aveva gia' portato.
+   *
+   * Chiederlo di nuovo a chi l'ha gia' dato e' il modo migliore per far
+   * sembrare che qui dentro non ci si ricordi niente di lei: si mostra
+   * quello che c'e' e si chiede solo se e' cambiato.
+   */
+  documento?: { tipo: string; numero: string; quando: string } | null;
 }
 
 /** Il link da aprire sul tablet o da mandare in chat. */
@@ -84,11 +94,18 @@ export async function apriModuloLaser(gettone: string): Promise<ModuloLaser> {
     return String(a.treatmentName || '');
   })();
 
-  const ultimo = await prisma.clientConsent.findFirst({
-    where: { clientId: dati.clientId, title: TITOLO },
-    orderBy: { signedAt: 'desc' },
-    select: { id: true, signedAt: true },
-  });
+  const [ultimo, doc] = await Promise.all([
+    prisma.clientConsent.findFirst({
+      where: { clientId: dati.clientId, title: TITOLO },
+      orderBy: { signedAt: 'desc' },
+      select: { id: true, signedAt: true },
+    }),
+    prisma.clientDocument.findFirst({
+      where: { clientId: dati.clientId },
+      orderBy: { createdAt: 'desc' },
+      select: { tipo: true, numero: true, createdAt: true },
+    }),
+  ]);
 
   return {
     ok: true,
@@ -98,6 +115,7 @@ export async function apriModuloLaser(gettone: string): Promise<ModuloLaser> {
     quando: a ? `${a.date.split('-').reverse().join('/')} alle ${a.startTime}` : undefined,
     zone,
     operatrice: a?.operatorName,
+    documento: doc ? { tipo: doc.tipo, numero: doc.numero, quando: doc.createdAt } : null,
     giaFirmato: ultimo ? { id: ultimo.id, quando: ultimo.signedAt } : null,
   };
 }
@@ -117,6 +135,29 @@ export interface RisposteLaser {
   zone: string;
   consensoFoto: boolean;
   firma: string;
+  /** Il documento fotografato adesso, quando non ce n'e' gia' uno agli atti. */
+  documento?: {
+    foto: string;
+    tipo?: string;
+    numero?: string;
+    nome?: string;
+    cognome?: string;
+    dataNascita?: string;
+    scadenza?: string;
+  };
+}
+
+/**
+ * Legge la foto del documento appena scattata.
+ *
+ * Passa da qui e non dall'azione generica perche' questa pagina e' pubblica:
+ * senza un gettone valido non si legge niente, altrimenti chiunque avesse
+ * l'indirizzo potrebbe far leggere le sue foto al gestionale.
+ */
+export async function leggiDocumentoDalModulo(gettone: string, foto: string): Promise<LetturaDocumento> {
+  const dati = leggiConferma<Gettone>(gettone);
+  if (!dati?.clientId) return { leggibile: false, problema: 'Il link non è più valido: chiedine uno nuovo al centro.' };
+  return leggiDocumento(foto);
 }
 
 /**
@@ -137,7 +178,7 @@ export async function salvaConsensoLaser(
 
   const dispositivo = descriviDispositivo((await headers()).get('user-agent'));
 
-  await prisma.clientConsent.create({
+  const consenso = await prisma.clientConsent.create({
     data: {
       clientId: dati.clientId,
       title: TITOLO,
@@ -161,9 +202,35 @@ export async function salvaConsensoLaser(
         storico: r.storico,
         consensoFoto: r.consensoFoto,
         versioneTesto: '2026-09-01',
+        documento: r.documento
+          ? { tipo: r.documento.tipo || 'altro', numero: r.documento.numero || '' }
+          : null,
       })),
     },
   });
+
+  /*
+    Il documento resta allegato alla compilazione.
+
+    Non e' una copia in piu' della foto: e' la prova di dove esce il numero
+    scritto sul consenso. Chi lo riapre fra un anno vede il tesserino e non
+    deve fidarsi di una trascrizione fatta di corsa.
+  */
+  if (r.documento?.foto && r.documento.numero) {
+    await salvaDocumento({
+      clientId: dati.clientId,
+      tipo: r.documento.tipo,
+      numero: r.documento.numero,
+      nome: r.documento.nome,
+      cognome: r.documento.cognome,
+      dataNascita: r.documento.dataNascita,
+      scadenza: r.documento.scadenza,
+      foto: r.documento.foto,
+      consensoId: consenso.id,
+      origine: 'cliente',
+    }).catch(() => {});
+  }
+
   return { ok: true };
 }
 

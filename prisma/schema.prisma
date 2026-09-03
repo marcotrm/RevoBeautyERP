@@ -47,6 +47,7 @@ model Client {
   mobileAccount      MobileAccount?
   photos             ClientPhoto[]
   consents           ClientConsent[]
+  documents          ClientDocument[]
 
   @@map("clients")
 }
@@ -693,6 +694,38 @@ model OperatorWeekSchedule {
   @@unique([operatorId, weekStart])
   @@index([weekStart])
   @@map("operator_week_schedules")
+}
+
+// ============================================================
+// DOCUMENTI DI IDENTITA'
+// Sul consenso serve il numero del documento. Prima lo si copiava a mano dal
+// tesserino, con gli errori di chi trascrive: la cliente fotografa il
+// documento, il gestionale legge i dati e la foto resta allegata alla
+// compilazione — cosi' chi la riapre vede da dove esce quel numero.
+// ============================================================
+model ClientDocument {
+  id          String  @id @default(cuid())
+  clientId    String
+  /// carta_identita | patente | passaporto | altro
+  tipo        String  @default("altro")
+  numero      String
+  nome        String?
+  cognome     String?
+  dataNascita String?
+  scadenza    String?
+  /// La foto, come data URL compressa: e' la prova di dove esce il numero.
+  foto        String
+  /// Il consenso a cui era allegato, quando nasce di li'.
+  consensoId  String?
+  /// Chi l'ha caricato: la cliente dal modulo, o l'operatrice dal banco.
+  origine     String  @default("cliente")
+  createdAt   String
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([createdAt])
+  @@map("client_documents")
 }
 
 // ============================================================

@@ -17,6 +17,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { apriModuloLaser, salvaConsensoLaser, type ModuloLaser } from '@/app/actions/consensoLaser';
 import { CONSENSO_LASER, DICHIARAZIONE_FINALE, TESTO_FOTO, DOMANDE_STORICO } from '@/lib/consensoLaserTesto';
+import FotoDocumento, { type DocumentoCompilato } from './FotoDocumento';
 
 /** Il riquadro della firma: dito o pennino, niente mouse necessario. */
 function Firma({ onChange }: { onChange: (dato: string | null) => void }) {
@@ -96,6 +97,8 @@ export default function PaginaFirma() {
   const [foto, setFoto] = useState(false);
   const [letto, setLetto] = useState(false);
   const [firma, setFirma] = useState<string | null>(null);
+  /** Il documento fotografato adesso: null se non serve o non e' ancora buono. */
+  const [documento, setDocumento] = useState<DocumentoCompilato | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [fatto, setFatto] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
@@ -116,6 +119,8 @@ export default function PaginaFirma() {
       if (d.tipo === 'conferma') { if (storico[d.id] !== 'si') m.push(d.testo); continue; }
       if (!storico[d.id]) m.push(d.testo);
     }
+    // Il documento si chiede solo a chi non l'ha gia' dato.
+    if (!modulo?.documento && !documento) m.push('la foto del documento');
     if (!letto) m.push('la spunta di aver letto');
     if (!firma) m.push('la firma');
     return m;
@@ -125,7 +130,10 @@ export default function PaginaFirma() {
     if (mancano.length > 0 || salvando || !firma) return;
     setSalvando(true);
     setErrore(null);
-    const r = await salvaConsensoLaser(String(gettone), { storico, zone, consensoFoto: foto, firma })
+    const r = await salvaConsensoLaser(String(gettone), {
+      storico, zone, consensoFoto: foto, firma,
+      documento: documento || undefined,
+    })
       .catch(() => ({ ok: false, errore: 'Salvataggio non riuscito. Riprova.' }));
     setSalvando(false);
     if (r.ok) setFatto(true);
@@ -199,6 +207,10 @@ export default function PaginaFirma() {
               )}
             </section>
           ))}
+        </div>
+
+        <div className="mt-6">
+          <FotoDocumento gettone={String(gettone)} giaAgliAtti={modulo.documento} onChange={setDocumento} />
         </div>
 
         <h2 className="mt-8 mb-1 text-lg font-bold">Qualche domanda su di te</h2>

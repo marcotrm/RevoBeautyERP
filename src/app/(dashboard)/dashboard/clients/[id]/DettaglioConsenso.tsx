@@ -15,10 +15,11 @@
  * in stato di gravidanza», quindi quel "sì" e' la conferma che non lo e'.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Camera, FileText, PenLine, X } from 'lucide-react';
 import { CONSENSO_LASER, DICHIARAZIONE_FINALE, DOMANDE_STORICO, TESTO_FOTO } from '@/lib/consensoLaserTesto';
+import { documentoDi, type DocumentoSalvato } from '@/app/actions/documenti';
 
 export interface ConsensoDaVedere {
   id: string;
@@ -30,6 +31,7 @@ export interface ConsensoDaVedere {
 }
 
 interface DatiLaser {
+  documento?: { tipo?: string; numero?: string } | null;
   zone?: string;
   seduta?: string;
   operatrice?: string;
@@ -61,10 +63,23 @@ function leggiRisposta(domanda: typeof DOMANDE_STORICO[number], valore?: string)
   return { testo: v, attenzione: false };
 }
 
-export default function DettaglioConsenso({ consenso, onChiudi }: {
-  consenso: ConsensoDaVedere; onChiudi: () => void;
+export default function DettaglioConsenso({ consenso, clientId, onChiudi }: {
+  consenso: ConsensoDaVedere; clientId?: string; onChiudi: () => void;
 }) {
   const [testoAperto, setTestoAperto] = useState(false);
+  const [documento, setDocumento] = useState<DocumentoSalvato | null>(null);
+  const [ingrandita, setIngrandita] = useState(false);
+
+  /*
+    Il documento allegato: si carica a parte perche' la foto pesa, e questa
+    finestra si apre anche solo per rileggere due risposte.
+  */
+  useEffect(() => {
+    let vivo = true;
+    if (!clientId) return;
+    documentoDi(clientId).then(d => { if (vivo) setDocumento(d); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [clientId]);
   const d = (consenso.data || {}) as DatiLaser;
   const storico = d.storico || {};
   const eLaser = d.eraLaser || /laser|epilazione/i.test(consenso.title);
@@ -162,6 +177,30 @@ export default function DettaglioConsenso({ consenso, onChiudi }: {
               </div>
             )}
 
+            {/* Il documento allegato: e' da li' che esce il numero */}
+            {documento && (
+              <div>
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Documento allegato</p>
+                <div className="rounded-xl border border-border overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={documento.foto} alt="Documento della cliente"
+                    onClick={() => setIngrandita(true)}
+                    className="w-full max-h-56 object-contain bg-white cursor-zoom-in" />
+                  <div className="px-3.5 py-2.5 bg-bg-tertiary/40 border-t border-border">
+                    <p className="text-sm font-semibold text-text-primary">
+                      {documento.tipoLeggibile} n. {documento.numero}
+                    </p>
+                    <p className="text-[11px] text-text-muted">
+                      {[documento.nome, documento.cognome].filter(Boolean).join(' ')}
+                      {documento.dataNascita ? ` · nata il ${documento.dataNascita.split('-').reverse().join('/')}` : ''}
+                      {documento.scadenza ? ` · scade il ${documento.scadenza.split('-').reverse().join('/')}` : ''}
+                      {documento.scaduto ? ' · SCADUTO' : ''}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* La firma, grande abbastanza da riconoscerla */}
             <div>
               <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">La firma</p>
@@ -212,6 +251,15 @@ export default function DettaglioConsenso({ consenso, onChiudi }: {
           </div>
         </div>
       </motion.div>
+
+      {/* Il documento a schermo intero: un numero si legge solo se si vede */}
+      {ingrandita && documento && (
+        <div className="fixed inset-0 z-[80] bg-black/85 flex items-center justify-center p-4 cursor-zoom-out"
+          onClick={() => setIngrandita(false)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={documento.foto} alt="Documento" className="max-w-full max-h-full rounded-xl" />
+        </div>
+      )}
     </>
   );
 }
