@@ -341,14 +341,30 @@ async function viaOpenAI(f: Fornitore, chiave: string, r: Richiesta): Promise<Ri
       model: r.model,
       max_tokens: r.maxTokens,
       messages: perOpenAI(r),
-      tools: r.tools.map(t => ({
-        type: 'function',
-        function: {
-          name: t.name,
-          description: t.description,
-          parameters: t.input_schema,
-        },
-      })),
+      /*
+        Niente `tools` quando non ce ne sono.
+
+        Un array vuoto non e' la stessa cosa di un campo assente: qualche
+        fornitore lo rifiuta, e chi chiede solo di guardare una foto non ha
+        strumenti da offrire.
+      */
+      ...(r.tools.length > 0 ? {
+        tools: r.tools.map(t => ({
+          type: 'function',
+          function: {
+            name: t.name,
+            description: t.description,
+            parameters: t.input_schema,
+          },
+        })),
+      } : {}),
+      /*
+        Le opzioni in piu' arrivavano fin qui e venivano buttate: `temperature`
+        non e' mai partita verso Gemini, e non c'era modo di dire a un modello
+        che ragiona di non ragionare. Sulla lettura di un documento quella
+        differenza vale trenta secondi di attesa.
+      */
+      ...(r.extra || {}),
     }),
   });
 

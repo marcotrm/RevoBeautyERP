@@ -20,8 +20,9 @@
  * nessuna parte se non nel database del centro.
  */
 
-import Anthropic from '@anthropic-ai/sdk';
-import { modelloDiTesta } from '@/lib/orchestrazione';
+import type Anthropic from '@anthropic-ai/sdk';
+import { modelloPer } from '@/lib/orchestrazione';
+import { chiaveMancante, chiedi, type Fornitore } from '@/lib/fornitori';
 
 export type TipoDocumento = 'carta_identita' | 'patente' | 'passaporto' | 'altro';
 
@@ -67,6 +68,13 @@ Il "problema" lo legge la cliente sul telefono, quindi deve dirle cosa fare:
 "C'è un riflesso sul numero: spostati dalla luce e riprova."
 "Manca un pezzo del documento: inquadralo tutto."
 
+Dove sta il numero, per i tre documenti che girano davvero:
+- CARTA D'IDENTITÀ elettronica: il numero è in alto a destra, due lettere e cinque cifre e due lettere (CA00000AA). Su quella vecchia di carta è un numero lungo preceduto da "AS" o simili.
+- PATENTE di guida: il numero è al campo 5, sotto la data di nascita — una lettera, otto cifre e una lettera (U1B234567X). NON confonderlo col codice fiscale, che è più lungo e sta altrove.
+- PASSAPORTO: due lettere e sette cifre (YA1234567), in alto a destra.
+
+Sulla patente il campo 3 è la data di nascita e il campo 4b la scadenza. Sulla carta d'identità la scadenza coincide spesso col compleanno.
+
 Se la foto è buona ma un singolo campo non si legge, lascialo vuoto e tieni "leggibile": true: meglio tre dati giusti che quattro di cui uno inventato. Non inventare MAI un numero: se non lo vedi, campo vuoto e sicurezza bassa.`;
 
 /** Il tipo MIME e i byte, da una data URL. */
@@ -78,10 +86,52 @@ function pezziDataUrl(dataUrl: string): { mime: string; base64: string } | null 
 
 const MIME_OK = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
+/**
+ * Chi guarda la foto, in ordine, finche' uno risponde.
+ *
+ * Prima si chiamava un fornitore solo — Anthropic, diretto — e il giorno in
+ * cui il credito di quel conto e' finito la lettura ha smesso di funzionare
+ * IN SILENZIO: la cliente si e' trovata i campi vuoti da riempire a mano e
+ * nessuno sapeva perche'. E' esattamente lo stesso incidente che aveva gia'
+ * fatto tacere la segretaria mesi fa, e la lezione era gia' scritta nel
+ * codice: non dipendere da un fornitore solo.
+ *
+ * Quindi qui si prova la lista, uno dopo l'altro. Basta che uno funzioni.
+ */
+const OCCHI: { fornitore: Fornitore; modello: () => string; extra: Record<string, unknown> }[] = [
+  {
+    // Google legge bene i documenti e ha un tetto gratuito generoso: e' il
+    // primo perche' e' quello che non finisce a meta' mese.
+    fornitore: 'gemini',
+    modello: () => process.env.GEMINI_MODELLO_OCCHIO || 'gemini-3.6-flash',
+    /*
+      Solo temperatura zero.
+
+      Si era provato a spegnergli il ragionamento (`reasoning_effort`) perche'
+      qui non c'e' niente su cui ragionare — si guarda un tesserino e si
+      trascrive: Google rifiuta il parametro con un 400 secco. Resta il tetto
+      largo sui token, che e' la difesa vera contro il JSON tagliato a meta'.
+    */
+    extra: { temperature: 0 },
+  },
+  { fornitore: 'anthropic', modello: () => modelloPer('testa', 'anthropic'), extra: { temperature: 0 } },
+  {
+    // Il centralino per ultimo: sulle immagini ripiega su fornitori che a
+    // volte non hanno un backend pronto, e risponde 502 dove gli altri leggono.
+    fornitore: 'omniroute',
+    modello: () => process.env.OMNIROUTE_MODELLO_OCCHIO || 'auto/best-vision',
+    extra: { temperature: 0 },
+  },
+];
+
 export async function leggiDocumento(dataUrl: string): Promise<LetturaDocumento> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    // Senza chiave non si finge di aver letto: si dice che va scritto a mano.
-    return { leggibile: true, problema: undefined, sicurezza: 0 };
+  const disponibili = OCCHI.filter(o => !chiaveMancante(o.fornitore));
+  if (disponibili.length === 0) {
+    return {
+      leggibile: true,
+      problema: 'La lettura automatica non è configurata: scrivi i dati a mano.',
+      sicurezza: 0,
+    };
   }
 
   const pezzi = pezziDataUrl(dataUrl);
@@ -94,12 +144,68 @@ export async function leggiDocumento(dataUrl: string): Promise<LetturaDocumento>
     return { leggibile: false, problema: 'La foto è troppo pesante: riprova, la rimpiccioliamo noi.' };
   }
 
-  try {
-    const client = new Anthropic();
-    const r = await client.messages.create({
-      model: modelloDiTesta(),
-      max_tokens: 400,
-      temperature: 0,
+  const guai: string[] = [];
+  for (const occhio of disponibili) {
+    try {
+      /*
+        Mezzo minuto e non di piu'.
+
+        Dall'altra parte c'e' una persona che ha appena scattato la foto e
+        guarda lo schermo: se un fornitore si impianta, e' molto meglio
+        passare al prossimo che tenerla ferma tre minuti su una rotellina.
+      */
+      return await Promise.race([
+        unaLettura(occhio, pezzi),
+        new Promise<never>((_, no) => setTimeout(() => no(new Error('non ha risposto in tempo')), 45_000)),
+      ]);
+    } catch (e) {
+      const motivo = String((e as { message?: string })?.message || e);
+      guai.push(`${occhio.fornitore}: ${motivo.slice(0, 120)}`);
+      console.warn(`[documento] ${occhio.fornitore} non ce l'ha fatta: ${motivo.slice(0, 200)}`);
+    }
+  }
+
+  /*
+    Nessuno ha letto. Non si blocca la firma: il documento resta allegato e i
+    campi si scrivono a mano, il consenso vale lo stesso ed e' quello che deve
+    arrivare in fondo.
+
+    Ma lo si DICE — a chi sta firmando e al centro. Prima si tornava indietro
+    muti, coi campi vuoti: chi firmava pensava che il gestionale funzionasse
+    cosi', e il centro non sapeva che la lettura era rotta. E' rimasta rotta
+    per giorni.
+  */
+  console.error('[documento] nessun fornitore ha letto:', guai.join(' | '));
+  avvisaChePerdeUnPezzo(guai.join(' | ')).catch(() => {});
+  return {
+    leggibile: true,
+    problema: 'Non sono riuscito a leggere il documento da solo: controlla i dati qui sotto e scrivili a mano.',
+    sicurezza: 0,
+  };
+}
+
+/** Una lettura sola, con un fornitore solo. Se non ce la fa, lancia. */
+async function unaLettura(
+  occhio: { fornitore: Fornitore; modello: () => string; extra: Record<string, unknown> },
+  pezzi: { mime: string; base64: string },
+): Promise<LetturaDocumento> {
+  {
+    const r = await chiedi(occhio.fornitore, {
+      model: occhio.modello(),
+      /*
+        Largo, molto piu' del necessario.
+
+        La risposta utile sono venti parole, ma i modelli nuovi ragionano prima
+        di rispondere e quel ragionamento consuma il tetto: con 900 il JSON
+        arrivava tagliato a meta' ("numero": "NA5) e si leggeva come un errore
+        di lettura, mentre la patente era stata letta benissimo. Costa qualche
+        centesimo di millesimo in piu' e toglie di mezzo un intero tipo di
+        guasto.
+      */
+      maxTokens: 3000,
+      system: 'Leggi documenti d\'identità e rispondi solo con JSON.',
+      // Nessuno strumento: qui si guarda una foto e si risponde, punto.
+      tools: [],
       messages: [{
         role: 'user',
         content: [
@@ -114,10 +220,24 @@ export async function leggiDocumento(dataUrl: string): Promise<LetturaDocumento>
           { type: 'text', text: ISTRUZIONI },
         ],
       }],
+      extra: occhio.extra,
     });
 
-    const testo = r.content.map(b => (b.type === 'text' ? b.text : '')).join('').trim();
-    const json = testo.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+    /*
+      Il JSON si ritaglia, non si sbuccia.
+
+      Un modello lo incornicia coi backtick, un altro ci mette davanti "json",
+      un terzo scrive una riga di commento prima. Togliere i backtick non
+      bastava: si prende quello che sta fra la prima graffa e l'ultima, che e'
+      l'unica cosa vera di tutte le risposte.
+    */
+    const grezzo = r.testo.trim();
+    const apre = grezzo.indexOf('{');
+    const chiude = grezzo.lastIndexOf('}');
+    if (apre < 0 || chiude <= apre) {
+      throw new Error(`risposta senza JSON: ${grezzo.slice(0, 120)}`);
+    }
+    const json = grezzo.slice(apre, chiude + 1);
     const d = JSON.parse(json) as Record<string, unknown>;
 
     const stringa = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
@@ -146,13 +266,6 @@ export async function leggiDocumento(dataUrl: string): Promise<LetturaDocumento>
       scadenza: data(d.scadenza),
       sicurezza: typeof d.sicurezza === 'number' ? Math.max(0, Math.min(1, d.sicurezza)) : undefined,
     };
-  } catch {
-    /*
-      Se la lettura non riesce non si blocca la firma: il documento resta
-      allegato e i campi si scrivono a mano. Il consenso vale lo stesso, ed e'
-      quello che deve arrivare in fondo.
-    */
-    return { leggibile: true, sicurezza: 0 };
   }
 }
 
@@ -164,4 +277,27 @@ export function nomeTipo(tipo?: string): string {
     case 'passaporto': return 'Passaporto';
     default: return 'Documento';
   }
+}
+
+/**
+ * Avvisa il centro che la lettura automatica non funziona.
+ *
+ * Una volta ogni sei ore e non a ogni foto: se la chiave e' scaduta le foto
+ * sono dieci al giorno, e dieci messaggi uguali si smette di leggerli.
+ */
+let ultimoAvviso = 0;
+async function avvisaChePerdeUnPezzo(motivo: string): Promise<void> {
+  const adesso = Date.now();
+  if (adesso - ultimoAvviso < 6 * 3600_000) return;
+  ultimoAvviso = adesso;
+  const { sendTelegram } = await import('@/lib/telegram');
+  const spiegazione = /credit balance|quota|billing/i.test(motivo)
+    ? 'Il credito del fornitore è finito: le clienti stanno riscrivendo i dati a mano.'
+    : /api key|authentication|401|403/i.test(motivo)
+      ? 'La chiave del fornitore non è più valida.'
+      : motivo.slice(0, 160);
+  await sendTelegram(
+    `\u26A0\uFE0F <b>Il documento non si legge da solo</b>\n${spiegazione}\n`
+    + 'I consensi si firmano lo stesso, ma i dati del documento vanno scritti a mano.',
+  );
 }
