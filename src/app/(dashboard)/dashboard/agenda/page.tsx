@@ -3892,7 +3892,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     senza uscire da qui: rimandare il link, segnare che i soldi sono
     arrivati, e — quando la cliente non si presenta — decidere se trattenerla.
   */
-  const caparra = (appointment as unknown as { caparra?: Caparra | null }).caparra || null;
+  const caparra = (appointment.caparra as Caparra | undefined) || null;
   const [caparraOccupata, setCaparraOccupata] = useState(false);
   const [caparraMsg, setCaparraMsg] = useState('');
 

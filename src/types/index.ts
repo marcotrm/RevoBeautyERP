@@ -319,6 +319,19 @@ export interface Appointment {
   discountBy?: string;
   /** Seduta già saldata prima del giorno: vedi `PagatoPrima`. */
   paidAhead?: PagatoPrima;
+  /** La caparra chiesta per tenere il posto: vedi `Caparra` in lib/caparra. */
+  caparra?: {
+    richiesta: number;
+    stato: 'attesa' | 'pagata' | 'trattenuta' | 'restituita' | 'usata';
+    metodo?: string;
+    link?: string;
+    chiestaIl?: string;
+    pagataIl?: string;
+    scadenza?: string;
+    txId?: string;
+    nota?: string;
+    segnataDa?: string;
+  };
   color: string;
   createdAt: string;
   updatedAt: string;
