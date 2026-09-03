@@ -8,14 +8,18 @@
  * secondo. La cliente in cabina sente un suono del gestionale come tutti gli
  * altri; l'operatrice, che quel suono lo conosce, capisce.
  *
- * Il suono e' fatto qui con l'oscillatore del browser, come i bip di fine
- * trattamento: nessun file da caricare, nessun permesso, funziona anche col
- * telefono in tasca purche' lo schermo sia acceso.
+ * Il suono passa da `lib/suono`, che tiene sveglio il generatore audio: un
+ * tablet acceso da stamattina e non toccato da ore non riesce a suonare, e
+ * senza quel passaggio il trillo arrivava e non lo sentiva nessuno.
+ *
+ * Vibra anche, dove si puo': in un centro estetico le casse del tablet sono
+ * spesso abbassate, e una vibrazione sul bancone si sente comunque.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
 import { AlarmClock } from 'lucide-react';
 import { leggiTrillo, type Trillo as DatiTrillo } from '@/app/actions/trillo';
+import { preparaAudio, suona, TRILLO } from '@/lib/suono';
 
 /** L'identita' di QUESTO schermo: cambia a ogni ricarica, e va benissimo. */
 export function idSchermo(): string {
@@ -30,43 +34,25 @@ export function idSchermo(): string {
   }
 }
 
-/**
- * Il trillo di MSN, rifatto con due oscillatori.
- *
- * Due note vicine che scendono in fretta, ripetute due volte: e' quello che
- * fa sembrare un "trillo" e non un allarme. Basso di volume di proposito —
- * deve sentirlo chi lavora, non riempire la stanza.
- */
-function suonaTrillo(colpi = 1) {
+/** Il trillo, da suonare qui. Serve anche al tasto di prova. */
+export function suonaTrillo(colpi = 1): boolean {
+  // Al terzo trillo di fila si alza un po': non e' piu' un promemoria.
+  const volume = colpi >= 3 ? 0.34 : colpi === 2 ? 0.26 : 0.2;
+  const suonato = suona(TRILLO, volume);
   try {
-    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new Ctx();
-    const inizio = ctx.currentTime;
-    // Al terzo trillo di fila si alza un po': non e' piu' un promemoria.
-    const volume = colpi >= 3 ? 0.34 : colpi === 2 ? 0.26 : 0.2;
-
-    [0, 0.14, 0.42, 0.56].forEach((quando, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'triangle';
-      // Sale e scende: si-la, si-la. Un intervallo corto suona come un
-      // richiamo; uno lungo suona come un errore.
-      osc.frequency.setValueAtTime(i % 2 === 0 ? 988 : 784, inizio + quando);
-      gain.gain.setValueAtTime(0.0001, inizio + quando);
-      gain.gain.exponentialRampToValueAtTime(volume, inizio + quando + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, inizio + quando + 0.13);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(inizio + quando);
-      osc.stop(inizio + quando + 0.15);
-    });
-    setTimeout(() => ctx.close().catch(() => {}), 1500);
-  } catch { /* audio non disponibile: resta la striscia a schermo */ }
+    // Due colpi corti: si sente sul bancone anche col volume a zero.
+    navigator.vibrate?.([120, 80, 120]);
+  } catch { /* niente vibrazione su questo dispositivo */ }
+  return suonato;
 }
 
 export default function Trillo() {
   const [arrivato, setArrivato] = useState<DatiTrillo | null>(null);
   const ultimoVisto = useRef(0);
   const primoGiro = useRef(true);
+
+  // Il primo tocco su questa pagina sveglia l'audio, una volta per sempre.
+  useEffect(() => preparaAudio(), []);
 
   useEffect(() => {
     let vivo = true;

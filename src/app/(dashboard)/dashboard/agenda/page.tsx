@@ -66,7 +66,7 @@ import CampoData from '@/components/ui/CampoData';
 import { mandaRichiestaCaparra, restituisciCaparra, segnaCaparraPagata, trattieniCaparra } from '@/app/actions/caparra';
 import { descriviStato, type Caparra } from '@/lib/caparra';
 import { mandaTrillo } from '@/app/actions/trillo';
-import { idSchermo } from '@/components/Trillo';
+import { idSchermo, suonaTrillo } from '@/components/Trillo';
 
 /** Mostra in chiaro il rifiuto del server (es. cliente doppione). */
 function avvisaErroreCliente(e: unknown) {
@@ -3920,6 +3920,8 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     capisce, la cliente sente un suono del gestionale come tutti gli altri.
   */
   const [trilloMandato, setTrilloMandato] = useState(false);
+  /** null = non provato, true = ha suonato, false = il browser non ha lasciato fare rumore. */
+  const [suonoQui, setSuonoQui] = useState<boolean | null>(null);
 
   const minutiOltre = (() => {
     if (appointment.status !== 'in_cabin' && appointment.status !== 'in_progress') return 0;
@@ -3952,7 +3954,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
           : undefined,
       });
     } catch { /* il trillo non e' critico: se non parte, si va di persona */ }
-    setTimeout(() => setTrilloMandato(false), 4000);
+    setTimeout(() => setTrilloMandato(false), 6000);
   };
 
   const [incassata, setIncassata] = useState<boolean | null>(null);
@@ -5182,12 +5184,35 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                       : `Trilla a ${appointment.operatorName?.split(' ')[0] || 'chi è in cabina'}`}
                   </span>
                   <span className="block text-[11px] text-text-muted">
-                    {minutiOltre > 0 ? `${minutiOltre} minuti oltre l’orario` : 'Sta rispettando l’orario'}
-                    {prossimaDellOperatrice
-                      ? ` · dopo c’è ${prossimaDellOperatrice.clientName.split(' ')[0]} alle ${prossimaDellOperatrice.startTime}`
-                      : ''}
+                    {trilloMandato
+                      ? 'Suona sugli ALTRI schermi del centro, non su questo'
+                      : <>
+                          {minutiOltre > 0 ? `${minutiOltre} minuti oltre l’orario` : 'Sta rispettando l’orario'}
+                          {prossimaDellOperatrice
+                            ? ` · dopo c’è ${prossimaDellOperatrice.clientName.split(' ')[0]} alle ${prossimaDellOperatrice.startTime}`
+                            : ''}
+                        </>}
                   </span>
                 </span>
+              </button>
+            )}
+
+            {/*
+              Il tasto per sentirlo qui.
+
+              Serve a rispondere alla prima domanda che si fa chiunque: «ma
+              suona davvero?». Provandolo da soli, dal tasto grande non esce
+              niente — apposta, perche' non deve suonare accanto alla cliente
+              che sta pagando — e sembra rotto.
+            */}
+            {(appointment.status === 'in_cabin' || appointment.status === 'in_progress') && (
+              <button onClick={() => setSuonoQui(suonaTrillo(1))}
+                className="w-full text-center text-[11px] text-text-muted hover:text-text-secondary py-1">
+                {suonoQui === false
+                  ? 'Questo schermo non riesce a suonare: controlla il volume o tocca la pagina e riprova'
+                  : suonoQui === true
+                    ? 'Questo è il suono che sentiranno'
+                    : 'Senti come suona (solo qui, non manda niente)'}
               </button>
             )}
 
