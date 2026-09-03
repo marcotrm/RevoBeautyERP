@@ -789,34 +789,6 @@ export default function SettingsPage() {
                 <span className="text-xs text-accent font-medium">Vai →</span>
               </a>
               <C95Config />
-              <div className="bg-bg-secondary border border-border rounded-2xl p-6 space-y-4">
-                <h3 className="text-lg font-display font-semibold text-text-primary">Integrazioni</h3>
-                {[
-                  { name: 'WhatsApp Business', desc: 'Invio messaggi e reminder automatici', connected: true, color: '#22C55E' },
-                  { name: 'Google Calendar', desc: 'Sincronizzazione bidirezionale agenda', connected: true, color: '#3B82F6' },
-                  { name: 'Stripe Payments', desc: 'Pagamenti online e ricorrenti', connected: false, color: '#6366F1' },
-                  { name: 'Mailchimp', desc: 'Email marketing e newsletter', connected: false, color: '#F59E0B' },
-                  { name: 'Satispay', desc: 'Pagamenti in negozio e online', connected: true, color: '#EF4444' },
-                  { name: 'Klarna', desc: 'Pagamenti rateizzati', connected: false, color: '#EC4899' },
-                ].map((integration) => (
-                  <div key={integration.name} className="flex items-center gap-4 p-4 rounded-xl bg-bg-tertiary/50 border border-border/30">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${integration.color}15` }}>
-                      <Globe className="w-5 h-5" style={{ color: integration.color }} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-text-primary">{integration.name}</p>
-                      <p className="text-xs text-text-muted mt-0.5">{integration.desc}</p>
-                    </div>
-                    <button className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      integration.connected
-                        ? 'bg-success/10 text-success hover:bg-success/20'
-                        : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover border border-border'
-                    }`}>
-                      {integration.connected ? 'Connesso ✓' : 'Connetti'}
-                    </button>
-                  </div>
-                ))}
-              </div>
               </div>
             )}
           </motion.div>
