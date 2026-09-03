@@ -17,6 +17,7 @@ import { motion } from 'framer-motion';
 import { Zap } from 'lucide-react';
 import CampagneWhatsApp from './CampagneWhatsApp';
 import CampagneEmailSms from './CampagneEmailSms';
+import CanaliPrenotazione from './CanaliPrenotazione';
 import RecensioniGoogle from './RecensioniGoogle';
 import ChiediRecensioni from './ChiediRecensioni';
 
@@ -36,6 +37,8 @@ export default function MarketingPage() {
 
       {/* Prima si chiede la recensione, poi si legge quella che e' arrivata:
           le due schermate stanno in quest'ordine perche' e' l'ordine del lavoro. */}
+      <CanaliPrenotazione />
+
       <ChiediRecensioni />
 
       <RecensioniGoogle />

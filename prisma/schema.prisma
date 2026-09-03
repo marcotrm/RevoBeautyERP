@@ -730,6 +730,36 @@ model Subscription {
 }
 
 // ============================================================
+// ORDINI PRODOTTI (ritiro in centro)
+// La crema si vende solo a chi passa dal banco e se la ricorda. Con l'ordine
+// online la cliente la mette da parte quando le viene in mente — la sera, dal
+// divano — e la ritira al prossimo appuntamento. Niente spedizioni: nessun
+// corriere, nessun reso, nessun pagamento anticipato.
+// ============================================================
+model ProductOrder {
+  id         String @id @default(cuid())
+  numero     Int    @default(autoincrement())
+  clientId   String?
+  clientName String
+  phone      String
+  email      String?
+  /// [{ productId, nome, prezzo, qty }]
+  righe      Json
+  totale     Float
+  /// nuovo | pronto | ritirato | annullato
+  stato      String @default("nuovo")
+  note       String?
+  /// La riga di cassa, quando viene ritirato e pagato.
+  txId       String?
+  createdAt  String
+  updatedAt  String
+
+  @@index([stato])
+  @@index([createdAt])
+  @@map("product_orders")
+}
+
+// ============================================================
 // AFFILIAZIONE TRAMITE QR CODE
 // Ogni attività partner (bar, palestra, parrucchiere...) ha uno o più QR
 // personali: chi li scansiona atterra su una pagina Revobeauty brandizzata,

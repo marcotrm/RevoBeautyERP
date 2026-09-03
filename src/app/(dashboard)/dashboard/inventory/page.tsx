@@ -16,6 +16,7 @@ import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { OUT_REASONS, IN_REASONS, reasonLabel } from '@/lib/stockReasons';
 import { recordStockMovement, getStockMovements, type StockMovementData } from '@/app/actions/products';
 import { useStaffNames } from '@/hooks/useStaffNames';
+import Ordini from './Ordini';
 
 const categories = ['Tutti', 'Viso', 'Corpo', 'Laser', 'Unghie', 'Capelli'];
 const PRODUCT_CATEGORIES = ['Viso', 'Corpo', 'Laser', 'Unghie', 'Capelli'];
@@ -568,6 +569,8 @@ export default function InventoryPage() {
           </button>
         </div>
       </div>
+
+      <Ordini />
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

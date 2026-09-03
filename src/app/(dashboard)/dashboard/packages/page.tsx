@@ -6,8 +6,7 @@ import { usePackageStore, PackageItem, ClientPackage, PackagePayment } from '@/s
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package, Plus, CheckCircle, AlertCircle,
-  X, Trash2, Minus, Search, User, Users, Calendar, Clock, History, Euro, Pencil, ShoppingBag, Gift, Printer,
-} from 'lucide-react';
+  X, Trash2, Minus, Search, User, Users, Calendar, Clock, History, Euro, Pencil, ShoppingBag, Gift, Printer, Repeat } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
 import { foglioPacchetti, type PacchettoDaStampare } from '@/lib/foglioPacchetti';
 import { CENTRO } from '@/lib/centro';
@@ -980,6 +979,7 @@ export default function PackagesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div><h2 className="text-xl font-display font-bold text-text-primary">Trattamenti e Pacchetti</h2><p className="text-sm text-text-secondary">Gestisci pacchetti a sedute e scala le visite</p></div>
         <div className="flex gap-2">
+          <a href="/dashboard/packages/abbonamenti" className="flex items-center gap-2 px-4 py-2 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all"><Repeat className="w-4 h-4" /> Abbonamenti</a>
           <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 transition-all hover:scale-105"><Plus className="w-4 h-4" /> Nuovo Pacchetto</button>
         </div>
       </div>

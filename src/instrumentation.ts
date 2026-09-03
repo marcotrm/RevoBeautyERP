@@ -174,7 +174,31 @@ export async function register() {
   };
 
   // Controlla ogni minuto
-  setInterval(() => { void tick(); void waTick(); void buchiTick(); void affiliatiTick(); void recensioniTick(); void autocriticaTick(); }, 60 * 1000);
+  /**
+   * Il giro dei rinnovi degli abbonamenti: una volta al giorno, alle 10.
+   *
+   * Non e' un addebito automatico — nessuna carta e' salvata qui: e' l'elenco
+   * di chi scade, l'email a chi ha un indirizzo e il riepilogo su Telegram al
+   * titolare, che e' poi la persona che deve ricordarsi di chiedere i soldi.
+   *
+   * A quell'ora il centro e' aperto da un'ora: se qualcuna scade oggi, la si
+   * puo' ancora fermare al banco.
+   */
+  let rinnoviFatti = '';
+  const rinnoviTick = async () => {
+    const { date, hhmm } = nowRome();
+    if (hhmm !== '10:00' || rinnoviFatti === date) return;
+    rinnoviFatti = date;
+    try {
+      const { giroRinnovi } = await import('@/app/actions/abbonamenti');
+      const e = await giroRinnovi(false);
+      if (e.daChiedere > 0) console.log(`[abbonamenti] ${e.daChiedere} da rinnovare, ${e.avvisate} avvisate per email`);
+    } catch (err) {
+      console.error('[abbonamenti] giro rinnovi fallito', err);
+    }
+  };
+
+  setInterval(() => { void tick(); void waTick(); void buchiTick(); void affiliatiTick(); void recensioniTick(); void autocriticaTick(); void rinnoviTick(); }, 60 * 1000);
   console.log('[reports] Scheduler report Telegram attivo (invio alle 20:00 Europe/Rome)');
   console.log('[wa] Scheduler automazioni WhatsApp attivo');
   console.log('[copri-buchi] Scheduler copri buchi attivo');
