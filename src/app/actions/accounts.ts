@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { headers } from 'next/headers';
+import { descriviDispositivo } from '@/lib/dispositivo';
 import { sendTelegram } from '@/lib/telegram';
 import { DEFAULT_ACCOUNTS } from '@/lib/rolesConfig';
 
@@ -261,22 +262,6 @@ export async function segnalaPresenza(userId: string): Promise<{ ok: boolean }> 
   }
 }
 
-/** Da che dispositivo, in parole. L'user agent per esteso non lo legge nessuno. */
-function descriviDispositivo(ua?: string | null): string | null {
-  const s = String(ua || '');
-  if (!s) return null;
-  const sistema = /iPhone|iPad/i.test(s) ? 'iPhone/iPad'
-    : /Android/i.test(s) ? 'Android'
-      : /Macintosh|Mac OS/i.test(s) ? 'Mac'
-        : /Windows/i.test(s) ? 'Windows'
-          : /Linux/i.test(s) ? 'Linux' : 'sconosciuto';
-  const browser = /Edg\//i.test(s) ? 'Edge'
-    : /OPR\//i.test(s) ? 'Opera'
-      : /Chrome\//i.test(s) ? 'Chrome'
-        : /Safari\//i.test(s) ? 'Safari'
-          : /Firefox\//i.test(s) ? 'Firefox' : '';
-  return browser ? `${sistema} · ${browser}` : sistema;
-}
 
 /** Gli accessi, dal piu' recente. Filtrabili per email quando si sospetta di qualcuno. */
 export async function elencoAccessi(opts: { email?: string; limite?: number } = {}): Promise<AccessoRegistrato[]> {

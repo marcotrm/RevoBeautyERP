@@ -21,6 +21,8 @@ import { sendManualReply } from '@/app/actions/whatsapp';
 import { sendWhatsAppTemplate, normalizePhone, isSendablePhone } from '@/lib/whatsapp';
 import { listD360Templates } from '@/lib/whatsapp360';
 import { WA_TEMPLATES } from '@/lib/wa-templates';
+import { headers } from 'next/headers';
+import { descriviDispositivo } from '@/lib/dispositivo';
 
 const TITOLO = 'Consenso Laser/Epilazione';
 const GIORNI_GETTONE = 3;
@@ -133,13 +135,23 @@ export async function salvaConsensoLaser(
     select: { id: true, date: true, startTime: true, operatorName: true, treatmentName: true, services: true },
   });
 
+  const dispositivo = descriviDispositivo((await headers()).get('user-agent'));
+
   await prisma.clientConsent.create({
     data: {
       clientId: dati.clientId,
       title: TITOLO,
       signatureData: r.firma,
       signedAt: new Date().toISOString(),
-      notes: `Firmato dal tablet · zone: ${r.zone || '—'}`,
+      /*
+        Da dove ha firmato, davvero.
+
+        Prima c'era scritto "dal tablet" su ogni consenso, anche quando il
+        link glielo si era mandato su WhatsApp e lei aveva firmato dal
+        divano col suo telefono. Una riga che dice una cosa non vera su un
+        documento firmato e' peggio di una riga che non dice niente.
+      */
+      notes: `Firmato da ${dispositivo || 'dispositivo sconosciuto'} · zone: ${r.zone || '—'}`,
       data: JSON.parse(JSON.stringify({
         appointmentId: dati.appointmentId,
         seduta: a ? `${a.date} ${a.startTime}` : null,
