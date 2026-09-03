@@ -25,6 +25,29 @@ const ETICHETTE: Record<string, { testo: string; classe: string }> = {
   inesistente: { testo: 'email che non esiste', classe: 'bg-error/15 text-error' },
 };
 
+/*
+  Il tempo passato dentro.
+
+  Non e' la differenza fra entrata e uscita — l'uscita non esiste, si chiude
+  la finestra e via. E' la somma dei battiti che il browser manda finche'
+  qualcuno sta davvero usando il gestionale, quindi puo' solo essere un po'
+  meno del vero, mai di piu'.
+*/
+function durata(min: number): string {
+  if (min < 2) return 'meno di 2 min';
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+/** Un battito degli ultimi cinque minuti vuol dire che la finestra e' aperta ora. */
+function dentroAdesso(iso: string | null): boolean {
+  if (!iso) return false;
+  const t = Date.parse(iso);
+  return !Number.isNaN(t) && Date.now() - t < 5 * 60 * 1000;
+}
+
 function quando(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -77,6 +100,8 @@ export function RegistroAccessi() {
   });
 
   const falliti = (righe || []).filter(r => r.esito !== 'ok').length;
+  const riusciti = mostrate.filter(r => r.esito === 'ok');
+  const totaleMinuti = riusciti.reduce((t, r) => t + (r.minuti || 0), 0);
 
   return (
     <div className="bg-bg-secondary border border-border rounded-2xl p-6 space-y-4">
@@ -86,7 +111,7 @@ export function RegistroAccessi() {
           <div>
             <h3 className="text-lg font-display font-semibold text-text-primary">Registro accessi</h3>
             <p className="text-xs text-text-muted">
-              Ogni entrata nel gestionale, riuscita o no. Si registra da oggi in avanti.
+              Ogni entrata nel gestionale, riuscita o no, e quanto tempo ci è rimasto.
             </p>
           </div>
         </div>
@@ -148,6 +173,13 @@ export function RegistroAccessi() {
         </div>
       </details>
 
+      {filtro.trim() && riusciti.length > 0 && (
+        <p className="text-[11px] text-text-muted px-1">
+          {riusciti.length === 1 ? '1 accesso riuscito' : `${riusciti.length} accessi riusciti`}
+          {totaleMinuti > 0 ? ` · ${durata(totaleMinuti)} sul gestionale in tutto` : ''}
+        </p>
+      )}
+
       {righe === null ? (
         <p className="text-sm text-text-muted py-6 text-center">Carico…</p>
       ) : righe.length === 0 ? (
@@ -184,8 +216,18 @@ export function RegistroAccessi() {
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${e.classe}`}>{e.testo}</span>
-                    <p className="text-[11px] text-text-muted mt-0.5">{quando(r.quando)}</p>
+                    {dentroAdesso(r.ultimaAttivita) ? (
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-success/15 text-success">
+                        <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                        è dentro adesso
+                      </span>
+                    ) : (
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${e.classe}`}>{e.testo}</span>
+                    )}
+                    <p className="text-[11px] text-text-muted mt-0.5">
+                      {quando(r.quando)}
+                      {r.esito === 'ok' && r.ultimaAttivita ? ` · ${durata(r.minuti)}` : ''}
+                    </p>
                   </div>
                 </div>
               );

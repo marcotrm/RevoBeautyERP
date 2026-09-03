@@ -219,6 +219,46 @@ export interface AccessoRegistrato {
   ip: string | null;
   dispositivo: string | null;
   quando: string;
+  /** Quanti minuti ci e' rimasto davvero. */
+  minuti: number;
+  /** L'ultima volta che ha toccato qualcosa: se e' adesso, e' ancora dentro. */
+  ultimaAttivita: string | null;
+}
+
+/*
+  Quanto tempo ci resta dentro.
+
+  Il login dice quando entra, non quanto ci sta: chi chiude la finestra non
+  fa il logout, quindi la fine non arriva mai. Allora e' il browser a farsi
+  vivo ogni due minuti finche' la pagina e' aperta e qualcuno la sta usando;
+  la somma di quei battiti e' il tempo vero. Se resta aperta in un angolo
+  senza che nessuno la tocchi smette di contare, altrimenti chi lascia il
+  gestionale acceso tutto il giorno risulterebbe al lavoro otto ore.
+*/
+const BATTITO_MINUTI = 2;
+
+export async function segnalaPresenza(userId: string): Promise<{ ok: boolean }> {
+  if (!userId) return { ok: false };
+  try {
+    const riga = await prisma.loginLog.findFirst({
+      where: { userId, esito: 'ok' },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!riga) return { ok: false };
+    const adesso = Date.now();
+    const prima = Date.parse(riga.ultimaAttivita || riga.createdAt);
+    // Un buco piu' lungo di un battito e mezzo e' una pausa, non lavoro:
+    // di quel tempo si conta solo il battito, non l'assenza.
+    const passati = Number.isNaN(prima) ? 0 : (adesso - prima) / 60000;
+    const aggiunta = Math.max(0, Math.min(Math.round(passati), BATTITO_MINUTI + 1));
+    await prisma.loginLog.update({
+      where: { id: riga.id },
+      data: { ultimaAttivita: new Date(adesso).toISOString(), minuti: riga.minuti + aggiunta },
+    });
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
 }
 
 /** Da che dispositivo, in parole. L'user agent per esteso non lo legge nessuno. */
@@ -254,6 +294,8 @@ export async function elencoAccessi(opts: { email?: string; limite?: number } = 
     ip: r.ip,
     dispositivo: descriviDispositivo(r.userAgent),
     quando: r.createdAt,
+    minuti: r.minuti,
+    ultimaAttivita: r.ultimaAttivita,
   }));
 }
 
