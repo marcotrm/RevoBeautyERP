@@ -65,8 +65,6 @@ import BuonoCompleannoBadge from '@/components/BuonoCompleanno';
 import CampoData from '@/components/ui/CampoData';
 import { mandaRichiestaCaparra, restituisciCaparra, segnaCaparraPagata, trattieniCaparra } from '@/app/actions/caparra';
 import { descriviStato, type Caparra } from '@/lib/caparra';
-import { mandaTrillo } from '@/app/actions/trillo';
-import { idSchermo, suonaTrillo } from '@/components/Trillo';
 
 /** Mostra in chiaro il rifiuto del server (es. cliente doppione). */
 function avvisaErroreCliente(e: unknown) {
@@ -3908,55 +3906,6 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     } finally { setCaparraOccupata(false); }
   };
 
-  /*
-    Il trillo: «stai andando lunga», detto senza dirlo.
-
-    Con la cliente in cabina non si puo' entrare a dire all'operatrice di
-    sbrigarsi — sentirsi dire che il proprio trattamento sta rubando tempo e'
-    il modo piu' veloce di perdere una cliente. Cosi' non lo dice nessuno, e
-    l'appuntamento dopo slitta.
-
-    Si preme qui e suona sugli altri schermi del centro: l'operatrice
-    capisce, la cliente sente un suono del gestionale come tutti gli altri.
-  */
-  const [trilloMandato, setTrilloMandato] = useState(false);
-  /** null = non provato, true = ha suonato, false = il browser non ha lasciato fare rumore. */
-  const [suonoQui, setSuonoQui] = useState<boolean | null>(null);
-
-  const minutiOltre = (() => {
-    if (appointment.status !== 'in_cabin' && appointment.status !== 'in_progress') return 0;
-    const [h, m] = (appointment.endTime || '').split(':').map(Number);
-    if (!Number.isFinite(h)) return 0;
-    const adesso = new Date();
-    const fine = new Date(adesso);
-    fine.setHours(h, m || 0, 0, 0);
-    return Math.round((adesso.getTime() - fine.getTime()) / 60000);
-  })();
-
-  /** Chi aspetta dopo, dalla stessa operatrice: e' l'informazione che rende utile il trillo. */
-  const prossimaDellOperatrice = tuttiGliAppuntamenti
-    .filter(a => a.operatorId === appointment.operatorId
-      && a.date === appointment.date
-      && a.id !== appointment.id
-      && a.startTime > appointment.startTime
-      && !['cancelled', 'no_show', 'completed'].includes(a.status))
-    .sort((a, b) => a.startTime.localeCompare(b.startTime))[0];
-
-  const trilla = async () => {
-    setTrilloMandato(true);
-    try {
-      await mandaTrillo({
-        da: idSchermo(),
-        operatrice: appointment.operatorName?.split(' ')[0],
-        minutiRitardo: minutiOltre > 0 ? minutiOltre : undefined,
-        prossima: prossimaDellOperatrice
-          ? `${prossimaDellOperatrice.clientName.split(' ')[0]} alle ${prossimaDellOperatrice.startTime}`
-          : undefined,
-      });
-    } catch { /* il trillo non e' critico: se non parte, si va di persona */ }
-    setTimeout(() => setTrilloMandato(false), 6000);
-  };
-
   const [incassata, setIncassata] = useState<boolean | null>(null);
   useEffect(() => {
     let vivo = true;
@@ -5170,50 +5119,6 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                   </button>
                 </div>
               </div>
-            )}
-
-            {(appointment.status === 'in_cabin' || appointment.status === 'in_progress') && (
-              <button onClick={trilla} disabled={trilloMandato}
-                className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border-2 transition-all disabled:opacity-60 ${
-                  minutiOltre > 0 ? 'border-warning/50 bg-warning/10' : 'border-border hover:bg-bg-hover'}`}>
-                <BellRing className={`w-4 h-4 flex-shrink-0 ${minutiOltre > 0 ? 'text-warning' : 'text-text-muted'}`} />
-                <span className="text-left min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-text-primary">
-                    {trilloMandato
-                      ? 'Trillo mandato'
-                      : `Trilla a ${appointment.operatorName?.split(' ')[0] || 'chi è in cabina'}`}
-                  </span>
-                  <span className="block text-[11px] text-text-muted">
-                    {trilloMandato
-                      ? 'Suona sugli ALTRI schermi del centro, non su questo'
-                      : <>
-                          {minutiOltre > 0 ? `${minutiOltre} minuti oltre l’orario` : 'Sta rispettando l’orario'}
-                          {prossimaDellOperatrice
-                            ? ` · dopo c’è ${prossimaDellOperatrice.clientName.split(' ')[0]} alle ${prossimaDellOperatrice.startTime}`
-                            : ''}
-                        </>}
-                  </span>
-                </span>
-              </button>
-            )}
-
-            {/*
-              Il tasto per sentirlo qui.
-
-              Serve a rispondere alla prima domanda che si fa chiunque: «ma
-              suona davvero?». Provandolo da soli, dal tasto grande non esce
-              niente — apposta, perche' non deve suonare accanto alla cliente
-              che sta pagando — e sembra rotto.
-            */}
-            {(appointment.status === 'in_cabin' || appointment.status === 'in_progress') && (
-              <button onClick={() => setSuonoQui(suonaTrillo(1))}
-                className="w-full text-center text-[11px] text-text-muted hover:text-text-secondary py-1">
-                {suonoQui === false
-                  ? 'Questo schermo non riesce a suonare: controlla il volume o tocca la pagina e riprova'
-                  : suonoQui === true
-                    ? 'Questo è il suono che sentiranno'
-                    : 'Senti come suona (solo qui, non manda niente)'}
-              </button>
             )}
 
             {caparra && (

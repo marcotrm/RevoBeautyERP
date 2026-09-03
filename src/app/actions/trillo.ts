@@ -27,43 +27,36 @@ export interface Trillo {
   quando: number;
   /** Chi l'ha mandato, per non farlo suonare sul suo stesso schermo. */
   da: string;
-  /** A chi e' diretto: il nome si vede solo sullo schermo, non si sente. */
-  operatrice?: string;
-  /** Di quanto sta sforando, quando si sa. */
-  minutiRitardo?: number;
-  /** Chi aspetta dopo: e' l'informazione che rende utile il trillo. */
-  prossima?: string;
-  /** Quanti trilli di fila: al terzo si capisce che e' urgente. */
+  /** Quanti trilli di fila: al terzo si alza un po' il volume. */
   colpi: number;
 }
+
+/*
+  Il trillo non e' rivolto a nessuno.
+
+  Nella prima versione portava con se' il nome dell'operatrice, di quanto stava
+  sforando e chi aspettava dopo, e lo scriveva a schermo. Ma quello schermo, in
+  cabina, lo vede anche la cliente sdraiata li' accanto: sarebbe un rimprovero
+  letto da chi non doveva leggerlo — esattamente la cosa che il trillo serve a
+  evitare. Adesso e' solo un suono: chi lavora sa cosa vuol dire.
+*/
 
 /**
  * Manda il trillo. `da` e' un identificativo dello schermo che lo manda, non
  * una persona: serve solo a non far suonare il trillo a chi l'ha premuto.
  */
-export async function mandaTrillo(p: {
-  da: string;
-  operatrice?: string;
-  minutiRitardo?: number;
-  prossima?: string;
-}): Promise<{ ok: boolean }> {
+export async function mandaTrillo(p: { da: string }): Promise<{ ok: boolean }> {
   const adesso = Date.now();
 
-  // Trilli ravvicinati alla stessa operatrice si contano: uno e' un promemoria,
-  // tre di fila sono un problema, e chi guarda lo schermo deve vedere quale dei
-  // due sta succedendo.
+  // Trilli ravvicinati si contano: uno e' un promemoria, tre di fila sono
+  // un'altra cosa, e al terzo il volume sale un po'.
   const precedente = await leggiTrillo();
-  const stessaCorsa = precedente
-    && precedente.operatrice === p.operatrice
-    && adesso - precedente.quando < 10 * 60_000;
+  const diSeguito = precedente && adesso - precedente.quando < 10 * 60_000;
 
   const trillo: Trillo = {
     quando: adesso,
     da: p.da,
-    operatrice: p.operatrice,
-    minutiRitardo: p.minutiRitardo,
-    prossima: p.prossima,
-    colpi: stessaCorsa ? (precedente?.colpi || 1) + 1 : 1,
+    colpi: diSeguito ? (precedente?.colpi || 1) + 1 : 1,
   };
 
   await prisma.adminEntry.upsert({

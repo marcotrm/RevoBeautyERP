@@ -89,18 +89,17 @@ export default function Trillo() {
 
   return (
     <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[200] pointer-events-none">
-      <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-warning/95 text-white shadow-2xl animate-pulse">
-        <AlarmClock className="w-5 h-5 flex-shrink-0" />
-        <div className="text-sm">
-          <p className="font-bold">
-            {arrivato.operatrice ? `${arrivato.operatrice}, stai andando lunga` : 'Stiamo andando lunghi'}
-            {arrivato.colpi > 1 ? ` (${arrivato.colpi}° avviso)` : ''}
-          </p>
-          <p className="text-[11px] opacity-90">
-            {arrivato.minutiRitardo ? `${arrivato.minutiRitardo} minuti oltre l’orario` : 'La seduta ha superato l’orario'}
-            {arrivato.prossima ? ` · dopo c’è ${arrivato.prossima}` : ''}
-          </p>
-        </div>
+      {/*
+        Non c'e' scritto niente di preciso, apposta.
+
+        Lo schermo del tablet in cabina lo vede anche la cliente sdraiata li'
+        accanto: un nome e un "sei in ritardo di dodici minuti" sarebbero un
+        rimprovero letto da chi non doveva leggerlo. Il trillo lo capisce chi
+        lavora, e a chi passa dice solo che il gestionale ha fatto un rumore.
+      */}
+      <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-warning/95 text-white shadow-2xl">
+        <AlarmClock className="w-4 h-4 flex-shrink-0" />
+        <span className="text-sm font-semibold">Trillo</span>
       </div>
     </div>
   );
