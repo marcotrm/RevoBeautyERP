@@ -10,6 +10,7 @@ import {
 } from '@/app/actions/clientRecords';
 import { compressImage } from '@/lib/imageCompress';
 import { linkConsensoCliente } from '@/app/actions/consensoLaser';
+import DettaglioConsenso from './DettaglioConsenso';
 
 const SKIN_TYPES = ['Normale', 'Secca', 'Grassa', 'Mista', 'Sensibile', 'Asfittica'];
 const PHOTOTYPES = ['I', 'II', 'III', 'IV', 'V', 'VI'];
@@ -106,6 +107,8 @@ export default function ClientRecordTab({ clientId }: { clientId: string }) {
   const [rec, setRec] = useState<MedicalRecord>({});
   const [photos, setPhotos] = useState<ClientPhoto[]>([]);
   const [consents, setConsents] = useState<ClientConsent[]>([]);
+  /** Il consenso che si sta leggendo, con dentro le risposte della cliente. */
+  const [consensoAperto, setConsensoAperto] = useState<ClientConsent | null>(null);
 
   const [savingRec, setSavingRec] = useState(false);
   const [recSaved, setRecSaved] = useState(false);
@@ -347,7 +350,13 @@ export default function ClientRecordTab({ clientId }: { clientId: string }) {
         ) : (
           <div className="space-y-2">
             {consents.map(c => (
-              <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-bg-tertiary/40">
+              /* La riga si apre: dentro c'e' tutto quello che la cliente ha
+                 compilato, che finora restava nel database senza che nessuno
+                 potesse rileggerlo. */
+              <div key={c.id} role="button" tabIndex={0}
+                onClick={() => setConsensoAperto(c)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setConsensoAperto(c); } }}
+                className="flex items-center gap-3 p-3 rounded-xl border border-border bg-bg-tertiary/40 cursor-pointer hover:border-accent/40 hover:bg-bg-hover transition-colors">
                 {c.signatureData ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={c.signatureData} alt="firma" className="w-16 h-10 object-contain bg-white rounded border border-border flex-shrink-0" />
@@ -358,7 +367,9 @@ export default function ClientRecordTab({ clientId }: { clientId: string }) {
                   <p className="text-sm font-semibold text-text-primary truncate">{c.title}</p>
                   <p className="text-xs text-text-muted">Firmato il {new Date(c.signedAt).toLocaleDateString('it-IT')}{c.notes ? ` · ${c.notes}` : ''}</p>
                 </div>
-                <button onClick={() => removeConsent(c.id)} className="p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all flex-shrink-0">
+                <span className="text-[11px] text-accent font-medium flex-shrink-0 hidden sm:inline">apri →</span>
+                <button onClick={e => { e.stopPropagation(); removeConsent(c.id); }}
+                  className="p-1.5 rounded-lg hover:bg-error/10 text-text-muted hover:text-error transition-all flex-shrink-0">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -366,6 +377,13 @@ export default function ClientRecordTab({ clientId }: { clientId: string }) {
           </div>
         )}
       </div>
+
+      {/* Il consenso firmato, per intero */}
+      <AnimatePresence>
+        {consensoAperto && (
+          <DettaglioConsenso consenso={consensoAperto} onChiudi={() => setConsensoAperto(null)} />
+        )}
+      </AnimatePresence>
 
       {/* Lightbox foto */}
       <AnimatePresence>

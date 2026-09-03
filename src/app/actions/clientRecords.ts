@@ -19,6 +19,12 @@ export interface ClientConsent {
   signatureData?: string | null;
   signedAt: string;
   notes?: string | null;
+  /**
+   * Quello che la cliente ha compilato: per il laser sono le risposte del
+   * questionario, le zone concordate e il consenso alle foto. Restava nel
+   * database e non lo leggeva nessuno.
+   */
+  data?: unknown;
 }
 
 // Scheda anamnesi/tecnica: struttura libera salvata come JSON sul cliente.
