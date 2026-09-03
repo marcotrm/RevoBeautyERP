@@ -50,6 +50,7 @@ export default function CaricaDocumento({ clientId, onFatto }: {
 }) {
   const [aperto, setAperto] = useState(false);
   const [foto, setFoto] = useState<string | null>(null);
+  const [anteprima, setAnteprima] = useState('');
   const [leggendo, setLeggendo] = useState(false);
   const [problema, setProblema] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -61,7 +62,11 @@ export default function CaricaDocumento({ clientId, onFatto }: {
     setProblema(null); setLeggendo(true);
     try {
       const dataUrl = await rimpicciolisci(file);
+      // La miniatura serve all'elenco: cento documenti a schermo con le foto
+      // intere sarebbero decine di megabyte per guardare una griglia.
+      const mini = await rimpicciolisci(file, 320, 0.7).catch(() => '');
       setFoto(dataUrl);
+      setAnteprima(mini);
       const r = await leggiFotoDocumento(dataUrl);
       if (!r.leggibile) {
         setProblema(r.problema || 'La foto non si legge bene: rifalla.');
@@ -86,7 +91,7 @@ export default function CaricaDocumento({ clientId, onFatto }: {
     if (!foto || !campi.numero.trim()) return;
     setSalvando(true);
     try {
-      await salvaDocumento({ clientId, ...campi, foto, origine: 'operatrice' });
+      await salvaDocumento({ clientId, ...campi, foto, anteprima, origine: 'operatrice' });
       setAperto(false); setFoto(null);
       setCampi({ tipo: 'carta_identita', numero: '', nome: '', cognome: '', dataNascita: '', scadenza: '' });
       onFatto?.();

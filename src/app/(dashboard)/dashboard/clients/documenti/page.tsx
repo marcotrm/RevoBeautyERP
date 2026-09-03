@@ -17,7 +17,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, IdCard, Loader2, Search, Trash2 } from 'lucide-react';
 import {
-  elencoDocumenti, eliminaDocumento, riepilogoDocumenti,
+  elencoDocumenti, eliminaDocumento, fotoDocumento, riepilogoDocumenti,
   type DocumentoSalvato, type RiepilogoDocumenti,
 } from '@/app/actions/documenti';
 
@@ -26,6 +26,8 @@ export default function DocumentiPage() {
   const [lista, setLista] = useState<DocumentoSalvato[] | null>(null);
   const [riepilogo, setRiepilogo] = useState<RiepilogoDocumenti | null>(null);
   const [aperta, setAperta] = useState<DocumentoSalvato | null>(null);
+  /** La foto intera di quello aperto: si chiede solo adesso, pesa. */
+  const [fotoIntera, setFotoIntera] = useState<string>('');
   const [versione, setVersione] = useState(0);
 
   useEffect(() => {
@@ -113,10 +115,10 @@ export default function DocumentiPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {(lista || []).map(d => (
-          <button key={d.id} onClick={() => setAperta(d)}
+          <button key={d.id} onClick={() => { setAperta(d); setFotoIntera(''); fotoDocumento(d.id).then(f => setFotoIntera(f || d.anteprima)).catch(() => setFotoIntera(d.anteprima)); }}
             className="text-left bg-bg-secondary border border-border rounded-2xl overflow-hidden hover:border-accent/40 transition-colors">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={d.foto} alt={`Documento di ${d.clientName}`} className="w-full h-36 object-cover bg-white" />
+            <img src={d.anteprima} alt={`Documento di ${d.clientName}`} className="w-full h-36 object-cover bg-white" />
             <div className="p-3.5">
               <p className="text-sm font-semibold text-text-primary truncate">{d.clientName || `${d.nome ?? ''} ${d.cognome ?? ''}`.trim()}</p>
               <p className="text-[11px] text-text-muted truncate">{d.tipoLeggibile} n. {d.numero}</p>
@@ -136,7 +138,7 @@ export default function DocumentiPage() {
           <div className="w-full max-w-xl bg-bg-secondary border border-border rounded-2xl overflow-hidden"
             onClick={e => e.stopPropagation()}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={aperta.foto} alt="Documento" className="w-full max-h-[60vh] object-contain bg-white" />
+            <img src={fotoIntera || aperta.anteprima} alt="Documento" className="w-full max-h-[60vh] object-contain bg-white" />
             <div className="p-5 space-y-2">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">

@@ -22,6 +22,7 @@ import { leggiDocumentoDalModulo } from '@/app/actions/consensoLaser';
 
 export interface DocumentoCompilato {
   foto: string;
+  anteprima: string;
   tipo: string;
   numero: string;
   nome: string;
@@ -89,6 +90,9 @@ export default function FotoDocumento({ gettone, giaAgliAtti, onChange }: {
     onChange(null);
     try {
       const dataUrl = await rimpicciolisci(file);
+      // La miniatura serve all'elenco: cento documenti a schermo con le foto
+      // intere sarebbero decine di megabyte per guardare una griglia.
+      const mini = await rimpicciolisci(file, 320, 0.7).catch(() => '');
       setFoto(dataUrl);
       const r = await leggiDocumentoDalModulo(gettone, dataUrl);
       if (!r.leggibile) {
@@ -98,6 +102,7 @@ export default function FotoDocumento({ gettone, giaAgliAtti, onChange }: {
       }
       const d: DocumentoCompilato = {
         foto: dataUrl,
+        anteprima: mini,
         tipo: r.tipo || 'carta_identita',
         numero: r.numero || '',
         nome: r.nome || '',

@@ -715,6 +715,9 @@ model ClientDocument {
   scadenza    String?
   /// La foto, come data URL compressa: e' la prova di dove esce il numero.
   foto        String
+  /// Una miniatura da 320px: l'elenco ne mostra decine tutte insieme, e con
+  /// le foto intere sarebbero decine di megabyte per aprire una pagina.
+  anteprima   String?
   /// Il consenso a cui era allegato, quando nasce di li'.
   consensoId  String?
   /// Chi l'ha caricato: la cliente dal modulo, o l'operatrice dal banco.

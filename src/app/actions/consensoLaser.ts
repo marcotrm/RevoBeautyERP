@@ -138,6 +138,7 @@ export interface RisposteLaser {
   /** Il documento fotografato adesso, quando non ce n'e' gia' uno agli atti. */
   documento?: {
     foto: string;
+    anteprima?: string;
     tipo?: string;
     numero?: string;
     nome?: string;
@@ -226,6 +227,7 @@ export async function salvaConsensoLaser(
       dataNascita: r.documento.dataNascita,
       scadenza: r.documento.scadenza,
       foto: r.documento.foto,
+      anteprima: r.documento.anteprima,
       consensoId: consenso.id,
       origine: 'cliente',
     }).catch(() => {});
