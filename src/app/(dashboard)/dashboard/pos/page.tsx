@@ -45,10 +45,15 @@ const PAYMENT_METHODS = [
   { id: 'satispay', label: 'Satispay', icon: '📱' },
   { id: 'bonifico', label: 'Bonifico', icon: '🏦' },
   { id: 'buono', label: 'Buono Regalo', icon: '🎁' },
-  // «Misto» non diceva niente: chi cercava il doppio pagamento non lo trovava
-  // e si arrangiava battendo due vendite separate.
-  { id: 'misto', label: 'Contanti + Carta', icon: '⚖️' },
 ];
+
+/*
+  Il pagamento diviso sta fuori dall'elenco, e ha un riquadro tutto suo.
+
+  Come sesta casella in mezzo ad altre cinque tutte uguali non lo vedeva
+  nessuno: chi non sapeva gia' che c'era batteva due vendite separate.
+*/
+const MISTO = { id: 'misto', label: 'Contanti + Carta' };
 
 function NewSaleModal({ onClose, onComplete, initialData }: {
   onClose: () => void; onComplete: (tx: Omit<TransactionRecord, 'id'> & { scontrinoDopo?: boolean }, debtPkgId?: string) => Promise<TransactionRecord | undefined>;
@@ -639,6 +644,25 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                     ))}
                   </div>
 
+                  <button onClick={() => {
+                    setPaymentMethod(MISTO.id);
+                    const meta = Math.round((finalTotal / 2) * 100) / 100;
+                    setSplitCash(meta.toFixed(2));
+                    setSplitCard((Math.round((finalTotal - meta) * 100) / 100).toFixed(2));
+                  }}
+                    className={`mt-3 w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 border-dashed transition-all ${
+                      paymentMethod === 'misto' ? 'border-accent bg-accent/10' : 'border-accent/40 bg-accent/5 hover:bg-accent/10'}`}>
+                    <span className="flex items-center gap-1 flex-shrink-0">
+                      <span className="text-2xl">💵</span>
+                      <span className="text-sm font-bold text-accent">+</span>
+                      <span className="text-2xl">💳</span>
+                    </span>
+                    <span className="text-left">
+                      <span className="block text-sm font-semibold text-accent">Paga una parte in contanti e una con la carta</span>
+                      <span className="block text-[11px] text-text-muted">per esempio 50 in contanti e 20 con la carta</span>
+                    </span>
+                  </button>
+
                   {/* Contanti: l'operatrice batte quanto ha ricevuto e legge il resto da dare.
                       Il totale incassato resta finalTotal, il contante ricevuto non viene registrato. */}
                   {paymentMethod === 'contanti' && finalTotal > 0 && (
@@ -685,30 +709,55 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                   )}
 
                   {paymentMethod === 'misto' && (
-                    <div className="mt-4 p-4 rounded-xl bg-bg-tertiary/50 border border-border space-y-3">
-                      <p className="text-sm font-medium text-text-primary">Dividi il totale di {formatCurrency(finalTotal)}</p>
-                      <p className="text-xs text-text-muted -mt-1.5">Scrivi quanto paga in contanti: il resto finisce sulla carta da solo.</p>
-                      <div className="flex gap-4">
-                        <div className="flex-1">
-                          <label className="block text-xs text-text-secondary mb-1">Contanti</label>
+                    <div className="mt-4 p-4 rounded-xl bg-accent/5 border-2 border-accent/30 space-y-3">
+                      <p className="text-sm font-semibold text-text-primary">Come dividiamo i {formatCurrency(finalTotal)}?</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-text-secondary mb-1.5">💵 In contanti</label>
                           <div className="relative">
-                            <input type="number" step="0.01" value={splitCash} onChange={e => handleSplitCashChange(e.target.value)} placeholder="0.00" className="w-full pl-2 pr-6 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
+                            <input type="number" step="0.01" inputMode="decimal" value={splitCash} onChange={e => handleSplitCashChange(e.target.value)} placeholder="0,00"
+                              className="w-full pl-3 pr-8 py-2.5 rounded-xl bg-bg-secondary border-2 border-border text-xl font-display font-bold text-text-primary text-right focus:outline-none focus:border-accent" />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
                           </div>
                         </div>
-                        <div className="flex-1">
-                          <label className="block text-xs text-text-secondary mb-1">Carta / POS</label>
+                        <div>
+                          <label className="block text-xs font-medium text-text-secondary mb-1.5">💳 Con la carta</label>
                           <div className="relative">
-                            <input type="number" step="0.01" value={splitCard} onChange={e => handleSplitCardChange(e.target.value)} placeholder="0.00" className="w-full pl-2 pr-6 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
+                            <input type="number" step="0.01" inputMode="decimal" value={splitCard} onChange={e => handleSplitCardChange(e.target.value)} placeholder="0,00"
+                              className="w-full pl-3 pr-8 py-2.5 rounded-xl bg-bg-secondary border-2 border-border text-xl font-display font-bold text-text-primary text-right focus:outline-none focus:border-accent" />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
                           </div>
                         </div>
                       </div>
+
+                      {/* Le cifre che si sentono al bancone, pronte da toccare */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] text-text-muted">In contanti:</span>
+                        {[10, 20, 50, 100].filter(v => v < finalTotal).map(v => (
+                          <button key={v} onClick={() => handleSplitCashChange(String(v))}
+                            className="px-3 py-1.5 rounded-lg bg-bg-secondary border border-border text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent transition-colors">
+                            {v} €
+                          </button>
+                        ))}
+                        <button onClick={() => handleSplitCashChange((Math.round((finalTotal / 2) * 100) / 100).toFixed(2))}
+                          className="px-3 py-1.5 rounded-lg bg-bg-secondary border border-border text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent transition-colors">
+                          metà
+                        </button>
+                      </div>
+
                       {/* L'errore solo dopo che si e' scritto qualcosa: comparire
                           in rosso su due campi ancora vuoti fa sembrare rotto
                           quello che si e' appena aperto. */}
-                      {(splitCash !== '' || splitCard !== '') && Math.abs((Number(splitCash) + Number(splitCard)) - finalTotal) > 0.01 && (
-                        <p className="text-xs text-error font-medium">La somma deve fare {formatCurrency(finalTotal)} — adesso fa {formatCurrency(Number(splitCash) + Number(splitCard))}</p>
+                      {(splitCash !== '' || splitCard !== '') && Math.abs((Number(splitCash) + Number(splitCard)) - finalTotal) > 0.01 ? (
+                        <p className="text-xs text-error font-medium text-center">La somma deve fare {formatCurrency(finalTotal)} — adesso fa {formatCurrency(Number(splitCash) + Number(splitCard))}</p>
+                      ) : (
+                        <p className="text-center text-xs text-text-secondary pt-1 border-t border-accent/20">
+                          <strong className="text-text-primary">{formatCurrency(Number(splitCash) || 0)}</strong> in contanti
+                          {' + '}
+                          <strong className="text-text-primary">{formatCurrency(Number(splitCard) || 0)}</strong> con la carta
+                          {' = '}
+                          <strong className="text-success">{formatCurrency(finalTotal)}</strong>
+                        </p>
                       )}
                     </div>
                   )}
@@ -732,7 +781,11 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                 <div className="space-y-1 mb-4">
                   <p className="text-sm text-text-secondary">{selectedClient}</p>
                   <p className="text-xs text-text-muted">{cart.map(i => i.name).join(', ')}</p>
-                  <p className="text-xs text-text-muted">{PAYMENT_METHODS.find(m => m.id === paymentMethod)?.icon} {PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label}</p>
+                  <p className="text-xs text-text-muted">
+                    {paymentMethod === 'misto'
+                      ? `💵 ${formatCurrency(Number(splitCash) || 0)} in contanti + 💳 ${formatCurrency(Number(splitCard) || 0)} con la carta`
+                      : `${PAYMENT_METHODS.find(m => m.id === paymentMethod)?.icon || ''} ${PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label || ''}`}
+                  </p>
                 </div>
                 {/* Il resto resta a schermo anche dopo l'incasso, finché il modal è aperto */}
                 {changeDue !== null && changeDue > 0 && (

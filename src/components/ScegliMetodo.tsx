@@ -81,46 +81,83 @@ export default function ScegliMetodo({ totale, valore, onChange, dopo, compatto 
             <span className={`${t} font-medium ${valore === m ? 'text-accent' : 'text-text-primary'}`}>{m}</span>
           </button>
         ))}
+        {/*
+          Il riquadro grosso, con i due simboli e il bordo tratteggiato.
+          In mezzo a quattro riquadri tutti uguali questo spariva: chi non
+          sapeva gia' che esisteva non lo cercava nemmeno.
+        */}
         <button type="button" onClick={() => dividi(round2(totale / 2))}
-          className={`col-span-2 flex items-center gap-2 ${p} rounded-xl border-2 transition-all ${misto ? 'border-accent bg-accent/5' : 'border-border hover:border-border-light'}`}>
-          <span className={compatto ? 'text-base' : 'text-lg'}>⚖️</span>
-          <span className={`${t} font-medium ${misto ? 'text-accent' : 'text-text-primary'}`}>Contanti + Carta</span>
-          <span className="text-[10px] text-text-muted ml-auto">un po&apos; e un po&apos;</span>
+          className={`col-span-2 flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 border-dashed transition-all ${
+            misto ? 'border-accent bg-accent/10' : 'border-accent/40 bg-accent/5 hover:bg-accent/10'}`}>
+          <span className="flex items-center gap-1 flex-shrink-0">
+            <span className="text-xl">💵</span>
+            <span className="text-sm font-bold text-accent">+</span>
+            <span className="text-xl">💳</span>
+          </span>
+          <span className="text-left min-w-0">
+            <span className="block text-sm font-semibold text-accent">Paga una parte in contanti e una con la carta</span>
+            <span className="block text-[11px] text-text-muted">per esempio 50 in contanti e 20 con la carta</span>
+          </span>
         </button>
         {dopo}
       </div>
 
       {misto && (
-        <div className="mt-3 p-3 rounded-xl bg-bg-tertiary/50 border border-border space-y-2">
-          <p className="text-xs text-text-muted">
-            Dividi i {formatCurrency(totale)}: scrivi quanto paga in contanti, il resto va sulla carta da solo.
-          </p>
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-[11px] text-text-secondary mb-1">Contanti</label>
+        <div className="mt-3 p-4 rounded-xl bg-accent/5 border-2 border-accent/30 space-y-3">
+          <p className="text-sm font-semibold text-text-primary">Come dividiamo i {formatCurrency(totale)}?</p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-1.5">💵 In contanti</label>
               <div className="relative">
                 <input type="text" inputMode="decimal" value={cash} onChange={e => scriviContanti(e.target.value)}
-                  className="w-full pl-2 pr-6 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
+                  className="w-full pl-3 pr-8 py-2.5 rounded-xl bg-bg-secondary border-2 border-border text-xl font-display font-bold text-text-primary text-right focus:outline-none focus:border-accent" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
               </div>
             </div>
-            <div className="flex-1">
-              <label className="block text-[11px] text-text-secondary mb-1">Carta / POS</label>
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-1.5">💳 Con la carta</label>
               <div className="relative">
                 <input type="text" inputMode="decimal" value={card} onChange={e => scriviCarta(e.target.value)}
-                  className="w-full pl-2 pr-6 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
+                  className="w-full pl-3 pr-8 py-2.5 rounded-xl bg-bg-secondary border-2 border-border text-xl font-display font-bold text-text-primary text-right focus:outline-none focus:border-accent" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">€</span>
               </div>
             </div>
           </div>
-          {scollato && (
+
+          {/* Le cifre che si sentono davvero al bancone: "cinquanta in contanti
+              e il resto con la carta". Un tocco invece di scriverle. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-text-muted">In contanti:</span>
+            {[10, 20, 50, 100].filter(v => v < totale).map(v => (
+              <button key={v} type="button" onClick={() => dividi(v)}
+                className="px-3 py-1.5 rounded-lg bg-bg-secondary border border-border text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent transition-colors">
+                {v} €
+              </button>
+            ))}
             <button type="button" onClick={() => dividi(round2(totale / 2))}
-              className="text-[11px] text-warning font-medium hover:underline">
+              className="px-3 py-1.5 rounded-lg bg-bg-secondary border border-border text-xs font-semibold text-text-secondary hover:border-accent hover:text-accent transition-colors">
+              metà
+            </button>
+          </div>
+
+          {scollato ? (
+            <button type="button" onClick={() => dividi(round2(totale / 2))}
+              className="w-full text-center text-xs text-warning font-medium hover:underline">
               La divisione fa {formatCurrency(somma)} ma il totale è {formatCurrency(totale)} — tocca qui per rifarla
             </button>
+          ) : (
+            <p className="text-center text-xs text-text-secondary pt-1 border-t border-accent/20">
+              <strong className="text-text-primary">{formatCurrency(numero(cash))}</strong> in contanti
+              {' + '}
+              <strong className="text-text-primary">{formatCurrency(numero(card))}</strong> con la carta
+              {' = '}
+              <strong className="text-success">{formatCurrency(totale)}</strong>
+            </p>
           )}
         </div>
       )}
+
     </div>
   );
 }
