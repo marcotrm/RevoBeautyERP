@@ -3845,6 +3845,46 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     return () => { vivo = false; };
   }, [appointment.clientName]);
 
+  /*
+    Il conto unico: due appuntamenti, una persona che paga.
+
+    Il fidanzato che paga anche per lei, la mamma che paga per la figlia, le
+    due amiche che vengono insieme. In agenda restano due appuntamenti
+    distinti — sono due sedute, due operatrici, due storici — ma alla cassa
+    diventa una vendita sola: un passaggio di POS, uno scontrino.
+
+    Prima si battevano due vendite separate: due volte la carta, due
+    scontrini, e la coppia davanti al banco ad aspettare.
+  */
+  const tuttiGliAppuntamenti = useAgendaStore(s => s.appointments);
+  const [insiemeA, setInsiemeA] = useState<string[]>([]);
+  const [insiemeAperto, setInsiemeAperto] = useState(false);
+
+  const daPagare = (a: Appointment) => {
+    const righe = (a.services && a.services.length > 0)
+      ? a.services.filter(x => x.price > 0)
+      : (a.price > 0 ? [{ treatmentId: a.treatmentId, treatmentName: a.treatmentName, price: a.price }] : []);
+    return righe;
+  };
+
+  /*
+    Chi si puo' mettere sullo stesso conto: le sedute di oggi ancora aperte.
+
+    Le chiuse restano fuori di proposito — una seduta completata potrebbe
+    essere gia' stata incassata, e rimetterla su un conto vorrebbe dire farla
+    pagare due volte.
+  */
+  const candidatiInsieme = tuttiGliAppuntamenti.filter(a =>
+    a.id !== appointment.id
+    && a.date === appointment.date
+    && !['cancelled', 'no_show', 'completed'].includes(a.status)
+    && !a.paidAhead
+    && daPagare(a).length > 0
+  );
+
+  const scelti = candidatiInsieme.filter(a => insiemeA.includes(a.id));
+  const totaleInsieme = scelti.reduce((t, a) => t + daPagare(a).reduce((x, r) => x + r.price, 0), 0);
+
   const [incassata, setIncassata] = useState<boolean | null>(null);
   useEffect(() => {
     let vivo = true;
@@ -3995,18 +4035,59 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     */
     if (giaPagato) { onClose(); return; }
 
-    if (totaleDaIncassare > 0) {
+    /*
+      Il conto unico.
+
+      Le altre sedute si chiudono qui, come questa, e i loro trattamenti
+      salgono sullo stesso carrello con il nome di chi li ha fatti accanto:
+      sullo scontrino si deve capire che quei 40 euro sono di Maria, anche se
+      a pagare e' stato lui.
+    */
+    const nomeCorto = (n: string) => n.split(' ')[0] || n;
+    const righeInsieme = scelti.flatMap(a =>
+      // L'id porta dentro l'appuntamento: se lui e lei fanno lo stesso
+      // trattamento, in cassa restano due righe distinte e non una doppia.
+      daPagare(a).map(r => ({ id: `${r.treatmentId}-${a.id}`, name: `${r.treatmentName} · ${nomeCorto(a.clientName)}`, price: r.price, qty: 1 }))
+    );
+    for (const a of scelti) {
+      /*
+        Chiudo solo chi e' gia' in cabina: se la seduta dell'altra persona deve
+        ancora cominciare, i soldi si prendono adesso ma il trattamento non e'
+        stato fatto — segnarlo "completato" sarebbe una bugia in agenda. Quello
+        resta aperto, con sopra scritto che e' gia' pagato.
+      */
+      if (a.status === 'in_cabin' || a.status === 'in_progress') {
+        const chiusi = (a.services || []).map(x => (x.checkInAt && !x.checkOutAt ? { ...x, checkOutAt } : x));
+        onStatusChange(a.id, 'completed', a.services ? { checkOutAt, services: chiusi } : { checkOutAt });
+      }
+    }
+    const insieme = scelti.map(a => ({
+      id: a.id,
+      client: a.clientName,
+      importo: daPagare(a).reduce((t, r) => t + r.price, 0),
+    }));
+
+    if (totaleDaIncassare > 0 || righeInsieme.length > 0) {
       onClose();
       try {
         sessionStorage.setItem('revo_pos_autosale', JSON.stringify({
           appointmentId: appointment.id,
           client: appointment.clientName,
+          insieme,
           // Una riga per trattamento: lo sconto della seduta viaggia a parte,
           // così in cassa si vede il conto vero e sotto quanto è stato tolto.
-          servizi: trattamentiPagati.map(s => ({ id: s.treatmentId, name: s.treatmentName, price: s.price, qty: 1 })),
-          treatment: trattamentiPagati.map(s => s.treatmentName).join(' + '),
+          servizi: [
+            ...trattamentiPagati.map(s => ({
+              id: s.treatmentId,
+              // Col conto unico ogni riga porta il nome: due persone, un conto solo.
+              name: insieme.length > 0 ? `${s.treatmentName} · ${nomeCorto(appointment.clientName)}` : s.treatmentName,
+              price: s.price, qty: 1,
+            })),
+            ...righeInsieme,
+          ],
+          treatment: [...trattamentiPagati.map(s => s.treatmentName), ...righeInsieme.map(r => r.name)].join(' + '),
           treatmentId: trattamentiPagati.length > 0 ? appointment.treatmentId : '',
-          price: totaleTrattamenti,
+          price: totaleTrattamenti + righeInsieme.reduce((t, r) => t + r.price, 0),
           sconto: appointment.discountAmount || 0,
           products: prodottiInCarrello.map(s => ({ id: s.productId, name: s.treatmentName, price: s.price, qty: 1 })),
           operator: appointment.operatorName,
@@ -5014,6 +5095,63 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                     {cabin.trim() ? `Check-in in cabina ${cabin.trim()}` : 'Check-in senza cabina'}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/*
+              Il conto unico si offre qui, appena prima del check-out: e' il
+              momento in cui la coppia e' davanti al banco e uno dei due tira
+              fuori la carta. Chiesto dopo, la vendita e' gia' partita.
+            */}
+            {candidatiInsieme.length > 0 && !giaPagato && (
+              <div className={`rounded-xl border-2 border-dashed transition-all ${scelti.length > 0 ? 'border-accent/50 bg-accent/5' : 'border-border'}`}>
+                <button onClick={() => setInsiemeAperto(v => !v)}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-3 text-left">
+                  <Users className="w-4 h-4 text-accent flex-shrink-0" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-text-primary">
+                      {scelti.length === 0
+                        ? 'Paga anche per un\u2019altra persona'
+                        : `Conto unico con ${scelti.map(a => a.clientName.split(' ')[0]).join(', ')}`}
+                    </span>
+                    <span className="block text-[11px] text-text-muted">
+                      {scelti.length === 0
+                        ? 'un solo passaggio di POS e un solo scontrino'
+                        : `+ ${formatCurrency(totaleInsieme)} sul conto di ${appointment.clientName.split(' ')[0]}`}
+                    </span>
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-text-muted flex-shrink-0 transition-transform ${insiemeAperto ? 'rotate-180' : ''}`} />
+                </button>
+
+                {insiemeAperto && (
+                  <div className="px-3.5 pb-3.5 space-y-1.5">
+                    {candidatiInsieme.map(a => {
+                      const preso = insiemeA.includes(a.id);
+                      const suo = daPagare(a).reduce((t, r) => t + r.price, 0);
+                      return (
+                        <button key={a.id}
+                          onClick={() => setInsiemeA(prev => preso ? prev.filter(x => x !== a.id) : [...prev, a.id])}
+                          className={`w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-colors ${preso ? 'border-accent bg-accent/10' : 'border-border hover:bg-bg-hover'}`}>
+                          <span className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center ${preso ? 'bg-accent border-accent' : 'border-border'}`}>
+                            {preso && <Check className="w-3 h-3 text-white" />}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-medium text-text-primary truncate">{a.clientName}</span>
+                            <span className="block text-[11px] text-text-muted truncate">
+                              {a.startTime} · {daPagare(a).map(r => r.treatmentName).join(' + ')} · {a.operatorName}
+                            </span>
+                          </span>
+                          <span className="text-sm font-semibold text-text-primary flex-shrink-0">{formatCurrency(suo)}</span>
+                        </button>
+                      );
+                    })}
+                    <p className="text-[11px] text-text-muted pt-1">
+                      Le sedute restano separate in agenda: si uniscono solo alla cassa.
+                      Al check-out chiudo anche quelle già in cabina; le altre restano
+                      aperte, segnate come pagate.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

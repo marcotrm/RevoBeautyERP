@@ -15,6 +15,10 @@
  * Come si riconosce una seduta pagata:
  *  - il legame diretto `PosTransaction.appointmentId`, quando la vendita è
  *    nata dal check-out (da adesso in poi è sempre così);
+ *  - il campo `paidAhead`, per le sedute pagate da qualcun altro: l'incasso
+ *    anticipato e il conto unico (il fidanzato che paga anche per lei). Li' i
+ *    soldi ci sono ma stanno sotto un altro nome, e senza questo controllo la
+ *    seduta di lei resterebbe per sempre "chiusa e mai incassata";
  *  - per lo storico, che quel legame non ce l'ha, si ripiega sul nome della
  *    cliente nello stesso giorno: se in giornata risulta un incasso a suo nome,
  *    la seduta si considera pagata. Può sbagliare per difetto (due sedute nello
@@ -84,7 +88,7 @@ export async function seduteDaIncassare(giorni = 30): Promise<SedutaDaIncassare[
       select: {
         id: true, date: true, startTime: true, clientName: true, treatmentId: true,
         treatmentName: true, operatorName: true, price: true, checkOutAt: true, notes: true,
-        services: true, discountAmount: true,
+        services: true, discountAmount: true, paidAhead: true,
       },
       orderBy: [{ date: 'desc' }, { startTime: 'desc' }],
     }),
@@ -102,6 +106,8 @@ export async function seduteDaIncassare(giorni = 30): Promise<SedutaDaIncassare[
   return sedute
     .filter(a => {
       if (pagatiPerId.has(a.id)) return false;
+      // Pagata da un altro: incasso anticipato o conto unico alla cassa.
+      if (a.paidAhead) return false;
       if (pagatiPerGiorno.has(`${a.date}|${(a.clientName || '').trim().toLowerCase()}`)) return false;
       /*
         La seduta scalata da un pacchetto è già pagata quando il pacchetto è
@@ -131,9 +137,11 @@ export async function seduteDaIncassare(giorni = 30): Promise<SedutaDaIncassare[
 export async function sedutaIncassata(appointmentId: string): Promise<boolean> {
   const appt = await prisma.appointment.findUnique({
     where: { id: appointmentId },
-    select: { date: true, clientName: true, price: true, notes: true, services: true, discountAmount: true, treatmentId: true, treatmentName: true },
+    select: { date: true, clientName: true, price: true, notes: true, services: true, discountAmount: true, treatmentId: true, treatmentName: true, paidAhead: true },
   });
   if (!appt) return true;
+  // Pagata da un altro: incasso anticipato o conto unico alla cassa.
+  if (appt.paidAhead) return true;
   /*
     Quanto c'è davvero da incassare, riga per riga.
 

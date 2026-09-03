@@ -65,6 +65,8 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     servizi?: { id: string; name: string; price: number; qty: number }[];
     /** Lo sconto già concordato in agenda, da mostrare come sconto e non nascosto nei prezzi. */
     sconto?: number;
+    /** Conto unico: le sedute di altre persone che paga questa stessa persona. */
+    insieme?: { id: string; client: string; importo: number }[];
   } | null;
 }) {
   const treatments = useTreatmentStore(s => s.treatments);
@@ -766,6 +768,13 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                 {/* Client + Items Summary */}
                 <div className="rounded-xl bg-bg-tertiary/50 p-3 space-y-1">
                   <p className="text-xs text-text-muted">Cliente: <span className="text-text-primary font-medium">{selectedClient || 'Cliente Occasionale'}</span></p>
+                  {/* Il conto unico si dice a chiare lettere: davanti al banco
+                      ci sono due persone e una sola paga. */}
+                  {initialData?.insieme?.length ? (
+                    <p className="text-xs text-accent font-medium">
+                      Conto unico: paga anche per {initialData.insieme.map(x => x.client).join(', ')}
+                    </p>
+                  ) : null}
                   <p className="text-xs text-text-muted">Articoli: <span className="text-text-primary font-medium">{cart.map(i => i.name).join(', ') || '—'}</span></p>
                 </div>
               </div>
@@ -937,6 +946,8 @@ function POSPageInner() {
     debtPkgId?: string; cabinMinutes?: number; appointmentId?: string;
     /** Incasso anticipato: a vendita fatta l'appuntamento va segnato «già pagato». */
     pagaInAnticipo?: boolean;
+    /** Conto unico: le altre sedute pagate da questa stessa persona. */
+    insieme?: { id: string; client: string; importo: number }[];
     products?: { id: string; name: string; price: number; qty: number }[];
     servizi?: { id: string; name: string; price: number; qty: number }[];
     sconto?: number;
@@ -1060,6 +1071,7 @@ function POSPageInner() {
             cabinMinutes: d.cabinMinutes ? Number(d.cabinMinutes) : undefined,
             appointmentId: d.appointmentId || undefined,
             pagaInAnticipo: d.pagaInAnticipo === true,
+            insieme: Array.isArray(d?.insieme) && d.insieme.length > 0 ? d.insieme : undefined,
             products: prodotti,
           });
           setShowSaleModal(true);
@@ -1097,6 +1109,32 @@ function POSPageInner() {
           segnatoIl: new Date().toISOString(),
         },
       }).catch(() => alert('Incasso registrato, ma non sono riuscito a segnare l\'appuntamento come pagato: segnalo a mano dal dettaglio.'));
+    }
+
+    /*
+      Conto unico: le sedute delle altre persone sono pagate da questa riga.
+
+      Senza questo, l'appuntamento di lei resterebbe per sempre «chiuso ma non
+      incassato» — i soldi ci sono, ma stanno sotto il nome di lui. Si scrive
+      su ognuna a quale vendita appartiene, cosi' in agenda si legge chi ha
+      pagato e chi non deve pagare piu' niente.
+    */
+    if (saleInitialData?.insieme?.length) {
+      const chi = useAuthStore.getState().user;
+      const pagante = saleInitialData.client;
+      for (const altro of saleInitialData.insieme) {
+        await updateAppointmentAction(altro.id, {
+          paidAhead: {
+            txId: created.id,
+            importo: altro.importo,
+            quando: created.date || todayRomeStr,
+            da: pagante,
+            nota: `Pagato da ${pagante}, conto unico alla cassa`,
+            segnatoDa: [chi?.firstName, chi?.lastName].filter(Boolean).join(' ').trim() || undefined,
+            segnatoIl: new Date().toISOString(),
+          },
+        }).catch(() => alert(`Incasso registrato, ma la seduta di ${altro.client} non risulta segnata come pagata: segnalo a mano dal dettaglio.`));
+      }
     }
     return created;
   };
