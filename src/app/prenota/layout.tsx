@@ -13,10 +13,30 @@
  */
 
 import type { Metadata } from 'next';
-import { leggiCentro } from '@/lib/centro';
+import { leggiCentro, CENTRO, type Centro } from '@/lib/centro';
+
+/*
+  Questa pagina si costruisce quando qualcuno la apre, non quando si compila.
+
+  I dati del centro stanno nel database, e in fase di build il database non
+  esiste ancora: il primo tentativo di mandare online questa pagina e' morto
+  esattamente li', con un "can't reach database server" in mezzo alla
+  compilazione. Con `force-dynamic` la pagina si genera a richiesta, quando il
+  database c'e'.
+*/
+export const dynamic = 'force-dynamic';
+
+/** Se il database non risponde, meglio i dati di partenza che una pagina rotta. */
+async function centroSicuro(): Promise<Centro> {
+  try {
+    return await leggiCentro();
+  } catch {
+    return CENTRO;
+  }
+}
 
 export async function generateMetadata(): Promise<Metadata> {
-  const c = await leggiCentro();
+  const c = await centroSicuro();
   const titolo = `Prenota online — ${c.nome}`;
   const descrizione = `Prenota il tuo trattamento da ${c.nome}${c.indirizzo ? ` (${c.indirizzo})` : ''}: scegli trattamento, operatrice e orario. Disponibilità in tempo reale.`;
   return {
@@ -31,7 +51,7 @@ export async function generateMetadata(): Promise<Metadata> {
 const GIORNI = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 export default async function PrenotaLayout({ children }: { children: React.ReactNode }) {
-  const c = await leggiCentro();
+  const c = await centroSicuro();
 
   const apertura = Object.entries(c.orari || {})
     .filter(([, o]) => !!o)

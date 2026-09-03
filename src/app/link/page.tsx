@@ -12,14 +12,23 @@
  */
 
 import type { Metadata } from 'next';
-import { leggiCentro } from '@/lib/centro';
+import { CENTRO, leggiCentro, type Centro } from '@/lib/centro';
 import { linkMappa } from '@/app/actions/posizione';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+/** Se il database non risponde, meglio i dati di partenza che una pagina rotta. */
+async function centroSicuro(): Promise<Centro> {
+  try {
+    return await leggiCentro();
+  } catch {
+    return CENTRO;
+  }
+}
+
 export async function generateMetadata(): Promise<Metadata> {
-  const c = await leggiCentro();
+  const c = await centroSicuro();
   return {
     title: `${c.nome} — prenota online`,
     description: `Prenota il tuo trattamento da ${c.nome}${c.indirizzo ? `, ${c.indirizzo}` : ''}. Agenda sempre aggiornata, disponibilità in tempo reale.`,
@@ -47,7 +56,7 @@ async function linkRecensione(): Promise<string | null> {
 }
 
 export default async function LinkInBio() {
-  const centro = await leggiCentro();
+  const centro = await centroSicuro();
   const [mappa, recensione] = await Promise.all([linkMappa(), linkRecensione()]);
   const telefono = (centro.telefono || '').replace(/\s/g, '');
   const whatsapp = telefono ? `https://wa.me/${telefono.replace(/\D/g, '').replace(/^0+/, '39')}` : null;
