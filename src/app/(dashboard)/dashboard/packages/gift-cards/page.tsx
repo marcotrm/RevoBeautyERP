@@ -14,6 +14,7 @@ import { useTreatmentStore } from '@/stores/useTreatmentStore';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { useStaffNames } from '@/hooks/useStaffNames';
 import { avvisaDestinatario, provaBuonoRegalo } from '@/app/actions/giftcards';
+import ScegliMetodo from '@/components/ScegliMetodo';
 
 /* ========== CREATE GIFT CARD MODAL ========== */
 function CreateGiftCardModal({ onClose, onCreate }: {
@@ -36,7 +37,7 @@ function CreateGiftCardModal({ onClose, onCreate }: {
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
   const [validityMonths, setValidityMonths] = useState('12');
-  const [paymentMethod, setPaymentMethod] = useState<'Carta' | 'Contanti' | 'Satispay' | 'Bonifico'>('Carta');
+  const [paymentMethod, setPaymentMethod] = useState<GiftCard['paymentMethod']>('Carta');
   const operators = useStaffNames();
   const [operator, setOperator] = useState('');
   useEffect(() => { if (!operator && operators.length > 0) setOperator(operators[0]); }, [operators, operator]);
@@ -220,15 +221,7 @@ function CreateGiftCardModal({ onClose, onCreate }: {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-2">Metodo di Pagamento *</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {([['Carta', '💳'], ['Contanti', '💵'], ['Satispay', '📱'], ['Bonifico', '🏦']] as const).map(([method, icon]) => (
-                      <button key={method} onClick={() => setPaymentMethod(method)}
-                        className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all ${paymentMethod === method ? 'border-accent bg-accent/5' : 'border-border hover:border-border-light'}`}>
-                        <span className="text-lg">{icon}</span>
-                        <span className={`text-sm font-medium ${paymentMethod === method ? 'text-accent' : 'text-text-primary'}`}>{method}</span>
-                      </button>
-                    ))}
-                  </div>
+                  <ScegliMetodo totale={amountNum} valore={paymentMethod} onChange={m => setPaymentMethod(m as GiftCard['paymentMethod'])} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1.5">Incassato da *</label>

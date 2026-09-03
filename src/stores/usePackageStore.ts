@@ -18,7 +18,8 @@ export interface PackagePayment {
   /** Quanto è entrato davvero in cassa: per il regalo è 0. */
   amount: number;
   // 'Regalo' non è un incasso: azzera il dovuto senza far entrare soldi.
-  method: 'Carta' | 'Contanti' | 'Satispay' | 'Bonifico' | 'Regalo';
+  // Il misto porta con se' i due importi: "Misto (Contanti \u20AC50,00, Carta \u20AC20,00)".
+  method: 'Carta' | 'Contanti' | 'Satispay' | 'Bonifico' | 'Regalo' | `Misto (${string})`;
   operator: string;
   note?: string;
   /** Solo per i regali: quanto è stato condonato alla cliente. */

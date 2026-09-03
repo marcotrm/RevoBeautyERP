@@ -6,6 +6,7 @@ import { todayRome } from '@/lib/date';
 import { voidC95Receipt, resoParzialeC95Receipt, recoverC95Idtrx, getC95Config } from '@/lib/c95';
 import { emettiScontrinoElettronico } from '@/lib/scontrino';
 import { maturaDaIncasso } from '@/lib/fedelta';
+import { quoteMetodo } from '@/lib/pagamenti';
 
 export interface ProductLine { productId: string; qty: number }
 
@@ -87,31 +88,6 @@ export interface IncomeSummary {
   vendite: number;
 }
 
-/**
- * Divide una transazione fra contante e POS.
- *
- * Il pagamento misto è salvato come "Misto (Contanti €30, Carta €20)": qui si
- * rileggono i due importi, altrimenti l'intera vendita finirebbe da una parte
- * sola e la chiusura di cassa non tornerebbe.
- */
-function splitByMethod(method: string, total: number): { contanti: number; carta: number; altro: number } {
-  const m = String(method || '');
-  if (/misto/i.test(m)) {
-    const numeri = [...m.matchAll(/€\s*([\d.,]+)/g)].map(x => Number(x[1].replace(/\./g, '').replace(',', '.')) || 0);
-    const [contanti = 0, carta = 0] = numeri;
-    const somma = contanti + carta;
-    // Se il testo non si legge (formati vecchi) si tiene tutto sul contante,
-    // come faceva già la chiusura di cassa.
-    if (somma <= 0) return { contanti: total, carta: 0, altro: 0 };
-    // Riproporziona sui centesimi realmente incassati (resi compresi)
-    const k = total / somma;
-    return { contanti: contanti * k, carta: carta * k, altro: 0 };
-  }
-  if (/contant|cash/i.test(m)) return { contanti: total, carta: 0, altro: 0 };
-  if (/carta|pos|bancomat|credit/i.test(m)) return { contanti: 0, carta: total, altro: 0 };
-  return { contanti: 0, carta: 0, altro: total };
-}
-
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Incassi giorno per giorno nel periodo scelto, divisi fra contanti, POS e altro. */
@@ -124,7 +100,7 @@ export async function getIncomeSummary(from: string, to: string): Promise<Income
 
   const perDay = new Map<string, DayIncome>();
   for (const t of txs) {
-    const q = splitByMethod(t.paymentMethod, t.total);
+    const q = quoteMetodo(t.paymentMethod, t.total);
     const d = perDay.get(t.date) ?? { date: t.date, contanti: 0, carta: 0, altro: 0, totale: 0, vendite: 0 };
     d.contanti += q.contanti;
     d.carta += q.carta;

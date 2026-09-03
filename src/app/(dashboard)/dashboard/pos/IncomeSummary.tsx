@@ -15,6 +15,7 @@ import { Banknote, CreditCard, ChevronLeft, ChevronRight, Loader2, Wallet, Smart
 import { getIncomeSummary, getTransactionsByDate, type IncomeSummary as Summary, type TransactionRecord } from '@/app/actions/pos';
 import { formatCurrency } from '@/lib/helpers';
 import { todayRome } from '@/lib/date';
+import { quoteMetodo } from '@/lib/pagamenti';
 
 type Mode = 'day' | 'week' | 'month' | 'range';
 
@@ -257,16 +258,12 @@ function DayDetail({ date, txs, onClose }: { date: string; txs: TransactionRecor
 
   // Totali ricalcolati sulle righe mostrate, così quello che si legge torna con l'elenco
   const tot = (txs ?? []).reduce((acc, t) => {
-    const m = String(t.method || '');
-    if (/misto/i.test(m)) {
-      const n = [...m.matchAll(/€\s*([\d.,]+)/g)].map(x => Number(x[1].replace(/\./g, '').replace(',', '.')) || 0);
-      const [c = 0, k = 0] = n;
-      const somma = c + k;
-      if (somma > 0) { acc.contanti += (c / somma) * t.total; acc.carta += (k / somma) * t.total; }
-      else acc.contanti += t.total;
-    } else if (/contant|cash/i.test(m)) acc.contanti += t.total;
-    else if (/carta|pos|bancomat/i.test(m)) acc.carta += t.total;
-    else acc.altro += t.total;
+    // Il misto si divide fra le due colonne: la lettura sta in un posto solo,
+    // cosi' cassa, scontrini e report non raccontano numeri diversi.
+    const q = quoteMetodo(String(t.method || ''), t.total);
+    acc.contanti += q.contanti;
+    acc.carta += q.carta;
+    acc.altro += q.altro;
     acc.totale += t.total;
     return acc;
   }, { contanti: 0, carta: 0, altro: 0, totale: 0 });

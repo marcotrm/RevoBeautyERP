@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { todayRome } from '@/lib/date';
 import { CATEGORY_LABELS } from '@/lib/cashCategories';
+import { eMisto, parteInContanti } from '@/lib/pagamenti';
 
 // ============================================================
 // CASSA CONTANTI (il cassetto)
@@ -66,9 +67,17 @@ export async function getCashRegister(limit = 300): Promise<CashRegisterState> {
 
   const today = todayRome();
 
-  // --- Vendite in contanti (entrano nel cassetto). I rimborsi in contanti escono. ---
-  const cashTxs = txs.filter(t => /contant|cash|misto/i.test(t.paymentMethod || ''));
-  const cashFromSales = cashTxs.reduce((s, t) => s + t.total, 0);
+  /*
+    Vendite in contanti (entrano nel cassetto). I rimborsi in contanti escono.
+
+    Del pagamento misto entra solo la parte in contanti: se una cliente paga
+    50 in contanti e 20 con la carta, nel cassetto ci sono 50. Prima ci
+    finivano tutti e 70 e la conta della sera non tornava.
+  */
+  const cashTxs = txs
+    .map(t => ({ t, cash: parteInContanti(t.paymentMethod || '', t.total) }))
+    .filter(x => x.cash !== 0);
+  const cashFromSales = cashTxs.reduce((s, x) => s + x.cash, 0);
 
   // --- Movimenti manuali (gli annullati NON contano nel saldo, ma restano in cronologia) ---
   const liveManual = manual.filter(m => !m.deletedAt);
@@ -86,15 +95,20 @@ export async function getCashRegister(limit = 300): Promise<CashRegisterState> {
   // --- Cronologia unificata ---
   const ledger: CashLedgerRow[] = [];
 
-  for (const t of cashTxs) {
+  for (const { t, cash } of cashTxs) {
+    const misto = eMisto(t.paymentMethod);
     ledger.push({
       id: `tx-${t.id}`,
       when: `${t.date}T${t.time || '00:00'}:00`,
       date: t.date,
-      label: t.total >= 0 ? 'Vendita in contanti' : 'Rimborso in contanti',
-      detail: [t.clientName || 'Cliente occasionale', t.operator].filter(Boolean).join(' · '),
+      label: cash >= 0 ? 'Vendita in contanti' : 'Rimborso in contanti',
+      detail: [
+        t.clientName || 'Cliente occasionale',
+        t.operator,
+        misto ? `parte in contanti di ${round2(Math.abs(t.total)).toFixed(2).replace('.', ',')} €` : '',
+      ].filter(Boolean).join(' · '),
       operator: t.operator || '',
-      amount: round2(t.total),
+      amount: round2(cash),
       source: 'vendita',
       category: 'incasso',
       canDelete: false,
@@ -167,7 +181,7 @@ export async function getCashRegister(limit = 300): Promise<CashRegisterState> {
 
   return {
     balance,
-    todayIncome: round2(cashTxs.filter(t => t.date === today).reduce((s, t) => s + t.total, 0)),
+    todayIncome: round2(cashTxs.filter(x => x.t.date === today).reduce((s, x) => s + x.cash, 0)),
     todayIn: round2(manual.filter(m => m.kind === 'in' && m.date === today).reduce((s, m) => s + m.amount, 0)),
     todayOut: round2(manual.filter(m => m.kind === 'out' && m.date === today).reduce((s, m) => s + m.amount, 0)),
     todayToSafe: round2(safeMoves.filter(m => m.type === 'deposit' && m.date === today).reduce((s, m) => s + m.cash, 0)),

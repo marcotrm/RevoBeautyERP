@@ -29,6 +29,7 @@ import { usePriceListStore } from '@/stores/usePriceListStore';
 import { useProductStore } from '@/stores/useProductStore';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { nomiDoppi, chiaveNome as chiaveOmonimi } from '@/lib/omonimi';
+import { descriviMisto } from '@/lib/pagamenti';
 
 interface CartItem {
   id: string;
@@ -354,7 +355,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     setSaving(true);
     const now = new Date();
     const finalMethod = paymentMethod === 'misto'
-      ? `Misto (Contanti: €${splitCash}, Carta: €${splitCard})`
+      ? descriviMisto(Number(splitCash) || 0, Number(splitCard) || 0)
       : PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label || 'Carta';
 
     const saved = await onComplete({
@@ -428,7 +429,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const handlePrintReceipt = (tx?: TransactionRecord | null) => {
     const doc = tx !== undefined ? tx : savedTx;
     const finalMethod = paymentMethod === 'misto'
-      ? `Misto (Contanti €${splitCash}, Carta €${splitCard})`
+      ? descriviMisto(Number(splitCash) || 0, Number(splitCard) || 0)
       : PAYMENT_METHODS.find(m => m.id === paymentMethod)?.label || 'Carta';
     printThermalReceipt({
       lines: cart.map(i => ({ name: i.name, qty: i.qty, price: i.price * i.qty })),

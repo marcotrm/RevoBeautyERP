@@ -7,6 +7,7 @@ import { getScontrini, annullaScontrino, riemettiScontrino, ScontrinoRecord, Sco
 import { printThermalReceipt, primeVatRate } from '@/lib/printReceipt';
 import { formatCurrency } from '@/lib/helpers';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
+import { quoteMetodo } from '@/lib/pagamenti';
 
 function todayISO(): string {
   const d = new Date();
@@ -97,16 +98,12 @@ export default function ScontriniPage() {
     else if (r.c95Emitted && r.c95Status !== 'voided') acc.conScontrino += r.total;
     else if (r.c95Status !== 'voided') acc.senzaScontrino += r.total;
 
-    const m = String(r.method || '');
-    if (/misto/i.test(m)) {
-      const n = [...m.matchAll(/€\s*([\d.,]+)/g)].map(x => Number(x[1].replace(/\./g, '').replace(',', '.')) || 0);
-      const [c = 0, k = 0] = n;
-      const somma = c + k;
-      if (somma > 0) { acc.contanti += (c / somma) * r.total; acc.carta += (k / somma) * r.total; }
-      else acc.contanti += r.total;
-    } else if (/contant|cash/i.test(m)) acc.contanti += r.total;
-    else if (/carta|pos|bancomat/i.test(m)) acc.carta += r.total;
-    else acc.altro += r.total;
+    // Il misto si divide fra le due colonne: la lettura sta in un posto solo,
+    // cosi' cassa, scontrini e report non raccontano numeri diversi.
+    const q = quoteMetodo(String(r.method || ''), r.total);
+    acc.contanti += q.contanti;
+    acc.carta += q.carta;
+    acc.altro += q.altro;
     return acc;
   }, { totale: 0, conScontrino: 0, senzaScontrino: 0, resi: 0, contanti: 0, carta: 0, altro: 0 });
 

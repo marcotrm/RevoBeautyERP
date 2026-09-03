@@ -24,7 +24,7 @@ export interface GiftCard {
   remainingBalance: number; // saldo rimanente
   purchaseDate: string;
   expiryDate: string;
-  paymentMethod: 'Carta' | 'Contanti' | 'Satispay' | 'Bonifico';
+  paymentMethod: 'Carta' | 'Contanti' | 'Satispay' | 'Bonifico' | `Misto (${string})`;
   purchaseOperator: string;
   status: 'active' | 'used' | 'expired' | 'partial';
   message?: string; // messaggio personalizzato

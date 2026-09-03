@@ -7,6 +7,7 @@ import { sendBuonoRegalo } from '@/lib/wa-buoni';
 import { sendWhatsAppTemplate, normalizePhone } from '@/lib/whatsapp';
 import { sanitizeParam, WA_TEMPLATES } from '@/lib/wa-templates';
 import type { GiftCard, GiftCardTransaction } from '@/stores/useGiftCardStore';
+import { eMisto } from '@/lib/pagamenti';
 
 function toGiftCard(gc: {
   id: string; code: string; purchasedBy: string; recipientName: string; recipientPhone: string | null;
@@ -100,7 +101,10 @@ async function registraVenditaInCassa(gc: {
   // I metodi si scrivono come in cassa ("Contanti", "Carta"): la chiusura di
   // giornata li riconosce da lì, e un "contanti" minuscolo finirebbe fra gli
   // "altri metodi" senza entrare nel versamento in cassaforte.
-  const metodo = gc.paymentMethod.charAt(0).toUpperCase() + gc.paymentMethod.slice(1).toLowerCase();
+  // Il misto porta gli importi scritti dentro: si lascia esattamente com'e'.
+  const metodo = eMisto(gc.paymentMethod)
+    ? gc.paymentMethod
+    : gc.paymentMethod.charAt(0).toUpperCase() + gc.paymentMethod.slice(1).toLowerCase();
 
   const riga = await prisma.posTransaction.create({
     data: {

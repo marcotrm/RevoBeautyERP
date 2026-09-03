@@ -21,6 +21,8 @@ import { useStaffNames } from '@/hooks/useStaffNames';
 import { useProductStore } from '@/stores/useProductStore';
 import { sellProductsWithPackage } from '@/app/actions/products';
 import type { Product } from '@/types';
+import ScegliMetodo from '@/components/ScegliMetodo';
+import { eMisto } from '@/lib/pagamenti';
 
 /** Sconto sui prodotti abbinati al pacchetto (0 = nessuno sconto). */
 const PRODUCT_DISCOUNT = 0;
@@ -154,7 +156,7 @@ function HistoryModal({ cp, onClose, onAddPayment }: { cp: ClientPackage; onClos
                     const regalo = p.method === 'Regalo';
                     return (
                       <div key={p.id || i} className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${regalo ? 'bg-accent/5 border-accent/20' : 'bg-success/5 border-success/10'}`}>
-                        <span className="text-sm">{regalo ? '🎁' : p.method === 'Carta' ? '💳' : p.method === 'Contanti' ? '💵' : p.method === 'Satispay' ? '📱' : '🏦'}</span>
+                        <span className="text-sm">{regalo ? '🎁' : p.method === 'Carta' ? '💳' : p.method === 'Contanti' ? '💵' : p.method === 'Satispay' ? '📱' : eMisto(p.method) ? '⚖️' : '🏦'}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-text-primary">
                             {regalo ? `Regalo${p.giftedAmount ? ` • ${formatCurrency(p.giftedAmount)} non incassati` : ''}` : `${formatCurrency(p.amount)} • ${p.method}`}
@@ -209,7 +211,7 @@ function HistoryModal({ cp, onClose, onAddPayment }: { cp: ClientPackage; onClos
 /* ========== ACTIVATE PACKAGE MODAL ========== */
 function ActivatePackageModal({ pkg, onClose, onActivate }: {
   pkg: PackageItem; onClose: () => void;
-  onActivate: (clientName: string, validityMonths: number, firstPayment: number, method: 'Carta' | 'Contanti' | 'Satispay' | 'Bonifico', operator: string, plan: 'full' | 'installments', products: ProductLine[]) => void;
+  onActivate: (clientName: string, validityMonths: number, firstPayment: number, method: PackagePayment['method'], operator: string, plan: 'full' | 'installments', products: ProductLine[]) => void;
 }) {
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState('');
@@ -218,7 +220,7 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
   const [step, setStep] = useState<'client' | 'payment' | 'done'>('client');
   const [paymentPlan, setPaymentPlan] = useState<'full' | 'installments'>('full');
   const [firstPayment, setFirstPayment] = useState(String(pkg.price));
-  const [paymentMethod, setPaymentMethod] = useState<'Carta' | 'Contanti' | 'Satispay' | 'Bonifico'>('Carta');
+  const [paymentMethod, setPaymentMethod] = useState<PackagePayment['method']>('Carta');
   const operators = useStaffNames();
   const [operator, setOperator] = useState('');
   useEffect(() => { if (!operator && operators.length > 0) setOperator(operators[0]); }, [operators, operator]);
@@ -386,15 +388,8 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-2">Metodo di Pagamento *</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {([['Carta', '💳'], ['Contanti', '💵'], ['Satispay', '📱'], ['Bonifico', '🏦']] as const).map(([method, icon]) => (
-                      <button key={method} onClick={() => setPaymentMethod(method)}
-                        className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all ${paymentMethod === method ? 'border-accent bg-accent/5' : 'border-border hover:border-border-light'}`}>
-                        <span className="text-lg">{icon}</span>
-                        <span className={`text-sm font-medium ${paymentMethod === method ? 'text-accent' : 'text-text-primary'}`}>{method}</span>
-                      </button>
-                    ))}
-                  </div>
+                  <ScegliMetodo totale={payAmount + productsTotal} valore={paymentMethod}
+                    onChange={m => setPaymentMethod(m as PackagePayment['method'])} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1.5">Incassato da *</label>
@@ -687,22 +682,17 @@ function AddPaymentInner({ cp, onClose, onPay }: {
         </div>
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-2">Metodo di Pagamento</label>
-          <div className="grid grid-cols-2 gap-2">
-            {([['Carta', '💳'], ['Contanti', '💵'], ['Satispay', '📱'], ['Bonifico', '🏦']] as const).map(([m, icon]) => (
-              <button key={m} onClick={() => setMethod(m)}
-                className={`flex items-center gap-2 p-2.5 rounded-xl border-2 transition-all ${method === m ? 'border-accent bg-accent/5' : 'border-border hover:border-border-light'}`}>
-                <span className="text-base">{icon}</span>
-                <span className={`text-xs font-medium ${method === m ? 'text-accent' : 'text-text-primary'}`}>{m}</span>
+          <ScegliMetodo totale={payAmount} valore={method} compatto
+            onChange={m => setMethod(m as PackagePayment['method'])}
+            dopo={
+              /* Regalo: chiude il dovuto senza incassare nulla */
+              <button type="button" onClick={() => setMethod('Regalo')}
+                className={`col-span-2 flex items-center gap-2 p-2.5 rounded-xl border-2 transition-all ${isGift ? 'border-accent bg-accent/5' : 'border-border hover:border-border-light'}`}>
+                <span className="text-base">🎁</span>
+                <span className={`text-xs font-medium ${isGift ? 'text-accent' : 'text-text-primary'}`}>Regalo</span>
+                <span className="text-[10px] text-text-muted ml-auto">non entra in cassa</span>
               </button>
-            ))}
-            {/* Regalo: chiude il dovuto senza incassare nulla */}
-            <button onClick={() => setMethod('Regalo')}
-              className={`col-span-2 flex items-center gap-2 p-2.5 rounded-xl border-2 transition-all ${isGift ? 'border-accent bg-accent/5' : 'border-border hover:border-border-light'}`}>
-              <span className="text-base">🎁</span>
-              <span className={`text-xs font-medium ${isGift ? 'text-accent' : 'text-text-primary'}`}>Regalo</span>
-              <span className="text-[10px] text-text-muted ml-auto">non entra in cassa</span>
-            </button>
-          </div>
+            } />
           {isGift && (
             <p className="text-[10px] text-text-muted mt-2 leading-relaxed">
               La cliente non deve più nulla, ma nessun soldo entra in cassa: l&apos;importo resta fuori
@@ -942,7 +932,7 @@ export default function PackagesPage() {
     return list;
   }, [clientPkgs, filter, search]);
 
-  const handleActivate = async (pkg: PackageItem, clientName: string, validityMonths: number, firstPayment: number, method: 'Carta' | 'Contanti' | 'Satispay' | 'Bonifico', operator: string, plan: 'full' | 'installments', products: ProductLine[] = []) => {
+  const handleActivate = async (pkg: PackageItem, clientName: string, validityMonths: number, firstPayment: number, method: PackagePayment['method'], operator: string, plan: 'full' | 'installments', products: ProductLine[] = []) => {
     await activatePackage(pkg, clientName, validityMonths, firstPayment, method, operator, plan);
     // I prodotti abbinati sono una vendita a parte, con lo sconto pacchetto già applicato
     if (products.length > 0) {
