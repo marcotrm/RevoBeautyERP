@@ -152,7 +152,16 @@ export interface Operator {
   isActive: boolean;
   phone?: string;
   email?: string;
-  commission: number; // percentage
+  /** Percentuale sui trattamenti che esegue lei. */
+  commission: number;
+  /** Percentuale sui prodotti che vende. */
+  commissionProdotti?: number;
+  /** Da quanto fatturato in su scatta la percentuale maggiorata (0 = mai). */
+  commissionSoglia?: number;
+  /** La percentuale oltre la soglia. */
+  commissionOltre?: number;
+  /** Il fisso mensile lordo, se ce l'ha. */
+  compensoFisso?: number;
   hireDate: string;
   isResource?: boolean; // true = cabina/macchinario prenotabile senza operatrice
   monthlyCost?: number; // costo mensile lordo azienda (per il costo orario)

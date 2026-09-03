@@ -21,6 +21,7 @@ import {
 import { mondayISO } from '@/lib/weekSchedule';
 import { mettiInServizio, type AppuntamentoInSospeso } from '@/app/actions/operators';
 import { maiuscoleNome } from '@/lib/nomiPropri';
+import Compensi from './Compensi';
 
 const SPECIALIZATIONS: { value: TreatmentCategory; label: string }[] = [
   { value: 'facial', label: 'Viso' }, { value: 'body', label: 'Corpo' },
@@ -1023,7 +1024,7 @@ export default function StaffPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [detailOpId, setDetailOpId] = useState<string | null>(null);
   const { operators: staffList, addOperator, updateOperator, deleteOperator, fetchOperators } = useOperatorStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'shifts'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'shifts' | 'compensi'>('overview');
   const { punches } = useTimeClockStore();
   /** Chi si sta mettendo fuori servizio, e gli appuntamenti che glielo impediscono. */
   const [uscita, setUscita] = useState<{ op: Operator; inSospeso?: AppuntamentoInSospeso[] } | null>(null);
@@ -1091,7 +1092,7 @@ export default function StaffPage() {
         <div><h2 className="text-xl font-display font-bold text-text-primary">Gestione Staff</h2><p className="text-sm text-text-secondary">Operatrici, turni, commissioni e performance</p></div>
         <div className="flex items-center gap-2">
           <div className="flex rounded-xl border border-border overflow-hidden">
-            {([['overview','Panoramica'],['shifts','Turni']] as const).map(([val, label]) => (
+            {([['overview','Panoramica'],['shifts','Turni'],['compensi','Compensi']] as const).map(([val, label]) => (
               <button key={val} onClick={() => setActiveTab(val)} className={`px-4 py-2 text-xs font-medium transition-colors ${activeTab === val ? 'bg-accent text-white' : 'bg-bg-secondary text-text-secondary hover:bg-bg-hover'}`}>{label}</button>
             ))}
           </div>
@@ -1290,6 +1291,8 @@ export default function StaffPage() {
       {activeTab === 'shifts' && (
         <WeeklyShiftPlanner operators={people} />
       )}
+
+      {activeTab === 'compensi' && <Compensi />}
 
       <AnimatePresence>
         {showAddModal && (

@@ -144,7 +144,17 @@ model Operator {
   isActive        Boolean  @default(true)
   phone           String?
   email           String?
+  /// Percentuale sui trattamenti che esegue lei.
   commission      Float    @default(0)
+  /// Percentuale sui prodotti che vende: di solito piu' alta dei trattamenti,
+  /// perche' il prodotto lo si vende solo se lo si propone.
+  commissionProdotti Float @default(0)
+  /// Da quanto fatturato in su scatta la percentuale piu' alta (0 = mai).
+  commissionSoglia   Float @default(0)
+  /// La percentuale oltre la soglia: il premio di chi tira il mese.
+  commissionOltre    Float @default(0)
+  /// Il fisso mensile che prende comunque, al lordo (0 = solo provvigione).
+  compensoFisso      Float @default(0)
   hireDate        String
   isResource      Boolean  @default(false) // true = cabina/macchinario prenotabile senza operatrice
   monthlyCost     Float    @default(0) // costo mensile lordo azienda (per calcolare il costo orario)
@@ -314,6 +324,10 @@ model Appointment {
   /// li ha presi), così al check-out non si incassa una seconda volta e chi è
   /// al banco quel giorno lo sa senza aver parlato con nessuno.
   paidAhead         Json?
+  /// La caparra: quanto e' stato chiesto, se e' arrivata e che fine ha fatto.
+  /// { richiesta, stato: attesa|pagata|trattenuta|restituita|usata, metodo,
+  ///   link, chiestaIl, pagataIl, scadenza, txId, nota }
+  caparra           Json?
   color             String
   createdAt         String
   updatedAt         String
