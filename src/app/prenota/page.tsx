@@ -142,6 +142,13 @@ export default function PrenotaPage() {
     }
   };
 
+  /*
+    La caparra, quando il centro la chiede a questa cliente. Si dice qui, sulla
+    schermata di conferma: scoprirlo solo dal messaggio su WhatsApp fa
+    sembrare che il posto fosse preso e poi non lo fosse piu'.
+  */
+  const [caparra, setCaparra] = useState<{ importo: number; link: string | null; scadenza: string | null } | null>(null);
+
   const conferma = async () => {
     if (!slotScelto) return;
     setInvio(true); setErrore(null);
@@ -157,6 +164,7 @@ export default function PrenotaPage() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || 'Prenotazione non riuscita');
+      setCaparra(d.caparra || null);
       setFatto(d.appointment);
     } catch (e) {
       setErrore(e instanceof Error ? e.message : 'Errore. Riprova.');
@@ -170,9 +178,13 @@ export default function PrenotaPage() {
     return (
       <main style={s.page}>
         <div style={s.card}>
-          <div style={s.check}>✓</div>
-          <h1 style={s.doneTitle}>Prenotazione confermata!</h1>
-          <p style={s.doneSub}>Ti aspettiamo da RevoBeauty.</p>
+          <div style={s.check}>{caparra ? '⏳' : '✓'}</div>
+          <h1 style={s.doneTitle}>{caparra ? 'Ci siamo quasi!' : 'Prenotazione confermata!'}</h1>
+          <p style={s.doneSub}>
+            {caparra
+              ? `Per tenerti il posto serve una caparra di ${eur(caparra.importo)}.`
+              : 'Ti aspettiamo da RevoBeauty.'}
+          </p>
           <div style={s.riepilogo}>
             <div style={s.riga}><span>Quando</span><b style={{ textTransform: 'capitalize' }}>{dataLunga(fatto.date)} · {fatto.startTime}</b></div>
             {fatto.servizi.map((sv, i) => (
@@ -182,7 +194,22 @@ export default function PrenotaPage() {
               <span>Totale</span><b>{eur(fatto.price)}</b>
             </div>
           </div>
-          <p style={s.nota}>Riceverai la conferma su WhatsApp. Se devi spostare, rispondi a quel messaggio.</p>
+          {caparra ? (
+            <>
+              {caparra.link && (
+                <a href={caparra.link} target="_blank" rel="noopener noreferrer"
+                  style={{ ...s.cta, display: 'block', textAlign: 'center', textDecoration: 'none', marginTop: 4 }}>
+                  Paga la caparra di {eur(caparra.importo)}
+                </a>
+              )}
+              <p style={s.nota}>
+                La caparra si scala dal conto il giorno del trattamento. Ti abbiamo mandato il link anche su
+                WhatsApp{caparra.scadenza ? `: se non arriva entro ${new Date(caparra.scadenza).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })} l’orario torna libero` : ''}.
+              </p>
+            </>
+          ) : (
+            <p style={s.nota}>Riceverai la conferma su WhatsApp. Se devi spostare, rispondi a quel messaggio.</p>
+          )}
         </div>
       </main>
     );

@@ -63,6 +63,8 @@ import AvvisoCliente from '@/components/AvvisoCliente';
 import { nomiDoppi, omonimiDi, chiaveNome as chiaveOmonimi } from '@/lib/omonimi';
 import BuonoCompleannoBadge from '@/components/BuonoCompleanno';
 import CampoData from '@/components/ui/CampoData';
+import { mandaRichiestaCaparra, restituisciCaparra, segnaCaparraPagata, trattieniCaparra } from '@/app/actions/caparra';
+import { descriviStato, type Caparra } from '@/lib/caparra';
 
 /** Mostra in chiaro il rifiuto del server (es. cliente doppione). */
 function avvisaErroreCliente(e: unknown) {
@@ -3885,6 +3887,25 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
   const scelti = candidatiInsieme.filter(a => insiemeA.includes(a.id));
   const totaleInsieme = scelti.reduce((t, a) => t + daPagare(a).reduce((x, r) => x + r.price, 0), 0);
 
+  /*
+    La caparra su questa seduta. Chi sta al banco deve poter fare tre cose
+    senza uscire da qui: rimandare il link, segnare che i soldi sono
+    arrivati, e — quando la cliente non si presenta — decidere se trattenerla.
+  */
+  const caparra = (appointment as unknown as { caparra?: Caparra | null }).caparra || null;
+  const [caparraOccupata, setCaparraOccupata] = useState(false);
+  const [caparraMsg, setCaparraMsg] = useState('');
+
+  const azioneCaparra = async (fn: () => Promise<{ ok: boolean; error?: string }>, riuscito: string) => {
+    setCaparraOccupata(true);
+    setCaparraMsg('');
+    try {
+      const r = await fn();
+      setCaparraMsg(r.ok ? riuscito : (r.error || 'Non ha funzionato'));
+      if (r.ok) await useAgendaStore.getState().fetchAppointments();
+    } finally { setCaparraOccupata(false); }
+  };
+
   const [incassata, setIncassata] = useState<boolean | null>(null);
   useEffect(() => {
     let vivo = true;
@@ -4074,6 +4095,8 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
           appointmentId: appointment.id,
           client: appointment.clientName,
           insieme,
+          // La caparra gia' incassata si scala dal conto: qui si paga il resto.
+          caparra: caparra && caparra.stato === 'pagata' ? caparra.richiesta : 0,
           // Una riga per trattamento: lo sconto della seduta viaggia a parte,
           // così in cassa si vede il conto vero e sotto quanto è stato tolto.
           servizi: [
@@ -5095,6 +5118,61 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                     {cabin.trim() ? `Check-in in cabina ${cabin.trim()}` : 'Check-in senza cabina'}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {caparra && (
+              <div className={`rounded-xl border p-3.5 space-y-2 ${
+                caparra.stato === 'pagata' ? 'border-success/30 bg-success/5'
+                  : caparra.stato === 'attesa' ? 'border-warning/30 bg-warning/5'
+                    : 'border-border bg-bg-tertiary/40'}`}>
+                <div className="flex items-center gap-2">
+                  <Euro className={`w-4 h-4 flex-shrink-0 ${caparra.stato === 'pagata' ? 'text-success' : caparra.stato === 'attesa' ? 'text-warning' : 'text-text-muted'}`} />
+                  <p className="text-sm font-semibold text-text-primary">{descriviStato(caparra).testo}</p>
+                </div>
+                {caparra.stato === 'attesa' && (
+                  <>
+                    <p className="text-[11px] text-text-muted">
+                      Il posto è tenuto solo quando arriva.
+                      {caparra.scadenza ? ` Scade il ${new Date(caparra.scadenza).toLocaleString('it-IT', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}.` : ''}
+                    </p>
+                    <div className="flex gap-2">
+                      <button disabled={caparraOccupata}
+                        onClick={() => azioneCaparra(() => mandaRichiestaCaparra(appointment.id), 'Link mandato su WhatsApp')}
+                        className="flex-1 py-2 rounded-lg border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover disabled:opacity-50">
+                        Rimanda il link
+                      </button>
+                      <button disabled={caparraOccupata}
+                        onClick={() => azioneCaparra(async () => {
+                          const io = useAuthStore.getState().user;
+                          return segnaCaparraPagata(appointment.id, { chi: [io?.firstName, io?.lastName].filter(Boolean).join(' ') });
+                        }, 'Segnata come pagata')}
+                        className="flex-1 py-2 rounded-lg bg-success/15 text-success text-xs font-semibold hover:bg-success/25 disabled:opacity-50">
+                        È arrivata
+                      </button>
+                    </div>
+                  </>
+                )}
+                {caparra.stato === 'pagata' && (
+                  <>
+                    <p className="text-[11px] text-text-muted">
+                      Al check-out si scala dal conto. Se non si presenta puoi trattenerla: diventa un incasso vero.
+                    </p>
+                    <div className="flex gap-2">
+                      <button disabled={caparraOccupata}
+                        onClick={() => azioneCaparra(() => trattieniCaparra(appointment.id), 'Trattenuta: resta al centro')}
+                        className="flex-1 py-2 rounded-lg border border-error/30 text-error text-xs font-medium hover:bg-error/10 disabled:opacity-50">
+                        Trattieni (non si è presentata)
+                      </button>
+                      <button disabled={caparraOccupata}
+                        onClick={() => azioneCaparra(() => restituisciCaparra(appointment.id), 'Segnata come restituita')}
+                        className="flex-1 py-2 rounded-lg border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover disabled:opacity-50">
+                        Restituita
+                      </button>
+                    </div>
+                  </>
+                )}
+                {caparraMsg && <p className="text-[11px] text-text-secondary">{caparraMsg}</p>}
               </div>
             )}
 

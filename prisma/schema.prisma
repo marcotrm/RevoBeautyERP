@@ -696,6 +696,40 @@ model OperatorWeekSchedule {
 }
 
 // ============================================================
+// ABBONAMENTI (rinnovo mensile)
+// Il pacchetto a sedute finisce; l'abbonamento no: si rinnova ogni mese
+// finche' qualcuno lo ferma. E' l'unica voce che rende prevedibile il
+// fatturato, perche' a inizio mese si sa gia' quanto entrera'.
+// ============================================================
+model Subscription {
+  id            String   @id @default(cuid())
+  clientId      String?
+  clientName    String
+  nome          String
+  prezzoMensile Float
+  /// Quante sedute al mese sono comprese. 0 = illimitate.
+  seduteAlMese  Int      @default(0)
+  /// Quante ne ha gia' fatte in questo mese di abbonamento.
+  seduteUsate   Int      @default(0)
+  /// Cosa comprende: categorie e/o trattamenti precisi.
+  categorie     String[] @default([])
+  trattamenti   String[] @default([])
+  inizio        String
+  /// Il giorno del prossimo pagamento: e' la data che conta.
+  prossimoRinnovo String
+  stato         String   @default("attivo") // attivo | sospeso | chiuso
+  /// Lo storico dei rinnovi incassati: [{data, importo, metodo, txId, operatore}]
+  incassi       Json     @default("[]")
+  note          String?
+  createdAt     String
+  updatedAt     String
+
+  @@index([clientId])
+  @@index([prossimoRinnovo])
+  @@map("subscriptions")
+}
+
+// ============================================================
 // AFFILIAZIONE TRAMITE QR CODE
 // Ogni attività partner (bar, palestra, parrucchiere...) ha uno o più QR
 // personali: chi li scansiona atterra su una pagina Revobeauty brandizzata,

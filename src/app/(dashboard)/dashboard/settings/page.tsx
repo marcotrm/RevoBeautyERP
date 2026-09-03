@@ -25,6 +25,8 @@ import AutoclaveSection from './AutoclaveSection';
 import ImmondiziaSection from './ImmondiziaSection';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { roleHasPermission } from '@/lib/permissions';
+import { CaparraConfig } from './CaparraConfig';
+import { CanaliConfig } from './CanaliConfig';
 
 const settingSections = [
   { id: 'general', label: 'Centro', icon: Building2, description: 'Nome, indirizzo, contatti' },
@@ -789,6 +791,8 @@ export default function SettingsPage() {
                 <span className="text-xs text-accent font-medium">Vai →</span>
               </a>
               <C95Config />
+              <CaparraConfig />
+              <CanaliConfig />
               </div>
             )}
           </motion.div>

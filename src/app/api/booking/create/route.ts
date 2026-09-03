@@ -5,6 +5,7 @@ import { omonimoInRubrica } from '@/lib/omonimi';
 import { findClientByPhone, todayInItaly } from '@/lib/voice';
 import { sendAppointmentConfirmation } from '@/lib/wa-appointments';
 import { slotDisponibili, type ServizioRichiesto } from '@/lib/bookingEngine';
+import { apriCaparra, mandaRichiestaCaparra } from '@/app/actions/caparra';
 
 export const runtime = 'nodejs';
 
@@ -123,8 +124,19 @@ export async function POST(request: Request) {
     },
   });
 
-  // Conferma WhatsApp e avviso Telegram: nessuno dei due blocca la prenotazione
-  sendAppointmentConfirmation(appointment.id).catch(() => {});
+  /*
+    La caparra, se le regole del centro dicono che va chiesta a questa cliente
+    per questo trattamento. Decide `apriCaparra`: qui non si sa niente delle
+    regole, si sa solo che il posto potrebbe non essere ancora tenuto.
+  */
+  const caparra = await apriCaparra(appointment.id).catch(() => null);
+  if (caparra) {
+    // Il link parte subito: la conferma normale arriverebbe a dire che e'
+    // tutto a posto quando invece manca ancora un passaggio.
+    mandaRichiestaCaparra(appointment.id).catch(() => {});
+  } else {
+    sendAppointmentConfirmation(appointment.id).catch(() => {});
+  }
   /*
     Chi prenota da fuori non sceglie una scheda: la sua nasce dal numero. Se
     però quel nome in rubrica c'è già con un altro numero, è un possibile
@@ -149,6 +161,11 @@ export async function POST(request: Request) {
 
   return Response.json({
     success: true,
+    caparra: caparra ? {
+      importo: caparra.richiesta,
+      link: caparra.link || null,
+      scadenza: caparra.scadenza || null,
+    } : null,
     appointment: {
       date: appointment.date,
       startTime: appointment.startTime,

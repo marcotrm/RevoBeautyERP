@@ -30,6 +30,7 @@ import { useProductStore } from '@/stores/useProductStore';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { nomiDoppi, chiaveNome as chiaveOmonimi } from '@/lib/omonimi';
 import { descriviMisto } from '@/lib/pagamenti';
+import { usaCaparra } from '@/app/actions/caparra';
 
 interface CartItem {
   id: string;
@@ -67,6 +68,8 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     sconto?: number;
     /** Conto unico: le sedute di altre persone che paga questa stessa persona. */
     insieme?: { id: string; client: string; importo: number }[];
+    /** Caparra gia' incassata: si scala dal conto, qui si paga il resto. */
+    caparra?: number;
   } | null;
 }) {
   const treatments = useTreatmentStore(s => s.treatments);
@@ -319,7 +322,15 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const total = (discountType === 'percent' && discountValue > 0) ? Math.ceil(rawTotal) : rawTotal;
   
   const isDebtPayment = !!initialData?.debtPkgId;
-  const finalTotal = isDebtPayment ? (customAmount ? Number(customAmount) : 0) : total;
+  /*
+    La caparra e' gia' entrata in cassa il giorno in cui e' arrivata: qui si
+    incassa solo quello che manca. Se si battesse di nuovo l'intero conto,
+    quei soldi risulterebbero incassati due volte.
+  */
+  const caparraPagata = Math.max(0, Number(initialData?.caparra) || 0);
+  const finalTotal = isDebtPayment
+    ? (customAmount ? Number(customAmount) : 0)
+    : Math.max(0, Math.round((total - caparraPagata) * 100) / 100);
   const isMistoValid = paymentMethod === 'misto' ? Math.abs((Number(splitCash) + Number(splitCard)) - finalTotal) < 0.01 : true;
   // Resto: null se il contante battuto non copre il totale (o non è ancora stato inserito)
   const changeDue = (() => {
@@ -600,6 +611,12 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                         </div>
                       )}
 
+                      {caparraPagata > 0 && (
+                        <div className="flex justify-between text-sm mt-2">
+                          <span className="text-success">Caparra già incassata</span>
+                          <span className="text-success font-semibold">− {formatCurrency(caparraPagata)}</span>
+                        </div>
+                      )}
                       <div className="border-t border-border mt-3 pt-3 flex justify-between"><span className="text-base font-semibold text-text-primary">Totale da Incassare</span><span className="text-xl font-display font-bold text-accent">{formatCurrency(finalTotal)}</span></div>
                     </>
                   ) : (
@@ -948,6 +965,8 @@ function POSPageInner() {
     pagaInAnticipo?: boolean;
     /** Conto unico: le altre sedute pagate da questa stessa persona. */
     insieme?: { id: string; client: string; importo: number }[];
+    /** Caparra già incassata su questa seduta. */
+    caparra?: number;
     products?: { id: string; name: string; price: number; qty: number }[];
     servizi?: { id: string; name: string; price: number; qty: number }[];
     sconto?: number;
@@ -1071,6 +1090,7 @@ function POSPageInner() {
             cabinMinutes: d.cabinMinutes ? Number(d.cabinMinutes) : undefined,
             appointmentId: d.appointmentId || undefined,
             pagaInAnticipo: d.pagaInAnticipo === true,
+            caparra: Number(d?.caparra) || 0,
             insieme: Array.isArray(d?.insieme) && d.insieme.length > 0 ? d.insieme : undefined,
             products: prodotti,
           });
@@ -1119,6 +1139,11 @@ function POSPageInner() {
       su ognuna a quale vendita appartiene, cosi' in agenda si legge chi ha
       pagato e chi non deve pagare piu' niente.
     */
+    // La caparra scalata da questo conto e' stata usata: si chiude qui.
+    if ((saleInitialData?.caparra || 0) > 0 && saleInitialData?.appointmentId) {
+      usaCaparra(saleInitialData.appointmentId).catch(() => {});
+    }
+
     if (saleInitialData?.insieme?.length) {
       const chi = useAuthStore.getState().user;
       const pagante = saleInitialData.client;
