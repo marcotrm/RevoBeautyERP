@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { headers } from 'next/headers';
+import { sendTelegram } from '@/lib/telegram';
 import { DEFAULT_ACCOUNTS } from '@/lib/rolesConfig';
 
 export interface GestionaleAccount {
@@ -126,6 +127,7 @@ async function registraAccesso(p: {
     // Dietro un proxy (Railway) l'IP vero sta nella catena x-forwarded-for: il
     // primo della lista e' il client, gli altri sono i passaggi intermedi.
     const ip = (h.get('x-forwarded-for') || '').split(',')[0].trim() || h.get('x-real-ip') || null;
+    const dispositivo = descriviDispositivo(h.get('user-agent'));
     await prisma.loginLog.create({
       data: {
         email: p.email,
@@ -138,9 +140,74 @@ async function registraAccesso(p: {
         createdAt: new Date().toISOString(),
       },
     });
+
+    /*
+      L'avviso su Telegram, per gli account che si tengono d'occhio.
+
+      Un registro lo si guarda quando si sospetta gia' qualcosa; un messaggio
+      arriva mentre sta succedendo. E serve soprattutto per un account che NON
+      deve piu' entrare: li' la notizia e' il tentativo respinto, non
+      l'ingresso.
+    */
+    if (await sorvegliato(p.email)) {
+      const esiti: Record<string, string> = {
+        ok: '\u{1F534} <b>E\' ENTRATO nel gestionale</b>',
+        password_errata: '\u26A0\uFE0F <b>Tentativo con password sbagliata</b>',
+        account_spento: '\u26A0\uFE0F <b>Ha provato a entrare</b> (account spento, respinto)',
+        inesistente: '\u26A0\uFE0F <b>Tentativo con una email che non esiste</b>',
+      };
+      const ora = new Date().toLocaleString('it-IT', {
+        weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+        timeZone: 'Europe/Rome',
+      });
+      sendTelegram(
+        `${esiti[p.esito] || p.esito}\n`
+        + `Account: ${p.email}\n`
+        + `Quando: ${ora}\n`
+        + `Da: ${ip || 'indirizzo sconosciuto'}${dispositivo ? ` \u00B7 ${dispositivo}` : ''}`
+      ).catch(() => {});
+    }
   } catch (e) {
     console.error('[accessi] riga non scritta:', e);
   }
+}
+
+// ============================================================
+// Gli account da tenere d'occhio
+// ============================================================
+
+const RIGA_SORVEGLIATI = 'accessi:sorvegliati';
+
+/** Le email per cui, a ogni tentativo, parte un avviso su Telegram. */
+export async function accountSorvegliati(): Promise<string[]> {
+  try {
+    const r = await prisma.adminEntry.findUnique({ where: { rowId: RIGA_SORVEGLIATI } });
+    const e = (r?.data as { email?: unknown } | null)?.email;
+    return Array.isArray(e) ? e.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function sorvegliato(email: string): Promise<boolean> {
+  const elenco = await accountSorvegliati();
+  return elenco.includes(email.trim().toLowerCase());
+}
+
+export async function impostaSorveglianza(email: string, attiva: boolean): Promise<{ ok: boolean }> {
+  const e = email.trim().toLowerCase();
+  if (!e) return { ok: false };
+  const attuali = await accountSorvegliati();
+  const nuovi = attiva ? [...new Set([...attuali, e])] : attuali.filter(x => x !== e);
+  await prisma.adminEntry.upsert({
+    where: { rowId: RIGA_SORVEGLIATI },
+    update: { data: { email: nuovi } },
+    create: {
+      rowId: RIGA_SORVEGLIATI, kind: 'accessi', entityId: 'sorvegliati',
+      data: { email: nuovi }, createdAt: new Date().toISOString(),
+    },
+  });
+  return { ok: true };
 }
 
 export interface AccessoRegistrato {

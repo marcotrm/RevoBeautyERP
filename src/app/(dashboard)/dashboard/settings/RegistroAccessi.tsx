@@ -12,8 +12,11 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { History, Loader2, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
-import { elencoAccessi, type AccessoRegistrato } from '@/app/actions/accounts';
+import { Bell, BellOff, History, Loader2, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react';
+import {
+  accountSorvegliati, elencoAccessi, getAccounts, impostaSorveglianza,
+  type AccessoRegistrato, type GestionaleAccount,
+} from '@/app/actions/accounts';
 
 const ETICHETTE: Record<string, { testo: string; classe: string }> = {
   ok: { testo: 'entrato', classe: 'bg-success/15 text-success' },
@@ -35,6 +38,9 @@ export function RegistroAccessi() {
   const [righe, setRighe] = useState<AccessoRegistrato[] | null>(null);
   const [filtro, setFiltro] = useState('');
   const [caricando, setCaricando] = useState(false);
+  const [account, setAccount] = useState<GestionaleAccount[]>([]);
+  const [sorvegliati, setSorvegliati] = useState<string[]>([]);
+  const [salvando, setSalvando] = useState('');
 
   const carica = React.useCallback(() => {
     setCaricando(true);
@@ -45,6 +51,24 @@ export function RegistroAccessi() {
   }, []);
 
   useEffect(() => { carica(); }, [carica]);
+
+  useEffect(() => {
+    getAccounts().then(setAccount).catch(() => {});
+    accountSorvegliati().then(setSorvegliati).catch(() => {});
+  }, []);
+
+  async function cambiaSorveglianza(email: string, attiva: boolean) {
+    const e = email.trim().toLowerCase();
+    setSalvando(e);
+    setSorvegliati(prev => (attiva ? [...new Set([...prev, e])] : prev.filter(x => x !== e)));
+    try {
+      await impostaSorveglianza(e, attiva);
+    } catch {
+      setSorvegliati(prev => (attiva ? prev.filter(x => x !== e) : [...prev, e]));
+    } finally {
+      setSalvando('');
+    }
+  }
 
   const mostrate = (righe || []).filter(r => {
     const q = filtro.trim().toLowerCase();
@@ -75,6 +99,54 @@ export function RegistroAccessi() {
       <input type="text" value={filtro} onChange={e => setFiltro(e.target.value)}
         placeholder="Cerca per email, nome, indirizzo IP o dispositivo"
         className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
+
+      {/*
+        L'avviso in tempo reale. Il registro racconta il passato; questo
+        arriva sul telefono mentre sta succedendo — e per un account che non
+        deve piu' entrare, il tentativo respinto vale quanto l'ingresso.
+      */}
+      <details className="rounded-xl border border-border bg-bg-tertiary/40">
+        <summary className="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none list-none">
+          <Bell className="w-4 h-4 text-accent" />
+          <span className="text-sm font-medium text-text-primary">Avvisami su Telegram</span>
+          <span className="text-[11px] text-text-muted">
+            {sorvegliati.length === 0
+              ? 'nessun account sorvegliato'
+              : sorvegliati.length === 1 ? '1 account sorvegliato' : `${sorvegliati.length} account sorvegliati`}
+          </span>
+        </summary>
+        <div className="px-3 pb-3 space-y-1.5">
+          <p className="text-[11px] text-text-muted">
+            Per gli account scelti arriva un messaggio a ogni tentativo: sia quando entrano,
+            sia quando vengono respinti perché l&apos;account è spento o la password è sbagliata.
+          </p>
+          {account.map(a => {
+            const attiva = sorvegliati.includes(a.email.trim().toLowerCase());
+            return (
+              <button key={a.id} type="button"
+                onClick={() => cambiaSorveglianza(a.email, !attiva)}
+                disabled={salvando === a.email.trim().toLowerCase()}
+                className={`w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-colors disabled:opacity-50 ${
+                  attiva ? 'border-accent/40 bg-accent/10' : 'border-border hover:bg-bg-hover'}`}>
+                {attiva
+                  ? <Bell className="w-4 h-4 text-accent flex-shrink-0" />
+                  : <BellOff className="w-4 h-4 text-text-muted flex-shrink-0" />}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-text-primary truncate">
+                    {`${a.firstName} ${a.lastName}`.trim() || a.email}
+                    {a.active ? null : <span className="text-warning font-normal"> · spento</span>}
+                  </p>
+                  <p className="text-[11px] text-text-muted truncate">{a.email}</p>
+                </div>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                  attiva ? 'bg-accent/20 text-accent' : 'bg-bg-hover text-text-muted'}`}>
+                  {attiva ? 'mi avvisi' : 'in silenzio'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </details>
 
       {righe === null ? (
         <p className="text-sm text-text-muted py-6 text-center">Carico…</p>
