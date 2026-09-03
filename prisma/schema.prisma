@@ -573,6 +573,37 @@ model AppRole {
   @@map("app_roles")
 }
 
+/**
+ * Chi entra nel gestionale, e quando.
+ *
+ * Non c'era niente: `authenticate` confrontava la password e tornava
+ * l'account, senza lasciare traccia. Il giorno in cui serve sapere se un
+ * account che non deve piu' entrare sta ancora entrando — un socio uscito, una
+ * ragazza che se n'e' andata — non c'e' niente da guardare, e il passato non
+ * si ricostruisce.
+ *
+ * Si registrano anche i tentativi FALLITI: qualcuno che prova la password
+ * sbagliata dieci volte alle tre di notte e' un'informazione, e senza le
+ * righe fallite si vedrebbe solo il silenzio.
+ */
+model LoginLog {
+  id        String  @id @default(cuid())
+  /** L'email digitata: c'e' anche quando l'account non esiste. */
+  email     String
+  /** L'account, quando l'accesso e' riuscito. */
+  userId    String?
+  nome      String?
+  ruolo     String?
+  esito     String // ok | password_errata | account_spento | inesistente
+  ip        String?
+  userAgent String?
+  createdAt String
+
+  @@index([email])
+  @@index([createdAt])
+  @@map("login_logs")
+}
+
 model AppUser {
   id        String  @id @default(cuid())
   firstName String

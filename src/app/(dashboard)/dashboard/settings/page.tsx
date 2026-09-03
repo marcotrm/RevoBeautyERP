@@ -18,6 +18,7 @@ import { Treatment, TreatmentCategory } from '@/types';
 import { Tag } from 'lucide-react';
 import { PriceListsSection } from './PriceListsSection';
 import { AccountsSection } from './AccountsSection';
+import { RegistroAccessi } from './RegistroAccessi';
 import C95Config from './C95Config';
 import CabinsSection from './CabinsSection';
 import AutoclaveSection from './AutoclaveSection';
@@ -710,7 +711,14 @@ export default function SettingsPage() {
 
             {/* ACCOUNT GESTIONALE */}
             {sezioneAttiva === 'accounts' && (
-              <AccountsSection />
+              <>
+                <AccountsSection />
+                {/* Chi entra, e quando: sta qui perche' e' la stessa domanda
+                    degli account, vista dall'altra parte. */}
+                <div className="mt-4">
+                  <RegistroAccessi />
+                </div>
+              </>
             )}
 
             {/* RUOLI E PERMESSI */}
