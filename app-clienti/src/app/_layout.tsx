@@ -10,11 +10,13 @@
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { BloccoBiometrico } from '@/components/BloccoBiometrico';
 import { ConsensoFaceId } from '@/components/ConsensoFaceId';
 import { NotifichePush } from '@/components/NotifichePush';
+import { SplashAnimata } from '@/components/SplashAnimata';
 import { AuthProvider } from '@/context/AuthContext';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, fontAssets } from '@/theme';
@@ -62,17 +64,26 @@ export default function RootLayout() {
   // Se un font non si carica non si resta sullo splash per sempre: meglio
   // l'app col font di sistema che un'app che non parte.
   const [caricati, errore] = useFonts(fontAssets);
+  // La splash animata copre l'avvio (caricamento sessione compreso) e
+  // si congeda da sola; un tocco la salta.
+  const [splashFinita, setSplashFinita] = useState(false);
 
   return (
     <AuthProvider>
       <StatusBar style="dark" />
       <NotifichePush />
-      <RootNavigator fontPronti={caricati || !!errore} />
+      <View style={styles.radice}>
+        <RootNavigator fontPronti={caricati || !!errore} />
+        {!splashFinita ? <SplashAnimata onFine={() => setSplashFinita(true)} /> : null}
+      </View>
     </AuthProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  radice: {
+    flex: 1,
+  },
   splash: {
     flex: 1,
     alignItems: 'center',
