@@ -96,8 +96,25 @@ export default function FotoDocumento({ gettone, giaAgliAtti, onChange }: {
       setFoto(dataUrl);
       const r = await leggiDocumentoDalModulo(gettone, dataUrl);
       if (!r.leggibile) {
-        setProblema(r.problema || 'La foto non si legge bene: riprova.');
-        setFoto(null);
+        /*
+          Non si legge: si tiene comunque la foto e si aprono i campi vuoti.
+
+          Prima da qui non si usciva: la foto veniva buttata e restava solo
+          «Rifai la foto». Se il lettore era giu' — ed e' successo, per un
+          conto rimasto senza credito — la cliente rifotografava all'infinito
+          la stessa carta d'identita' perfettamente leggibile. Vincenzo Ferro
+          ci ha provato, poi ha scritto in chat «non capisco perche' non mi fa
+          inserire il documento» e ha mandato la foto li'.
+
+          Il numero del documento e' una riga di testo: se la macchina non
+          riesce a leggerlo, lo si scrive. Non e' un buon motivo per fermare
+          una persona davanti a un modulo.
+        */
+        setProblema(r.problema || 'Non riesco a leggerla: puoi rifare la foto, oppure scrivere tu i dati qui sotto.');
+        setCampi({
+          foto: dataUrl, anteprima: mini, tipo: 'carta_identita',
+          numero: '', nome: '', cognome: '', dataNascita: '', scadenza: '',
+        });
         return;
       }
       const d: DocumentoCompilato = {
