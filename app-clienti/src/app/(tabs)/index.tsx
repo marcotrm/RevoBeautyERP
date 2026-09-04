@@ -280,11 +280,15 @@ export default function HomeScreen() {
             </Pressable>
           ) : null}
 
-          {/* due porte, non un corridoio di tasti */}
+          {/* tre porte, non un corridoio di tasti */}
           <View style={styles.porte}>
+            <Pressable style={styles.porta} onPress={() => router.push('/appuntamenti')}>
+              <Ionicons name="calendar-outline" size={19} color={colors.primaryDark} />
+              <Text style={styles.portaTxt}>Appuntamenti</Text>
+            </Pressable>
             <Pressable style={styles.porta} onPress={() => router.push('/risultati')}>
               <Ionicons name="leaf-outline" size={19} color={colors.primaryDark} />
-              <Text style={styles.portaTxt}>I miei risultati</Text>
+              <Text style={styles.portaTxt}>Risultati</Text>
             </Pressable>
             <Pressable style={styles.porta} onPress={() => router.push('/assistente')}>
               <Ionicons name="sparkles-outline" size={19} color={colors.primaryDark} />
@@ -394,10 +398,12 @@ const styles = StyleSheet.create({
 
   porte: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   porta: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+    // In colonna: tre porte in fila coi testi accanto alle icone non ci
+    // stanno su uno schermo piccolo senza andare a capo.
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5,
     backgroundColor: colors.primarySoft, borderRadius: radius.lg, paddingVertical: spacing.md,
   },
-  portaTxt: { ...typography.labelForte, fontSize: 13.5, color: colors.primaryDark },
+  portaTxt: { ...typography.labelForte, fontSize: 12.5, color: colors.primaryDark },
 
   sede: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
