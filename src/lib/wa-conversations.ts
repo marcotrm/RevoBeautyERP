@@ -105,22 +105,27 @@ export const WINDOW_HOURS = 24;
 export const ATTESA_RISPOSTA_MIN = 10;
 
 /**
- * Per quanto vale «Ho letto».
+ * «Ho letto» chiude, e resta chiuso.
  *
- * Serve a chi ha richiamato la cliente al telefono o a chi ha ricevuto un
- * messaggio che non chiedeva niente: casi veri, e il tasto deve restare.
+ * Per un giro l'avevo reso temporaneo — due ore, poi la chat tornava in cima
+ * — e il risultato e' stato che sono risalite in testa all'elenco decine di
+ * conversazioni di agosto, chiuse a suo tempo da chi aveva davvero richiamato
+ * al telefono. Chi preme quel tasto sta prendendo una decisione, e
+ * riaprirgliela addosso settimane dopo non e' aiutarlo: e' non fidarsi.
  *
- * Ma e' anche il modo piu' facile per far sparire un'etichetta rossa senza
- * fare niente, e succede — Vincenzo Ferro ha scritto tre volte alle 16:13
- * chiedendo aiuto col documento, alle 16:51 qualcuno ha premuto «Ho letto» e
- * la chat e' uscita dall'elenco senza che nessuno gli avesse risposto.
- *
- * Quindi «Ho letto» adesso mette in pausa, non chiude: se dopo due ore non
- * gli abbiamo ancora scritto niente, la conversazione torna in cima. Chi ha
- * davvero risolto al telefono non se ne accorge mai, perche' nel frattempo
- * quasi sempre un messaggio parte lo stesso.
+ * Quello che serviva davvero non era mettere una scadenza a «Ho letto», era
+ * smettere di far sparire le chat solo perche' qualcuno le aveva APERTE — e
+ * quello si fa piu' sotto, con `unread` che torna da solo.
  */
-export const GESTITA_VALE_MIN = 120;
+
+/**
+ * Oltre questo, un messaggio non e' piu' «nuovo».
+ *
+ * L'elenco deve dire cosa fare adesso, non tenere il conto di tutto quello
+ * che non e' stato fatto da agosto: quelle conversazioni restano in lista e
+ * restano segnate, ma non scavalcano piu' chi ha scritto stamattina.
+ */
+const NUOVO_ENTRO_ORE = 48;
 
 /**
  * Il "cuoricino" su un nostro messaggio non è una domanda.
@@ -586,11 +591,7 @@ export async function listConversations(limit = 300): Promise<WaConversation[]> 
       convinti di avere la lista in ordine.
     */
     const gestitaAl = gestite.get(phone);
-    const giaGestita = Boolean(
-      gestitaAl && ultimoSenzaRisposta && gestitaAl >= ultimoSenzaRisposta
-      // …ma non per sempre: vedi GESTITA_VALE_MIN.
-      && minutiDa(gestitaAl) < GESTITA_VALE_MIN,
-    );
+    const giaGestita = Boolean(gestitaAl && ultimoSenzaRisposta && gestitaAl >= ultimoSenzaRisposta);
     const inAttesa = senzaRisposta > 0 && (attesaMinuti ?? 0) >= ATTESA_RISPOSTA_MIN && !giaGestita;
 
     conversations.push({
@@ -643,8 +644,17 @@ export async function listConversations(limit = 300): Promise<WaConversation[]> 
       if (a.daRispondere && b.daRispondere) {
         return (a.senzaRispostaDa || '').localeCompare(b.senzaRispostaDa || '');
       }
-      const aNuovi = a.unread > 0 ? 1 : 0;
-      const bNuovi = b.unread > 0 ? 1 : 0;
+      /*
+        Il salto in cima per i non letti vale solo se sono NUOVI.
+
+        Senza questo limite una conversazione di agosto mai aperta restava
+        sopra a una di stamattina gia' letta: l'elenco raccontava il passato
+        invece di dire cosa fare adesso. Le vecchie restano in lista e restano
+        segnate, ma al loro posto in ordine di tempo.
+      */
+      const limite = new Date(Date.now() - NUOVO_ENTRO_ORE * 3_600_000).toISOString();
+      const aNuovi = a.unread > 0 && a.lastAt >= limite ? 1 : 0;
+      const bNuovi = b.unread > 0 && b.lastAt >= limite ? 1 : 0;
       if (aNuovi !== bNuovi) return bNuovi - aNuovi;
       return b.lastAt.localeCompare(a.lastAt);
     })
