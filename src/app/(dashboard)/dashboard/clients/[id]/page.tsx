@@ -33,6 +33,7 @@ import AddClientModal from '@/components/AddClientModal';
 import BuonoCompleannoBadge from '@/components/BuonoCompleanno';
 import MandaListino from '@/components/MandaListino';
 import ClientRecordTab from './ClientRecordTab';
+import { Credito } from './Credito';
 import PromemoriaCliente from '@/components/PromemoriaCliente';
 import NienteRecensione from '@/components/NienteRecensione';
 import { valutaAffidabilita, dalQuando, MESI_AFFIDABILITA } from '@/lib/affidabilita';
@@ -463,6 +464,20 @@ export default function ClientDetailPage() {
       >
         {activeTab === 'profile' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/*
+              Il credito sta nel Profilo, non nella scheda estetica.
+
+              Era finito li' dentro insieme a foto e consensi, ed e' il posto
+              in cui nessuno lo cerca: sono soldi che il centro deve alla
+              cliente, e li si va a guardare dove si guardano il telefono e il
+              listino. Occupa tutta la riga perche' i movimenti sotto vanno
+              letti per esteso — quando una cliente dice «avevo lasciato
+              cinquanta euro», la riga con la data chiude il discorso.
+            */}
+            <div className="lg:col-span-2">
+              <Credito clientId={client.id} />
+            </div>
+
             {/* Personal Info */}
             <div className="bg-bg-secondary border border-border rounded-2xl p-5">
               <h3 className="text-base font-display font-semibold text-text-primary mb-4">Informazioni Personali</h3>
