@@ -23,7 +23,7 @@ import { listD360Templates } from '@/lib/whatsapp360';
 import { WA_TEMPLATES } from '@/lib/wa-templates';
 import { headers } from 'next/headers';
 import { descriviDispositivo } from '@/lib/dispositivo';
-import { leggiDocumento, type LetturaDocumento } from '@/lib/documento';
+import { leggiDocumento, nomeTipo, type LetturaDocumento } from '@/lib/documento';
 import { sessoDaNome } from '@/lib/sessoDaNome';
 import { DOMANDE_STORICO } from '@/lib/consensoLaserTesto';
 import { salvaDocumento } from '@/app/actions/documenti';
@@ -162,7 +162,45 @@ export interface RisposteLaser {
     cognome?: string;
     dataNascita?: string;
     scadenza?: string;
+    /** Dove abita: non serve al consenso, serve alla sua scheda. */
+    indirizzo?: string;
+    citta?: string;
+    /** 'M' o 'F' letto dal documento. */
+    sesso?: 'M' | 'F';
   };
+}
+
+/**
+ * Quello che ha scritto lei finisce nella sua scheda.
+ *
+ * E' il punto di tutto il giro: la cliente ha appena dichiarato nome, data di
+ * nascita, sesso e residenza, col documento fotografato a fianco. Richiederle
+ * le stesse cose al banco tre giorni dopo — con la cabina che aspetta — vuol
+ * dire non essersi accorti di averle gia'.
+ *
+ * Si riempiono SOLO le caselle vuote. Quello che c'e' gia' in anagrafica non
+ * si tocca mai: puo' essere stato corretto a mano da chi la conosce, e un
+ * indirizzo giusto sostituito da uno letto storto in una foto non se ne
+ * accorge nessuno finche' non torna indietro una raccomandata.
+ */
+async function completaScheda(clientId: string, d: NonNullable<RisposteLaser['documento']>): Promise<void> {
+  const c = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { birthDate: true, gender: true, address: true, city: true },
+  });
+  if (!c) return;
+
+  const da: Record<string, string> = {};
+  if (!c.birthDate && d.dataNascita) da.birthDate = d.dataNascita;
+  // 'M' / 'F' come in anagrafica: e' quello che c'e' scritto su 399 schede su
+  // 400, ed e' anche quello che il documento dice. Un 'male' in mezzo a 'M'
+  // fa sparire una cliente da ogni filtro senza che nessuno capisca perche'.
+  if (!c.gender && d.sesso) da.gender = d.sesso;
+  if (!c.address?.trim() && d.indirizzo?.trim()) da.address = d.indirizzo.trim();
+  if (!c.city?.trim() && d.citta?.trim()) da.city = d.citta.trim();
+
+  if (Object.keys(da).length === 0) return;
+  await prisma.client.update({ where: { id: clientId }, data: da }).catch(() => {});
 }
 
 /**
@@ -275,6 +313,14 @@ async function salvaDavvero(
     telefono restava senza documento in archivio anche dopo averlo scritto a
     mano: il consenso c'era, il documento no, e a fine giro non tornava niente.
   */
+  /*
+    La scheda si completa anche senza numero di documento.
+
+    Se la foto non si e' letta ma lei ha scritto data di nascita e indirizzo a
+    mano, quei dati valgono uguale: sono suoi e li ha dichiarati firmando.
+  */
+  if (r.documento) await completaScheda(dati.clientId, r.documento).catch(() => {});
+
   if (r.documento?.numero) {
     await salvaDocumento({
       clientId: dati.clientId,
@@ -306,7 +352,24 @@ export interface ConsensoTrovato {
    * scorsa. Sono le cose che possono far rimandare la seduta, e finivano nel
    * database senza che nessuno le rileggesse prima di accendere la macchina.
    */
-  risposte: { testo: string; valore: string; attenzione: boolean }[];
+  risposte: { testo: string; valore: string; attenzione: boolean; chiesta: boolean }[];
+  /** Ha acconsentito alle foto prima/dopo. */
+  consensoFoto?: boolean;
+  /*
+    Chi e' e dove abita, come l'ha scritto lei.
+
+    Al banco serve per riconoscerla e per non richiederle dati che ha gia'
+    dato: sono le stesse righe che finiscono nella sua scheda, mostrate qui
+    perche' aprire la scheda vuol dire uscire dal check-in e perdere il filo.
+  */
+  anagrafica?: {
+    nome?: string;
+    cognome?: string;
+    dataNascita?: string;
+    documento?: string;
+    indirizzo?: string;
+    citta?: string;
+  };
 }
 
 export async function consensoLaserDi(clientId: string): Promise<ConsensoTrovato | null> {
@@ -328,21 +391,63 @@ export async function consensoLaserDi(clientId: string): Promise<ConsensoTrovato
     e basta, perche' il giudizio spetta a chi ha la macchina in mano.
   */
   const daGuardare = new Set(['ormonale', 'farmaci', 'herpes']);
+  /*
+    TUTTE le domande, anche quelle a cui ha risposto no.
+
+    Prima si tenevano solo i «si'»: piu' corto, ma al banco non si capiva se
+    una domanda mancava perche' la risposta era no o perche' non gliel'avevamo
+    fatta. E il «no» non e' rumore — «no, non prendo farmaci» e' esattamente
+    quello che l'operatrice deve poter dire di aver letto prima di accendere
+    la macchina.
+  */
   const risposte = DOMANDE_STORICO
     .map(q => {
       const v = String(storico[q.id] ?? '').trim();
-      if (!v || v === 'no') return null;
       const dettaglio = String(storico[`${q.id}_dettaglio`] ?? '').trim();
-      const valore = q.tipo === 'sino' ? (v === 'si' ? 'sì' : v) : v;
+      /*
+        Una domanda senza risposta non e' un buco: quasi sempre non gliel'ha
+        vista proprio. La gravidanza, per dirne una, a un uomo non si chiede —
+        e scriverlo e' piu' onesto che far sparire la riga, perche' chi legge
+        sa cosa e' stato chiesto e cosa no.
+      */
+      const valore = !v ? 'non chiesta' : q.tipo === 'sino' ? (v === 'si' ? 'sì' : 'no') : v;
       return {
         testo: q.testo,
         valore: dettaglio ? `${valore} — ${dettaglio}` : valore,
         attenzione: daGuardare.has(q.id) && v === 'si',
+        chiesta: Boolean(v),
       };
-    })
-    .filter((x): x is { testo: string; valore: string; attenzione: boolean } => x !== null);
+    });
 
-  return { quando: c.signedAt, zone: d.zone, risposte };
+  /*
+    Il documento agli atti da' nome, nascita e residenza: sono gli stessi dati
+    che la cliente ha compilato firmando, e averli qui evita di aprire la
+    scheda in mezzo al check-in.
+  */
+  const doc = await prisma.clientDocument.findFirst({
+    where: { clientId },
+    orderBy: { createdAt: 'desc' },
+    select: { tipo: true, numero: true, nome: true, cognome: true, dataNascita: true },
+  });
+  const cl = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { firstName: true, lastName: true, birthDate: true, address: true, city: true },
+  });
+
+  return {
+    quando: c.signedAt,
+    zone: d.zone,
+    risposte,
+    consensoFoto: Boolean((d as { consensoFoto?: boolean }).consensoFoto),
+    anagrafica: {
+      nome: doc?.nome || cl?.firstName,
+      cognome: doc?.cognome || cl?.lastName,
+      dataNascita: doc?.dataNascita || cl?.birthDate || undefined,
+      documento: doc ? `${nomeTipo(doc.tipo)} ${doc.numero}`.trim() : undefined,
+      indirizzo: cl?.address || undefined,
+      citta: cl?.city || undefined,
+    },
+  };
 }
 
 // ============================================================

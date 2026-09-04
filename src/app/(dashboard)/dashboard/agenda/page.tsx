@@ -5657,11 +5657,44 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
               </div>
 
               {/*
-                Quello che ha dichiarato lei, in chiaro.
+                Chi e', come l'ha scritto lei firmando.
 
-                Non tutto: solo quello che non e' un «no». Un elenco di sette
-                righe con sei «no» non lo legge nessuno, e la riga che conta ci
-                si perde dentro.
+                Sta qui e non nella scheda perche' aprire la scheda vuol dire
+                uscire dal check-in con la cliente davanti — e poi non ci si
+                torna. Sono gli stessi dati che il consenso ha gia' messo in
+                anagrafica: qui si rileggono, non si riscrivono.
+              */}
+              {consensoLaser.modulo?.anagrafica && (
+                <div className="rounded-xl border border-border bg-bg-tertiary/50 p-3">
+                  <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider mb-1.5">Dati della cliente</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[12px]">
+                    {([
+                      ['Nome', [consensoLaser.modulo.anagrafica.nome, consensoLaser.modulo.anagrafica.cognome].filter(Boolean).join(' ')],
+                      ['Nata il', consensoLaser.modulo.anagrafica.dataNascita
+                        ? new Date(consensoLaser.modulo.anagrafica.dataNascita).toLocaleDateString('it-IT')
+                        : ''],
+                      ['Documento', consensoLaser.modulo.anagrafica.documento || ''],
+                      ['Indirizzo', [consensoLaser.modulo.anagrafica.indirizzo, consensoLaser.modulo.anagrafica.citta].filter(Boolean).join(', ')],
+                    ] as [string, string][]).filter(([, v]) => v).map(([k, v]) => (
+                      <p key={k} className="min-w-0">
+                        <span className="text-text-muted">{k}: </span>
+                        <span className="text-text-primary font-medium break-words">{v}</span>
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/*
+                Tutte le domande, non solo i «si'».
+
+                Prima si mostravano solo le risposte diverse da «no», per non
+                fare un muro di righe. Ma al banco non si capiva se una domanda
+                mancava perche' la risposta era no o perche' non gliel'avevamo
+                fatta — e «no, non prende farmaci» e' esattamente quello che
+                l'operatrice deve poter dire di aver letto prima di accendere
+                la macchina. Quelle da guardare restano in evidenza: il colore
+                fa il lavoro che prima faceva il nascondere.
               */}
               {consensoLaser.modulo && (
                 <div className="rounded-xl border border-border bg-bg-tertiary/50 p-3 space-y-2">
@@ -5671,16 +5704,28 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                   {consensoLaser.modulo.risposte.length === 0 ? (
                     <p className="text-sm text-success">Nessuna controindicazione dichiarata.</p>
                   ) : (
-                    consensoLaser.modulo.risposte.map((r, i) => (
-                      <div key={i} className={`text-sm ${r.attenzione ? 'text-warning font-semibold' : 'text-text-primary'}`}>
-                        {r.attenzione && <AlertTriangle className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />}
-                        {r.testo}: <strong>{r.valore}</strong>
-                      </div>
-                    ))
+                    <div className="max-h-[38vh] overflow-y-auto space-y-1 -mx-1 px-1">
+                      {consensoLaser.modulo.risposte.map((r, i) => (
+                        <div key={i} className={`flex items-start gap-1.5 text-[13px] leading-snug ${
+                          r.attenzione ? 'text-warning font-semibold'
+                            : r.chiesta ? 'text-text-primary' : 'text-text-muted'}`}>
+                          {r.attenzione && <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />}
+                          <span className="min-w-0">
+                            <span className={r.attenzione ? '' : 'text-text-secondary'}>{r.testo}: </span>
+                            <strong>{r.valore}</strong>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   )}
-                  {consensoLaser.modulo.zone && (
-                    <p className="text-[11px] text-text-muted">Zone concordate: {consensoLaser.modulo.zone}</p>
-                  )}
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 pt-1 border-t border-border/60">
+                    {consensoLaser.modulo.zone && (
+                      <p className="text-[11px] text-text-muted">Zone concordate: <span className="text-text-secondary">{consensoLaser.modulo.zone}</span></p>
+                    )}
+                    <p className="text-[11px] text-text-muted">
+                      Foto prima/dopo: <span className="text-text-secondary">{consensoLaser.modulo.consensoFoto ? 'acconsente' : 'non acconsente'}</span>
+                    </p>
+                  </div>
                 </div>
               )}
 

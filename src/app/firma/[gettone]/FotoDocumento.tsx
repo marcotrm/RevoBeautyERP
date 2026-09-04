@@ -32,6 +32,17 @@ export interface DocumentoCompilato {
   scadenza: string;
   /** 'M' o 'F' quando il documento lo dice: sulla carta d'identita' c'e' scritto. */
   sesso?: 'M' | 'F';
+  /*
+    Dove abita.
+
+    Non serve al consenso: serve al check-in, che senza indirizzo e citta' si
+    ferma. Chiederli qui vuol dire chiederli una volta sola, alla persona che
+    li sa, mentre e' seduta col telefono in mano — invece che dettarli al
+    banco con la cabina che aspetta. Se il documento li mostra arrivano gia'
+    scritti e lei deve solo controllare.
+  */
+  indirizzo?: string;
+  citta?: string;
 }
 
 const TIPI: { id: string; nome: string }[] = [
@@ -86,6 +97,7 @@ export default function FotoDocumento({ gettone, giaAgliAtti, onChange }: {
         setCampi({
           foto: dataUrl, anteprima: mini, tipo: 'carta_identita',
           numero: '', nome: '', cognome: '', dataNascita: '', scadenza: '',
+          indirizzo: '', citta: '',
         });
         return;
       }
@@ -99,6 +111,8 @@ export default function FotoDocumento({ gettone, giaAgliAtti, onChange }: {
         cognome: r.cognome || '',
         dataNascita: r.dataNascita || '',
         scadenza: r.scadenza || '',
+        indirizzo: r.indirizzo || '',
+        citta: r.comune || '',
       };
       setCampi(d);
       onChange(d.numero ? d : null);
@@ -124,6 +138,7 @@ export default function FotoDocumento({ gettone, giaAgliAtti, onChange }: {
       setCampi({
         foto: '', anteprima: '', tipo: 'carta_identita',
         numero: '', nome: '', cognome: '', dataNascita: '', scadenza: '',
+        indirizzo: '', citta: '',
       });
     } finally {
       setLeggendo(false);
@@ -249,6 +264,29 @@ export default function FotoDocumento({ gettone, giaAgliAtti, onChange }: {
               <span className="text-[13px] font-semibold text-gray-700">Scadenza</span>
               <input type="date" value={campi.scadenza} onChange={e => cambia('scadenza', e.target.value)}
                 className="mt-1 w-full min-w-0 px-2.5 py-3 rounded-xl border border-gray-300 text-[15px]" />
+            </label>
+
+            {/*
+              L'indirizzo, chiesto qui una volta sola.
+
+              Sul documento c'e' scritto, ma quasi sempre sul retro, e la foto
+              e' del fronte: allora si scrive. Sono trenta secondi al telefono
+              invece di due minuti dettati al banco con la cabina che aspetta —
+              e senza questi due campi il check-in si ferma, quindi qualcuno
+              deve comunque chiederglieli, prima o poi.
+            */}
+            <label className="col-span-2 block">
+              <span className="text-[13px] font-semibold text-gray-700">Indirizzo</span>
+              <input type="text" value={campi.indirizzo || ''} onChange={e => cambia('indirizzo', e.target.value)}
+                placeholder="es. via Roma 12"
+                className="mt-1 w-full px-3 py-3 rounded-xl border border-gray-300 text-[16px]" />
+            </label>
+            <label className="col-span-2 block">
+              <span className="text-[13px] font-semibold text-gray-700">Città</span>
+              <input type="text" value={campi.citta || ''} onChange={e => cambia('citta', e.target.value)}
+                placeholder="es. Crispano"
+                className="mt-1 w-full px-3 py-3 rounded-xl border border-gray-300 text-[16px]" />
+              <span className="text-[13px] text-gray-500">Servono per la tua scheda: così al banco non te li chiediamo più.</span>
             </label>
           </div>
         </div>

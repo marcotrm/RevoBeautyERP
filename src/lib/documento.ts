@@ -47,6 +47,17 @@ export interface LetturaDocumento {
    * quello che ha appena scritto.
    */
   sesso?: 'M' | 'F';
+  /*
+    La residenza, quando il documento ce l'ha davanti.
+
+    Serve al check-in, che senza indirizzo e citta' si ferma: se e' stampata
+    sul documento non ha senso richiederla a voce con la cliente davanti.
+    Sulla carta d'identita' elettronica sta sul retro, quindi spesso non c'e'
+    — e allora restano due caselle da riempire sul telefono, che e' comunque
+    meglio che dettarle al banco.
+  */
+  indirizzo?: string;
+  comune?: string;
   /** Quanto il modello si fida di quello che ha letto, da 0 a 1. */
   sicurezza?: number;
 }
@@ -64,6 +75,8 @@ Rispondi SOLO con un oggetto JSON, senza testo attorno e senza blocchi di codice
   "dataNascita": "AAAA-MM-GG",
   "scadenza": "AAAA-MM-GG oppure vuoto",
   "sesso": "M"|"F"|"" (sulla carta d'identità è scritto sotto SESSO; sulla patente non c'è, allora lascia vuoto),
+  "indirizzo": "via e numero civico della RESIDENZA, se è scritta nella foto; altrimenti vuoto",
+  "comune": "il comune di residenza, se è scritto nella foto; altrimenti vuoto",
   "sicurezza": 0.0-1.0
 }
 
@@ -84,6 +97,8 @@ Dove sta il numero, per i tre documenti che girano davvero:
 - PASSAPORTO: due lettere e sette cifre (YA1234567), in alto a destra.
 
 Sulla patente il campo 3 è la data di nascita e il campo 4b la scadenza. Sulla carta d'identità la scadenza coincide spesso col compleanno.
+
+La RESIDENZA: sulla carta d'identità cartacea sta davanti, sotto "RESIDENZA"; su quella elettronica sta sul retro, quindi nella foto del fronte non c'è. Sulla patente c'è sotto il campo 8. Se non la vedi, lascia i due campi vuoti: NON dedurla dal comune di nascita, che è un'altra cosa e mandarci la posta sbagliata è peggio che non averla.
 
 Se la foto è buona ma un singolo campo non si legge, lascialo vuoto e tieni "leggibile": true: meglio tre dati giusti che quattro di cui uno inventato. Non inventare MAI un numero: se non lo vedi, campo vuoto e sicurezza bassa.`;
 
@@ -276,6 +291,8 @@ async function unaLettura(
       scadenza: data(d.scadenza),
       sesso: stringa(d.sesso).toUpperCase() === 'M' ? 'M'
         : stringa(d.sesso).toUpperCase() === 'F' ? 'F' : undefined,
+      indirizzo: stringa(d.indirizzo),
+      comune: stringa(d.comune),
       sicurezza: typeof d.sicurezza === 'number' ? Math.max(0, Math.min(1, d.sicurezza)) : undefined,
     };
   }
