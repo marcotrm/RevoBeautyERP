@@ -6,6 +6,23 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["pdf-parse", "pdfjs-dist"],
 
   /**
+   * Quanto puo' pesare quello che il browser manda al server.
+   *
+   * Il valore di partenza e' un megabyte, e nessuno se ne accorge finche' non
+   * si manda una foto: la carta d'identita' scattata col telefono, anche gia'
+   * rimpicciolita a 1700 pixel, in base64 supera il megabyte. Il server la
+   * rifiutava e alla cliente arrivava «An error occurred in the Server
+   * Components render» — un messaggio che non vuol dire niente per nessuno,
+   * dentro un modulo che a quel punto non si chiudeva piu'.
+   *
+   * Sei megabyte: ci stanno la foto del documento, la sua miniatura e la
+   * firma, che nel salvataggio del consenso viaggiano insieme.
+   */
+  experimental: {
+    serverActions: { bodySizeLimit: '6mb' },
+  },
+
+  /**
    * Il sito vetrina di Agenda Piena è una pagina sola, statica, che vive in
    * `public/`. Qui le si dà l'indirizzo pulito: /agendapiena invece di
    * /agendapiena.html, che è quello che si scrive su un biglietto da visita.
