@@ -165,6 +165,18 @@ export default function PrenotaScreen() {
       .filter(g => g.slots.length > 0);
   }, [giorni, oraDa]);
 
+  /**
+   * Prima le date, poi gli orari: si tocca un giorno e sotto compaiono i
+   * suoi orari. Il primo giorno utile è già selezionato — un tocco in meno,
+   * e si capisce subito come funziona.
+   */
+  const [giornoSel, setGiornoSel] = useState<string | null>(null);
+  useEffect(() => {
+    if (!giorniMostrati || giorniMostrati.length === 0) { setGiornoSel(null); return; }
+    if (!giorniMostrati.some(g => g.date === giornoSel)) setGiornoSel(giorniMostrati[0].date);
+  }, [giorniMostrati, giornoSel]);
+  const giornoAperto = giorniMostrati?.find(g => g.date === giornoSel) ?? null;
+
   const submit = async () => {
     if (!scelto || !token) return;
     setSubmitting(true); setError(null);
@@ -447,22 +459,52 @@ export default function PrenotaScreen() {
               <Text style={styles.vuoto}>
                 Nessun orario libero dalle {oraDa} nei giorni che hai scelto. Prova ad allargare i giorni o ad anticipare la fascia.
               </Text>
-            ) : giorniMostrati.map(g => (
-              <View key={g.date} style={{ marginTop: spacing.md }}>
-                <Text style={styles.giornoTitolo}>{dataLunga(g.date)}</Text>
-                <View style={styles.slots}>
-                  {g.slots.map(sl => {
-                    const on = scelto?.date === g.date && scelto.slot.time === sl.time;
+            ) : (
+              <>
+                {/* ── 1. le date: una striscia di giorni, si tocca e si apre ── */}
+                <Text style={[styles.label, { marginTop: spacing.md }]}>Scegli il giorno</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.giorniStriscia}>
+                  {giorniMostrati.map(g => {
+                    const d = new Date(`${g.date}T12:00:00`);
+                    const on = giornoSel === g.date;
+                    const haScelto = scelto?.date === g.date;
                     return (
-                      <Pressable key={sl.time} style={[styles.slot, on && styles.slotActive]}
-                        onPress={() => setScelto({ date: g.date, slot: sl })}>
-                        <Text style={[styles.slotTxt, on && styles.slotTxtActive]}>{sl.time}</Text>
+                      <Pressable key={g.date} style={[styles.giornoCard, on && styles.giornoCardOn]}
+                        onPress={() => setGiornoSel(g.date)}
+                        accessibilityRole="button" accessibilityState={{ selected: on }}>
+                        <Text style={[styles.giornoSett, on && styles.giornoTxtOn]}>
+                          {d.toLocaleDateString('it-IT', { weekday: 'short' })}
+                        </Text>
+                        <Text style={[styles.giornoNum, on && styles.giornoTxtOn]}>{d.getDate()}</Text>
+                        <Text style={[styles.giornoMese, on && styles.giornoTxtOn]}>
+                          {d.toLocaleDateString('it-IT', { month: 'short' })}
+                        </Text>
+                        {haScelto ? <View style={styles.giornoPunto} /> : null}
                       </Pressable>
                     );
                   })}
-                </View>
-              </View>
-            ))}
+                </ScrollView>
+
+                {/* ── 2. gli orari del giorno toccato ── */}
+                {giornoAperto ? (
+                  <View style={{ marginTop: spacing.md }}>
+                    <Text style={styles.giornoTitolo}>{dataLunga(giornoAperto.date)}</Text>
+                    <View style={styles.slots}>
+                      {giornoAperto.slots.map(sl => {
+                        const on = scelto?.date === giornoAperto.date && scelto.slot.time === sl.time;
+                        return (
+                          <Pressable key={sl.time} style={[styles.slot, on && styles.slotActive]}
+                            onPress={() => setScelto({ date: giornoAperto.date, slot: sl })}>
+                            <Text style={[styles.slotTxt, on && styles.slotTxtActive]}>{sl.time}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ) : null}
+              </>
+            )}
 
             {error && <Text style={styles.error}>{error}</Text>}
           </>
@@ -571,6 +613,24 @@ const styles = StyleSheet.create({
   indietroTxt: { ...typography.label, fontSize: 14, color: colors.primaryDark, fontFamily: fonts.w700 },
   tornaSu: { alignSelf: 'flex-start', paddingVertical: spacing.xs, marginBottom: spacing.xs },
   tornaSuTxt: { ...typography.label, fontSize: 14, color: colors.primaryDark, fontFamily: fonts.w700 },
+
+  // ── la striscia delle date ──
+  giorniStriscia: { gap: spacing.xs, paddingVertical: spacing.xs },
+  giornoCard: {
+    width: 62, alignItems: 'center', paddingVertical: spacing.sm,
+    borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  giornoCardOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  giornoSett: { ...typography.caption, fontSize: 11, color: colors.textSecondary, textTransform: 'capitalize' },
+  giornoNum: { fontFamily: fonts.w800, fontSize: 20, color: colors.textPrimary, marginVertical: 1 },
+  giornoMese: { ...typography.caption, fontSize: 11, color: colors.textSecondary },
+  giornoTxtOn: { color: colors.primaryDark },
+  /** Il puntino: su questo giorno c'è l'orario già scelto. */
+  giornoPunto: {
+    position: 'absolute', top: 6, right: 6,
+    width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary,
+  },
 
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
