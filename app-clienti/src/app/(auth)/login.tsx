@@ -132,7 +132,7 @@ export default function LoginScreen() {
           {passo === 'numero' ? (
             <>
               <Text style={styles.subtitle}>
-                Scrivi il tuo numero: ti mandiamo un codice su WhatsApp.
+                Inserisci il tuo numero per accedere.
               </Text>
 
               <FormError message={errore} />
@@ -148,7 +148,7 @@ export default function LoginScreen() {
               />
 
               <Button
-                title="Mandami il codice"
+                title="Accedi"
                 onPress={chiediCodice}
                 loading={occupato}
                 disabled={soloCifre.length < 9}

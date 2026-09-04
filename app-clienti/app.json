@@ -53,7 +53,13 @@
       ],
       "expo-secure-store",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "RevoBeauty usa Face ID per proteggere il tuo account."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -12,12 +12,13 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { BloccoBiometrico } from '@/components/BloccoBiometrico';
 import { AuthProvider } from '@/context/AuthContext';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, fontAssets } from '@/theme';
 
 function RootNavigator({ fontPronti }: { fontPronti: boolean }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, sbloccoNecessario } = useAuth();
 
   // Splash minimale finché la sessione viene ripristinata da SecureStore:
   // evita il "flash" della schermata di login per un'utente già loggata.
@@ -29,6 +30,12 @@ function RootNavigator({ fontPronti }: { fontPronti: boolean }) {
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
+  }
+
+  // App riaperta con una sessione salvata: i dati restano coperti
+  // finché Face ID (o l'impronta) non conferma. Vedi BloccoBiometrico.
+  if (user && sbloccoNecessario) {
+    return <BloccoBiometrico />;
   }
 
   return (

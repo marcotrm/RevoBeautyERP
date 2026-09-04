@@ -7,6 +7,8 @@
  * layout mostra lo splash (nessun flash della schermata sbagliata).
  */
 import { createContext, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import * as LocalAuthentication from 'expo-local-authentication';
+import { Platform } from 'react-native';
 
 import { authService, RichiestaCodice, User } from '@/api';
 import {
@@ -26,6 +28,14 @@ export interface AuthContextValue {
   isLoading: boolean;
   /** false solo alla primissima apertura dell'app su questo telefono */
   introVista: boolean;
+  /**
+   * true quando l'app si è riaperta con una sessione salvata e il telefono
+   * ha Face ID/impronta: prima di mostrare i dati si chiede lo sblocco.
+   * Un accesso appena fatto col numero non lo richiede: la persona è lì.
+   */
+  sbloccoNecessario: boolean;
+  /** Chiamata dal blocco biometrico quando Face ID va a buon fine. */
+  sblocca: () => void;
   /** Chiude l'introduzione: la ricorda sul telefono e sblocca l'accesso. */
   concludiIntro: () => Promise<void>;
   /** Manda il codice su WhatsApp. Non apre ancora nessuna sessione. */
@@ -37,11 +47,30 @@ export interface AuthContextValue {
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+/**
+ * C'è una biometria utilizzabile su questo dispositivo?
+ * Sul web non esiste; su un telefono senza Face ID/impronta configurati
+ * la risposta è no e l'app si apre come sempre, senza blocco.
+ */
+async function biometriaDisponibile(): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+  try {
+    const [hardware, registrata] = await Promise.all([
+      LocalAuthentication.hasHardwareAsync(),
+      LocalAuthentication.isEnrolledAsync(),
+    ]);
+    return hardware && registrata;
+  } catch {
+    return false;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [introVista, setIntroVista] = useState<boolean>(true);
+  const [sbloccoNecessario, setSbloccoNecessario] = useState<boolean>(false);
 
   // Ripristino sessione al primo avvio
   useEffect(() => {
@@ -58,6 +87,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (savedToken) {
           const restoredUser = await authService.restoreSession(savedToken);
           if (!cancelled && restoredUser) {
+            // Sessione ripristinata senza che nessuno abbia digitato nulla:
+            // se il telefono ha la biometria, i dati restano coperti finché
+            // Face ID (o l'impronta) non conferma che è davvero lei.
+            if (await biometriaDisponibile()) setSbloccoNecessario(true);
             setUser(restoredUser);
             setToken(savedToken);
           } else if (!cancelled) {
@@ -129,6 +162,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIntroVista(true);
   }, []);
 
+  const sblocca = useCallback(() => setSbloccoNecessario(false), []);
+
   const signOut = useCallback(async () => {
     try {
       if (token) await authService.signOut(token);
@@ -137,12 +172,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await clearSessionToken();
       setUser(null);
       setToken(null);
+      setSbloccoNecessario(false);
     }
   }, [token]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, token, isLoading, introVista, concludiIntro, richiediCodice, verificaCodice, signOut }),
-    [user, token, isLoading, introVista, concludiIntro, richiediCodice, verificaCodice, signOut]
+    () => ({
+      user, token, isLoading, introVista, sbloccoNecessario,
+      sblocca, concludiIntro, richiediCodice, verificaCodice, signOut,
+    }),
+    [user, token, isLoading, introVista, sbloccoNecessario, sblocca, concludiIntro, richiediCodice, verificaCodice, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
