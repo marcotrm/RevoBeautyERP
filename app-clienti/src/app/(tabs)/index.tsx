@@ -230,7 +230,7 @@ export default function HomeScreen() {
             { icona: 'calendar-outline', testo: 'Prenota', rotta: '/prenota' },
             { icona: 'pricetags-outline', testo: 'Listino', rotta: '/listino' },
             { icona: 'sparkles-outline', testo: 'Revo AI', rotta: '/assistente' },
-            { icona: 'chatbubble-ellipses-outline', testo: 'Scrivici', rotta: '/contatti' },
+            { icona: 'chatbubble-ellipses-outline', testo: 'Chat', rotta: '/chat' },
           ] as const).map((a) => (
             <Pressable key={a.rotta} style={styles.azione} onPress={() => router.push(a.rotta as never)}>
               <Ionicons name={a.icona} size={22} color={colors.primaryDark} />

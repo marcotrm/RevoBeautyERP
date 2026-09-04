@@ -17,7 +17,7 @@ import { StyleSheet, View } from 'react-native';
 import { colors } from '@/theme';
 
 export type NomeIcona =
-  | 'home' | 'perTe' | 'premi' | 'prenota' | 'profilo' | 'freccia'
+  | 'home' | 'chat' | 'perTe' | 'premi' | 'prenota' | 'profilo' | 'freccia'
   // le categorie del listino: stessa griglia e stesso tratto delle schede
   | 'unghie' | 'laser' | 'ceretta' | 'viso' | 'corpo' | 'massaggi'
   | 'trucco' | 'consulenza' | 'capelli' | 'generico'
@@ -38,6 +38,14 @@ function Disegno({ nome }: { nome: NomeIcona }) {
           <Path d="M3.6 16.8V9.4c0-.3.1-.6.4-.8L10 4l6 4.6c.3.2.4.5.4.8v7.4" />
           <Path d="M2.6 16.8h14.8" />
           <Path d="M8.2 16.8v-3.4a1.8 1.8 0 0 1 3.6 0v3.4" />
+        </>
+      );
+    case 'chat':
+      // La bolla che parla: il filo diretto col centro.
+      return (
+        <>
+          <Path d="M4.2 4.8h11.6a1.6 1.6 0 0 1 1.6 1.6v5.6a1.6 1.6 0 0 1-1.6 1.6H9.8l-3.2 2.6v-2.6H4.2a1.6 1.6 0 0 1-1.6-1.6V6.4a1.6 1.6 0 0 1 1.6-1.6z" />
+          <Path d="M6.6 9.2h6.8" />
         </>
       );
     case 'perTe':

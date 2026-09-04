@@ -82,7 +82,7 @@ export default function ContattiScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Contatti</Text>
+        <Text style={styles.title}>Chat</Text>
         <Text style={styles.subtitle}>Scrivi al centro estetico</Text>
       </View>
 

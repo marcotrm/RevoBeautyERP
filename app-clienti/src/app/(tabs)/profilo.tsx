@@ -23,7 +23,6 @@ const VOCI: Voce[] = [
   { icona: 'ribbon-outline', testo: 'Beauty Club', rotta: '/club' },
   { icona: 'people-outline', testo: 'Porta un\'amica', rotta: '/invita' },
   { icona: 'pricetags-outline', testo: 'Trattamenti e pacchetti', rotta: '/listino' },
-  { icona: 'chatbubble-ellipses-outline', testo: 'Scrivici', rotta: '/contatti' },
   { icona: 'speedometer-outline', testo: 'Revo Score', rotta: '/score' },
   { icona: 'flag-outline', testo: 'Missioni', rotta: '/missioni' },
   { icona: 'book-outline', testo: 'Beauty Passport', rotta: '/passport' },

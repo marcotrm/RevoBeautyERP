@@ -13,6 +13,7 @@ import { colors, fonts, typography } from '@/theme';
 /** Le schede in ordine: il primo è quello che si apre all'avvio. */
 const SCHEDE = [
   { name: 'index', title: 'Home', icona: 'home' },
+  { name: 'chat', title: 'Chat', icona: 'chat' },
   { name: 'prenota', title: 'Prenota', icona: 'prenota' },
   { name: 'per-te', title: 'Per te', icona: 'perTe' },
   { name: 'premi', title: 'Premi', icona: 'premi' },
