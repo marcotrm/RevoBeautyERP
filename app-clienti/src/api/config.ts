@@ -44,6 +44,9 @@ function resolveBaseUrl(): string {
   // è sullo stesso host che serve il bundle
   const hostUri = Constants.expoConfig?.hostUri;
   const host = hostUri?.split(':')[0];
+  // Col tunnel il bundle arriva da *.exp.direct: lì un gestionale sulla
+  // porta 3000 non esiste, quindi si parla direttamente con quello vero.
+  if (host?.endsWith('.exp.direct')) return GESTIONALE;
   if (host) return `http://${host}:${GESTIONALE_DEV_PORT}`;
 
   return `http://localhost:${GESTIONALE_DEV_PORT}`;
