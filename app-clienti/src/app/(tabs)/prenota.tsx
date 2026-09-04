@@ -206,9 +206,38 @@ export default function PrenotaScreen() {
   }
 
   // ------------------------------------------------------------ wizard
+
+  /**
+   * Il tasto "torna indietro", uno solo e sempre nello stesso posto: fa un
+   * passo alla volta all'incontrario. Dall'orario torna ai trattamenti, dal
+   * trattamento scelto torna all'elenco, dall'elenco alle categorie.
+   */
+  const idxAperto = apertoIdx >= 0 && apertoIdx < scelte.length ? apertoIdx : scelte.length - 1;
+  const puoTornare = passo === 2
+    || Boolean(scelte[idxAperto]?.treatmentId)
+    || Boolean(categorie[idxAperto]);
+  const tornaIndietro = () => {
+    if (passo === 2) { setPasso(1); setApertoIdx(-1); suSu(); return; }
+    if (scelte[idxAperto]?.treatmentId) {
+      aggiorna(idxAperto, { treatmentId: '', operatorId: '' });
+      setApertoIdx(idxAperto); suSu(); return;
+    }
+    if (categorie[idxAperto]) {
+      const nc = [...categorie]; nc[idxAperto] = ''; setCategorie(nc);
+      aggiorna(idxAperto, { treatmentId: '', operatorId: '' });
+      setApertoIdx(idxAperto); suSu();
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {puoTornare && (
+          <Pressable style={styles.tornaSu} hitSlop={10} onPress={tornaIndietro}
+            accessibilityRole="button" accessibilityLabel="Torna indietro">
+            <Text style={styles.tornaSuTxt}>← Torna indietro</Text>
+          </Pressable>
+        )}
         <Text style={styles.title}>Prenota</Text>
         {!!user?.nome && <Text style={styles.sottotitolo}>Ciao {user.nome}, cosa ti prepariamo?</Text>}
 
@@ -386,15 +415,6 @@ export default function PrenotaScreen() {
 
         {passo === 2 && (
           <>
-            {/*
-              La via d'uscita sta anche in alto: chi sbaglia trattamento cerca
-              "indietro" dove inizia la pagina, non nella barra di conferma.
-            */}
-            <Pressable style={styles.tornaSu} hitSlop={8}
-              onPress={() => { setPasso(1); setApertoIdx(-1); suSu(); }}>
-              <Text style={styles.tornaSuTxt}>← Cambia trattamento</Text>
-            </Pressable>
-
             <View style={styles.blocco}>
               <Text style={styles.label}>Quali giorni ti vanno bene</Text>
               <View style={styles.chips}>
