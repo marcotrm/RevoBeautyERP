@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { FormError } from '@/components/ui/FormError';
 import { useApiData } from '@/hooks/useApiData';
 import { useAuth } from '@/hooks/useAuth';
+import { attivaNotifichePiene } from '@/lib/pushClient';
 import { colors, fonts, radius, spacing, typography } from '@/theme';
 
 const GIORNI = [
@@ -65,6 +66,9 @@ export default function ListaAttesaScreen() {
         dalleOre: fascia.dalle,
         alleOre: fascia.alle,
       });
+      // Il momento giusto per il permesso pieno: ha appena chiesto un avviso,
+      // quindi le notifiche adesso le servono — e si vede.
+      void attivaNotifichePiene(token);
       setTrattamento(null);
       setGiorni([]);
       setFascia(FASCE[3]);
