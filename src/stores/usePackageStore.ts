@@ -59,7 +59,7 @@ interface PackageStore {
   updatePackage: (id: string, updates: Partial<PackageItem>) => Promise<void>;
   deletePackage: (id: string) => Promise<void>;
 
-  activatePackage: (pkg: PackageItem, clientName: string, validityMonths: number, firstPayment: number, paymentMethod: PackagePayment['method'], operator: string, paymentPlan: 'full' | 'installments') => Promise<void>;
+  activatePackage: (pkg: PackageItem, clientName: string, validityMonths: number, firstPayment: number, paymentMethod: PackagePayment['method'], operator: string, paymentPlan: 'full' | 'installments', prezzoConcordato?: number, motivoSconto?: string) => Promise<void>;
   addPayment: (cpId: string, amount: number, method: PackagePayment['method'], operator: string, note?: string) => Promise<void>;
   useSession: (cpId: string, operator: string, note: string) => Promise<void>;
   deleteClientPackage: (cpId: string) => Promise<void>;
@@ -115,9 +115,14 @@ export const usePackageStore = create<PackageStore>()((set, get) => ({
     }
   },
 
-  activatePackage: async (pkg, clientName, validityMonths, firstPayment, paymentMethod, operator, paymentPlan) => {
+  activatePackage: async (pkg, clientName, validityMonths, firstPayment, paymentMethod, operator, paymentPlan, prezzoConcordato, motivoSconto) => {
     try {
-      const newCp = await activatePackageAction(pkg, clientName, validityMonths, firstPayment, paymentMethod, operator, paymentPlan);
+      const newCp = await activatePackageAction(
+        pkg, clientName, validityMonths, firstPayment, paymentMethod, operator, paymentPlan,
+        // Il clientId lo mette il chiamante piu' avanti: qui si passa avanti
+        // solo il prezzo concordato, che e' la novita'.
+        undefined, prezzoConcordato, motivoSconto,
+      );
       set((s) => ({
         clientPackages: [newCp, ...s.clientPackages],
         packages: s.packages.map(p => p.id === pkg.id ? { ...p, sold: p.sold + 1 } : p),

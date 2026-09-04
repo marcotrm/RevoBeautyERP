@@ -16,6 +16,7 @@ import { leggiConfig } from '@/lib/appSettings';
 import { generaProposte } from '@/lib/proposte';
 import { tracciaMolti } from '@/lib/appEvents';
 import { leggiPreTrattamento } from '@/lib/estetica';
+import { soloNome } from '@/lib/nomiPropri';
 
 export async function GET(req: Request) {
   const cliente = await clienteDaToken(tokenDaRichiesta(req));
@@ -68,7 +69,7 @@ export async function GET(req: Request) {
     messaggio: config.home.messaggio || null,
     prossimoAppuntamento: prossimo && {
       id: prossimo.id, date: prossimo.date, startTime: prossimo.startTime, endTime: prossimo.endTime,
-      treatmentName: prossimo.treatmentName, operatorName: prossimo.operatorName, price: prossimo.price,
+      treatmentName: prossimo.treatmentName, operatorName: soloNome(prossimo.operatorName), price: prossimo.price,
       // Se il trattamento ha una preparazione, la Home la mette in evidenza.
       preparazione: leggiPreTrattamento(prossimo.treatment?.preTrattamento),
     },

@@ -1,5 +1,6 @@
 import { todayInItaly } from '@/lib/voice';
 import { cercaSlot, type ServizioRichiesto } from '@/lib/bookingEngine';
+import { soloNome } from '@/lib/nomiPropri';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,5 +46,15 @@ export async function POST(request: Request) {
     maxPerGiorno: Number(b.maxPerGiorno) || 40,
   });
 
-  return Response.json(res);
+  // Verso chi prenota il cognome delle operatrici non esce: solo "Luisa".
+  return Response.json({
+    ...res,
+    giorni: res.giorni.map((g) => ({
+      ...g,
+      slots: g.slots.map((s) => ({
+        ...s,
+        assegnazioni: (s.assegnazioni || []).map((a) => ({ ...a, operatorName: soloNome(a.operatorName) })),
+      })),
+    })),
+  });
 }

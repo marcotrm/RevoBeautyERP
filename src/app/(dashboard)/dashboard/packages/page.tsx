@@ -210,7 +210,7 @@ function HistoryModal({ cp, onClose, onAddPayment }: { cp: ClientPackage; onClos
 /* ========== ACTIVATE PACKAGE MODAL ========== */
 function ActivatePackageModal({ pkg, onClose, onActivate }: {
   pkg: PackageItem; onClose: () => void;
-  onActivate: (clientName: string, validityMonths: number, firstPayment: number, method: PackagePayment['method'], operator: string, plan: 'full' | 'installments', products: ProductLine[]) => void;
+  onActivate: (clientName: string, validityMonths: number, firstPayment: number, method: PackagePayment['method'], operator: string, plan: 'full' | 'installments', products: ProductLine[], prezzoConcordato?: number, motivoSconto?: string) => void;
 }) {
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState('');
@@ -281,12 +281,28 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
     return allClients.filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q)).slice(0, 8);
   }, [search, allClients]);
 
+  /*
+    Il prezzo concordato: quello che si e' detto alla cliente.
+
+    Prima uno sconto su un pacchetto si faceva scrivendo un acconto piu' basso
+    e poi «regalando» il resto: due passaggi, e nello storico una riga
+    «regalo» che non raccontava cosa era successo. Qui il pacchetto costa
+    quello che si e' promesso, e la differenza col listino resta scritta con
+    il motivo e il nome di chi l'ha decisa.
+  */
+  const [scontoAperto, setScontoAperto] = useState(false);
+  const [prezzoConcordato, setPrezzoConcordato] = useState(String(pkg.price));
+  const [motivoSconto, setMotivoSconto] = useState('');
+
+  const prezzo = Math.max(0, Math.min(Number(prezzoConcordato.replace(',', '.')) || 0, pkg.price));
+  const sconto = Math.round((pkg.price - prezzo) * 100) / 100;
+
   const payAmount = Number(firstPayment) || 0;
-  const remaining = pkg.price - payAmount;
+  const remaining = prezzo - payAmount;
 
   const handleConfirm = () => {
     if (!selectedClient || payAmount <= 0) return;
-    onActivate(selectedClient, Number(validityMonths), payAmount, paymentMethod, operator, paymentPlan, lines);
+    onActivate(selectedClient, Number(validityMonths), payAmount, paymentMethod, operator, paymentPlan, lines, prezzo, motivoSconto);
     setStep('done');
   };
 
@@ -350,12 +366,55 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
                 <div className="p-3 rounded-xl bg-bg-tertiary border border-border/50">
                   <p className="text-xs text-text-muted">Cliente: <span className="text-text-primary font-medium">{selectedClient}</span></p>
                   <p className="text-xs text-text-muted">Pacchetto: <span className="text-text-primary font-medium">{pkg.name}</span></p>
-                  <p className="text-xs text-text-muted">Totale: <span className="text-accent font-bold">{formatCurrency(pkg.price)}</span></p>
+                  <p className="text-xs text-text-muted">
+                    Totale: <span className="text-accent font-bold">{formatCurrency(prezzo)}</span>
+                    {sconto > 0 && (
+                      <span className="text-text-muted"> · listino <s>{formatCurrency(pkg.price)}</s>, sconto {formatCurrency(sconto)}</span>
+                    )}
+                  </p>
+                </div>
+
+                {/* Lo sconto: si apre solo se serve, e chiede sempre il perche' */}
+                <div className="rounded-xl border border-border p-3">
+                  {!scontoAperto && sconto === 0 ? (
+                    <button onClick={() => setScontoAperto(true)}
+                      className="text-xs font-semibold text-accent hover:underline">
+                      Fai un prezzo diverso dal listino
+                    </button>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-medium text-text-secondary mb-1">Prezzo concordato</label>
+                          <div className="relative">
+                            <input type="text" inputMode="decimal" value={prezzoConcordato}
+                              onChange={e => { setPrezzoConcordato(e.target.value); if (paymentPlan === 'full') setFirstPayment(e.target.value); }}
+                              className="w-full pl-2.5 pr-7 py-2 rounded-lg bg-bg-tertiary border border-border text-sm font-semibold text-text-primary text-right focus:outline-none focus:border-accent/60" />
+                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-text-muted">€</span>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-text-secondary mb-1">Sconto</label>
+                          <p className={`px-2.5 py-2 rounded-lg border text-sm font-semibold text-right ${
+                            sconto > 0 ? 'border-success/40 bg-success/10 text-success' : 'border-border bg-bg-tertiary text-text-muted'}`}>
+                            {formatCurrency(sconto)}
+                          </p>
+                        </div>
+                      </div>
+                      <input type="text" value={motivoSconto} onChange={e => setMotivoSconto(e.target.value)}
+                        placeholder="Perché: cliente storica, promozione, un favore…"
+                        className="w-full px-3 py-2 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/60" />
+                      <p className="text-[10px] text-text-muted">
+                        Resta scritto nello storico del pacchetto, col tuo nome: fra un anno, davanti a un pacchetto da
+                        {' '}{formatCurrency(pkg.price)} pagato {formatCurrency(prezzo)}, serve sapere chi l’ha deciso.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-2">Modalità di Pagamento</label>
                   <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => { setPaymentPlan('full'); setFirstPayment(String(pkg.price)); }}
+                    <button onClick={() => { setPaymentPlan('full'); setFirstPayment(String(prezzo)); }}
                       className={`p-3 rounded-xl border-2 text-left transition-all ${paymentPlan === 'full' ? 'border-success bg-success/5' : 'border-border hover:border-border-light'}`}>
                       <p className={`text-sm font-semibold ${paymentPlan === 'full' ? 'text-success' : 'text-text-primary'}`}>💰 Saldo Totale</p>
                       <p className="text-[10px] text-text-muted mt-0.5">Paga tutto subito</p>
@@ -371,7 +430,7 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
                   <label className="block text-sm font-medium text-text-secondary mb-1.5">{paymentPlan === 'full' ? 'Importo' : 'Acconto / Prima Rata'} *</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">€</span>
-                    <input type="number" value={firstPayment} onChange={e => setFirstPayment(e.target.value)} max={pkg.price} min={1} placeholder={String(pkg.price)}
+                    <input type="number" value={firstPayment} onChange={e => setFirstPayment(e.target.value)} max={prezzo} min={1} placeholder={String(prezzo)}
                       className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-all" />
                   </div>
                   {paymentPlan === 'installments' && remaining > 0 && payAmount > 0 && (
@@ -379,9 +438,9 @@ function ActivatePackageModal({ pkg, onClose, onActivate }: {
                       <div className="flex justify-between text-sm"><span className="text-text-secondary">Acconto oggi</span><span className="text-success font-bold">{formatCurrency(payAmount)}</span></div>
                       <div className="flex justify-between text-sm mt-1"><span className="text-text-secondary">Restante da pagare</span><span className="text-error font-bold">{formatCurrency(remaining)}</span></div>
                       <div className="w-full h-2 rounded-full bg-bg-tertiary mt-2 overflow-hidden">
-                        <div className="h-full rounded-full bg-success transition-all" style={{ width: `${(payAmount / pkg.price) * 100}%` }} />
+                        <div className="h-full rounded-full bg-success transition-all" style={{ width: `${(payAmount / (prezzo || 1)) * 100}%` }} />
                       </div>
-                      <p className="text-[10px] text-text-muted mt-1 text-center">{Math.round((payAmount / pkg.price) * 100)}% pagato</p>
+                      <p className="text-[10px] text-text-muted mt-1 text-center">{Math.round((payAmount / (prezzo || 1)) * 100)}% pagato</p>
                     </div>
                   )}
                 </div>
@@ -931,8 +990,8 @@ export default function PackagesPage() {
     return list;
   }, [clientPkgs, filter, search]);
 
-  const handleActivate = async (pkg: PackageItem, clientName: string, validityMonths: number, firstPayment: number, method: PackagePayment['method'], operator: string, plan: 'full' | 'installments', products: ProductLine[] = []) => {
-    await activatePackage(pkg, clientName, validityMonths, firstPayment, method, operator, plan);
+  const handleActivate = async (pkg: PackageItem, clientName: string, validityMonths: number, firstPayment: number, method: PackagePayment['method'], operator: string, plan: 'full' | 'installments', products: ProductLine[] = [], prezzoConcordato?: number, motivoSconto?: string) => {
+    await activatePackage(pkg, clientName, validityMonths, firstPayment, method, operator, plan, prezzoConcordato, motivoSconto);
     // I prodotti abbinati sono una vendita a parte, con lo sconto pacchetto già applicato
     if (products.length > 0) {
       await sellProductsWithPackage({ clientName, packageName: pkg.name, lines: products, method, operator });

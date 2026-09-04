@@ -35,3 +35,15 @@ export function maiuscoleNome(testo: string): string {
     return base.replace(/(^|['’-])(\p{L})/gu, (_, prima, lettera) => prima + lettera.toUpperCase());
   });
 }
+
+/**
+ * Solo il nome di battesimo: "Michela Cioffi" → "Michela".
+ *
+ * Verso le clienti il cognome delle operatrici non esce mai — non serve a
+ * prenotare e non sono affari di chi guarda. Si usa alle FRONTIERE (risposte
+ * delle API dell'app e del sito, testi delle notifiche), mai sui dati
+ * salvati: in agenda e nei conti il nome intero resta.
+ */
+export function soloNome(nomeCompleto: string | null | undefined): string {
+  return String(nomeCompleto ?? '').trim().split(/\s+/)[0] ?? '';
+}

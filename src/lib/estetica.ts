@@ -13,6 +13,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { soloNome } from '@/lib/nomiPropri';
 import type { PercorsoEstetico, SedutaPercorso, FotoPercorso } from '@prisma/client';
 
 const adesso = () => new Date().toISOString();
@@ -144,7 +145,7 @@ export function sedutaPerCliente(s: SedutaPercorso) {
     numero: s.numero,
     data: s.data,
     ora: s.ora,
-    operatrice: s.operatrice,
+    operatrice: soloNome(s.operatrice),
     trattamento: s.trattamento,
     area: s.area,
     durataMinuti: s.durataMinuti,

@@ -15,6 +15,7 @@
 import { prisma } from '@/lib/prisma';
 import { inviaNotifica } from '@/lib/pushExpo';
 import { leggiConfig } from '@/lib/appSettings';
+import { soloNome } from '@/lib/nomiPropri';
 
 const STATI_VIVI = ['confirmed', 'pending'];
 
@@ -78,7 +79,7 @@ export async function promemoriaAppuntamenti(): Promise<{ inviate: number }> {
         tipo: 'promemoria-24h',
         refId: a.id,
         titolo: 'A domani! 🦋',
-        corpo: `Domani alle ${a.startTime}: ${a.treatmentName}${a.operatorName ? ` con ${a.operatorName}` : ''}.`,
+        corpo: `Domani alle ${a.startTime}: ${a.treatmentName}${a.operatorName ? ` con ${soloNome(a.operatorName)}` : ''}.`,
         dati: { rotta: '/appuntamenti' },
       });
       if (esito === 'inviata') inviate++;

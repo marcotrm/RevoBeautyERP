@@ -11,6 +11,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { cercaSlot } from '@/lib/bookingEngine';
+import { soloNome } from '@/lib/nomiPropri';
 
 const GIORNO = 86400000;
 const oggiISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(new Date());
@@ -140,7 +141,7 @@ export async function suggerimentiAutopilot(
           date: g.date,
           time: slot.time,
           endTime: slot.endTime,
-          operatorName: slot.assegnazioni[0]?.operatorName ?? '',
+          operatorName: soloNome(slot.assegnazioni[0]?.operatorName),
           operatorId: slot.assegnazioni[0]?.operatorId ?? '',
         }))
       )

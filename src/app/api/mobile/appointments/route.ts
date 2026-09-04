@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma';
 import { clienteDaToken, tokenDaRichiesta } from '@/lib/mobileAuth';
 import { ORE_MINIME_DISDETTA, disdettabile } from '@/lib/mobileAppuntamenti';
 import { leggiPreTrattamento } from '@/lib/estetica';
+import { soloNome } from '@/lib/nomiPropri';
 
 export async function GET(req: Request) {
   const cliente = await clienteDaToken(tokenDaRichiesta(req));
@@ -35,7 +36,8 @@ export async function GET(req: Request) {
     endTime: a.endTime,
     treatmentName: a.treatmentName,
     treatmentCategory: a.treatmentCategory,
-    operatorName: a.operatorName,
+    // Solo il nome di battesimo: il cognome dell'operatrice resta in agenda.
+    operatorName: soloNome(a.operatorName),
     status: a.status,
     price: a.price,
     canCancel: disdettabile(a).ok,

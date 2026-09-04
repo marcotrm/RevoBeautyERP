@@ -5,6 +5,7 @@ import { omonimoInRubrica } from '@/lib/omonimi';
 import { findClientByPhone, todayInItaly } from '@/lib/voice';
 import { sendAppointmentConfirmation } from '@/lib/wa-appointments';
 import { slotDisponibili, type ServizioRichiesto } from '@/lib/bookingEngine';
+import { soloNome } from '@/lib/nomiPropri';
 import { apriCaparra, mandaRichiestaCaparra } from '@/app/actions/caparra';
 
 export const runtime = 'nodejs';
@@ -171,10 +172,11 @@ export async function POST(request: Request) {
       startTime: appointment.startTime,
       endTime: appointment.endTime,
       treatmentName: appointment.treatmentName,
-      operatorName: appointment.operatorName,
+      // Verso la cliente solo il nome di battesimo; in agenda resta intero.
+      operatorName: soloNome(appointment.operatorName),
       price: appointment.price,
       servizi: slot.assegnazioni.map(a => ({
-        nome: a.treatmentName, orario: a.startTime, operatrice: a.operatorName, prezzo: a.price,
+        nome: a.treatmentName, orario: a.startTime, operatrice: soloNome(a.operatorName), prezzo: a.price,
       })),
     },
   });

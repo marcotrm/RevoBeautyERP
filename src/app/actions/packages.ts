@@ -22,6 +22,8 @@ function toClientPackage(cp: {
   };
 }
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 // Registra un incasso in cassa (POS) collegato a un pacchetto, così il pagamento
 // compare tra le transazioni del giorno come qualsiasi altro incasso — scontrino
 // elettronico compreso: chi paga un pacchetto (o una rata) è un incasso vero.
@@ -113,12 +115,28 @@ export async function activatePackage(
   paymentMethod: PackagePayment['method'],
   operator: string,
   paymentPlan: 'full' | 'installments',
-  clientId?: string
+  clientId?: string,
+  /**
+   * Il prezzo davvero concordato, quando e' diverso dal listino.
+   *
+   * Uno sconto su un pacchetto si faceva scrivendo un acconto piu' basso e
+   * poi regalando il resto, cioe' due passaggi e una riga «regalo» che non
+   * raccontava cosa era successo. Qui il pacchetto costa quello che si e'
+   * detto alla cliente, e la differenza col listino resta scritta nello
+   * storico con il motivo e il nome di chi l'ha decisa.
+   */
+  prezzoConcordato?: number,
+  motivoSconto?: string,
 ) {
   const now = new Date();
   const exp = new Date(now);
   exp.setMonth(exp.getMonth() + validityMonths);
   const today = now.toISOString().split('T')[0];
+
+  // Il prezzo non sale mai sopra il listino: quello non e' uno sconto, e' un
+  // altro pacchetto, e si fa cambiando il listino.
+  const prezzo = round2(Math.max(0, Math.min(prezzoConcordato ?? pkg.price, pkg.price)));
+  const sconto = round2(pkg.price - prezzo);
 
   const created = await prisma.clientPackage.create({
     data: {
@@ -127,14 +145,28 @@ export async function activatePackage(
       packageColor: pkg.color,
       totalSessions: pkg.totalSessions,
       usedSessions: 0,
-      pricePaid: pkg.price,
+      pricePaid: prezzo,
       totalPaid: firstPayment,
-      remainingBalance: pkg.price - firstPayment,
+      remainingBalance: round2(prezzo - firstPayment),
       paymentPlan,
       purchaseDate: today,
       expiryDate: exp.toISOString().split('T')[0],
       status: 'active',
-      history: [],
+      /*
+        Lo sconto si scrive nello storico, non si deduce.
+
+        Fra un anno, davanti a un pacchetto da 350 pagato 250, l'unica cosa
+        che serve sapere e' chi l'ha deciso e perche'. Un numero piu' basso e
+        basta e' un ammanco che nessuno sa spiegare.
+      */
+      history: sconto > 0
+        ? [{
+          date: today,
+          operator,
+          note: `Sconto di ${sconto.toFixed(2).replace('.', ',')} € sul listino di ${pkg.price.toFixed(2).replace('.', ',')} €`
+            + (motivoSconto?.trim() ? ` — ${motivoSconto.trim()}` : ''),
+        }]
+        : [],
       payments: JSON.parse(JSON.stringify([{ id: `pay-${Date.now()}`, date: today, amount: firstPayment, method: paymentMethod, operator }])),
       packageId: pkg.id,
       clientId: clientId ?? null,

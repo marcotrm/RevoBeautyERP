@@ -9,6 +9,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { clienteDaToken, tokenDaRichiesta } from '@/lib/mobileAuth';
+import { soloNome } from '@/lib/nomiPropri';
 import { traccia } from '@/lib/appEvents';
 
 const GIORNO = 86400000;
@@ -62,7 +63,7 @@ export async function GET(req: Request) {
       /** La timeline del Beauty Journey: una tappa per seduta svolta. */
       tappe: storico
         .filter(h => h.date)
-        .map((h, i) => ({ numero: i + 1, data: h.date!, operatrice: h.operator ?? null, nota: h.note ?? null })),
+        .map((h, i) => ({ numero: i + 1, data: h.date!, operatrice: h.operator ? soloNome(h.operator) : null, nota: h.note ?? null })),
     };
   });
 
