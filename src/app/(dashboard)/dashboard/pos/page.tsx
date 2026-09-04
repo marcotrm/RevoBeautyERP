@@ -190,6 +190,45 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   */
   const [walletApp, setWalletApp] = useState(0);
   const [usaIlWalletApp, setUsaIlWalletApp] = useState(false);
+  /*
+    Il codice invito, detto proprio qui: la nuova cliente sta pagando il suo
+    primo conto e dice "vengo da parte di Maria". Si scrive il codice, i 5 €
+    di benvenuto entrano nel suo wallet e si scalano SUBITO da questo totale;
+    quelli di Maria arrivano da soli appena questo incasso va a buon fine.
+  */
+  const [codiceInvito, setCodiceInvito] = useState('');
+  const [mostraCodice, setMostraCodice] = useState(false);
+  const [esitoCodice, setEsitoCodice] = useState<{ ok: boolean; testo: string } | null>(null);
+  const [applicandoCodice, setApplicandoCodice] = useState(false);
+
+  const applicaCodiceInvito = async () => {
+    const id = clienteScelto?.id;
+    if (!id || !codiceInvito.trim() || applicandoCodice) return;
+    setApplicandoCodice(true);
+    setEsitoCodice(null);
+    try {
+      const r = await fetch('/api/admin/referral-codice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: id, codice: codiceInvito }),
+      });
+      const j = await r.json();
+      if (r.ok) {
+        setEsitoCodice({ ok: true, testo: `${j.importo} € di benvenuto da ${j.inviter}: scalati da questo conto.` });
+        setCodiceInvito('');
+        // Il saldo si ricarica e si accende da solo: il tasto l'ha già deciso.
+        const nuovo = await saldoWalletApp(id).catch(() => 0);
+        setWalletApp(nuovo);
+        setUsaIlWalletApp(true);
+      } else {
+        setEsitoCodice({ ok: false, testo: j.error || 'Codice non valido.' });
+      }
+    } catch {
+      setEsitoCodice({ ok: false, testo: 'Errore di rete: riprova.' });
+    } finally {
+      setApplicandoCodice(false);
+    }
+  };
 
   useEffect(() => {
     let vivo = true;
@@ -686,6 +725,35 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                             </span>
                           </span>
                         </button>
+                      )}
+
+                      {/* "Vengo da parte di…": il codice invito si gioca qui. */}
+                      {clienteScelto && (
+                        <div className="mt-2">
+                          {!mostraCodice ? (
+                            <button onClick={() => setMostraCodice(true)}
+                              className="text-[12px] font-medium text-accent hover:underline">
+                              🎁 Ha un codice invito? Inseriscilo
+                            </button>
+                          ) : (
+                            <div className="flex gap-1.5 items-center">
+                              <input
+                                value={codiceInvito}
+                                onChange={e => setCodiceInvito(e.target.value.toUpperCase())}
+                                placeholder="ES. MARIA-7K2P"
+                                className="flex-1 min-w-0 border border-border bg-bg-primary rounded-lg px-2 py-1.5 text-xs font-mono tracking-wider text-text-primary"
+                              />
+                              <button onClick={() => void applicaCodiceInvito()}
+                                disabled={applicandoCodice || !codiceInvito.trim()}
+                                className="text-xs bg-black text-white rounded-lg px-3 py-1.5 disabled:opacity-40 flex-shrink-0">
+                                {applicandoCodice ? '…' : 'Applica'}
+                              </button>
+                            </div>
+                          )}
+                          {esitoCodice && (
+                            <p className={`text-[11px] mt-1 ${esitoCodice.ok ? 'text-success' : 'text-error'}`}>{esitoCodice.testo}</p>
+                          )}
+                        </div>
                       )}
 
                       {/* Il credito dell'app: amica invitata, cashback, premi. */}
