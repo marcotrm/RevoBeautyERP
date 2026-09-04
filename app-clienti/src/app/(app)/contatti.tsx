@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError, ChatMessage, chatService } from '@/api';
 import { useAuth } from '@/hooks/useAuth';
+import { azzeraNonLetti } from '@/lib/chatBadge';
 import { colors, fonts, radius, spacing, typography } from '@/theme';
 
 function formatTime(iso: string): string {
@@ -43,6 +44,8 @@ export default function ContattiScreen() {
     try {
       const msgs = await chatService.list(token);
       setMessages(msgs);
+      // La lettura è appena stata segnata dal server: il pallino si spegne
+      azzeraNonLetti();
       setError(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Impossibile caricare la chat.');

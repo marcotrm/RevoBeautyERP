@@ -15,12 +15,19 @@ export interface ChatMessage {
 export interface ChatProvider {
   list(token: string): Promise<ChatMessage[]>;
   send(token: string, body: string): Promise<ChatMessage>;
+  /** Quante risposte dell'operatrice non sono ancora state lette. */
+  nonLetti(token: string): Promise<number>;
 }
 
 export class RealChatService implements ChatProvider {
   async list(token: string): Promise<ChatMessage[]> {
     const res = await apiRequest<{ messages: ChatMessage[] }>('/api/mobile/chat', { token });
     return res.messages;
+  }
+
+  async nonLetti(token: string): Promise<number> {
+    const res = await apiRequest<{ nonLetti: number }>('/api/mobile/chat/unread', { token });
+    return res.nonLetti;
   }
 
   async send(token: string, body: string): Promise<ChatMessage> {

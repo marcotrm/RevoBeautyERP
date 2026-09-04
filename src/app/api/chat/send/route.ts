@@ -23,5 +23,31 @@ export async function POST(request: Request) {
     },
   });
 
+  // La risposta dell'operatrice bussa sul telefono della cliente, subito.
+  // Solo per chi ha l'app; se la push fallisce il messaggio resta comunque
+  // consegnato in chat — mai far dipendere l'uno dall'altra.
+  if (sender === 'operator') {
+    try {
+      const account = await prisma.mobileAccount.findUnique({
+        where: { clientId: message.clientId },
+        select: { id: true },
+      });
+      if (account) {
+        const { inviaNotifica } = await import('@/lib/pushExpo');
+        const anteprima = message.body.length > 90 ? `${message.body.slice(0, 90)}…` : message.body;
+        await inviaNotifica({
+          clientId: message.clientId,
+          tipo: 'chat',
+          refId: message.id,
+          titolo: `${message.operatorName || 'RevoBeauty'} ti ha risposto 💬`,
+          corpo: anteprima,
+          dati: { rotta: '/chat' },
+        });
+      }
+    } catch (err) {
+      console.error('[chat] push di risposta fallita:', err);
+    }
+  }
+
   return Response.json({ success: true, message });
 }

@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 
 import { useAuth } from '@/hooks/useAuth';
+import { aggiornaNonLetti } from '@/lib/chatBadge';
 import { registraNotifichePush } from '@/lib/pushClient';
 
 export function NotifichePush() {
@@ -20,6 +21,15 @@ export function NotifichePush() {
   useEffect(() => {
     if (user && token) void registraNotifichePush(token);
   }, [user, token]);
+
+  // Notifica arrivata con l'app aperta: se è la chat, il pallino si accende subito
+  useEffect(() => {
+    if (!token) return;
+    const sub = Notifications.addNotificationReceivedListener((n) => {
+      if (n.request.content.data?.rotta === '/chat') void aggiornaNonLetti(token);
+    });
+    return () => sub.remove();
+  }, [token]);
 
   // Tocco sulla notifica → schermata giusta
   useEffect(() => {
