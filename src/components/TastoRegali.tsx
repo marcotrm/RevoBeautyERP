@@ -32,6 +32,8 @@ interface Riscatto {
   createdAt: string;
   consegnatoAt?: string | null;
   avatar?: string | null;
+  /** Quanti pezzi ci sono ancora a scaffale (null per i trattamenti). */
+  giacenza?: number | null;
 }
 
 /** «12 min fa», «2 ore fa», «3 giorni fa». */
@@ -50,6 +52,14 @@ export default function TastoRegali() {
   const [daRitirare, setDaRitirare] = useState<Riscatto[]>([]);
   const [storico, setStorico] = useState<Riscatto[]>([]);
   const [occupato, setOccupato] = useState<string | null>(null);
+  /*
+    Cosa e' successo appena si preme.
+
+    Lo scarico di magazzino c'era gia' ma avveniva in silenzio: chi premeva il
+    tasto non aveva modo di sapere se lo scaffale si era mosso, e una cosa che
+    non si vede si finisce per rifarla a mano — cioe' scaricarla due volte.
+  */
+  const [esito, setEsito] = useState<string | null>(null);
   const [montato, setMontato] = useState(false);
 
   useEffect(() => { setMontato(true); }, []);
@@ -75,10 +85,18 @@ export default function TastoRegali() {
     if (azione === 'annulla' && !confirm('Annullare il regalo? I punti tornano alla cliente.')) return;
     setOccupato(id);
     try {
-      await fetch('/api/admin/premi-riscatti', {
+      const risposta = await fetch('/api/admin/premi-riscatti', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, azione }),
       });
+      const d = await risposta.json().catch(() => ({}));
+      if (azione === 'consegna') {
+        setEsito(typeof d.giacenza === 'number'
+          ? `Consegnato e scaricato dal magazzino: di ${d.nomeProdotto} restano ${d.giacenza}`
+          : 'Consegnato. Il trattamento non ha scaffale: segnalo in agenda.');
+      } else {
+        setEsito(`Annullato: ${d.puntiRestituiti ?? ''} punti tornati alla cliente`.replace('  ', ' '));
+      }
       await carica();
     } finally { setOccupato(null); }
   };
@@ -120,6 +138,15 @@ export default function TastoRegali() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {esito && (
+                    <div className="flex items-start gap-2 p-3 rounded-xl border border-success/30 bg-success/10">
+                      <Check className="w-4 h-4 text-success flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-text-secondary flex-1 min-w-0">{esito}</p>
+                      <button onClick={() => setEsito(null)} className="text-text-muted hover:text-text-primary flex-shrink-0">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                   {quanti === 0 && storico.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center px-6">
                       <Gift className="w-10 h-10 text-text-muted mb-3" />
@@ -139,6 +166,18 @@ export default function TastoRegali() {
                           <p className="text-[11px] text-text-muted mt-0.5">
                             {r.tipo === 'trattamento' ? 'Trattamento' : 'Prodotto'} · {r.punti} punti · {quandoFa(r.createdAt)}
                           </p>
+                          {/*
+                            La giacenza prima di premere: se e' zero il pezzo
+                            non c'e', e va saputo ADESSO — non davanti alla
+                            cliente con la mano gia' tesa.
+                          */}
+                          {typeof r.giacenza === 'number' && (
+                            <p className={`text-[11px] mt-0.5 ${r.giacenza > 0 ? 'text-text-muted' : 'text-error font-semibold'}`}>
+                              {r.giacenza > 0
+                                ? `In magazzino: ${r.giacenza} · consegnando scende a ${r.giacenza - 1}`
+                                : 'Attenzione: a magazzino risulta finito'}
+                            </p>
+                          )}
                         </div>
                         {/*
                           Il codice grande: e' quello che lei mostra sul

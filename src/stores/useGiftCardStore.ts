@@ -17,6 +17,14 @@ export interface GiftCardTransaction {
 export interface GiftCard {
   id: string;
   code: string; // es. RB-2026-A4F8
+  /*
+    Il codice a barre della card plastificata, quando ce n'e' una.
+
+    Il codice RB- e' nostro e va letto ad alta voce; questo e' stampato sulla
+    tessera e si spara con la pistola. E' la differenza fra una cliente che
+    deve ricordarsi qualcosa e una che tira fuori la card e basta.
+  */
+  cardCode?: string;
   purchasedBy: string; // chi compra
   recipientName: string; // chi lo riceve (festeggiata)
   recipientPhone?: string;
@@ -41,6 +49,7 @@ interface GiftCardStore {
     purchasedBy: string;
     recipientName: string;
     recipientPhone?: string;
+    cardCode?: string;
     amount: number;
     paymentMethod: GiftCard['paymentMethod'];
     operator: string;
@@ -106,7 +115,9 @@ export const useGiftCardStore = create<GiftCardStore>()((set, get) => ({
   },
 
   findByCode: (code) => get().giftCards.find(gc =>
-    gc.code.toLowerCase() === code.toLowerCase() && gc.status !== 'expired'
+    (gc.code.toLowerCase() === code.toLowerCase()
+      || (gc.cardCode || '').toLowerCase() === code.toLowerCase())
+    && gc.status !== 'expired'
   ),
 
   findByRecipient: (name) => {

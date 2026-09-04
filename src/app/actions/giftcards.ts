@@ -13,15 +13,30 @@ function toGiftCard(gc: {
   id: string; code: string; purchasedBy: string; recipientName: string; recipientPhone: string | null;
   amount: number; remainingBalance: number; purchaseDate: string; expiryDate: string; paymentMethod: string;
   purchaseOperator: string; status: string; message: string | null; transactions: unknown;
+  cardCode?: string | null;
 }): GiftCard {
   return {
     ...gc,
+    cardCode: gc.cardCode ?? undefined,
     recipientPhone: gc.recipientPhone ?? undefined,
     message: gc.message ?? undefined,
     paymentMethod: gc.paymentMethod as GiftCard['paymentMethod'],
     status: gc.status as GiftCard['status'],
     transactions: (gc.transactions as unknown as GiftCardTransaction[]) ?? [],
   };
+}
+
+/**
+ * Il codice della card, ripulito.
+ *
+ * La pistola aggiunge spazi e a volte un a-capo, e la stessa tessera letta
+ * due volte deve risultare la stessa: maiuscolo e senza spazi. Se il centro
+ * lo scrive a mano invece di sparare, arriva comunque uguale.
+ */
+// Niente `export`: in un file 'use server' tutto quello che esce dev'essere
+// una funzione async, e questa e' solo una ripulita di stringa.
+function normalizzaCard(codice?: string | null): string {
+  return (codice || '').replace(/\s+/g, '').toUpperCase();
 }
 
 function generateCode(): string {
@@ -40,6 +55,8 @@ export async function createGiftCard(data: {
   purchasedBy: string;
   recipientName: string;
   recipientPhone?: string;
+  /** Il codice a barre della card plastificata, sparato con la pistola. */
+  cardCode?: string;
   amount: number;
   paymentMethod: GiftCard['paymentMethod'];
   operator: string;
@@ -53,6 +70,7 @@ export async function createGiftCard(data: {
   const created = await prisma.giftCard.create({
     data: {
       code: generateCode(),
+      cardCode: normalizzaCard(data.cardCode) || null,
       purchasedBy: data.purchasedBy,
       recipientName: data.recipientName,
       recipientPhone: data.recipientPhone ?? null,
@@ -142,6 +160,41 @@ export async function redeemGiftCard(gcId: string, amount: number, service: stri
   });
 
   return toGiftCard(updated);
+}
+
+/**
+ * Il buono trovato dal codice: quello della card o il nostro RB-.
+ *
+ * Si spara la tessera e basta, ma se la card si e' smagnetizzata o la cliente
+ * ha solo il messaggio su WhatsApp il codice RB- deve funzionare uguale —
+ * altrimenti il banco resta fermo con una cliente davanti.
+ *
+ * Torna sempre un motivo quando non si puo' usare: «scaduto il 12 marzo» si
+ * puo' spiegare alla cliente, «non trovato» su un buono scaduto no.
+ */
+export async function cercaBuonoRegalo(codice: string): Promise<
+  { ok: true; buono: GiftCard } | { ok: false; error: string }
+> {
+  const pulito = normalizzaCard(codice);
+  if (!pulito) return { ok: false, error: 'Scrivi o spara un codice' };
+
+  const gc = await prisma.giftCard.findFirst({
+    where: { OR: [{ cardCode: pulito }, { code: pulito }, { code: codice.trim() }] },
+  });
+  if (!gc) return { ok: false, error: 'Nessun buono con questo codice' };
+
+  if (gc.remainingBalance <= 0.005) {
+    return { ok: false, error: `Buono gia' usato tutto (${gc.recipientName})` };
+  }
+  // La scadenza si guarda sulla data, non sullo stato: lo stato lo aggiorna
+  // qualcuno, la data passa da sola.
+  const oggi = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Rome' });
+  if (gc.expiryDate && gc.expiryDate < oggi) {
+    const [a, m, g] = gc.expiryDate.split('-');
+    return { ok: false, error: `Buono scaduto il ${g}/${m}/${a}` };
+  }
+
+  return { ok: true, buono: toGiftCard(gc) };
 }
 
 export async function deleteGiftCard(gcId: string) {

@@ -34,6 +34,15 @@ function CreateGiftCardModal({ onClose, onCreate }: {
     obbligatorio — se non ce l'hanno, il buono si fa lo stesso.
   */
   const [recipientPhone, setRecipientPhone] = useState('');
+  /*
+    Il codice della card plastificata.
+
+    Si spara con la pistola mentre si consegna la tessera: da quel momento la
+    cliente non deve ricordarsi niente ne' conservare messaggi, tira fuori la
+    card al banco e il saldo si scala. Resta facoltativo — i buoni mandati su
+    WhatsApp una tessera non ce l'hanno.
+  */
+  const [cardCode, setCardCode] = useState('');
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
   const [validityMonths, setValidityMonths] = useState('12');
@@ -64,12 +73,14 @@ function CreateGiftCardModal({ onClose, onCreate }: {
     if (!purchasedBy || !recipientName || amountNum <= 0) return;
     const gc = (window as unknown as { __gcCreate: typeof onCreate }).__gcCreate?.({
       purchasedBy, recipientName, recipientPhone: recipientPhone.trim() || undefined,
+      cardCode: cardCode.trim() || undefined,
       amount: amountNum, paymentMethod, operator,
       validityMonths: Number(validityMonths), message: message || undefined,
     });
     // We pass through the parent
     onCreate({
       purchasedBy, recipientName, recipientPhone: recipientPhone.trim() || undefined,
+      cardCode: cardCode.trim() || undefined,
       amount: amountNum, paymentMethod, operator,
       validityMonths: Number(validityMonths), message: message || undefined,
     });
@@ -173,6 +184,29 @@ function CreateGiftCardModal({ onClose, onCreate }: {
                   <p className="text-[11px] text-text-muted mt-1">
                     Se lo metti, le arriva un messaggio con il codice e la scadenza appena crei il buono.
                     Chiedi a chi compra se può darlo — è il numero di un&apos;altra persona.
+                  </p>
+                </div>
+
+                {/*
+                  La card fisica: si spara qui, mentre e' in mano.
+
+                  Il campo accetta la pistola come una tastiera velocissima
+                  che finisce con Invio: per questo l'Invio non manda avanti
+                  il modulo, si limita a togliere il fuoco — altrimenti il
+                  buono partirebbe a meta' compilazione.
+                */}
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                    Codice della card <span className="text-text-muted font-normal">(facoltativo)</span>
+                  </label>
+                  <input type="text" value={cardCode}
+                    onChange={e => setCardCode(e.target.value.toUpperCase())}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
+                    {...NO_AUTOFILL}
+                    placeholder="Spara il codice a barre della tessera"
+                    className="w-full px-4 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm font-mono tracking-wider text-text-primary placeholder-text-muted placeholder:font-sans placeholder:tracking-normal focus:outline-none focus:border-accent/50 transition-all" />
+                  <p className="text-[11px] text-text-muted mt-1">
+                    Se consegni una card plastificata, sparala qui: al banco basterà quella per scalare il buono, anche in più volte.
                   </p>
                 </div>
 
@@ -483,10 +517,13 @@ export default function GiftCardsPage() {
     if (filter !== 'all') list = list.filter(gc => gc.status === filter);
     if (search.trim()) {
       const q = search.toLowerCase();
+      // La ricerca accetta anche la pistola: sparando la tessera si arriva
+      // dritti al suo buono, che e' il gesto piu' veloce che ci sia.
       list = list.filter(gc =>
         gc.recipientName.toLowerCase().includes(q) ||
         gc.purchasedBy.toLowerCase().includes(q) ||
-        gc.code.toLowerCase().includes(q)
+        gc.code.toLowerCase().includes(q) ||
+        (gc.cardCode || '').toLowerCase().includes(q)
       );
     }
     return list;
@@ -582,7 +619,11 @@ export default function GiftCardsPage() {
                   <p className="text-sm font-semibold text-text-primary">{gc.recipientName}</p>
                   {statusBadge(gc.status)}
                 </div>
-                <p className="text-xs text-text-muted">Codice: <span className="font-mono text-text-secondary">{gc.code}</span> • Da: {gc.purchasedBy}</p>
+                <p className="text-xs text-text-muted">
+                  Codice: <span className="font-mono text-text-secondary">{gc.code}</span>
+                  {gc.cardCode ? <> • card <span className="font-mono text-text-secondary">{gc.cardCode}</span></> : ''}
+                  {' '}• Da: {gc.purchasedBy}
+                </p>
               </div>
               <div className="text-right min-w-[80px]">
                 <p className={`text-sm font-bold ${gc.remainingBalance > 0 ? 'text-accent' : 'text-text-muted'}`}>{formatCurrency(gc.remainingBalance)}</p>
@@ -652,6 +693,9 @@ export default function GiftCardsPage() {
                 {/* Info */}
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-text-secondary">Codice</span><span className="text-text-primary font-mono font-semibold">{viewingGc.code}</span></div>
+                  {viewingGc.cardCode && (
+                    <div className="flex justify-between"><span className="text-text-secondary">Card fisica</span><span className="text-text-primary font-mono font-semibold">{viewingGc.cardCode}</span></div>
+                  )}
                   <div className="flex justify-between"><span className="text-text-secondary">Comprato da</span><span className="text-text-primary font-medium">{viewingGc.purchasedBy}</span></div>
                   <div className="flex justify-between"><span className="text-text-secondary">Per</span><span className="text-text-primary font-medium">{viewingGc.recipientName}</span></div>
                   <div className="flex justify-between"><span className="text-text-secondary">Data acquisto</span><span className="text-text-primary">{new Date(viewingGc.purchaseDate).toLocaleDateString('it-IT')}</span></div>

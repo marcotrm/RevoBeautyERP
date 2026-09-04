@@ -32,6 +32,8 @@ import { descriviMisto } from '@/lib/pagamenti';
 import { usaCaparra } from '@/app/actions/caparra';
 import { saldoCredito, usaCredito } from '@/app/actions/credito';
 import { regaliInCassa, type RegaliInCassa } from '@/app/actions/regaliCassa';
+import { cercaBuonoRegalo, redeemGiftCard } from '@/app/actions/giftcards';
+import type { GiftCard } from '@/stores/useGiftCardStore';
 import { saldoWalletApp, usaWalletApp } from '@/app/actions/walletApp';
 
 interface CartItem {
@@ -193,6 +195,20 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   */
   const [regali, setRegali] = useState<RegaliInCassa | null>(null);
   const [consegnando, setConsegnando] = useState<string | null>(null);
+  /** Cosa e' successo al magazzino: detto, non lasciato indovinare. */
+  const [esitoRegalo, setEsitoRegalo] = useState<string | null>(null);
+  /*
+    Il buono regalo su card plastificata.
+
+    Non e' legato alla cliente scelta: la tessera vale per chi ce l'ha in
+    mano, ed e' giusto cosi' — la festeggiata puo' mandare la sorella. Si
+    spara il codice a barre e il saldo residuo si scala su questo conto;
+    quello che avanza resta sulla card per la volta dopo.
+  */
+  const [cardRegalo, setCardRegalo] = useState<GiftCard | null>(null);
+  const [codiceCard, setCodiceCard] = useState('');
+  const [cercandoCard, setCercandoCard] = useState(false);
+  const [erroreCard, setErroreCard] = useState('');
   /*
     Il wallet dell'app: i crediti GUADAGNATI (amica invitata, cashback, premi).
     Vive in un registro separato dal credito del banco, ma al momento di
@@ -261,13 +277,37 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     stessa strada, stesso scarico di magazzino. Due strade diverse per la
     stessa cosa e' il modo sicuro per farne divergere una.
   */
+  /*
+    La pistola scrive velocissima e chiude con Invio: la ricerca parte da li'.
+    Il codice si cerca com'e' — la card, oppure il nostro RB- se la tessera
+    non si legge piu' e la cliente ha solo il messaggio su WhatsApp.
+  */
+  const trovaCard = async () => {
+    const codice = codiceCard.trim();
+    if (!codice || cercandoCard) return;
+    setCercandoCard(true);
+    setErroreCard('');
+    try {
+      const r = await cercaBuonoRegalo(codice);
+      if (!r.ok) { setCardRegalo(null); setErroreCard(r.error); return; }
+      setCardRegalo(r.buono);
+      setCodiceCard('');
+    } catch {
+      setErroreCard('Errore di rete: riprova');
+    } finally { setCercandoCard(false); }
+  };
+
   const consegnaRegalo = async (id: string) => {
     setConsegnando(id);
     try {
-      await fetch('/api/admin/premi-riscatti', {
+      const risposta = await fetch('/api/admin/premi-riscatti', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, azione: 'consegna' }),
       });
+      const d = await risposta.json().catch(() => ({}));
+      setEsitoRegalo(typeof d.giacenza === 'number'
+        ? `Regalo consegnato e scaricato dal magazzino: di ${d.nomeProdotto} restano ${d.giacenza}`
+        : 'Regalo consegnato. Il trattamento va segnato in agenda.');
       const fresco = await regaliInCassa(clienteScelto?.id);
       setRegali(fresco);
     } finally { setConsegnando(null); }
@@ -434,16 +474,27 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   */
   const caparraPagata = Math.max(0, Number(initialData?.caparra) || 0);
   const dopoCaparra = Math.max(0, Math.round((total - caparraPagata) * 100) / 100);
+  /*
+    Il buono regalo si scala per primo, prima del credito e del wallet.
+
+    Non e' un dettaglio contabile: il buono SCADE, il credito e il wallet no.
+    Consumare prima quello che ha una data addosso e' l'unico ordine che non
+    fa perdere soldi a nessuno.
+  */
+  const buonoRegaloUsato = cardRegalo
+    ? Math.min(cardRegalo.remainingBalance, dopoCaparra)
+    : 0;
+  const dopoBuonoRegalo = Math.max(0, Math.round((dopoCaparra - buonoRegaloUsato) * 100) / 100);
   // Non si scala mai piu' di quello che c'e' da pagare: il credito che avanza
   // resta sul suo conto, non si regala il resto.
-  const creditoUsato = usaIlCredito ? Math.min(credito, dopoCaparra) : 0;
+  const creditoUsato = usaIlCredito ? Math.min(credito, dopoBuonoRegalo) : 0;
   // Il wallet copre quel che resta dopo il credito del banco, mai di piu'.
   const walletUsato = usaIlWalletApp
-    ? Math.min(walletApp, Math.max(0, Math.round((dopoCaparra - creditoUsato) * 100) / 100))
+    ? Math.min(walletApp, Math.max(0, Math.round((dopoBuonoRegalo - creditoUsato) * 100) / 100))
     : 0;
   const finalTotal = isDebtPayment
     ? (customAmount ? Number(customAmount) : 0)
-    : Math.max(0, Math.round((dopoCaparra - creditoUsato - walletUsato) * 100) / 100);
+    : Math.max(0, Math.round((dopoBuonoRegalo - creditoUsato - walletUsato) * 100) / 100);
   const isMistoValid = paymentMethod === 'misto' ? Math.abs((Number(splitCash) + Number(splitCard)) - finalTotal) < 0.01 : true;
   // Resto: null se il contante battuto non copre il totale (o non è ancora stato inserito)
   const changeDue = (() => {
@@ -511,6 +562,24 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     setSavedTx(saved || null);
     setSaving(false);
     setStep('done');
+
+    /*
+      La card si scala adesso, a incasso fatto — mai prima.
+
+      Se si scalasse alla lettura del codice basterebbe sparare la tessera e
+      poi annullare la vendita per far sparire dei soldi che erano di
+      qualcuno. Quello che avanza resta sulla card: e' il «anche in piu'
+      sessioni», e vive dentro remainingBalance, non qui.
+    */
+    if (cardRegalo && buonoRegaloUsato > 0) {
+      await redeemGiftCard(
+        cardRegalo.id,
+        buonoRegaloUsato,
+        cart.map(i => i.name).join(', ') || 'Vendita al banco',
+        initialData?.operator || 'Staff',
+      ).catch(() => {});
+      setCardRegalo(null);
+    }
 
     // Il buono si chiude adesso, che l'incasso c'è stato: vale una volta sola.
     if (buonoApplicato && clienteScelto?.id) {
@@ -741,6 +810,10 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                         confronta con quello sul suo telefono mentre le si
                         parla, e il tasto sta qui perche' la mano e' gia' qui.
                       */}
+                      {esitoRegalo && (
+                        <p className="mt-2 text-[11px] text-success font-medium">✓ {esitoRegalo}</p>
+                      )}
+
                       {regali?.daConsegnare.map(r => (
                         <div key={r.id} className="mt-2 p-2.5 rounded-xl border-2 border-warning/50 bg-warning/10 space-y-2">
                           <div className="flex items-start gap-2">
@@ -775,6 +848,50 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                           {regali.allaPortata.length > 1 ? ` e altri ${regali.allaPortata.length - 1}` : ''} — glielo dici?
                         </p>
                       )}
+
+                      {/*
+                        La card plastificata: si spara qui.
+
+                        Sta in cassa e non nella scheda della cliente perche'
+                        la tessera vale per chi ce l'ha in mano — puo'
+                        presentarsi la sorella della festeggiata, e il buono
+                        e' comunque suo.
+                      */}
+                      {!isDebtPayment && (cardRegalo ? (
+                        <div className="mt-2 p-2.5 rounded-xl border-2 border-accent/50 bg-accent/5">
+                          <div className="flex items-start gap-2">
+                            <Gift className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-accent">
+                                Buono di {cardRegalo.recipientName} · − {formatCurrency(buonoRegaloUsato)}
+                              </p>
+                              <p className="text-[11px] text-text-muted">
+                                {cardRegalo.cardCode || cardRegalo.code} · aveva {formatCurrency(cardRegalo.remainingBalance)}
+                                {cardRegalo.remainingBalance > buonoRegaloUsato
+                                  ? ` · le restano ${formatCurrency(Math.round((cardRegalo.remainingBalance - buonoRegaloUsato) * 100) / 100)} per la prossima volta`
+                                  : ' · si esaurisce con questo conto'}
+                              </p>
+                            </div>
+                            <button onClick={() => { setCardRegalo(null); setErroreCard(''); }}
+                              className="text-[11px] text-text-muted hover:text-error flex-shrink-0">Togli</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-2">
+                          <div className="flex gap-1.5 items-center">
+                            <input value={codiceCard}
+                              onChange={e => { setCodiceCard(e.target.value.toUpperCase()); setErroreCard(''); }}
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void trovaCard(); } }}
+                              placeholder="🎁 Spara la card del buono regalo"
+                              className="flex-1 min-w-0 border border-border bg-bg-primary rounded-lg px-2 py-1.5 text-xs font-mono tracking-wider text-text-primary placeholder:font-sans placeholder:tracking-normal" />
+                            <button onClick={() => void trovaCard()} disabled={cercandoCard || !codiceCard.trim()}
+                              className="text-xs bg-black text-white rounded-lg px-3 py-1.5 disabled:opacity-40 flex-shrink-0">
+                              {cercandoCard ? '…' : 'Usa'}
+                            </button>
+                          </div>
+                          {erroreCard && <p className="text-[11px] mt-1 text-error">{erroreCard}</p>}
+                        </div>
+                      ))}
 
                       {/* Il credito che le dobbiamo: si vede sempre, si usa
                           solo se qualcuno lo decide. */}

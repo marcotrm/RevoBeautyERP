@@ -413,6 +413,11 @@ model GiftCard {
   message          String?
   transactions     Json    @default("[]")
 
+  /// Il codice a barre stampato sulla card plastificata, quando il buono ne
+  /// ha una. Si spara con la pistola al banco: e' l'unico modo in cui una
+  /// cliente puo' usare il buono senza ricordarsi niente.
+  cardCode         String? @unique
+
   buyerId String?
   buyer   Client? @relation("GiftCardBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
 
