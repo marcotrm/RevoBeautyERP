@@ -26,12 +26,7 @@ function formatTime(iso: string): string {
   try {
     const d = new Date(iso);
     const ora = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-    // Oggi basta l'ora; per i giorni prima si aggiunge "4 set": giorno e
-    // mese e basta — l'anno in una chat è solo rumore.
-    const oggi = new Date();
-    const stessoGiorno = d.getDate() === oggi.getDate()
-      && d.getMonth() === oggi.getMonth() && d.getFullYear() === oggi.getFullYear();
-    if (stessoGiorno) return ora;
+    // Giorno e mese e basta, sempre: l'anno in una chat è solo rumore.
     const data = d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
     return `${data} · ${ora}`;
   } catch {
