@@ -97,10 +97,30 @@ export function suona(note: Nota[], volume = 0.25): boolean {
   }
 }
 
-/** Il trillo: due note che scendono, due volte. */
+/** Il trillo: due note che scendono, tre volte. */
 export const TRILLO: Nota[] = [
   { quando: 0, frequenza: 988 },
-  { quando: 0.14, frequenza: 784 },
-  { quando: 0.42, frequenza: 988 },
-  { quando: 0.56, frequenza: 784 },
+  { quando: 0.13, frequenza: 784 },
+  { quando: 0.38, frequenza: 988 },
+  { quando: 0.51, frequenza: 784 },
+  { quando: 0.76, frequenza: 988 },
+  { quando: 0.89, frequenza: 784 },
 ];
+
+/**
+ * Suona il trillo su QUESTO schermo.
+ *
+ * Il volume e' alto: non deve sentirlo chi preme il tasto — quello ce l'ha
+ * sotto il naso — ma chi sta in cabina dall'altra parte del centro, con le
+ * casse del computer del banco che suonano nella sala.
+ *
+ * Ritorna false se il browser non ha lasciato fare rumore, cosi' si puo' dire
+ * invece di far credere che sia partito.
+ */
+export function suonaTrillo(): boolean {
+  const suonato = suona(TRILLO, 0.5);
+  try {
+    navigator.vibrate?.([120, 80, 120]);
+  } catch { /* niente vibrazione su questo dispositivo */ }
+  return suonato;
+}

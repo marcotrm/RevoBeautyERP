@@ -17,7 +17,6 @@ import { Lock, Loader2 } from 'lucide-react';
 import MobileTabs from '@/components/MobileTabs';
 import VersioneNuova from '@/components/VersioneNuova';
 import Presenza from '@/components/Presenza';
-import Trillo from '@/components/Trillo';
 import PopupImmondizia from '@/components/PopupImmondizia';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useRolesStore } from '@/stores/useRolesStore';
@@ -73,7 +72,6 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
       )}
       <VersioneNuova />
       <Presenza />
-      <Trillo />
       <PopupImmondizia />
       <MobileTabs />
     </div>

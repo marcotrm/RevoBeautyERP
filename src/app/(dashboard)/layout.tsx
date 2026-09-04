@@ -9,7 +9,6 @@ import CommandPalette from '@/components/layout/CommandPalette';
 import CabinTimers from '@/components/CabinTimers';
 import VersioneNuova from '@/components/VersioneNuova';
 import Presenza from '@/components/Presenza';
-import Trillo from '@/components/Trillo';
 import PopupImmondizia from '@/components/PopupImmondizia';
 import WhatsAppAlert from '@/components/WhatsAppAlert';
 import { useUIStore } from '@/stores/useUIStore';
@@ -79,7 +78,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             continuano a premere tasti che il server non riconosce più. */}
         <VersioneNuova />
       <Presenza />
-      <Trillo />
       <PopupImmondizia />
         {/* `clip` e non `hidden`: taglia quello che sborda di lato senza
             trasformare `main` in un riquadro che scorre — cosa che spegnerebbe

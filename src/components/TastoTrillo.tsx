@@ -1,80 +1,50 @@
 'use client';
 
 /**
- * Il tasto del trillo, accanto alla chat.
+ * Il trillo: si preme e suona.
  *
- * Sta qui e non dentro l'appuntamento perche' il momento in cui serve non e'
- * quello in cui si guarda una scheda: e' quando alzi gli occhi, vedi che sono
- * le e venti e la cabina e' ancora chiusa. Deve essere a portata di pollice
- * sempre, come la chat.
+ * Quando una seduta sfora, il titolare non puo' entrare in cabina a dire
+ * all'operatrice di sbrigarsi: la cliente e' li' che sente tutto, e sentirsi
+ * dire che il proprio trattamento sta rubando tempo e' il modo piu' veloce di
+ * perderla. Cosi' non lo dice nessuno, e l'appuntamento dopo slitta.
  *
- * E non e' rivolto a nessuno. Non dice chi e' in ritardo, non dice di quanto,
- * non nomina la cliente che aspetta: fa un suono, e basta. Chi lavora sa cosa
- * vuol dire — e se qualcosa fosse scritto sullo schermo del tablet, quello
- * schermo lo puo' leggere anche la cliente sdraiata accanto.
+ * Il trillo e' quello di MSN: parte dalle casse del computer al banco e si
+ * sente in sala. L'operatrice sa cosa vuol dire; per la cliente e' un suono
+ * del gestionale come i bip di fine trattamento, che li' suonano tutto il
+ * giorno.
+ *
+ * Prima passava dal database per suonare sugli ALTRI schermi, e sul computer
+ * che lo premeva restava muto: chi lo provava concludeva — giustamente — che
+ * fosse rotto. Adesso e' quello che sembra: un tasto che fa un suono.
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { BellRing } from 'lucide-react';
-import { mandaTrillo } from '@/app/actions/trillo';
-import { idSchermo, suonaTrillo } from '@/components/Trillo';
+import { suonaTrillo } from '@/lib/suono';
 
 export default function TastoTrillo() {
-  const [statoBreve, setStatoBreve] = useState<'' | 'mandato' | 'qui' | 'muto'>('');
-  const tenuto = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const eraTenuto = useRef(false);
+  const [stato, setStato] = useState<'' | 'suonato' | 'muto'>('');
 
-  const mostra = (s: 'mandato' | 'qui' | 'muto') => {
-    setStatoBreve(s);
-    setTimeout(() => setStatoBreve(''), 2600);
-  };
-
-  const manda = async () => {
-    try {
-      await mandaTrillo({ da: idSchermo() });
-      mostra('mandato');
-    } catch { /* se non parte si va di persona, come si e' sempre fatto */ }
-  };
-
-  /*
-    Tenendolo premuto si sente qui.
-
-    Serve solo a provarlo: da soli, davanti a un tasto che di proposito non
-    suona sul telefono che lo preme, l'unica conclusione possibile e' che sia
-    rotto.
-  */
-  const iniziaPressione = () => {
-    eraTenuto.current = false;
-    tenuto.current = setTimeout(() => {
-      eraTenuto.current = true;
-      mostra(suonaTrillo(1) ? 'qui' : 'muto');
-    }, 600);
-  };
-  const finePressione = () => {
-    if (tenuto.current) clearTimeout(tenuto.current);
-    if (!eraTenuto.current) void manda();
+  const trilla = () => {
+    setStato(suonaTrillo() ? 'suonato' : 'muto');
+    setTimeout(() => setStato(''), 2500);
   };
 
   return (
     <div className="relative flex-shrink-0">
-      <button
-        onPointerDown={iniziaPressione}
-        onPointerUp={finePressione}
-        onPointerLeave={() => { if (tenuto.current) clearTimeout(tenuto.current); }}
-        onContextMenu={e => e.preventDefault()}
-        title="Trillo: suona sugli altri schermi del centro. Tienilo premuto per sentirlo qui."
-        aria-label="Manda il trillo"
+      <button onClick={trilla}
+        title="Trillo: suona dalle casse di questo computer"
+        aria-label="Suona il trillo"
         className={`p-2 rounded-xl transition-colors ${
-          statoBreve ? 'bg-warning/15 text-warning' : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`}
-      >
+          stato === 'suonato' ? 'bg-warning/20 text-warning'
+            : stato === 'muto' ? 'bg-error/15 text-error'
+              : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`}>
         <BellRing className="w-5 h-5" />
       </button>
 
-      {statoBreve && (
+      {stato === 'muto' && (
         <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 whitespace-nowrap px-2.5 py-1 rounded-lg bg-bg-secondary border border-border text-[11px] text-text-secondary shadow-lg z-50">
-          {statoBreve === 'mandato' ? 'Trillo mandato · suona sugli altri schermi'
-            : statoBreve === 'qui' ? 'Questo è il suono'
-              : 'Qui non riesce a suonare: controlla il volume'}
+          Il browser non fa uscire l&apos;audio: controlla il volume
         </span>
       )}
     </div>
