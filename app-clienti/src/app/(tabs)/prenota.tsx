@@ -249,6 +249,15 @@ export default function PrenotaScreen() {
               const chiuso = apertoIdx !== i && !!t;
               const op = operatrici.find(o => o.id === sc.operatorId);
               const opsCat = operatriciDi(cat);
+              /*
+                «Chi lo fa» comanda: scelto il trattamento, restano solo le
+                operatrici spuntate nel listino (vuoto = tutte). Prima si
+                filtrava per categoria e il refill unghie proponeva chiunque
+                sapesse fare le unghie — anche chi il refill non lo fa.
+              */
+              const opsTratt = t && t.abili && t.abili.length > 0
+                ? opsCat.filter(o => t.abili!.includes(o.id))
+                : opsCat;
               const meta = metaCategoria(cat);
 
               // Riga già compilata e chiusa: si mostra il riassunto
@@ -356,14 +365,18 @@ export default function PrenotaScreen() {
                         <Text style={styles.change}>Cambia</Text>
                       </Pressable>
 
-                      {opsCat.length >= 2 && (
+                      {opsTratt.length === 1 && (
+                        <Text style={styles.muted}>Lo fa {opsTratt[0].nomeBreve} ✨</Text>
+                      )}
+
+                      {opsTratt.length >= 2 && (
                         <>
                           <Text style={styles.label}>Con chi</Text>
                           <ScrollView horizontal showsHorizontalScrollIndicator={false}
                             contentContainerStyle={styles.facce}>
                             <Faccia scelta={!sc.operatorId} nome="Chiunque" sottotitolo="la prima libera"
                               onPress={() => aggiorna(i, { operatorId: '' })} />
-                            {opsCat.map(o => (
+                            {opsTratt.map(o => (
                               <Faccia key={o.id} scelta={sc.operatorId === o.id} nome={o.nomeBreve}
                                 avatar={o.avatar} colore={o.colore}
                                 onPress={() => aggiorna(i, { operatorId: o.id })} />

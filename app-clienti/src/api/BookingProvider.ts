@@ -14,6 +14,8 @@ export interface BookingTreatment {
   price: number; duration: number;
   priceMale: number | null; priceFemale: number | null;
   durationMale: number | null; durationFemale: number | null;
+  /** Chi lo sa fare (id operatrici). Vuoto = tutte, come nel motore. */
+  abili?: string[];
 }
 export interface BookingOperator {
   id: string;
