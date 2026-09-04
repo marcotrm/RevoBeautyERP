@@ -6,6 +6,7 @@
  * la professionista fa la professionista.
  */
 import { Ionicons } from '@expo/vector-icons';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -29,6 +30,7 @@ const STATI: Record<string, string> = {
 
 export default function ConsulenzaScreen() {
   const { token } = useAuth();
+  const altezzaHeader = useHeaderHeight();
   const router = useRouter();
   const { data, isLoading, refresh } = useApiData((t) => esteticaService.consulenza(t));
 
@@ -75,7 +77,8 @@ export default function ConsulenzaScreen() {
   const aperta = data.richieste.find((r) => r.stato === 'nuova' || r.stato === 'in_carico');
 
   return (
-    <KeyboardAvoidingView style={styles.sfondo} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.sfondo} behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? altezzaHeader : 0}>
       <ScrollView contentContainerStyle={styles.contenuto} keyboardShouldPersistTaps="handled">
         {aperta ? (
           <View style={styles.info}>

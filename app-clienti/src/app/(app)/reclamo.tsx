@@ -6,6 +6,7 @@
  * racconta il problema, si invia — e si torna con la coscienza leggera.
  */
 import { Ionicons } from '@expo/vector-icons';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -31,6 +32,7 @@ const CATEGORIE = [
 
 export default function ReclamoScreen() {
   const { token } = useAuth();
+  const altezzaHeader = useHeaderHeight();
   const router = useRouter();
   const [categoria, setCategoria] = useState<string | null>(null);
   const [testo, setTesto] = useState('');
@@ -69,7 +71,8 @@ export default function ReclamoScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.sfondo} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.sfondo} behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? altezzaHeader : 0}>
       <ScrollView contentContainerStyle={styles.contenuto} keyboardShouldPersistTaps="handled">
         <View style={styles.info}>
           <Ionicons name="eye-off-outline" size={20} color={colors.primaryDark} />

@@ -6,6 +6,7 @@
  * guardare — mostra un avviso neutro: se ne parla in centro, con una persona.
  */
 import { Ionicons } from '@expo/vector-icons';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -45,6 +46,7 @@ function Chips({ opzioni, scelte, cambia }: {
 
 export default function CheckupScreen() {
   const { token } = useAuth();
+  const altezzaHeader = useHeaderHeight();
   const router = useRouter();
   const { data, isLoading } = useApiData((t) => esteticaService.checkup(t));
 
@@ -97,7 +99,8 @@ export default function CheckupScreen() {
 
   const { domande } = data;
   return (
-    <KeyboardAvoidingView style={styles.sfondo} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.sfondo} behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? altezzaHeader : 0}>
       <ScrollView contentContainerStyle={styles.contenuto} keyboardShouldPersistTaps="handled">
         {data.ultimo && (
           <View style={styles.info}>
