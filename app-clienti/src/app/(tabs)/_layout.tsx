@@ -19,7 +19,6 @@ import { colors, fonts, typography } from '@/theme';
 const SCHEDE = [
   { name: 'index', title: 'Home', icona: 'home' },
   { name: 'chat', title: 'Chat', icona: 'chat' },
-  { name: 'prenota', title: 'Prenota', icona: 'prenota' },
   { name: 'listino', title: 'Listino', icona: 'listino' },
   { name: 'notifiche', title: 'Notifiche', icona: 'notifiche' },
   { name: 'per-te', title: 'Per te', icona: 'perTe' },
@@ -58,6 +57,12 @@ export default function TabsLayout() {
         tabBarLabelStyle: { ...typography.caption, fontFamily: fonts.w600, fontSize: 10 },
       }}
     >
+      {/*
+        Prenota resta raggiungibile (dal bottone d'oro in Home e da ogni
+        "prenota" sparso per l'app) ma non occupa più un posto nella barra:
+        href null = la rotta c'è, la scheda no.
+      */}
+      <Tabs.Screen name="prenota" options={{ href: null }} />
       {SCHEDE.map(s => (
         <Tabs.Screen
           key={s.name}
