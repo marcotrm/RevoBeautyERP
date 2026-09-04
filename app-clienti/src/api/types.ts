@@ -19,6 +19,8 @@ export interface User {
   vipLevel: number;
   /** Data di creazione della scheda cliente (ISO 8601) */
   createdAt: string;
+  /** Foto del profilo (data-URI), o null. */
+  avatar?: string | null;
 }
 
 /** Risposta di login/registrazione: utente + token di sessione */

@@ -21,6 +21,8 @@ export interface UtenteApp {
   cashback: number;
   vipLevel: number;
   createdAt: string;
+  /** Foto del profilo caricata dall'app (data-URI), o null. */
+  avatar: string | null;
 }
 
 export function utenteApp(c: {
@@ -34,6 +36,7 @@ export function utenteApp(c: {
   cashback?: number | null;
   vipLevel?: number | null;
   createdAt?: string | null;
+  avatar?: string | null;
 }): UtenteApp {
   const g = String(c.gender || '').trim().toUpperCase();
   return {
@@ -47,5 +50,6 @@ export function utenteApp(c: {
     cashback: Math.round((c.cashback ?? 0) * 100) / 100,
     vipLevel: c.vipLevel ?? 0,
     createdAt: c.createdAt || '',
+    avatar: c.avatar || null,
   };
 }

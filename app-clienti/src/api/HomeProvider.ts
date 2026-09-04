@@ -17,7 +17,7 @@ export interface Proposta {
 }
 
 export interface DatiHome {
-  user: { id: string; nome: string; cognome: string; loyaltyPoints: number; cashback: number; vipLevel: number };
+  user: { id: string; nome: string; cognome: string; loyaltyPoints: number; cashback: number; vipLevel: number; avatar?: string | null };
   messaggio: string | null;
   prossimoAppuntamento: {
     id: string; date: string; startTime: string; endTime: string;

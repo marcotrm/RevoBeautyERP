@@ -18,7 +18,7 @@ import { useCallback, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
-  ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, Image, Linking, Pressable, RefreshControl, ScrollView,
   StyleSheet, Text, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -126,9 +126,20 @@ export default function HomeScreen() {
         contentContainerStyle={styles.contenuto}
         refreshControl={<RefreshControl refreshing={aggiornando} onRefresh={aggiorna} tintColor={colors.primary} />}
       >
-        {/* ── Saluto + Score, una riga sola ── */}
+        {/* ── Foto, saluto e Score: una riga sola ── */}
         <View style={styles.testata}>
-          <Text style={styles.saluto}>Ciao {nome}</Text>
+          <Pressable style={styles.testataSinistra} onPress={() => router.push('/profilo')} hitSlop={6}>
+            {dati?.user.avatar ? (
+              <Image source={{ uri: dati.user.avatar }} style={styles.faccia} />
+            ) : (
+              <View style={styles.facciaVuota}>
+                <Text style={styles.facciaIniziali}>
+                  {`${nome[0] ?? ''}${dati?.user.cognome?.[0] ?? ''}`.toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <Text style={styles.saluto}>Ciao {nome}</Text>
+          </Pressable>
           {score ? (
             <Pressable onPress={() => router.push('/score')} hitSlop={8}>
               <ScoreRing valore={score.totale} misura={46} spessore={4} />
@@ -236,10 +247,9 @@ export default function HomeScreen() {
         {/* ── Le azioni di ogni giorno ── */}
         <View style={styles.azioni}>
           {([
-            { icona: 'calendar-outline', testo: 'Prenota', rotta: '/prenota' },
+            // Solo quello che NON è già nella barra qui sotto
             { icona: 'pricetags-outline', testo: 'Listino', rotta: '/listino' },
             { icona: 'sparkles-outline', testo: 'Revo AI', rotta: '/assistente' },
-            { icona: 'chatbubble-ellipses-outline', testo: 'Chat', rotta: '/chat' },
           ] as const).map((a) => (
             <Pressable key={a.rotta} style={styles.azione} onPress={() => router.push(a.rotta as never)}>
               <Ionicons name={a.icona} size={20} color={colors.primaryDark} />
@@ -277,6 +287,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginTop: spacing.sm,
   },
+  testataSinistra: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
+  faccia: { width: 40, height: 40, borderRadius: 20 },
+  facciaVuota: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  facciaIniziali: { fontFamily: fonts.w700, fontSize: 14, color: colors.white },
   saluto: { ...typography.title, fontSize: 22, color: colors.textSecondary },
   errore: { ...typography.label, color: colors.error, marginTop: spacing.sm },
 
