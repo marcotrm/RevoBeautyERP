@@ -3,11 +3,13 @@
  * Chat semplice: domanda → risposta completa (niente stream in v1).
  */
 import { Ionicons } from '@expo/vector-icons';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApiError, MessaggioRevoAI, revoAiService } from '@/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,8 +21,25 @@ const SUGGERIMENTI = [
   'Quando mi conviene tornare?',
 ];
 
+/**
+ * Il testo di Revo, con i **grassetti** resi davvero in grassetto: il
+ * modello scrive in markdown e gli asterischi crudi a schermo sono
+ * bruttissimi. Un parser vero sarebbe troppo; per il grassetto basta
+ * alternare i pezzi fra i doppi asterischi.
+ */
+function TestoRevo({ testo, chiaro }: { testo: string; chiaro?: boolean }) {
+  const parti = testo.split('**');
+  return (
+    <Text style={[styles.bollaTesto, chiaro && styles.bollaTestoMia]}>
+      {parti.map((p, i) => (i % 2 === 1 ? <Text key={i} style={styles.grassetto}>{p}</Text> : p))}
+    </Text>
+  );
+}
+
 export default function AssistenteScreen() {
   const { token } = useAuth();
+  const altezzaHeader = useHeaderHeight();
+  const insets = useSafeAreaInsets();
   const [messaggi, setMessaggi] = useState<MessaggioRevoAI[]>([]);
   const [testo, setTesto] = useState('');
   const [caricamento, setCaricamento] = useState(true);
@@ -66,12 +85,14 @@ export default function AssistenteScreen() {
     <KeyboardAvoidingView
       style={styles.sfondo}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      // L'header vero, misurato: col 90 fisso la casella finiva mezza
+      // sotto la tastiera.
+      keyboardVerticalOffset={Platform.OS === 'ios' ? altezzaHeader : 0}
     >
       {caricamento ? (
         <View style={styles.centro}><ActivityIndicator color={colors.primary} /></View>
       ) : (
-        <ScrollView ref={scrollRef} style={styles.flex} contentContainerStyle={styles.lista} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} style={styles.flex} contentContainerStyle={[styles.lista, messaggi.length === 0 && { flexGrow: 1, justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
           {messaggi.length === 0 ? (
             <View style={styles.vuoto}>
               <Ionicons name="sparkles-outline" size={40} color={colors.primary} />
@@ -92,7 +113,7 @@ export default function AssistenteScreen() {
               return (
                 <View key={m.id} style={[styles.rigaBolla, mia ? styles.rigaDx : styles.rigaSx]}>
                   <View style={[styles.bolla, mia ? styles.bollaMia : styles.bollaRevo]}>
-                    <Text style={[styles.bollaTesto, mia && styles.bollaTestoMia]}>{m.testo}</Text>
+                    <TestoRevo testo={m.testo} chiaro={mia} />
                   </View>
                 </View>
               );
@@ -110,7 +131,7 @@ export default function AssistenteScreen() {
 
       {errore ? <Text style={styles.errore}>{errore}</Text> : null}
 
-      <View style={styles.inputRiga}>
+      <View style={[styles.inputRiga, { paddingBottom: Math.max(spacing.sm, insets.bottom) }]}>
         <TextInput
           style={styles.input}
           value={testo}
@@ -158,6 +179,7 @@ const styles = StyleSheet.create({
   bollaRevo: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderBottomLeftRadius: 4 },
   bollaTesto: { ...typography.body, color: colors.textPrimary },
   bollaTestoMia: { color: colors.white },
+  grassetto: { fontFamily: fonts.w700 },
   errore: { ...typography.caption, color: colors.error, textAlign: 'center', paddingBottom: spacing.xs },
   inputRiga: {
     flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm,
