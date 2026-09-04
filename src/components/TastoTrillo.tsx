@@ -18,15 +18,31 @@
  * fosse rotto. Adesso e' quello che sembra: un tasto che fa un suono.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BellRing } from 'lucide-react';
-import { suonaTrillo } from '@/lib/suono';
+import { suonaTrillo, usaSuonoSuo } from '@/lib/suono';
+import { leggiSuonoTrillo } from '@/app/actions/suoni';
 
 export default function TastoTrillo() {
   const [stato, setStato] = useState<'' | 'suonato' | 'muto'>('');
 
-  const trilla = () => {
-    setStato(suonaTrillo() ? 'suonato' : 'muto');
+  /*
+    Il suono del centro, se ne ha caricato uno suo.
+
+    Si chiede una volta all'apertura e resta li': premendo il tasto non c'e'
+    tempo di andare a cercarlo nel database — il suono deve uscire subito.
+  */
+  useEffect(() => {
+    let vivo = true;
+    leggiSuonoTrillo()
+      .then(s => { if (vivo && s?.dataUrl) usaSuonoSuo(s.dataUrl); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+
+  const trilla = async () => {
+    const ok = await suonaTrillo();
+    setStato(ok ? 'suonato' : 'muto');
     setTimeout(() => setStato(''), 2500);
   };
 
@@ -42,9 +58,9 @@ export default function TastoTrillo() {
         <BellRing className="w-5 h-5" />
       </button>
 
-      {stato === 'muto' && (
+      {stato && (
         <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 whitespace-nowrap px-2.5 py-1 rounded-lg bg-bg-secondary border border-border text-[11px] text-text-secondary shadow-lg z-50">
-          Il browser non fa uscire l&apos;audio: controlla il volume
+          {stato === 'suonato' ? 'Trillo!' : 'Il browser non fa uscire l\u2019audio: controlla il volume'}
         </span>
       )}
     </div>

@@ -15,9 +15,10 @@
  * la schermata fatta apposta: qui resta il conteggio e un tocco per arrivarci.
  */
 import { useCallback, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
-  ActivityIndicator, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView,
   StyleSheet, Text, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -47,6 +48,14 @@ function quando(data: string): string {
   if (differenza === 1) return 'Domani';
   if (differenza > 1 && differenza < 7) return maiuscolaIniziale(GIORNI[d.getDay()]);
   return `${maiuscolaIniziale(GIORNI[d.getDay()])} ${d.getDate()} ${MESI[d.getMonth()]}`;
+}
+
+/** Giorni passati da una data ISO; null se la data manca o non si legge. */
+function giorniDa(iso: string | null): number | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
 
 /**
@@ -104,12 +113,7 @@ export default function HomeScreen() {
   const urgente = piuUrgente(proposte);
   const altre = (dati?.proposteTotali ?? 0) - (urgente ? 1 : 0);
   const percorso = dati?.percorsi?.[0];
-
-  // I numeri che non sono urgenze stanno in una riga sola, e si aprono toccandola
-  const vita = [
-    `${dati?.punti ?? 0} punti`,
-    dati?.wallet ? `${eur(dati.wallet.totale)} di credito` : null,
-  ].filter(Boolean).join(' · ');
+  const centro = dati?.centro;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -120,6 +124,13 @@ export default function HomeScreen() {
         <Text style={styles.saluto}>Ciao {nome}</Text>
 
         {errore ? <Text style={styles.errore}>{errore}</Text> : null}
+
+        {/* ── Il messaggio del centro, quando c'è ── */}
+        {dati?.messaggio ? (
+          <View style={styles.messaggio}>
+            <Text style={styles.messaggioTesto}>{dati.messaggio}</Text>
+          </View>
+        ) : null}
 
         {/* ── Il fatto grande ── */}
         {app ? (
@@ -132,22 +143,58 @@ export default function HomeScreen() {
             </Text>
           </Pressable>
         ) : (
+          // Senza nulla in agenda il tono dipende da quanto è passato:
+          // oltre un mese dall'ultima visita si dice, con affetto.
           <Pressable style={styles.hero} onPress={() => router.push('/prenota')}>
-            <Text style={styles.occhiello}>Nessun appuntamento in programma</Text>
-            <Text style={styles.heroQuando}>Quando{'\n'}ci vediamo?</Text>
+            <Text style={styles.occhiello}>
+              {(giorniDa(dati?.ultimaVisita ?? null) ?? 0) > 30
+                ? 'È un po’ che non ci vediamo'
+                : 'Nessun appuntamento in programma'}
+            </Text>
+            <Text style={styles.heroQuando}>
+              {(giorniDa(dati?.ultimaVisita ?? null) ?? 0) > 30 ? 'Ci manchi!' : 'Quando\nci vediamo?'}
+            </Text>
             <Text style={styles.heroCosa}>Tocca per prenotare</Text>
           </Pressable>
         )}
 
-        {/* ── I numeri, piccoli ── */}
-        {vita ? (
-          <Pressable onPress={() => router.push('/wallet')}>
-            <Text style={styles.vita}>
-              {vita}
-              {dati?.club?.attuale ? <Text style={styles.livello}>{` · ${dati.club.attuale.name}`}</Text> : null}
-            </Text>
-          </Pressable>
-        ) : null}
+        {/* ── La tessera fedeltà: punti, livello, credito ── */}
+        <Pressable style={styles.carta} onPress={() => router.push('/wallet')}>
+          <View style={styles.rigaTraSpazi}>
+            <Text style={styles.cartaMarchio}>REVOBEAUTY</Text>
+            {dati?.club?.attuale ? (
+              <Text style={styles.cartaLivello}>{dati.club.attuale.name}</Text>
+            ) : null}
+          </View>
+          <Text style={styles.cartaNome}>{`${nome} ${dati?.user.cognome ?? ''}`.trim()}</Text>
+          <View style={styles.cartaNumeri}>
+            <View>
+              <Text style={styles.cartaValore}>{dati?.punti ?? 0}</Text>
+              <Text style={styles.cartaEtichetta}>punti</Text>
+            </View>
+            {dati?.wallet ? (
+              <View>
+                <Text style={styles.cartaValore}>{eur(dati.wallet.totale)}</Text>
+                <Text style={styles.cartaEtichetta}>credito</Text>
+              </View>
+            ) : null}
+          </View>
+          {dati?.club?.prossimo ? (
+            <View style={styles.cartaBarra}>
+              <View style={styles.cartaBarraFondo}>
+                <View
+                  style={[
+                    styles.cartaBarraPieno,
+                    { width: `${Math.min(Math.max(dati.club.avanzamento, 0), 100)}%` },
+                  ]}
+                />
+              </View>
+              <Text style={styles.cartaProssimo}>
+                {eur(dati.club.prossimo.mancaSpesa)} al livello {dati.club.prossimo.name}
+              </Text>
+            </View>
+          ) : null}
+        </Pressable>
 
         {/* ── L'unico accento: quello che si perde se non lo guardi ── */}
         {urgente ? (
@@ -184,11 +231,51 @@ export default function HomeScreen() {
           </Pressable>
         ) : null}
 
-        {/* ── L'azione, in fondo e in punta di piedi ── */}
-        {app ? (
-          <Pressable style={styles.bottoneLinea} onPress={() => router.push('/prenota')}>
-            <Text style={styles.bottoneLineaTesto}>Prenota</Text>
-          </Pressable>
+        {/* ── Le tre azioni di ogni giorno ── */}
+        <View style={styles.azioni}>
+          {([
+            { icona: 'calendar-outline', testo: 'Prenota', rotta: '/prenota' },
+            { icona: 'pricetags-outline', testo: 'Listino', rotta: '/listino' },
+            { icona: 'chatbubble-ellipses-outline', testo: 'Scrivici', rotta: '/contatti' },
+          ] as const).map((a) => (
+            <Pressable key={a.rotta} style={styles.azione} onPress={() => router.push(a.rotta as never)}>
+              <Ionicons name={a.icona} size={22} color={colors.primaryDark} />
+              <Text style={styles.azioneTesto}>{a.testo}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* ── Il centro, in fondo: dove siamo e quando ── */}
+        {centro && (centro.indirizzo || centro.telefono || centro.orari) ? (
+          <View style={styles.sede}>
+            <Text style={styles.centroNome}>{centro.nome || 'RevoBeauty'}</Text>
+            {centro.orari ? (
+              <View style={styles.centroRiga}>
+                <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+                <Text style={styles.centroTesto}>{centro.orari}</Text>
+              </View>
+            ) : null}
+            {centro.indirizzo ? (
+              <Pressable
+                style={styles.centroRiga}
+                onPress={() =>
+                  Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${centro.nome} ${centro.indirizzo}`)}`)
+                }
+              >
+                <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
+                <Text style={[styles.centroTesto, styles.centroLink]}>{centro.indirizzo}</Text>
+              </Pressable>
+            ) : null}
+            {centro.telefono ? (
+              <Pressable
+                style={styles.centroRiga}
+                onPress={() => Linking.openURL(`tel:${centro.telefono.replace(/\s/g, '')}`)}
+              >
+                <Ionicons name="call-outline" size={16} color={colors.textSecondary} />
+                <Text style={[styles.centroTesto, styles.centroLink]}>{centro.telefono}</Text>
+              </Pressable>
+            ) : null}
+          </View>
         ) : null}
       </ScrollView>
     </SafeAreaView>
@@ -211,8 +298,32 @@ const styles = StyleSheet.create({
   heroCosa: { ...typography.bodyForte, color: colors.textPrimary, marginTop: spacing.md },
   tenue: { ...typography.body, color: colors.textSecondary },
 
-  vita: { ...typography.caption, fontSize: 13, color: colors.textSecondary, marginTop: spacing.md },
-  livello: { fontFamily: fonts.w600, color: colors.primaryDark },
+  messaggio: {
+    marginTop: spacing.md,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+  },
+  messaggioTesto: { ...typography.body, fontSize: 14, color: colors.primaryDark },
+
+  // ── La tessera: scura, con l'oro del brand. È l'oggetto, non un riquadro. ──
+  carta: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.textPrimary,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+  },
+  cartaMarchio: { fontFamily: fonts.serif600, fontSize: 15, letterSpacing: 2.5, color: colors.primaryLight },
+  cartaLivello: { ...typography.captionForte, color: colors.primaryLight, textTransform: 'uppercase', letterSpacing: 1 },
+  cartaNome: { ...typography.body, color: colors.white, opacity: 0.85, marginTop: spacing.md, textTransform: 'capitalize' },
+  cartaNumeri: { flexDirection: 'row', gap: spacing.xl, marginTop: spacing.md },
+  cartaValore: { fontFamily: fonts.serif600, fontSize: 28, color: colors.white },
+  cartaEtichetta: { ...typography.caption, color: colors.white, opacity: 0.6 },
+  cartaBarra: { marginTop: spacing.md },
+  cartaBarraFondo: { height: 4, borderRadius: radius.full, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' },
+  cartaBarraPieno: { height: '100%', borderRadius: radius.full, backgroundColor: colors.primary },
+  cartaProssimo: { ...typography.caption, color: colors.white, opacity: 0.6, marginTop: spacing.xs },
 
   avviso: { marginTop: spacing.lg, paddingVertical: spacing.sm + 2, paddingLeft: spacing.md, borderLeftWidth: 2 },
   avvisoTitolo: { ...typography.bodyForte },
@@ -233,10 +344,20 @@ const styles = StyleSheet.create({
   piccolo: { ...typography.caption, color: colors.textSecondary },
   barra: { marginTop: spacing.sm },
 
-  // Contornato e non pieno: se l'oro se lo prendono tre elementi, non tira più.
-  bottoneLinea: {
-    marginTop: spacing.xl, paddingVertical: spacing.md,
-    borderRadius: radius.lg, borderWidth: 1, borderColor: colors.primary, alignItems: 'center',
+  // ── Le tre azioni: contornate, alla pari. L'oro pieno resta alla tessera. ──
+  azioni: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xl },
+  azione: {
+    flex: 1, alignItems: 'center', gap: spacing.xs,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
-  bottoneLineaTesto: { ...typography.labelForte, color: colors.primaryDark },
+  azioneTesto: { ...typography.labelForte, fontSize: 13, color: colors.textPrimary },
+
+  // ── Il centro, come su un biglietto da visita ──
+  sede: { marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border, gap: spacing.sm },
+  centroNome: { ...typography.occhiello, color: colors.textSecondary },
+  centroRiga: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  centroTesto: { ...typography.body, fontSize: 14, color: colors.textSecondary },
+  centroLink: { color: colors.primaryDark },
 });

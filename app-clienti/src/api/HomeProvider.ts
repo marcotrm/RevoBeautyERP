@@ -23,6 +23,10 @@ export interface DatiHome {
     id: string; date: string; startTime: string; endTime: string;
     treatmentName: string; operatorName: string; price: number;
   } | null;
+  /** Data dell'ultima visita (ISO), per il richiamo "ci manchi". */
+  ultimaVisita: string | null;
+  /** Recapiti del centro, configurati dal gestionale. Campi vuoti = riga nascosta. */
+  centro: { nome: string; telefono: string; indirizzo: string; orari: string };
   punti: number;
   wallet: {
     totale: number;

@@ -27,6 +27,7 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import { roleHasPermission } from '@/lib/permissions';
 import { CaparraConfig } from './CaparraConfig';
 import { CanaliConfig } from './CanaliConfig';
+import { SuonoTrillo } from './SuonoTrillo';
 
 const settingSections = [
   { id: 'general', label: 'Centro', icon: Building2, description: 'Nome, indirizzo, contatti' },
@@ -793,6 +794,7 @@ export default function SettingsPage() {
               <C95Config />
               <CaparraConfig />
               <CanaliConfig />
+              <SuonoTrillo />
               </div>
             )}
           </motion.div>

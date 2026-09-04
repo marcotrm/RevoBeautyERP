@@ -75,6 +75,15 @@ export interface ConfigApp {
     /** Quante proposte al massimo in "Per te oggi". */
     maxProposte: number;
   };
+  /** Recapiti e orari del centro, mostrati in fondo alla Home dell'app. */
+  centro: {
+    nome: string;
+    /** Con prefisso, es. "+39 0823 123456": diventa il tasto "Chiama". */
+    telefono: string;
+    indirizzo: string;
+    /** Testo libero, es. "Mar–Sab 9:00–19:00". Vuoto = riga nascosta. */
+    orari: string;
+  };
   /**
    * Come si comporta la prenotazione online (app clienti e pagina /prenota).
    * I turni delle operatrici restano in Staff → Turni: qui c'è solo la
@@ -106,6 +115,12 @@ export const CONFIG_DI_PARTENZA: ConfigApp = {
   referral: { premioInvitante: 10, premioInvitata: 10, validoGiorni: 90, maxInviti: 20 },
   notifiche: { attive: true, maxSettimana: 3, dalleOre: 9, alleOre: 20 },
   home: { messaggio: '', maxProposte: 5 },
+  centro: {
+    nome: 'RevoBeauty',
+    telefono: '',
+    indirizzo: 'Via Caudina 30, 81024 Maddaloni (CE)',
+    orari: '',
+  },
   prenotazione: { apertura: '09:00', chiusura: '19:00', passoMinuti: 15, preavvisoMinuti: 60, giorniAvanti: 21 },
 };
 

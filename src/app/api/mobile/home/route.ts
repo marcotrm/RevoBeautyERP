@@ -58,6 +58,10 @@ export async function GET(req: Request) {
     user: utenteApp(cliente),
     messaggio: config.home.messaggio || null,
     prossimoAppuntamento: prossimo,
+    // Per il richiamo "ci manchi" quando non c'è nulla in agenda
+    ultimaVisita: cliente.lastVisit || null,
+    // Recapiti in fondo alla Home: modificabili dal gestionale, non dal codice
+    centro: config.centro,
     punti,
     wallet: wallet && {
       totale: wallet.totale,
