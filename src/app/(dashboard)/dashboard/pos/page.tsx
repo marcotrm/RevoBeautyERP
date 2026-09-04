@@ -31,6 +31,7 @@ import { nomiDoppi, chiaveNome as chiaveOmonimi } from '@/lib/omonimi';
 import { descriviMisto } from '@/lib/pagamenti';
 import { usaCaparra } from '@/app/actions/caparra';
 import { saldoCredito, usaCredito } from '@/app/actions/credito';
+import { regaliInCassa, type RegaliInCassa } from '@/app/actions/regaliCassa';
 import { saldoWalletApp, usaWalletApp } from '@/app/actions/walletApp';
 
 interface CartItem {
@@ -184,6 +185,15 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const [credito, setCredito] = useState(0);
   const [usaIlCredito, setUsaIlCredito] = useState(false);
   /*
+    Il regalo coi punti, ricordato mentre paga.
+
+    E' l'ultimo momento utile: dopo esce dalla porta e quel prodotto resta
+    sullo scaffale col suo nome sopra per settimane. L'icona in alto lampeggia
+    per tutte; qui la domanda e' piu' stretta — questa cliente, adesso.
+  */
+  const [regali, setRegali] = useState<RegaliInCassa | null>(null);
+  const [consegnando, setConsegnando] = useState<string | null>(null);
+  /*
     Il wallet dell'app: i crediti GUADAGNATI (amica invitata, cashback, premi).
     Vive in un registro separato dal credito del banco, ma al momento di
     pagare la cliente non deve saperlo: due righe verdi, stessa semplicita'.
@@ -233,7 +243,10 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   useEffect(() => {
     let vivo = true;
     const id = clienteScelto?.id;
-    if (!id) { setCredito(0); setUsaIlCredito(false); setWalletApp(0); setUsaIlWalletApp(false); return; }
+    if (!id) { setCredito(0); setUsaIlCredito(false); setWalletApp(0); setUsaIlWalletApp(false); setRegali(null); return; }
+    regaliInCassa(id)
+      .then(r => { if (vivo) setRegali(r); })
+      .catch(() => { if (vivo) setRegali(null); });
     saldoCredito(id)
       .then(s => { if (vivo) setCredito(s); })
       .catch(() => { if (vivo) setCredito(0); });
@@ -242,6 +255,23 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       .catch(() => { if (vivo) setWalletApp(0); });
     return () => { vivo = false; };
   }, [clienteScelto?.id]);
+
+  /*
+    «Consegnato» da qui fa esattamente quello che fa il pannello in alto:
+    stessa strada, stesso scarico di magazzino. Due strade diverse per la
+    stessa cosa e' il modo sicuro per farne divergere una.
+  */
+  const consegnaRegalo = async (id: string) => {
+    setConsegnando(id);
+    try {
+      await fetch('/api/admin/premi-riscatti', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, azione: 'consegna' }),
+      });
+      const fresco = await regaliInCassa(clienteScelto?.id);
+      setRegali(fresco);
+    } finally { setConsegnando(null); }
+  };
 
   useEffect(() => {
     let vivo = true;
@@ -703,6 +733,47 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                           <span className="text-success">Caparra già incassata</span>
                           <span className="text-success font-semibold">− {formatCurrency(caparraPagata)}</span>
                         </div>
+                      )}
+
+                      {/*
+                        Il regalo che aspetta: e' roba sua, gia' pagata coi
+                        punti. Il codice sta scritto grande perche' lo si
+                        confronta con quello sul suo telefono mentre le si
+                        parla, e il tasto sta qui perche' la mano e' gia' qui.
+                      */}
+                      {regali?.daConsegnare.map(r => (
+                        <div key={r.id} className="mt-2 p-2.5 rounded-xl border-2 border-warning/50 bg-warning/10 space-y-2">
+                          <div className="flex items-start gap-2">
+                            <Gift className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-warning">Ha un regalo da ritirare</p>
+                              <p className="text-[11px] text-text-secondary truncate">
+                                {r.nome} · {r.punti} punti
+                                {r.tipo === 'trattamento' ? ' · trattamento gia\' pagato coi punti' : ''}
+                              </p>
+                            </div>
+                            <span className="px-2 py-1 rounded-lg bg-bg-primary border border-border font-mono text-xs font-bold tracking-widest text-text-primary flex-shrink-0">
+                              {r.codice}
+                            </span>
+                          </div>
+                          <button onClick={() => void consegnaRegalo(r.id)} disabled={consegnando === r.id}
+                            className="w-full py-1.5 rounded-lg bg-warning text-white text-xs font-bold disabled:opacity-40">
+                            {consegnando === r.id ? 'Un attimo…' : 'Consegnato ora'}
+                          </button>
+                        </div>
+                      ))}
+
+                      {/*
+                        Nessun regalo in attesa, ma i punti le bastano gia': si
+                        dice a voce, ed e' qui che vale — davanti alla cassa si
+                        accorge di avere qualcosa in mano, a casa no.
+                      */}
+                      {regali && regali.daConsegnare.length === 0 && regali.allaPortata.length > 0 && (
+                        <p className="mt-2 text-[11px] text-text-secondary">
+                          🎁 Ha <strong className="text-text-primary">{regali.punti} punti</strong>: le bastano per
+                          {' '}<strong className="text-text-primary">{regali.allaPortata[0].nome}</strong> ({regali.allaPortata[0].punti} punti)
+                          {regali.allaPortata.length > 1 ? ` e altri ${regali.allaPortata.length - 1}` : ''} — glielo dici?
+                        </p>
                       )}
 
                       {/* Il credito che le dobbiamo: si vede sempre, si usa
