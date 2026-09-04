@@ -10,8 +10,7 @@ import { Suspense } from 'react';
 import {
   CreditCard, Receipt, Calculator,
   Banknote, ArrowRight, Plus, X, CheckCircle,
-  Trash2, Search, Smartphone, Lock, Vault, ArrowDownToLine, Printer, Gift, AlertCircle,
-} from 'lucide-react';
+  Trash2, Search, Smartphone, Lock, Vault, ArrowDownToLine, Printer, Gift, AlertCircle, Check } from 'lucide-react';
 import { getCassaforte, closeCassa, withdrawCassa, CassaMovementRecord } from '@/app/actions/cassaforte';
 import { getTransactionsByRange, emettiScontrinoOra } from '@/app/actions/pos';
 import { updateAppointmentAction } from '@/app/actions/agenda';
@@ -31,6 +30,7 @@ import { NO_AUTOFILL } from '@/lib/noAutofill';
 import { nomiDoppi, chiaveNome as chiaveOmonimi } from '@/lib/omonimi';
 import { descriviMisto } from '@/lib/pagamenti';
 import { usaCaparra } from '@/app/actions/caparra';
+import { saldoCredito, usaCredito } from '@/app/actions/credito';
 
 interface CartItem {
   id: string;
@@ -57,7 +57,11 @@ const PAYMENT_METHODS = [
 const MISTO = { id: 'misto', label: 'Contanti + Carta' };
 
 function NewSaleModal({ onClose, onComplete, initialData }: {
-  onClose: () => void; onComplete: (tx: Omit<TransactionRecord, 'id'> & { scontrinoDopo?: boolean }, debtPkgId?: string) => Promise<TransactionRecord | undefined>;
+  onClose: () => void;
+  onComplete: (
+    tx: Omit<TransactionRecord, 'id'> & { scontrinoDopo?: boolean; creditoUsato?: number; clientIdCredito?: string },
+    debtPkgId?: string,
+  ) => Promise<TransactionRecord | undefined>;
   initialData?: {
     client: string; treatmentName: string; treatmentId: string; price: number; operator: string;
     debtPkgId?: string; cabinMinutes?: number; appointmentId?: string;
@@ -167,6 +171,27 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     () => allClients.find(c => `${c.firstName} ${c.lastName}` === selectedClient) || null,
     [allClients, selectedClient],
   );
+
+  /*
+    Il credito della cliente: soldi che il centro le deve gia'.
+
+    Stava su un foglietto attaccato al monitor e se lo ricordava solo chi era
+    di turno quel giorno. Qui compare da solo appena si sa chi sta pagando, e
+    si scala con un tocco — perche' il momento in cui serve ricordarselo e'
+    esattamente questo, con lei davanti e il conto a schermo.
+  */
+  const [credito, setCredito] = useState(0);
+  const [usaIlCredito, setUsaIlCredito] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    const id = clienteScelto?.id;
+    if (!id) { setCredito(0); setUsaIlCredito(false); return; }
+    saldoCredito(id)
+      .then(s => { if (vivo) setCredito(s); })
+      .catch(() => { if (vivo) setCredito(0); });
+    return () => { vivo = false; };
+  }, [clienteScelto?.id]);
 
   useEffect(() => {
     let vivo = true;
@@ -328,9 +353,13 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     quei soldi risulterebbero incassati due volte.
   */
   const caparraPagata = Math.max(0, Number(initialData?.caparra) || 0);
+  const dopoCaparra = Math.max(0, Math.round((total - caparraPagata) * 100) / 100);
+  // Non si scala mai piu' di quello che c'e' da pagare: il credito che avanza
+  // resta sul suo conto, non si regala il resto.
+  const creditoUsato = usaIlCredito ? Math.min(credito, dopoCaparra) : 0;
   const finalTotal = isDebtPayment
     ? (customAmount ? Number(customAmount) : 0)
-    : Math.max(0, Math.round((total - caparraPagata) * 100) / 100);
+    : Math.max(0, Math.round((dopoCaparra - creditoUsato) * 100) / 100);
   const isMistoValid = paymentMethod === 'misto' ? Math.abs((Number(splitCash) + Number(splitCard)) - finalTotal) < 0.01 : true;
   // Resto: null se il contante battuto non copre il totale (o non è ancora stato inserito)
   const changeDue = (() => {
@@ -390,6 +419,9 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       // seduta è stata incassata davvero, e non solo chiusa.
       appointmentId: initialData?.appointmentId,
       scontrinoDopo: contanti,
+      // Quanto credito si e' scalato, e a chi: si registra a incasso fatto.
+      creditoUsato: creditoUsato > 0 ? creditoUsato : undefined,
+      clientIdCredito: creditoUsato > 0 ? clienteScelto?.id : undefined,
     }, initialData?.debtPkgId).catch(() => undefined);
     setSavedTx(saved || null);
     setSaving(false);
@@ -616,6 +648,28 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                           <span className="text-success">Caparra già incassata</span>
                           <span className="text-success font-semibold">− {formatCurrency(caparraPagata)}</span>
                         </div>
+                      )}
+
+                      {/* Il credito che le dobbiamo: si vede sempre, si usa
+                          solo se qualcuno lo decide. */}
+                      {credito > 0 && (
+                        <button onClick={() => setUsaIlCredito(v => !v)}
+                          className={`w-full flex items-center gap-2.5 mt-2 p-2.5 rounded-xl border-2 transition-colors text-left ${
+                            usaIlCredito ? 'border-success bg-success/10' : 'border-success/40 bg-success/5 hover:bg-success/10'}`}>
+                          <span className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center ${usaIlCredito ? 'bg-success border-success' : 'border-success/50'}`}>
+                            {usaIlCredito && <Check className="w-3 h-3 text-white" />}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-semibold text-success">
+                              Ha {formatCurrency(credito)} di credito
+                            </span>
+                            <span className="block text-[11px] text-text-muted">
+                              {usaIlCredito
+                                ? `Scalati ${formatCurrency(creditoUsato)}${credito > creditoUsato ? ` · le restano ${formatCurrency(credito - creditoUsato)}` : ''}`
+                                : 'Tocca per usarlo su questo conto'}
+                            </span>
+                          </span>
+                        </button>
                       )}
                       <div className="border-t border-border mt-3 pt-3 flex justify-between"><span className="text-base font-semibold text-text-primary">Totale da Incassare</span><span className="text-xl font-display font-bold text-accent">{formatCurrency(finalTotal)}</span></div>
                     </>
@@ -1104,7 +1158,10 @@ function POSPageInner() {
     }
   }, [router]);
 
-  const handleNewSale = async (tx: Omit<TransactionRecord, 'id'> & { scontrinoDopo?: boolean }, debtPkgId?: string) => {
+  const handleNewSale = async (
+    tx: Omit<TransactionRecord, 'id'> & { scontrinoDopo?: boolean; creditoUsato?: number; clientIdCredito?: string },
+    debtPkgId?: string,
+  ) => {
     const created = await addTransaction(tx);
     if (debtPkgId) {
       addPayment(debtPkgId, created.total, created.method as any, created.operator, 'Pagamento da Cassa');
@@ -1139,6 +1196,20 @@ function POSPageInner() {
       su ognuna a quale vendita appartiene, cosi' in agenda si legge chi ha
       pagato e chi non deve pagare piu' niente.
     */
+    /*
+      Il credito si scala DOPO, mai prima: se la vendita non va in porto quei
+      soldi devono essere ancora sul suo conto.
+    */
+    if (tx.creditoUsato && tx.clientIdCredito) {
+      const chi = useAuthStore.getState().user;
+      await usaCredito({
+        clientId: tx.clientIdCredito,
+        importo: tx.creditoUsato,
+        txId: created.id,
+        operatore: [chi?.firstName, chi?.lastName].filter(Boolean).join(' ').trim() || undefined,
+      }).catch(() => alert('Incasso registrato, ma il credito non risulta scalato: controllalo nella scheda della cliente.'));
+    }
+
     // La caparra scalata da questo conto e' stata usata: si chiude qui.
     if ((saleInitialData?.caparra || 0) > 0 && saleInitialData?.appointmentId) {
       usaCaparra(saleInitialData.appointmentId).catch(() => {});

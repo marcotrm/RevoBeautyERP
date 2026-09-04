@@ -12,6 +12,7 @@ import { compressImage } from '@/lib/imageCompress';
 import { mandaAlTablet, statoTablet } from '@/app/actions/tablet';
 import { linkConsensoCliente } from '@/app/actions/consensoLaser';
 import DettaglioConsenso from './DettaglioConsenso';
+import { Credito } from './Credito';
 import CaricaDocumento from './CaricaDocumento';
 
 const SKIN_TYPES = ['Normale', 'Secca', 'Grassa', 'Mista', 'Sensibile', 'Asfittica'];
@@ -353,6 +354,9 @@ export default function ClientRecordTab({ clientId, nomeCliente }: { clientId: s
       </div>
 
       {/* ====== CONSENSI ====== */}
+      {/* Il credito prima dei consensi: sono soldi, e si guardano per primi */}
+      <Credito clientId={clientId} />
+
       <div className="bg-bg-secondary border border-border rounded-2xl p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
