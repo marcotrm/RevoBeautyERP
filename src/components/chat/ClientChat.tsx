@@ -7,9 +7,17 @@ import { MessageCircle, X, Send, ChevronLeft, AlertTriangle } from 'lucide-react
 import { useAuthStore } from '@/stores/useAuthStore';
 import AvatarCliente from '@/components/AvatarCliente';
 
-const WAIT_ALERT_MS = 10 * 60 * 1000; // 10 minuti
+/*
+  I dieci minuti stanno adesso sul server, dentro /api/chat/conversations:
+  li' si sa chi ha detto l'ultima parola, ed e' quella la domanda giusta.
+*/
 
-type Conversation = { clientId: string; clientName: string; lastBody: string; lastAt: string; lastSender: string; unread: number; oldestUnreadAt: string | null; avatar?: string | null };
+type Conversation = {
+  clientId: string; clientName: string; lastBody: string; lastAt: string; lastSender: string;
+  unread: number; oldestUnreadAt: string | null; avatar?: string | null;
+  /** Messaggi suoi rimasti senza una nostra risposta, e da quanto aspetta. */
+  senzaRisposta?: number; attesaMinuti?: number; daRispondere?: boolean;
+};
 type Message = { id: string; clientId: string; clientName: string; sender: string; body: string; operatorName?: string | null; createdAt: string };
 
 export default function ClientChat() {
@@ -68,18 +76,27 @@ export default function ClientChat() {
     // reset dei "già avvisati" per conversazioni ora risolte
     for (const id of Array.from(dismissedRef.current)) {
       const conv = conversations.find(c => c.clientId === id);
-      if (!conv || conv.unread === 0) dismissedRef.current.delete(id);
+      if (!conv || !conv.daRispondere) dismissedRef.current.delete(id);
     }
     // chiudi il popup se la conversazione è stata gestita
     setAlertConv(prev => {
       if (!prev) return prev;
       const still = conversations.find(c => c.clientId === prev.clientId);
-      return (!still || still.unread === 0) ? null : prev;
+      // Si chiude quando le abbiamo scritto davvero: `daRispondere` cade solo
+      // quando l'ultima parola torna a essere nostra.
+      return (!still || !still.daRispondere) ? null : prev;
     });
-    // cerca una conversazione in ritardo (>10 min) non ancora avvisata né aperta
+    /*
+      Chi aspetta una RISPOSTA, non chi non e' stata aperta.
+
+      Prima bastava aprire la conversazione perche' il promemoria non
+      tornasse mai piu': si entrava, si usciva senza scrivere, e da fuori
+      quella chat sembrava sistemata. Adesso il popup guarda `daRispondere`,
+      che il server calcola sull'ultima parola detta — e se l'ultima e' sua,
+      dopo dieci minuti torna a bussare.
+    */
     const overdue = conversations.find(c =>
-      c.unread > 0 && c.oldestUnreadAt &&
-      (Date.now() - new Date(c.oldestUnreadAt).getTime()) > WAIT_ALERT_MS &&
+      c.daRispondere &&
       !dismissedRef.current.has(c.clientId) &&
       c.clientId !== activeId
     );

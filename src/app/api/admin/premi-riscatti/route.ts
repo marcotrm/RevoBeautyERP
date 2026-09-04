@@ -35,11 +35,14 @@ export async function POST(request: Request) {
       where: { id },
       data: { stato: 'consegnato', consegnatoAt: new Date().toISOString() },
     });
-    // Il prodotto esce dallo scaffale adesso, quando cambia di mano
-    await prisma.product.update({
-      where: { id: riscatto.productId },
-      data: { stock: { decrement: 1 } },
-    }).catch(() => null);
+    // Il prodotto esce dallo scaffale adesso, quando cambia di mano.
+    // Un trattamento in regalo non ha scaffale: si segna e si prenota.
+    if (riscatto.tipo !== 'trattamento') {
+      await prisma.product.update({
+        where: { id: riscatto.productId },
+        data: { stock: { decrement: 1 } },
+      }).catch(() => null);
+    }
     return Response.json({ ok: true });
   }
 

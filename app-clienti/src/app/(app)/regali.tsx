@@ -12,7 +12,7 @@ import {
   StyleSheet, Text, View,
 } from 'react-native';
 
-import { ApiError, PremioVetrina, regaliService } from '@/api';
+import { ApiError, PremioVetrina, TrattamentoVetrina, regaliService } from '@/api';
 import { FormError } from '@/components/ui/FormError';
 import { useApiData } from '@/hooks/useApiData';
 import { useAuth } from '@/hooks/useAuth';
@@ -28,21 +28,24 @@ const STATI: Record<string, { testo: string; colore: string }> = {
 export default function RegaliScreen() {
   const { token } = useAuth();
   const { data, isLoading, isRefreshing, refresh } = useApiData((t) => regaliService.vetrina(t));
+  const [vista, setVista] = useState<'prodotti' | 'trattamenti'>('prodotti');
   const [inCorso, setInCorso] = useState<string | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
 
-  const riscatta = async (p: PremioVetrina) => {
+  const riscatta = async (premioId: string, tipo: 'prodotto' | 'trattamento', nome: string, punti: number) => {
     if (!token || inCorso) return;
     const conferma = await confirmAsync(
       'Riscattare questo regalo?',
-      `${p.brand ? `${p.brand} ` : ''}${p.nome}\nCosta ${p.punti} punti: te li togliamo subito e il prodotto ti aspetta al banco.`,
+      tipo === 'prodotto'
+        ? `${nome}\nCosta ${punti} punti: te li togliamo subito e il prodotto ti aspetta al banco.`
+        : `${nome}\nCosta ${punti} punti: te li togliamo subito, poi chiamaci o scrivici per prenotare la tua seduta in omaggio.`,
       'Riscatta'
     );
     if (!conferma) return;
     setErrore(null);
-    setInCorso(p.premioId);
+    setInCorso(premioId);
     try {
-      await regaliService.riscatta(token, p.premioId);
+      await regaliService.riscatta(token, premioId, tipo);
       refresh();
     } catch (e) {
       setErrore(e instanceof ApiError ? e.message : 'Riscatto non riuscito. Riprova.');
@@ -71,6 +74,20 @@ export default function RegaliScreen() {
 
       <FormError message={errore} />
 
+      {/* ── Prodotti | Trattamenti ── */}
+      <View style={styles.divisore}>
+        {([['prodotti', 'Prodotti'], ['trattamenti', 'Trattamenti']] as const).map(([id, label]) => {
+          const on = vista === id;
+          return (
+            <Pressable key={id} style={[styles.divisoreTasto, on && styles.divisoreTastoOn]}
+              onPress={() => setVista(id)}
+              accessibilityRole="button" accessibilityState={{ selected: on }}>
+              <Text style={[styles.divisoreTxt, on && styles.divisoreTxtOn]}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       {/* ── I regali da ritirare ── */}
       {data.riscatti.filter((r) => r.stato === 'da_ritirare').map((r) => (
         <View key={r.id} style={styles.ritiro}>
@@ -83,8 +100,8 @@ export default function RegaliScreen() {
         </View>
       ))}
 
-      {/* ── La vetrina ── */}
-      {data.premi.length === 0 ? (
+      {/* ── La vetrina dei prodotti ── */}
+      {vista === 'prodotti' && (data.premi.length === 0 ? (
         <View style={styles.vuoto}>
           <Ionicons name="gift-outline" size={40} color={colors.textSecondary} />
           <Text style={styles.vuotoTesto}>
@@ -93,7 +110,7 @@ export default function RegaliScreen() {
         </View>
       ) : (
         <View style={styles.griglia}>
-          {data.premi.map((p) => {
+          {data.premi.map((p: PremioVetrina) => {
             const bastano = data.punti >= p.punti;
             return (
               <View key={p.premioId} style={styles.premio}>
@@ -109,7 +126,7 @@ export default function RegaliScreen() {
                 <Pressable
                   style={[styles.premioBottone, (!bastano || !p.disponibile) && styles.premioBottoneSpento]}
                   disabled={!bastano || !p.disponibile || inCorso === p.premioId}
-                  onPress={() => void riscatta(p)}
+                  onPress={() => void riscatta(p.premioId, 'prodotto', `${p.brand ? `${p.brand} ` : ''}${p.nome}`, p.punti)}
                 >
                   {inCorso === p.premioId ? (
                     <ActivityIndicator size="small" color={colors.white} />
@@ -126,7 +143,48 @@ export default function RegaliScreen() {
             );
           })}
         </View>
-      )}
+      ))}
+
+      {/* ── La vetrina dei trattamenti ── */}
+      {vista === 'trattamenti' && ((data.trattamenti ?? []).length === 0 ? (
+        <View style={styles.vuoto}>
+          <Ionicons name="sparkles-outline" size={40} color={colors.textSecondary} />
+          <Text style={styles.vuotoTesto}>
+            Presto qui troverai anche i trattamenti{'\n'}da regalarti coi punti.
+          </Text>
+        </View>
+      ) : (
+        <View>
+          {(data.trattamenti ?? []).map((t: TrattamentoVetrina) => {
+            const bastano = data.punti >= t.punti;
+            return (
+              <View key={t.premioId} style={styles.trattRiga}>
+                <View style={styles.trattIcona}>
+                  <Ionicons name="sparkles" size={18} color={colors.primaryDark} />
+                </View>
+                <View style={styles.cardTesti}>
+                  <Text style={styles.trattNome} numberOfLines={2}>{t.nome}</Text>
+                  <Text style={styles.piccolo}>{t.categoria} · {t.durata} min</Text>
+                  {!bastano ? (
+                    <Text style={styles.mancano}>te ne mancano {t.punti - data.punti}</Text>
+                  ) : null}
+                </View>
+                <Pressable
+                  style={[styles.trattBottone, !bastano && styles.premioBottoneSpento]}
+                  disabled={!bastano || inCorso === t.premioId}
+                  onPress={() => void riscatta(t.premioId, 'trattamento', t.nome, t.punti)}
+                >
+                  {inCorso === t.premioId ? (
+                    <ActivityIndicator size="small" color={colors.white} />
+                  ) : (
+                    <Text style={styles.premioBottoneTesto}>{t.punti} punti</Text>
+                  )}
+                </Pressable>
+              </View>
+            );
+          })}
+        </View>
+      ))}
 
       {/* ── Lo storico ── */}
       {data.riscatti.filter((r) => r.stato !== 'da_ritirare').length > 0 ? (
@@ -191,6 +249,32 @@ const styles = StyleSheet.create({
   premioBottoneTesto: { ...typography.labelForte, fontSize: 13, color: colors.white },
   mancano: { ...typography.caption, fontSize: 11, color: colors.textSecondary, marginTop: 4 },
   sezione: { ...typography.subtitle, color: colors.textPrimary, marginTop: spacing.xl, marginBottom: spacing.sm },
+  divisore: {
+    flexDirection: 'row', backgroundColor: colors.backgroundAlt,
+    borderRadius: radius.full, padding: 3, marginBottom: spacing.md,
+  },
+  divisoreTasto: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: radius.full },
+  divisoreTastoOn: {
+    backgroundColor: colors.surface,
+    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  divisoreTxt: { ...typography.label, color: colors.textSecondary },
+  divisoreTxtOn: { color: colors.textPrimary, fontFamily: fonts.w700 },
+  trattRiga: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm,
+  },
+  trattIcona: {
+    width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primarySoft,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  trattNome: { fontFamily: fonts.w700, fontSize: 14.5, color: colors.textPrimary },
+  trattBottone: {
+    alignItems: 'center', backgroundColor: colors.primary,
+    borderRadius: radius.full, paddingVertical: 8, paddingHorizontal: spacing.md,
+  },
   storicoRiga: {
     flexDirection: 'row', alignItems: 'center',
     borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: spacing.sm,

@@ -26,11 +26,21 @@ interface Prodotto {
 interface Riscatto {
   id: string;
   clientName: string;
+  tipo?: string;
   nomeProdotto: string;
   punti: number;
   codice: string;
   createdAt: string;
   stato: string;
+}
+
+interface TrattamentoPremio {
+  id: string;
+  name: string;
+  category: string;
+  duration: number;
+  price: number;
+  premio: { punti: number; attivo: boolean } | null;
 }
 
 async function comprimiFoto(file: File): Promise<string> {
@@ -50,6 +60,8 @@ async function comprimiFoto(file: File): Promise<string> {
 export default function RegaliPage() {
   const [q, setQ] = useState('');
   const [prodotti, setProdotti] = useState<Prodotto[]>([]);
+  const [qTratt, setQTratt] = useState('');
+  const [trattamenti, setTrattamenti] = useState<TrattamentoPremio[]>([]);
   const [daRitirare, setDaRitirare] = useState<Riscatto[]>([]);
   const [puntiBozza, setPuntiBozza] = useState<Record<string, string>>({});
 
@@ -57,16 +69,24 @@ export default function RegaliPage() {
     const r = await fetch(`/api/admin/premi-prodotti?q=${encodeURIComponent(cerca)}`).then(r => r.json()).catch(() => null);
     if (r?.prodotti) setProdotti(r.prodotti);
   }, []);
+  const caricaTrattamenti = useCallback(async (cerca: string) => {
+    const r = await fetch(`/api/admin/premi-trattamenti?q=${encodeURIComponent(cerca)}`).then(r => r.json()).catch(() => null);
+    if (r?.trattamenti) setTrattamenti(r.trattamenti);
+  }, []);
   const caricaRiscatti = useCallback(async () => {
     const r = await fetch('/api/admin/premi-riscatti').then(r => r.json()).catch(() => null);
     if (r?.daRitirare) setDaRitirare(r.daRitirare);
   }, []);
 
-  useEffect(() => { void carica(''); void caricaRiscatti(); }, [carica, caricaRiscatti]);
+  useEffect(() => { void carica(''); void caricaTrattamenti(''); void caricaRiscatti(); }, [carica, caricaTrattamenti, caricaRiscatti]);
   useEffect(() => {
     const t = setTimeout(() => void carica(q), 350);
     return () => clearTimeout(t);
   }, [q, carica]);
+  useEffect(() => {
+    const t = setTimeout(() => void caricaTrattamenti(qTratt), 350);
+    return () => clearTimeout(t);
+  }, [qTratt, caricaTrattamenti]);
 
   const salva = async (p: Prodotto, dati: { punti?: number; attivo?: boolean; image?: string }) => {
     await fetch('/api/admin/premi-prodotti', {
@@ -75,6 +95,15 @@ export default function RegaliPage() {
       body: JSON.stringify({ productId: p.id, ...dati }),
     });
     void carica(q);
+  };
+
+  const salvaTratt = async (t: TrattamentoPremio, dati: { punti?: number; attivo?: boolean }) => {
+    await fetch('/api/admin/premi-trattamenti', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ treatmentId: t.id, ...dati }),
+    });
+    void caricaTrattamenti(qTratt);
   };
 
   const gestisci = async (id: string, azione: 'consegna' | 'annulla') => {
@@ -102,8 +131,13 @@ export default function RegaliPage() {
               <div key={r.id} className="flex items-center gap-3 bg-white rounded-lg border p-3">
                 <span className="font-mono text-lg font-bold tracking-widest">{r.codice}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{r.nomeProdotto}</p>
-                  <p className="text-xs text-gray-500">{r.clientName} · {r.punti} punti · {r.createdAt.slice(0, 10)}</p>
+                  <p className="text-sm font-medium truncate">
+                    {r.tipo === 'trattamento' ? '💆 ' : '🧴 '}{r.nomeProdotto}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {r.clientName} · {r.punti} punti · {r.createdAt.slice(0, 10)}
+                    {r.tipo === 'trattamento' ? ' · trattamento: prenota la seduta e falla a 0€' : ''}
+                  </p>
                 </div>
                 <button onClick={() => void gestisci(r.id, 'consegna')} className="text-sm bg-black text-white rounded-lg px-3 py-1.5">
                   Consegnato
@@ -117,7 +151,8 @@ export default function RegaliPage() {
         </div>
       )}
 
-      {/* ── La vetrina ── */}
+      {/* ── La vetrina dei prodotti ── */}
+      <h2 className="font-semibold mb-2">🧴 Prodotti in regalo</h2>
       <input
         value={q}
         onChange={e => setQ(e.target.value)}
@@ -171,6 +206,44 @@ export default function RegaliPage() {
           </div>
         ))}
         {prodotti.length === 0 ? <p className="text-sm text-gray-400">Nessun prodotto trovato.</p> : null}
+      </div>
+
+      {/* ── La vetrina dei trattamenti ── */}
+      <h2 className="font-semibold mb-2 mt-10">💆 Trattamenti in regalo</h2>
+      <p className="text-xs text-gray-500 mb-3">
+        La cliente riscatta col codice e la seduta si prenota normalmente: al check-out mettila a 0€.
+      </p>
+      <input
+        value={qTratt}
+        onChange={e => setQTratt(e.target.value)}
+        placeholder="Cerca un trattamento…"
+        className="w-full border rounded-lg px-3 py-2 mb-4"
+      />
+      <div className="space-y-2">
+        {trattamenti.map(t => (
+          <div key={t.id} className={`flex items-center gap-3 rounded-xl border bg-white p-3 ${t.premio?.attivo ? 'border-emerald-300' : ''}`}>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{t.name}</p>
+              <p className="text-xs text-gray-500">{t.category} · {t.duration} min · listino {t.price}€</p>
+            </div>
+            <input
+              type="number" min={0} placeholder="punti"
+              defaultValue={t.premio?.punti ?? ''}
+              onChange={e => setPuntiBozza(prev => ({ ...prev, [t.id]: e.target.value }))}
+              className="w-24 border rounded-lg px-2 py-1.5 text-sm text-right"
+            />
+            <button
+              onClick={() => void salvaTratt(t, { punti: Number(puntiBozza[t.id] ?? t.premio?.punti ?? 0), attivo: true })}
+              className="text-sm bg-black text-white rounded-lg px-3 py-1.5"
+            >
+              {t.premio ? 'Aggiorna' : 'In vetrina'}
+            </button>
+            {t.premio ? (
+              <button onClick={() => void salvaTratt(t, { punti: 0 })} className="text-sm text-red-600">Togli</button>
+            ) : null}
+          </div>
+        ))}
+        {trattamenti.length === 0 ? <p className="text-sm text-gray-400">Nessun trattamento trovato.</p> : null}
       </div>
     </div>
   );

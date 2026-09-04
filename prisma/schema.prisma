@@ -1554,6 +1554,9 @@ model RiscattoPremio {
   id           String  @id @default(cuid())
   clientId     String
   clientName   String
+  /// 'prodotto' oppure 'trattamento': dice cosa c'è dietro `productId`
+  /// (l'id del prodotto a scaffale, o quello del trattamento).
+  tipo         String  @default("prodotto")
   productId    String
   nomeProdotto String
   punti        Int
@@ -1764,4 +1767,16 @@ model AccessoSensibile {
   @@index([clientId])
   @@index([createdAt])
   @@map("accessi_sensibili")
+}
+
+/// Un trattamento in regalo coi punti: il gemello di PremioProdotto, ma
+/// dallo scaffale dei servizi. Niente stock: alla consegna si prenota.
+model PremioTrattamento {
+  id          String  @id @default(cuid())
+  treatmentId String  @unique
+  punti       Int
+  attivo      Boolean @default(true)
+  createdAt   String
+
+  @@map("premi_trattamenti")
 }

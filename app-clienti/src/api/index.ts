@@ -38,7 +38,7 @@ export { bachecaService } from './BachecaProvider';
 export type { PostBacheca } from './BachecaProvider';
 export { profiloService, completezzaProfilo } from './ProfiloProvider';
 export { regaliService } from './RegaliProvider';
-export type { PremioVetrina, RiscattoRegalo, DatiRegali } from './RegaliProvider';
+export type { PremioVetrina, TrattamentoVetrina, RiscattoRegalo, DatiRegali } from './RegaliProvider';
 export { esteticaService } from './EsteticaProvider';
 export type {
   StatoCheckup, DomandeCheckup, RichiestaConsulenza,

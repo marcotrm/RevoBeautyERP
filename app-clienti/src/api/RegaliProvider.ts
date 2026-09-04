@@ -12,8 +12,18 @@ export interface PremioVetrina {
   disponibile: boolean;
 }
 
+export interface TrattamentoVetrina {
+  premioId: string;
+  nome: string;
+  categoria: string;
+  durata: number;
+  punti: number;
+  disponibile: boolean;
+}
+
 export interface RiscattoRegalo {
   id: string;
+  tipo?: 'prodotto' | 'trattamento';
   nomeProdotto: string;
   punti: number;
   stato: 'da_ritirare' | 'consegnato' | 'annullato';
@@ -24,13 +34,14 @@ export interface RiscattoRegalo {
 export interface DatiRegali {
   punti: number;
   premi: PremioVetrina[];
+  trattamenti: TrattamentoVetrina[];
   riscatti: RiscattoRegalo[];
 }
 
 export const regaliService = {
   vetrina: (token: string) => apiRequest<DatiRegali>('/api/mobile/rewards', { token }),
-  riscatta: (token: string, premioId: string) =>
+  riscatta: (token: string, premioId: string, tipo: 'prodotto' | 'trattamento' = 'prodotto') =>
     apiRequest<{ ok: boolean; riscatto: RiscattoRegalo }>('/api/mobile/rewards', {
-      method: 'POST', token, body: { premioId },
+      method: 'POST', token, body: { premioId, tipo },
     }),
 };

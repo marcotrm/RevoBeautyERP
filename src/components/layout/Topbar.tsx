@@ -15,6 +15,7 @@ import { useThemeStore } from '@/stores/useThemeStore';
 import { getInitials, getRelativeTime } from '@/lib/helpers';
 import ClientChat from '@/components/chat/ClientChat';
 import TastoTrillo from '@/components/TastoTrillo';
+import TastoWhatsApp from '@/components/TastoWhatsApp';
 import RubricaModal from '@/components/RubricaModal';
 
 const pageTitles: Record<string, string> = {
@@ -73,6 +74,7 @@ export default function Topbar() {
             {pageTitle}
           </h1>
           <ClientChat />
+          <TastoWhatsApp />
           <TastoTrillo />
         </div>
       </div>
