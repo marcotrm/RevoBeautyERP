@@ -283,7 +283,10 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       .then(s => { if (vivo) setWalletApp(s); })
       .catch(() => { if (vivo) setWalletApp(0); });
     return () => { vivo = false; };
-  }, [clienteScelto?.id]);
+    // La rata sta nelle dipendenze perche' decide se il credito si accende da
+    // solo: e' una prop del modale e non cambia in corsa, ma scritta qui il
+    // giorno che cambiasse il conto tornerebbe giusto lo stesso.
+  }, [clienteScelto?.id, initialData?.debtPkgId]);
 
   /*
     «Consegnato» da qui fa esattamente quello che fa il pannello in alto:
