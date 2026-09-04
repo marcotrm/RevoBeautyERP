@@ -22,7 +22,22 @@ export function Credito({ clientId }: { clientId: string }) {
   const [apri, setApri] = useState(false);
   const [importo, setImporto] = useState('');
   const [motivo, setMotivo] = useState('');
-  const [incassaOra, setIncassaOra] = useState(true);
+  /*
+    Da dove arrivano questi soldi: tre casi, non due.
+
+    Prima si sceglieva fra «ha pagato adesso» e «glielo regaliamo», e il caso
+    piu' frequente non era nessuno dei due: la cliente aveva gia' pagato — di
+    piu' del dovuto, o una seduta poi non fatta. Quei soldi in cassa ci sono
+    gia' entrati il giorno del pagamento, quindi non devono rientrarci oggi,
+    ma chiamarli «regalo» e' falso: non e' un omaggio, e' un debito.
+
+    Nei conti «gia' incassato» e «omaggio» si comportano uguale — in cassa non
+    entra niente — ma restano scritti diversi nello storico, perche' fra sei
+    mesi la differenza fra «gli dovevamo 15 euro» e «gliel'abbiamo regalato»
+    e' l'unica cosa che conta davvero.
+  */
+  const [natura, setNatura] = useState<'ora' | 'gia' | 'omaggio'>('ora');
+  const incassaOra = natura === 'ora';
   const [metodo, setMetodo] = useState<string>('Contanti');
   const [occupato, setOccupato] = useState(false);
   const [errore, setErrore] = useState('');
@@ -50,7 +65,9 @@ export function Credito({ clientId }: { clientId: string }) {
       const r = await caricaCredito({
         clientId,
         importo: Number(importo.replace(',', '.')),
-        motivo,
+        motivo: natura === 'gia' ? `${motivo} · soldi già incassati`
+          : natura === 'omaggio' ? `${motivo} · omaggio del centro`
+            : motivo,
         incassaOra,
         metodo,
         operatore: chi(),
@@ -113,7 +130,7 @@ export function Credito({ clientId }: { clientId: string }) {
             <div>
               <label className="block text-xs font-medium text-text-secondary mb-1.5">Da dove arriva</label>
               <input type="text" value={motivo} onChange={e => setMotivo(e.target.value)}
-                placeholder="es. anticipo lasciato, seduta non fatta"
+                placeholder="es. ha pagato 75 invece di 60"
                 className="w-full px-3 py-2.5 rounded-xl bg-bg-secondary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/60" />
             </div>
           </div>
@@ -128,13 +145,14 @@ export function Credito({ clientId }: { clientId: string }) {
           */}
           <div className="space-y-2">
             {([
-              [true, 'Ha pagato adesso', 'entra in cassa oggi'],
-              [false, 'Glielo regaliamo', 'non entra niente in cassa, né oggi né quando lo userà'],
+              ['ora', 'Ha pagato adesso', 'entra in cassa oggi'],
+              ['gia', 'Aveva già pagato', 'in cassa non entra niente: quei soldi ci sono entrati il giorno del pagamento. È il caso di chi ha pagato più del dovuto o di una seduta pagata e mai fatta.'],
+              ['omaggio', 'Glielo regaliamo', 'non entra niente in cassa, né oggi né quando lo userà: quel trattamento nei conti sarà gratis'],
             ] as const).map(([valore, titolo, sotto]) => (
-              <button key={String(valore)} onClick={() => setIncassaOra(valore)}
+              <button key={valore} onClick={() => setNatura(valore)}
                 className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition-colors ${
-                  incassaOra === valore ? 'border-accent bg-accent/5' : 'border-border hover:bg-bg-hover'}`}>
-                <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 mt-0.5 ${incassaOra === valore ? 'border-accent bg-accent' : 'border-border'}`} />
+                  natura === valore ? 'border-accent bg-accent/5' : 'border-border hover:bg-bg-hover'}`}>
+                <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 mt-0.5 ${natura === valore ? 'border-accent bg-accent' : 'border-border'}`} />
                 <span className="min-w-0">
                   <span className="block text-sm font-medium text-text-primary">{titolo}</span>
                   <span className="block text-[11px] text-text-muted">{sotto}</span>
