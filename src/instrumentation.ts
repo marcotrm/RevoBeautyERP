@@ -198,11 +198,33 @@ export async function register() {
     }
   };
 
-  setInterval(() => { void tick(); void waTick(); void buchiTick(); void affiliatiTick(); void recensioniTick(); void autocriticaTick(); void rinnoviTick(); }, 60 * 1000);
+  /**
+   * Notifiche push dell'app clienti (promemoria + lista d'attesa): ogni 5
+   * minuti. La deduplica sta nel database (app_notifications), quindi un
+   * giro doppio o saltato non produce né doppioni né buchi.
+   */
+  let notificheInCorso = false;
+  const notificheTick = async () => {
+    const { hhmm } = nowRome();
+    const minuto = Number(hhmm.slice(3));
+    if (minuto % 5 !== 0 || notificheInCorso) return;
+    notificheInCorso = true;
+    try {
+      const { giroNotificheApp } = await import('@/lib/engines/notificheApp');
+      await giroNotificheApp();
+    } catch (err) {
+      console.error('[notifiche-app] scheduler error', err);
+    } finally {
+      notificheInCorso = false;
+    }
+  };
+
+  setInterval(() => { void tick(); void waTick(); void buchiTick(); void affiliatiTick(); void recensioniTick(); void autocriticaTick(); void rinnoviTick(); void notificheTick(); }, 60 * 1000);
   console.log('[reports] Scheduler report Telegram attivo (invio alle 20:00 Europe/Rome)');
   console.log('[wa] Scheduler automazioni WhatsApp attivo');
   console.log('[copri-buchi] Scheduler copri buchi attivo');
   console.log('[affiliati] Riepilogo mensile attivo (il 1° del mese dalle 10:00)');
   console.log('[recensioni] Controllo Google ogni 30 minuti (8-22), riepilogo positive alle 20:05');
   console.log('[autocritica] La segretaria si rilegge alle 21:30');
+  console.log('[notifiche-app] Promemoria e lista d\'attesa ogni 5 minuti');
 }

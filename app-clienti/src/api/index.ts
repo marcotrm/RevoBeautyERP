@@ -31,5 +31,7 @@ export type {
   BookingOperator, ServizioRichiesto, Assegnazione, GiornoDisponibile, RicercaOrari,
 } from './BookingProvider';
 export { homeService } from './HomeProvider';
+export { waitlistService } from './WaitlistProvider';
+export type { DesiderioAttesa, NuovoDesiderio } from './WaitlistProvider';
 export type { DatiHome, DatiWallet, Proposta, Percorso, FlashSlotApp, DatiReferral, MovimentoWallet } from './HomeProvider';
 export * from './types';

@@ -4,6 +4,8 @@
  * e storico recente.
  */
 import { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import {
   ActivityIndicator,
   Pressable,
@@ -86,6 +88,7 @@ function AppointmentCard({
 
 export default function AppuntamentiScreen() {
   const { token } = useAuth();
+  const router = useRouter();
   const { data, isLoading, isRefreshing, error, refresh } = useApiData((t) =>
     appointmentsService.list(t)
   );
@@ -167,6 +170,13 @@ export default function AppuntamentiScreen() {
           ))
         )}
 
+        {/* ---------- Lista d'attesa ---------- */}
+        <Pressable style={styles.attesaRiga} onPress={() => router.push('/lista-attesa')}>
+          <Ionicons name="notifications-outline" size={19} color={colors.primaryDark} />
+          <Text style={styles.attesaTesto}>Avvisami se si libera un posto</Text>
+          <Ionicons name="chevron-forward" size={17} color={colors.textSecondary} />
+        </Pressable>
+
         {/* ---------- Storico ---------- */}
         {data.past.length > 0 && (
           <>
@@ -182,6 +192,13 @@ export default function AppuntamentiScreen() {
 }
 
 const styles = StyleSheet.create({
+  attesaRiga: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.lg, paddingVertical: spacing.md, paddingHorizontal: spacing.md,
+    marginTop: spacing.md,
+  },
+  attesaTesto: { ...typography.labelForte, color: colors.textPrimary, flex: 1 },
   safeArea: {
     flex: 1,
     backgroundColor: colors.background,

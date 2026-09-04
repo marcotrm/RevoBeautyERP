@@ -43,7 +43,7 @@ model Client {
 
   appointments       Appointment[]
   clientPackages     ClientPackage[]
-  giftCardsPurchased GiftCard[]      @relation("GiftCardBuyer")
+  giftCardsPurchased GiftCard[]       @relation("GiftCardBuyer")
   mobileAccount      MobileAccount?
   photos             ClientPhoto[]
   consents           ClientConsent[]
@@ -133,32 +133,32 @@ model MobileAccount {
 // OPERATORS
 // ============================================================
 model Operator {
-  id              String   @id @default(cuid())
-  firstName       String
-  lastName        String
-  avatar          String?
-  color           String
-  specializations String[] @default([])
-  locationIds     String[] @default([])
-  schedule        Json     @default("{}")
-  contractHours   Float    @default(0)
-  isActive        Boolean  @default(true)
-  phone           String?
-  email           String?
+  id                 String   @id @default(cuid())
+  firstName          String
+  lastName           String
+  avatar             String?
+  color              String
+  specializations    String[] @default([])
+  locationIds        String[] @default([])
+  schedule           Json     @default("{}")
+  contractHours      Float    @default(0)
+  isActive           Boolean  @default(true)
+  phone              String?
+  email              String?
   /// Percentuale sui trattamenti che esegue lei.
-  commission      Float    @default(0)
+  commission         Float    @default(0)
   /// Percentuale sui prodotti che vende: di solito piu' alta dei trattamenti,
   /// perche' il prodotto lo si vende solo se lo si propone.
-  commissionProdotti Float @default(0)
+  commissionProdotti Float    @default(0)
   /// Da quanto fatturato in su scatta la percentuale piu' alta (0 = mai).
-  commissionSoglia   Float @default(0)
+  commissionSoglia   Float    @default(0)
   /// La percentuale oltre la soglia: il premio di chi tira il mese.
-  commissionOltre    Float @default(0)
+  commissionOltre    Float    @default(0)
   /// Il fisso mensile che prende comunque, al lordo (0 = solo provvigione).
-  compensoFisso      Float @default(0)
-  hireDate        String
-  isResource      Boolean  @default(false) // true = cabina/macchinario prenotabile senza operatrice
-  monthlyCost     Float    @default(0) // costo mensile lordo azienda (per calcolare il costo orario)
+  compensoFisso      Float    @default(0)
+  hireDate           String
+  isResource         Boolean  @default(false) // true = cabina/macchinario prenotabile senza operatrice
+  monthlyCost        Float    @default(0) // costo mensile lordo azienda (per calcolare il costo orario)
 
   appointments Appointment[]
 
@@ -529,13 +529,11 @@ model InaugurationLead {
 // ============================================================
 /**
  * Chi ha lasciato i suoi dati senza essere ancora cliente.
- *
  * Prima non esisteva: il modulo del sito faceva finta di inviare — il tasto
  * diventava verde e il messaggio non partiva da nessuna parte — quindi ogni
  * richiesta arrivata da revobeauty.it si e' persa nel momento in cui la
  * persona chiudeva la pagina. Un contatto perso non fa rumore, ed e' questo
  * che lo rende caro.
- *
  * Il lead resta separato dalla scheda cliente finche' non prenota davvero:
  * riempire la rubrica di schede vuote di gente che ha solo fatto una domanda
  * sporca le statistiche e i richiami automatici. Quando prenota, `clientId`
@@ -545,23 +543,35 @@ model Lead {
   id               String  @id @default(cuid())
   firstName        String
   lastName         String  @default("")
-  /** Normalizzato internazionale (393331234567): e' la chiave con cui si parla su WhatsApp. */
+  /**
+   * Normalizzato internazionale (393331234567): e' la chiave con cui si parla su WhatsApp.
+   */
   phone            String  @default("")
   email            String  @default("")
-  /** Il servizio scelto nel modulo, come lo ha scritto il sito. */
+  /**
+   * Il servizio scelto nel modulo, come lo ha scritto il sito.
+   */
   service          String  @default("")
   message          String  @default("")
-  /** sito | app | qr | telefono | manuale */
+  /**
+   * sito | app | qr | telefono | manuale
+   */
   source           String  @default("sito")
-  /** Da quale pagina e' arrivato: serve a capire cosa converte. */
+  /**
+   * Da quale pagina e' arrivato: serve a capire cosa converte.
+   */
   page             String  @default("")
-  /** nuovo | contattato | in_chat | prenotato | cliente | perso */
+  /**
+   * nuovo | contattato | in_chat | prenotato | cliente | perso
+   */
   status           String  @default("nuovo")
   privacyConsent   Boolean @default(false)
   marketingConsent Boolean @default(false)
   clientId         String?
   appointmentId    String?
-  /** Quando gli e' partito il primo messaggio WhatsApp. */
+  /**
+   * Quando gli e' partito il primo messaggio WhatsApp.
+   */
   contactedAt      String?
   notes            String  @default("")
   createdAt        String
@@ -590,33 +600,39 @@ model AppRole {
 
 /**
  * Chi entra nel gestionale, e quando.
- *
  * Non c'era niente: `authenticate` confrontava la password e tornava
  * l'account, senza lasciare traccia. Il giorno in cui serve sapere se un
  * account che non deve piu' entrare sta ancora entrando — un socio uscito, una
  * ragazza che se n'e' andata — non c'e' niente da guardare, e il passato non
  * si ricostruisce.
- *
  * Si registrano anche i tentativi FALLITI: qualcuno che prova la password
  * sbagliata dieci volte alle tre di notte e' un'informazione, e senza le
  * righe fallite si vedrebbe solo il silenzio.
  */
 model LoginLog {
-  id        String  @id @default(cuid())
-  /** L'email digitata: c'e' anche quando l'account non esiste. */
-  email     String
-  /** L'account, quando l'accesso e' riuscito. */
-  userId    String?
-  nome      String?
-  ruolo     String?
-  esito     String // ok | password_errata | account_spento | inesistente
-  ip        String?
-  userAgent String?
-  createdAt String
-  /** L'ultimo battito arrivato dal browser: dice fin quando e' rimasto dentro. */
+  id             String  @id @default(cuid())
+  /**
+   * L'email digitata: c'e' anche quando l'account non esiste.
+   */
+  email          String
+  /**
+   * L'account, quando l'accesso e' riuscito.
+   */
+  userId         String?
+  nome           String?
+  ruolo          String?
+  esito          String // ok | password_errata | account_spento | inesistente
+  ip             String?
+  userAgent      String?
+  createdAt      String
+  /**
+   * L'ultimo battito arrivato dal browser: dice fin quando e' rimasto dentro.
+   */
   ultimaAttivita String?
-  /** I minuti di uso vero, sommati battito dopo battito (le pause non contano). */
-  minuti    Int     @default(0)
+  /**
+   * I minuti di uso vero, sommati battito dopo battito (le pause non contano).
+   */
+  minuti         Int     @default(0)
 
   @@index([email])
   @@index([createdAt])
@@ -738,27 +754,27 @@ model ClientDocument {
 // fatturato, perche' a inizio mese si sa gia' quanto entrera'.
 // ============================================================
 model Subscription {
-  id            String   @id @default(cuid())
-  clientId      String?
-  clientName    String
-  nome          String
-  prezzoMensile Float
+  id              String   @id @default(cuid())
+  clientId        String?
+  clientName      String
+  nome            String
+  prezzoMensile   Float
   /// Quante sedute al mese sono comprese. 0 = illimitate.
-  seduteAlMese  Int      @default(0)
+  seduteAlMese    Int      @default(0)
   /// Quante ne ha gia' fatte in questo mese di abbonamento.
-  seduteUsate   Int      @default(0)
+  seduteUsate     Int      @default(0)
   /// Cosa comprende: categorie e/o trattamenti precisi.
-  categorie     String[] @default([])
-  trattamenti   String[] @default([])
-  inizio        String
+  categorie       String[] @default([])
+  trattamenti     String[] @default([])
+  inizio          String
   /// Il giorno del prossimo pagamento: e' la data che conta.
   prossimoRinnovo String
-  stato         String   @default("attivo") // attivo | sospeso | chiuso
+  stato           String   @default("attivo") // attivo | sospeso | chiuso
   /// Lo storico dei rinnovi incassati: [{data, importo, metodo, txId, operatore}]
-  incassi       Json     @default("[]")
-  note          String?
-  createdAt     String
-  updatedAt     String
+  incassi         Json     @default("[]")
+  note            String?
+  createdAt       String
+  updatedAt       String
 
   @@index([clientId])
   @@index([prossimoRinnovo])
@@ -773,8 +789,8 @@ model Subscription {
 // corriere, nessun reso, nessun pagamento anticipato.
 // ============================================================
 model ProductOrder {
-  id         String @id @default(cuid())
-  numero     Int    @default(autoincrement())
+  id         String  @id @default(cuid())
+  numero     Int     @default(autoincrement())
   clientId   String?
   clientName String
   phone      String
@@ -783,7 +799,7 @@ model ProductOrder {
   righe      Json
   totale     Float
   /// nuovo | pronto | ritirato | annullato
-  stato      String @default("nuovo")
+  stato      String  @default("nuovo")
   note       String?
   /// La riga di cassa, quando viene ritirato e pagato.
   txId       String?
@@ -884,10 +900,10 @@ model AffiliateLead {
 
   @@index([phone])
   @@index([affiliateId])
-  @@map("affiliate_leads")
   // Si cerca a ogni incasso per sapere se quella cliente è di un affiliato:
   // senza indice sarebbe una scansione della tabella dentro alla cassa.
   @@index([clientId])
+  @@map("affiliate_leads")
 }
 
 // ============================================================
@@ -1300,4 +1316,63 @@ model ClientReminder {
 
   @@index([clientId])
   @@map("client_reminders")
+}
+
+// ============================================================
+// NOTIFICHE PUSH INVIATE
+// ============================================================
+/// Registro di ogni push mandata alla cliente.
+///
+/// Serve a due cose: non mandare mai due volte lo stesso avviso
+/// (il vincolo unico su clientId+tipo+refId è il lucchetto) e misurare
+/// dal pannello cosa viene aperto e cosa disturba.
+model AppNotification {
+  id        String  @id @default(cuid())
+  clientId  String
+  /// 'promemoria-24h' | 'promemoria-2h' | 'waitlist' | 'drop' | ...
+  tipo      String
+  /// L'oggetto di cui si parla (id appuntamento, desiderio...): è la
+  /// chiave dell'anti-doppione.
+  refId     String
+  titolo    String
+  corpo     String
+  dati      Json    @default("{}")
+  inviataAt String
+  apertaAt  String?
+  /// 'ok' | 'no-token' | 'errore' — una riga c'è comunque, così il
+  /// doppione non parte nemmeno quando il primo invio è fallito.
+  esito     String
+
+  @@unique([clientId, tipo, refId])
+  @@index([clientId])
+  @@map("app_notifications")
+}
+
+// ============================================================
+// LISTA D'ATTESA INTELLIGENTE
+// ============================================================
+/// "Se si libera un posto così, avvisami."
+///
+/// Il desiderio muore da solo alla scadenza: una lista d'attesa che
+/// avvisa per cose chieste due mesi fa insegna a ignorare gli avvisi.
+model WaitlistWish {
+  id            String  @id @default(cuid())
+  clientId      String
+  clientName    String
+  treatmentId   String
+  treatmentName String
+  /// null = va bene qualsiasi operatrice
+  operatorId    String?
+  /// Giorni che vanno bene: 0=domenica ... 6=sabato. Vuoto = tutti.
+  giorni        Int[]   @default([])
+  dalleOre      String
+  alleOre       String
+  scadenza      String
+  /// attiva | avvisata | annullata | scaduta
+  stato         String  @default("attiva")
+  createdAt     String
+
+  @@index([clientId])
+  @@index([stato])
+  @@map("waitlist_wishes")
 }

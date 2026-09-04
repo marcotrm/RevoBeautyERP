@@ -14,6 +14,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { BloccoBiometrico } from '@/components/BloccoBiometrico';
 import { ConsensoFaceId } from '@/components/ConsensoFaceId';
+import { NotifichePush } from '@/components/NotifichePush';
 import { AuthProvider } from '@/context/AuthContext';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, fontAssets } from '@/theme';
@@ -65,6 +66,7 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <StatusBar style="dark" />
+      <NotifichePush />
       <RootNavigator fontPronti={caricati || !!errore} />
     </AuthProvider>
   );

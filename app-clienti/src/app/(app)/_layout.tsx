@@ -28,6 +28,7 @@ export default function AppLayout() {
       <Stack.Screen name="invita" options={{ title: 'Porta un\'amica' }} />
       <Stack.Screen name="listino" options={{ title: 'Trattamenti e pacchetti' }} />
       <Stack.Screen name="contatti" options={{ title: 'Scrivici' }} />
+      <Stack.Screen name="lista-attesa" options={{ title: 'Avvisami se si libera' }} />
     </Stack>
   );
 }

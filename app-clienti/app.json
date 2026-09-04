@@ -59,6 +59,12 @@
         {
           "faceIDPermission": "RevoBeauty usa Face ID per proteggere il tuo account."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default"
+        }
       ]
     ],
     "experiments": {
