@@ -26,6 +26,9 @@ export async function GET() {
     clientId: string; clientName: string; lastBody: string; lastAt: string; lastSender: string;
     unread: number; oldestUnreadAt: string | null;
     senzaRisposta: number; senzaRispostaDa: string | null; attesaMinuti: number; daRispondere: boolean;
+    /** L'ultima volta che ha scritto lei: e' con questa che si confronta il segno «Ho letto». */
+    ultimoClienteAt: string | null;
+    giaGestita: boolean;
   }>();
 
   for (const m of messages) {
@@ -40,6 +43,8 @@ export async function GET() {
         senzaRisposta: m.sender === 'client' ? 1 : 0,
         senzaRispostaDa: m.sender === 'client' ? m.createdAt : null,
         attesaMinuti: 0, daRispondere: false,
+        ultimoClienteAt: m.sender === 'client' ? m.createdAt : null,
+        giaGestita: false,
       });
       continue;
     }
@@ -59,6 +64,7 @@ export async function GET() {
     } else {
       existing.senzaRisposta += 1;
       if (!existing.senzaRispostaDa) existing.senzaRispostaDa = m.createdAt;
+      existing.ultimoClienteAt = m.createdAt;
     }
   }
 
@@ -75,13 +81,37 @@ export async function GET() {
   */
   const ANCORA_UTILE_MIN = 48 * 60;
 
+  /*
+    La via d'uscita: «Ho letto, non serve rispondere».
+
+    La regola dell'ultima parola nostra e' giusta, ma non copre tutto: la
+    cliente magari l'abbiamo richiamata al telefono, o ha scritto «grazie» e
+    non c'e' niente da rispondere. Senza questo tasto quella chat resterebbe
+    segnata all'infinito, e una lista che segna cose gia' sistemate smette di
+    essere creduta — si smette di guardarla, e il primo messaggio vero passa
+    inosservato insieme agli altri.
+
+    Il confronto e' con l'ULTIMO messaggio suo, non col primo: se dopo il
+    segno lei riscrive, la conversazione torna da rispondere. E' la stessa
+    regola di WhatsApp, e li' era proprio col primo che si perdeva gente.
+  */
+  const segni = await prisma.adminEntry.findMany({ where: { kind: 'chat_gestita' }, take: 500 });
+  const gestitaAl = new Map<string, string>();
+  for (const r of segni) {
+    const d = (r.data || {}) as { clientId?: string; gestitaAl?: string };
+    if (d.clientId && d.gestitaAl) gestitaAl.set(d.clientId, d.gestitaAl);
+  }
+
   for (const c of byClient.values()) {
+    const segno = gestitaAl.get(c.clientId);
+    c.giaGestita = Boolean(segno && c.ultimoClienteAt && segno >= c.ultimoClienteAt);
     c.attesaMinuti = c.senzaRispostaDa
       ? Math.floor((Date.now() - new Date(c.senzaRispostaDa).getTime()) / 60_000)
       : 0;
     c.daRispondere = c.senzaRisposta > 0
       && c.attesaMinuti >= ATTESA_MIN
-      && c.attesaMinuti <= ANCORA_UTILE_MIN;
+      && c.attesaMinuti <= ANCORA_UTILE_MIN
+      && !c.giaGestita;
     /*
       Aprire e basta non la fa piu' sembrare sistemata: passati i dieci
       minuti il numerino torna, col conto dei messaggi rimasti in sospeso, e

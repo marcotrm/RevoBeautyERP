@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, X, Send, ChevronLeft, AlertTriangle } from 'lucide-react';
+import { MessageCircle, X, Send, ChevronLeft, AlertTriangle, Check, Clock } from 'lucide-react';
 import { useAuthStore } from '@/stores/useAuthStore';
 import AvatarCliente from '@/components/AvatarCliente';
 
@@ -17,7 +17,18 @@ type Conversation = {
   unread: number; oldestUnreadAt: string | null; avatar?: string | null;
   /** Messaggi suoi rimasti senza una nostra risposta, e da quanto aspetta. */
   senzaRisposta?: number; attesaMinuti?: number; daRispondere?: boolean;
+  /** Chiusa a mano con «Ho letto», e da allora non ha piu' scritto. */
+  giaGestita?: boolean;
 };
+
+/** «12 min», «2 h», «3 giorni»: un numero nudo non dice quanto e' grave. */
+function daQuanto(minuti: number): string {
+  if (minuti < 60) return `${minuti} min`;
+  const ore = Math.floor(minuti / 60);
+  if (ore < 24) return ore === 1 ? '1 ora' : `${ore} ore`;
+  const giorni = Math.floor(ore / 24);
+  return giorni === 1 ? '1 giorno' : `${giorni} giorni`;
+}
 type Message = { id: string; clientId: string; clientName: string; sender: string; body: string; operatorName?: string | null; createdAt: string };
 
 export default function ClientChat() {
@@ -110,6 +121,25 @@ export default function ClientChat() {
     loadConversations();
   };
 
+  /*
+    «Ho letto, non serve rispondere».
+
+    Serve perche' il promemoria guarda chi ha detto l'ultima parola, e a volte
+    l'ultima parola sua non chiede niente — un «grazie», oppure l'abbiamo
+    richiamata al telefono e li' si e' chiuso tutto. Senza questo tasto quella
+    chat resterebbe segnata per sempre.
+
+    Il segno vale fino a adesso: se dopo riscrive, torna da rispondere.
+  */
+  const segnaGestita = async (clientId: string) => {
+    await fetch('/api/chat/read', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId, gestita: true }),
+    }).catch(() => {});
+    dismissedRef.current.add(clientId);
+    loadConversations();
+  };
+
   const sendReply = async () => {
     if (!reply.trim() || !activeConv) return;
     setSending(true);
@@ -177,12 +207,44 @@ export default function ClientChat() {
                         <p className="text-sm font-medium text-text-primary truncate">{c.clientName}</p>
                         <p className="text-xs text-text-muted truncate">{c.lastSender === 'operator' ? 'Tu: ' : ''}{c.lastBody}</p>
                       </div>
-                      {c.unread > 0 && <span className="min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-accent text-white text-[10px] font-bold px-1 flex-shrink-0">{c.unread}</span>}
+                      {/*
+                        Se aspetta una risposta lo si scrive, invece di un
+                        numero muto: «2» non dice se e' appena arrivata o se
+                        e' li' da ieri, e senza quel dato non si capisce
+                        nemmeno perche' la chat sia ancora segnata.
+                      */}
+                      {c.daRispondere ? (
+                        <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-warning/15 text-warning text-[10px] font-bold flex-shrink-0">
+                          <Clock className="w-3 h-3" /> {daQuanto(c.attesaMinuti || 0)}
+                        </span>
+                      ) : c.unread > 0 ? (
+                        <span className="min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-accent text-white text-[10px] font-bold px-1 flex-shrink-0">{c.unread}</span>
+                      ) : null}
                     </button>
                   ))}
                 </div>
               ) : (
                 <>
+                  {/*
+                    Perche' questa chat e' ancora segnata, scritto qui dentro.
+
+                    Restava un giallo: si apriva, si leggeva, e il pallino non
+                    se ne andava — sembrava rotto. Non lo era: manca la nostra
+                    risposta. Detto a parole, con accanto il modo di chiuderla
+                    quando una risposta non serve davvero.
+                  */}
+                  {activeConv && (activeConv.senzaRisposta || 0) > 0 && !activeConv.giaGestita && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 bg-warning/10 border-b border-warning/20 flex-shrink-0">
+                      <Clock className="w-4 h-4 text-warning flex-shrink-0" />
+                      <p className="text-xs text-text-secondary flex-1 min-w-0">
+                        Aspetta una risposta da <strong className="text-warning">{daQuanto(activeConv.attesaMinuti || 0)}</strong>
+                      </p>
+                      <button onClick={() => segnaGestita(activeConv.clientId)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border bg-bg-secondary text-[11px] font-medium text-text-secondary hover:bg-bg-hover flex-shrink-0">
+                        <Check className="w-3 h-3" /> Non serve rispondere
+                      </button>
+                    </div>
+                  )}
                   <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
                     {thread.map(m => (
                       <div key={m.id} className={`flex ${m.sender === 'operator' ? 'justify-end' : 'justify-start'}`}>
@@ -231,9 +293,9 @@ export default function ClientChat() {
                 <strong className="text-text-primary">{alertConv.clientName}</strong> ha scritto in chat e attende una risposta da <strong className="text-warning">oltre 10 minuti</strong>.
               </p>
               <div className="flex gap-2">
-                <button onClick={() => { dismissedRef.current.add(alertConv.clientId); setAlertConv(null); }}
+                <button onClick={() => { segnaGestita(alertConv.clientId); setAlertConv(null); }}
                   className="flex-1 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
-                  Più tardi
+                  Non serve rispondere
                 </button>
                 <button onClick={() => { const id = alertConv.clientId; setAlertConv(null); setOpen(true); openConversation(id); }}
                   className="flex-1 py-2.5 rounded-xl gradient-accent text-white text-sm font-medium hover:opacity-90 transition-opacity">
