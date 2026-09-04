@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError, beautyService, homeService, type DatiHome, type Proposta } from '@/api';
+import { ApiError, bachecaService, beautyService, homeService, type DatiHome, type Proposta } from '@/api';
 import { Icona } from '@/components/ui/Icona';
 import { Progress } from '@/components/ui/Progress';
 import { ScoreRing } from '@/components/ui/ScoreRing';
@@ -84,6 +84,7 @@ export default function HomeScreen() {
   const [aggiornando, setAggiornando] = useState(false);
   const { data: score } = useApiData((t) => beautyService.score(t));
   const { data: autopilot } = useApiData((t) => beautyService.autopilot(t));
+  const { data: bacheca } = useApiData((t) => bachecaService.list(t, 1));
 
   const carica = useCallback(async () => {
     if (!token) return;
@@ -150,61 +151,80 @@ export default function HomeScreen() {
         {errore ? <Text style={styles.errore}>{errore}</Text> : null}
         {dati?.messaggio ? <Text style={styles.messaggioTesto}>{dati.messaggio}</Text> : null}
 
-        {/* ── UN fatto grande: appuntamento, oppure il prossimo step, oppure l'invito ── */}
+        {/* ── L'appuntamento (o il prossimo step): una card, non un titolo nudo ── */}
         {(() => {
           const step = autopilot?.suggerimenti.find((s) => s.aperta);
-          if (app) {
-            return (
-              <Pressable style={styles.hero} onPress={() => router.push('/appuntamenti')}>
-                <Text style={styles.occhiello}>Il tuo prossimo appuntamento</Text>
-                <Text style={styles.heroQuando}>{quando(app.date)} alle {app.startTime}</Text>
-                <Text style={styles.heroCosa}>
-                  {app.treatmentName}
-                  {app.operatorName ? <Text style={styles.tenue}>{`  con ${app.operatorName}`}</Text> : null}
-                </Text>
-              </Pressable>
-            );
-          }
-          if (step) {
-            return (
-              <Pressable style={styles.hero} onPress={() => router.push('/prenota')}>
-                <Text style={styles.occhiello}>È il momento giusto per</Text>
-                <Text style={styles.heroQuando}>{step.treatmentName}</Text>
-                <Text style={styles.heroCosa}>
-                  Tocca per vedere gli orari
-                  <Text style={styles.tenue}>{`  · finestra fino al ${formatDate(step.finestraA)}`}</Text>
-                </Text>
-              </Pressable>
-            );
-          }
+          const manca = (giorniDa(dati?.ultimaVisita ?? null) ?? 0) > 30;
+          const card = app
+            ? { icona: 'calendar' as const, occhiello: 'IL TUO PROSSIMO APPUNTAMENTO',
+                titolo: `${quando(app.date)} alle ${app.startTime}`,
+                sotto: `${app.treatmentName}${app.operatorName ? ` · ${app.operatorName}` : ''}`,
+                rotta: '/appuntamenti' }
+            : step
+              ? { icona: 'sparkles' as const, occhiello: 'È IL MOMENTO GIUSTO PER',
+                  titolo: step.treatmentName,
+                  sotto: `Finestra ideale fino al ${formatDate(step.finestraA)} · tocca per gli orari`,
+                  rotta: '/prenota' }
+              : { icona: 'calendar' as const,
+                  occhiello: manca ? 'CI MANCHI!' : 'NESSUN APPUNTAMENTO',
+                  titolo: 'Quando ci vediamo?',
+                  sotto: 'Tocca per prenotare il tuo momento',
+                  rotta: '/prenota' };
           return (
-            <Pressable style={styles.hero} onPress={() => router.push('/prenota')}>
-              <Text style={styles.occhiello}>
-                {(giorniDa(dati?.ultimaVisita ?? null) ?? 0) > 30
-                  ? 'È un po’ che non ci vediamo'
-                  : 'Nessun appuntamento in programma'}
-              </Text>
-              <Text style={styles.heroQuando}>
-                {(giorniDa(dati?.ultimaVisita ?? null) ?? 0) > 30 ? 'Ci manchi!' : 'Quando ci vediamo?'}
-              </Text>
-              <Text style={styles.heroCosa}>Tocca per prenotare</Text>
+            <Pressable style={styles.cardGrande} onPress={() => router.push(card.rotta as never)}>
+              <View style={styles.cardIcona}>
+                <Ionicons name={card.icona} size={20} color={colors.primaryDark} />
+              </View>
+              <View style={styles.cardTesti}>
+                <Text style={styles.cardOcchiello}>{card.occhiello}</Text>
+                <Text style={styles.cardTitolo}>{card.titolo}</Text>
+                <Text style={styles.cardSotto} numberOfLines={1}>{card.sotto}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.primaryDark} />
             </Pressable>
           );
         })()}
 
-        {/* ── La tessera, in una riga: punti · credito · livello ── */}
-        <Pressable style={styles.tessera} onPress={() => router.push('/wallet')}>
-          <Text style={styles.tesseraTesto}>
-            <Text style={styles.tesseraForte}>{dati?.punti ?? 0}</Text> punti
-            {dati?.wallet ? (
-              <Text> · <Text style={styles.tesseraForte}>{eur(dati.wallet.totale)}</Text> credito</Text>
-            ) : null}
-          </Text>
-          {dati?.club?.attuale ? (
-            <Text style={styles.tesseraLivello}>{dati.club.attuale.name}</Text>
-          ) : null}
-          <Icona nome="freccia" misura={17} colore={'rgba(255,255,255,0.6)'} />
-        </Pressable>
+        {/* ── I tuoi numeri: riquadri, non una riga di testo ── */}
+        <View style={styles.tiles}>
+          <Pressable style={styles.tile} onPress={() => router.push('/wallet')}>
+            <Ionicons name="star" size={15} color={colors.primary} />
+            <Text style={styles.tileValore}>{dati?.punti ?? 0}</Text>
+            <Text style={styles.tileLabel}>punti</Text>
+          </Pressable>
+          <Pressable style={styles.tile} onPress={() => router.push('/wallet')}>
+            <Ionicons name="wallet" size={15} color={colors.primary} />
+            <Text style={styles.tileValore}>{eur(dati?.wallet?.totale ?? 0)}</Text>
+            <Text style={styles.tileLabel}>credito</Text>
+          </Pressable>
+          <Pressable style={[styles.tile, styles.tileNero]} onPress={() => router.push('/club')}>
+            <Ionicons name="diamond" size={15} color={colors.primaryLight} />
+            <Text style={[styles.tileValore, styles.tileValoreChiaro]}>
+              {dati?.club?.attuale?.name ?? 'Club'}
+            </Text>
+            <Text style={[styles.tileLabel, styles.tileLabelChiaro]}>il tuo livello</Text>
+          </Pressable>
+        </View>
+
+        {/* ── L'ultimo scatto dal salone: la Home ha un volto ── */}
+        {bacheca?.posts?.[0] ? (
+          <Pressable style={styles.salone} onPress={() => router.push('/bacheca')}>
+            {bacheca.posts[0].foto ? (
+              <Image source={{ uri: bacheca.posts[0].foto }} style={styles.saloneFoto} />
+            ) : (
+              <View style={styles.saloneFotoVuota}>
+                <Ionicons name="images-outline" size={22} color={colors.primaryDark} />
+              </View>
+            )}
+            <View style={styles.cardTesti}>
+              <Text style={styles.cardOcchiello}>
+                {bacheca.posts[0].tipo === 'promo' ? 'PROMO DI OGGI' : 'DAL SALONE'}
+              </Text>
+              <Text style={styles.saloneTitolo} numberOfLines={2}>{bacheca.posts[0].titolo}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </Pressable>
+        ) : null}
 
         {/* ── Per te: una riga sola, con dentro la cosa urgente se c'è ── */}
         {urgente || altre > 0 ? (
@@ -234,15 +254,6 @@ export default function HomeScreen() {
             </View>
           </Pressable>
         ) : null}
-
-        {/* ── Promo e lavori del salone ── */}
-        <Pressable style={styles.riga} onPress={() => router.push('/bacheca')}>
-          <View style={styles.rigaSinistra}>
-            <Ionicons name="images-outline" size={18} color={colors.primaryDark} />
-            <Text style={styles.rigaTesto}>Promo e lavori del salone</Text>
-          </View>
-          <Icona nome="freccia" misura={19} colore={colors.textMuted} />
-        </Pressable>
 
         {/* ── Le azioni di ogni giorno ── */}
         <View style={styles.azioni}>
@@ -297,31 +308,49 @@ const styles = StyleSheet.create({
   saluto: { ...typography.title, fontSize: 22, color: colors.textSecondary },
   errore: { ...typography.label, color: colors.error, marginTop: spacing.sm },
 
-  hero: { paddingTop: spacing.md, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
-  occhiello: { ...typography.occhiello, color: colors.textSecondary },
-  // 40px: è l'unica cosa grande della schermata, e va letta con lo sguardo di
-  // chi tiene il telefono in una mano sola mentre esce di casa.
-  heroQuando: { fontFamily: fonts.serif700, fontSize: 26, lineHeight: 31, letterSpacing: -0.5, color: colors.textPrimary, marginTop: 6 },
-  heroCosa: { ...typography.bodyForte, fontSize: 14.5, color: colors.textPrimary, marginTop: 6 },
-  tenue: { ...typography.body, color: colors.textSecondary },
-
   messaggioTesto: { ...typography.caption, fontSize: 12.5, color: colors.primaryDark, marginTop: spacing.xs },
 
-  // ── La tessera in una riga: scura, l'oggetto senza l'ingombro ──
-  tessera: {
+  // ── La card grande: l'appuntamento ha un colore, non solo parole ──
+  cardGrande: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    marginTop: spacing.md,
-    backgroundColor: colors.textPrimary,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
+    backgroundColor: colors.primarySoft, borderRadius: radius.lg,
+    padding: spacing.md, marginTop: spacing.md,
   },
-  tesseraTesto: { ...typography.body, fontSize: 14.5, color: colors.white, opacity: 0.9, flex: 1 },
-  tesseraForte: { fontFamily: fonts.serif600, fontSize: 17, color: colors.white },
-  tesseraLivello: {
-    ...typography.captionForte, fontSize: 10.5, letterSpacing: 1,
-    color: colors.primaryLight, textTransform: 'uppercase',
+  cardIcona: {
+    width: 40, height: 40, borderRadius: radius.full,
+    backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center',
   },
+  cardTesti: { flex: 1, minWidth: 0 },
+  cardOcchiello: { ...typography.captionForte, fontSize: 10, letterSpacing: 1.2, color: colors.primaryDark },
+  cardTitolo: { fontFamily: fonts.w800, fontSize: 18, color: colors.textPrimary, marginTop: 1 },
+  cardSotto: { ...typography.caption, fontSize: 12.5, color: colors.textSecondary, marginTop: 1 },
+
+  // ── I riquadri dei numeri ──
+  tiles: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  tile: {
+    flex: 1, alignItems: 'center', gap: 2,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.lg, paddingVertical: spacing.sm + 2,
+  },
+  tileNero: { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary },
+  tileValore: { fontFamily: fonts.w800, fontSize: 16, color: colors.textPrimary },
+  tileValoreChiaro: { color: colors.white, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 },
+  tileLabel: { ...typography.caption, fontSize: 11, color: colors.textSecondary },
+  tileLabelChiaro: { color: 'rgba(255,255,255,0.65)' },
+
+  // ── L'ultimo scatto dal salone ──
+  salone: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.lg, padding: spacing.sm, marginTop: spacing.sm,
+  },
+  saloneFoto: { width: 58, height: 58, borderRadius: radius.md },
+  saloneFotoVuota: {
+    width: 58, height: 58, borderRadius: radius.md, backgroundColor: colors.primarySoft,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  saloneTitolo: { fontFamily: fonts.w700, fontSize: 14.5, color: colors.textPrimary, marginTop: 1 },
+
   pallino: { width: 8, height: 8, borderRadius: radius.full },
 
   riga: {

@@ -14,6 +14,6 @@ export interface PostBacheca {
 }
 
 export const bachecaService = {
-  list: (token: string) =>
-    apiRequest<{ posts: PostBacheca[] }>('/api/mobile/posts', { token }),
+  list: (token: string, limit?: number) =>
+    apiRequest<{ posts: PostBacheca[] }>(`/api/mobile/posts${limit ? `?limit=${limit}` : ''}`, { token }),
 };
