@@ -99,10 +99,28 @@ export const WINDOW_HOURS = 24;
  * passati più di questi minuti, la conversazione torna in cima come DA
  * RISPONDERE, e ci resta finché non le scriviamo davvero.
  *
- * I quindici minuti sono il margine per chi è in cabina con le mani occupate:
+ * I dieci minuti sono il margine per chi è in cabina con le mani occupate:
  * sotto quella soglia non è un buco, è normale lavoro.
  */
-export const ATTESA_RISPOSTA_MIN = 15;
+export const ATTESA_RISPOSTA_MIN = 10;
+
+/**
+ * Per quanto vale «Ho letto».
+ *
+ * Serve a chi ha richiamato la cliente al telefono o a chi ha ricevuto un
+ * messaggio che non chiedeva niente: casi veri, e il tasto deve restare.
+ *
+ * Ma e' anche il modo piu' facile per far sparire un'etichetta rossa senza
+ * fare niente, e succede — Vincenzo Ferro ha scritto tre volte alle 16:13
+ * chiedendo aiuto col documento, alle 16:51 qualcuno ha premuto «Ho letto» e
+ * la chat e' uscita dall'elenco senza che nessuno gli avesse risposto.
+ *
+ * Quindi «Ho letto» adesso mette in pausa, non chiude: se dopo due ore non
+ * gli abbiamo ancora scritto niente, la conversazione torna in cima. Chi ha
+ * davvero risolto al telefono non se ne accorge mai, perche' nel frattempo
+ * quasi sempre un messaggio parte lo stesso.
+ */
+export const GESTITA_VALE_MIN = 120;
 
 /**
  * Il "cuoricino" su un nostro messaggio non è una domanda.
@@ -568,7 +586,11 @@ export async function listConversations(limit = 300): Promise<WaConversation[]> 
       convinti di avere la lista in ordine.
     */
     const gestitaAl = gestite.get(phone);
-    const giaGestita = Boolean(gestitaAl && ultimoSenzaRisposta && gestitaAl >= ultimoSenzaRisposta);
+    const giaGestita = Boolean(
+      gestitaAl && ultimoSenzaRisposta && gestitaAl >= ultimoSenzaRisposta
+      // …ma non per sempre: vedi GESTITA_VALE_MIN.
+      && minutiDa(gestitaAl) < GESTITA_VALE_MIN,
+    );
     const inAttesa = senzaRisposta > 0 && (attesaMinuti ?? 0) >= ATTESA_RISPOSTA_MIN && !giaGestita;
 
     conversations.push({
@@ -584,7 +606,17 @@ export async function listConversations(limit = 300): Promise<WaConversation[]> 
       lastDirection: last.direction,
       windowOpen: win.open,
       windowExpiresAt: win.expiresAt,
-      unread: unreadMsgs.length,
+      /*
+        Aprire la chat non basta piu' a farla sembrare sistemata.
+
+        Bastava entrare e uscire perche' il pallino verde sparisse: da fuori
+        quella conversazione era identica a una a cui avevamo risposto, e
+        nessuno tornava a guardarla. Adesso, se la cliente ha parlato per
+        ultima e sono passati dieci minuti, la chat si rimette da sola come
+        NON LETTA — col numero dei suoi messaggi rimasti in sospeso — e ci
+        resta finche' non le scriviamo davvero.
+      */
+      unread: inAttesa ? Math.max(unreadMsgs.length, senzaRisposta) : unreadMsgs.length,
       // `msgs` è ordinato dal più recente: l'ultimo non letto è il più vecchio.
       oldestUnreadAt: unreadMsgs.length ? unreadMsgs[unreadMsgs.length - 1].at : undefined,
       senzaRisposta,
