@@ -55,8 +55,8 @@ export async function POST(request: Request) {
           tipo: 'post',
           refId: post.id,
           titolo: tipo === 'promo' ? `Promo di oggi 🎁 ${titolo}` : `Dal salone ✨ ${titolo}`,
-          corpo: testo ? (testo.length > 90 ? `${testo.slice(0, 90)}…` : testo) : 'Apri la bacheca per vederla.',
-          dati: { rotta: '/bacheca' },
+          corpo: testo ? (testo.length > 90 ? `${testo.slice(0, 90)}…` : testo) : 'Apri le notifiche per vederla.',
+          dati: { rotta: '/notifiche' },
         });
         if (esito === 'inviata') inviate++;
       } catch (err) {

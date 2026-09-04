@@ -26,14 +26,12 @@ export default function AppLayout() {
       <Stack.Screen name="wallet" options={{ title: 'Beauty Wallet' }} />
       <Stack.Screen name="club" options={{ title: 'Beauty Club' }} />
       <Stack.Screen name="invita" options={{ title: 'Porta un\'amica' }} />
-      <Stack.Screen name="listino" options={{ title: 'Trattamenti e pacchetti' }} />
       <Stack.Screen name="contatti" options={{ title: 'Scrivici' }} />
       <Stack.Screen name="lista-attesa" options={{ title: 'Avvisami se si libera' }} />
       <Stack.Screen name="score" options={{ title: 'Revo Score' }} />
       <Stack.Screen name="assistente" options={{ title: 'Revo AI' }} />
       <Stack.Screen name="missioni" options={{ title: 'Missioni' }} />
       <Stack.Screen name="passport" options={{ title: 'Beauty Passport' }} />
-      <Stack.Screen name="bacheca" options={{ title: 'Promo e lavori' }} />
       <Stack.Screen name="modifica-profilo" options={{ title: 'Il mio profilo' }} />
       <Stack.Screen name="reclamo" options={{ title: 'Reclamo anonimo' }} />
       <Stack.Screen name="regali" options={{ title: 'Regali coi punti' }} />

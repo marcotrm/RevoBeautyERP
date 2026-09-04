@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError, bachecaService, beautyService, homeService, type DatiHome, type Proposta } from '@/api';
+import { ApiError, beautyService, homeService, type DatiHome, type Proposta } from '@/api';
 import { Icona } from '@/components/ui/Icona';
 import { Progress } from '@/components/ui/Progress';
 import { ScoreRing } from '@/components/ui/ScoreRing';
@@ -84,7 +84,6 @@ export default function HomeScreen() {
   const [aggiornando, setAggiornando] = useState(false);
   const { data: score } = useApiData((t) => beautyService.score(t));
   const { data: autopilot } = useApiData((t) => beautyService.autopilot(t));
-  const { data: bacheca } = useApiData((t) => bachecaService.list(t, 1));
 
   const carica = useCallback(async () => {
     if (!token) return;
@@ -239,26 +238,6 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* ── L'ultimo scatto dal salone: la Home ha un volto ── */}
-        {bacheca?.posts?.[0] ? (
-          <Pressable style={styles.salone} onPress={() => router.push('/bacheca')}>
-            {bacheca.posts[0].foto ? (
-              <Image source={{ uri: bacheca.posts[0].foto }} style={styles.saloneFoto} />
-            ) : (
-              <View style={styles.saloneFotoVuota}>
-                <Ionicons name="images-outline" size={22} color={colors.primaryDark} />
-              </View>
-            )}
-            <View style={styles.cardTesti}>
-              <Text style={styles.cardOcchiello}>
-                {bacheca.posts[0].tipo === 'promo' ? 'PROMO DI OGGI' : 'DAL SALONE'}
-              </Text>
-              <Text style={styles.saloneTitolo} numberOfLines={2}>{bacheca.posts[0].titolo}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </Pressable>
-        ) : null}
-
         {/* ── Per te: una riga sola, con dentro la cosa urgente se c'è ── */}
         {urgente || altre > 0 ? (
           <Pressable style={styles.riga} onPress={() => router.push('/per-te')}>
@@ -292,7 +271,6 @@ export default function HomeScreen() {
         <View style={styles.azioni}>
           {([
             // Solo quello che NON è già nella barra qui sotto
-            { icona: 'pricetags-outline', testo: 'Listino', rotta: '/listino' },
             { icona: 'leaf-outline', testo: 'Risultati', rotta: '/risultati' },
             { icona: 'sparkles-outline', testo: 'Revo AI', rotta: '/assistente' },
           ] as const).map((a) => (
@@ -371,19 +349,6 @@ const styles = StyleSheet.create({
   tileValoreChiaro: { color: colors.white, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 },
   tileLabel: { ...typography.caption, fontSize: 11, color: colors.textSecondary },
   tileLabelChiaro: { color: 'rgba(255,255,255,0.65)' },
-
-  // ── L'ultimo scatto dal salone ──
-  salone: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.lg, padding: spacing.sm, marginTop: spacing.sm,
-  },
-  saloneFoto: { width: 58, height: 58, borderRadius: radius.md },
-  saloneFotoVuota: {
-    width: 58, height: 58, borderRadius: radius.md, backgroundColor: colors.primarySoft,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  saloneTitolo: { fontFamily: fonts.w700, fontSize: 14.5, color: colors.textPrimary, marginTop: 1 },
 
   pallino: { width: 8, height: 8, borderRadius: radius.full },
 

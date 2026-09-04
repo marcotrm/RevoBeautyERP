@@ -20,6 +20,8 @@ const SCHEDE = [
   { name: 'index', title: 'Home', icona: 'home' },
   { name: 'chat', title: 'Chat', icona: 'chat' },
   { name: 'prenota', title: 'Prenota', icona: 'prenota' },
+  { name: 'listino', title: 'Listino', icona: 'listino' },
+  { name: 'notifiche', title: 'Notifiche', icona: 'notifiche' },
   { name: 'per-te', title: 'Per te', icona: 'perTe' },
   { name: 'premi', title: 'Premi', icona: 'premi' },
   { name: 'profilo', title: 'Profilo', icona: 'profilo' },

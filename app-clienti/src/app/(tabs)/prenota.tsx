@@ -23,31 +23,11 @@ import {
   GiornoDisponibile, bookingService,
 } from '@/api';
 import { Button } from '@/components/ui/Button';
-import { Icona, NomeIcona } from '@/components/ui/Icona';
+import { Icona } from '@/components/ui/Icona';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, fonts, radius, spacing, typography } from '@/theme';
+import { CATEGORIE, metaCategoria } from '@/utils/categorie';
 import { formatPrice } from '@/utils/format';
-
-/**
- * Nome e icona di ogni categoria, nell'ordine in cui il centro le usa.
- *
- * Le emoji di prima erano quelle del telefono: cambiano faccia su ogni
- * sistema e non hanno niente a che vedere col marchio. Queste sono disegnate
- * nella stessa famiglia delle icone delle schede.
- */
-const CATEGORIE: { key: string; label: string; icona: NomeIcona }[] = [
-  { key: 'nails', label: 'Unghie', icona: 'unghie' },
-  { key: 'laser', label: 'Laser', icona: 'laser' },
-  { key: 'waxing', label: 'Ceretta', icona: 'ceretta' },
-  { key: 'facial', label: 'Viso', icona: 'viso' },
-  { key: 'body', label: 'Corpo', icona: 'corpo' },
-  { key: 'massage', label: 'Massaggi', icona: 'massaggi' },
-  { key: 'makeup', label: 'Trucco', icona: 'trucco' },
-  { key: 'consultation', label: 'Consulenza', icona: 'consulenza' },
-  { key: 'hair', label: 'Capelli', icona: 'capelli' },
-];
-const metaCategoria = (c: string): { key: string; label: string; icona: NomeIcona } =>
-  CATEGORIE.find(x => x.key === c) || { key: c, label: c, icona: 'generico' };
 
 const GIORNI = [
   { n: 1, label: 'Lun' }, { n: 2, label: 'Mar' }, { n: 3, label: 'Mer' },
@@ -234,10 +214,12 @@ export default function PrenotaScreen() {
 
         <View style={styles.passi}>
           {([[1, 'Servizio'], [2, 'Orario']] as const).map(([n, label]) => (
-            <View key={n} style={{ flex: 1 }}>
+            // Il passo 1 si può sempre ritoccare: la barretta è anche un tasto.
+            <Pressable key={n} style={{ flex: 1 }} disabled={n >= passo}
+              onPress={() => { setPasso(1); setApertoIdx(-1); suSu(); }}>
               <Text style={[styles.passoLabel, passo >= n && styles.passoAttivo]}>{label}</Text>
               <View style={[styles.passoBarra, passo >= n && styles.passoBarraOn]} />
-            </View>
+            </Pressable>
           ))}
         </View>
 
@@ -404,6 +386,15 @@ export default function PrenotaScreen() {
 
         {passo === 2 && (
           <>
+            {/*
+              La via d'uscita sta anche in alto: chi sbaglia trattamento cerca
+              "indietro" dove inizia la pagina, non nella barra di conferma.
+            */}
+            <Pressable style={styles.tornaSu} hitSlop={8}
+              onPress={() => { setPasso(1); setApertoIdx(-1); suSu(); }}>
+              <Text style={styles.tornaSuTxt}>← Cambia trattamento</Text>
+            </Pressable>
+
             <View style={styles.blocco}>
               <Text style={styles.label}>Quali giorni ti vanno bene</Text>
               <View style={styles.chips}>
@@ -556,8 +547,10 @@ const styles = StyleSheet.create({
   },
   barraTesti: { flex: 1 },
   barraCosa: { ...typography.bodyForte, color: colors.textPrimary, textTransform: 'capitalize' },
-  indietro: { paddingVertical: spacing.sm },
-  indietroTxt: { ...typography.caption, color: colors.textSecondary, fontFamily: fonts.w700 },
+  indietro: { paddingVertical: spacing.sm, paddingHorizontal: spacing.xs },
+  indietroTxt: { ...typography.label, fontSize: 14, color: colors.primaryDark, fontFamily: fonts.w700 },
+  tornaSu: { alignSelf: 'flex-start', paddingVertical: spacing.xs, marginBottom: spacing.xs },
+  tornaSuTxt: { ...typography.label, fontSize: 14, color: colors.primaryDark, fontFamily: fonts.w700 },
 
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },

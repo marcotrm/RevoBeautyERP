@@ -17,7 +17,7 @@ import { StyleSheet, View } from 'react-native';
 import { colors } from '@/theme';
 
 export type NomeIcona =
-  | 'home' | 'chat' | 'perTe' | 'premi' | 'prenota' | 'profilo' | 'freccia'
+  | 'home' | 'chat' | 'perTe' | 'premi' | 'prenota' | 'profilo' | 'freccia' | 'listino' | 'notifiche'
   // le categorie del listino: stessa griglia e stesso tratto delle schede
   | 'unghie' | 'laser' | 'ceretta' | 'viso' | 'corpo' | 'massaggi'
   | 'trucco' | 'consulenza' | 'capelli' | 'generico'
@@ -166,6 +166,24 @@ function Disegno({ nome }: { nome: NomeIcona }) {
         <>
           <Circle cx="10" cy="10" r="5.6" />
           <Circle cx="10" cy="10" r="1.4" />
+        </>
+      );
+
+    // La campanella: la scheda delle notifiche.
+    case 'notifiche':
+      return (
+        <>
+          <Path d="M10 4.2a4.4 4.4 0 0 0-4.4 4.4c0 3.2-1.1 4.4-1.9 5.1h12.6c-.8-.7-1.9-1.9-1.9-5.1A4.4 4.4 0 0 0 10 4.2z" />
+          <Path d="M8.4 16.2a1.7 1.7 0 0 0 3.2 0" />
+        </>
+      );
+
+    // Il cartellino del prezzo: la scheda del listino.
+    case 'listino':
+      return (
+        <>
+          <Path d="M3.6 4.6h4.9a1 1 0 0 1 .7.3l7.2 7.2a1 1 0 0 1 0 1.4l-3.9 3.9a1 1 0 0 1-1.4 0L3.9 10.2a1 1 0 0 1-.3-.7z" />
+          <Circle cx="7" cy="8" r="1.2" />
         </>
       );
 
