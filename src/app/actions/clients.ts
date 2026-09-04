@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { problemaDataNascita } from '@/lib/dataNascita';
 import { Client } from '@/types';
 
 /**
@@ -44,6 +45,17 @@ export async function createClient(
   // Niente doppioni: lo stesso numero non può stare su due schede. È il
   // controllo che vale per TUTTI i punti d'ingresso (clienti, agenda, ovunque),
   // non solo per la finestra che mostra l'avviso.
+  /*
+    La data di nascita si controlla QUI, non solo a schermo.
+
+    Le sei date assurde in anagrafica non sono entrate tutte dalla stessa
+    finestra: c'e' il modulo del consenso, il check-in, l'app, e domani ci
+    sara' un'altra porta. Un controllo scritto su ogni porta e' un controllo
+    che prima o poi qualcuno dimentica di scrivere.
+  */
+  const problema = problemaDataNascita(data.birthDate || '');
+  if (problema) throw new Error(`DATA_NASCITA: ${problema}`);
+
   const gia = await clienteConStessoNumero(data.phone);
   if (gia) {
     throw new Error(
@@ -69,6 +81,24 @@ export async function createClient(
 export async function updateClient(id: string, updates: Partial<Client>) {
   // Anche in modifica: non si può spostare un numero su una scheda quando
   // quel numero è già di un'altra cliente.
+  /*
+    In modifica si blocca solo quello che si sta SCRIVENDO adesso.
+
+    Le sei date assurde sono gia' in archivio: se rifiutassimo qualsiasi
+    salvataggio che se le porta dietro, correggere il numero di telefono di
+    Alessia Russo diventerebbe impossibile finche' qualcuno non indovina il
+    suo anno di nascita — e chi sta al banco vedrebbe solo un salvataggio che
+    non va, senza capire perche'. Quelle vecchie restano segnate come «dati da
+    completare» e si sistemano al primo check-in, con la persona davanti.
+  */
+  if (updates.birthDate) {
+    const problema = problemaDataNascita(updates.birthDate);
+    if (problema) {
+      const prima = await prisma.client.findUnique({ where: { id }, select: { birthDate: true } });
+      if (prima?.birthDate !== updates.birthDate) throw new Error(`DATA_NASCITA: ${problema}`);
+    }
+  }
+
   if (updates.phone) {
     const gia = await clienteConStessoNumero(updates.phone, id);
     if (gia) {

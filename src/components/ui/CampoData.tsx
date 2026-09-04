@@ -101,6 +101,8 @@ export default function CampoData({
   annoMax,
   disabled = false,
   id,
+  controllo,
+  avviso,
 }: {
   /** Data in formato ISO (2004-08-25), o stringa vuota. */
   value: string;
@@ -112,6 +114,16 @@ export default function CampoData({
   annoMax?: number;
   disabled?: boolean;
   id?: string;
+  /*
+    Cosa NON puo' essere questa data, deciso da chi usa il campo.
+
+    Il campo sa se una data esiste (il 31 febbraio no), ma non sa se ha senso:
+    per una nascita il 2090 e' assurdo, per un appuntamento no. Chi lo mette a
+    schermo lo sa, e passa la sua regola qui.
+  */
+  controllo?: (iso: string) => string | null;
+  /** Un dubbio, non un errore: si scrive in giallo e non ferma niente. */
+  avviso?: (iso: string) => string | null;
 }) {
   const oggi = useMemo(() => new Date(), []);
   const annoOggi = oggi.getFullYear();
@@ -256,6 +268,10 @@ export default function CampoData({
   // Rosso solo quando c'e' qualcosa che non va davvero: una data impossibile,
   // o una lasciata a meta' dopo essere usciti dal campo.
   const incompleto = (cifre === 8 && !testoAIso(testo)) || (toccato && cifre > 0 && cifre < 8 && !testoAIso(completaAnno(testo)));
+  // Il controllo di chi ci mette il campo: gira solo su una data finita, o
+  // direbbe «nel futuro» mentre si sta ancora battendo l'anno.
+  const problema = !incompleto && value ? (controllo?.(value) ?? null) : null;
+  const dubbio = !problema && value ? (avviso?.(value) ?? null) : null;
 
   return (
     <div ref={campoRef} className="relative">
@@ -269,11 +285,13 @@ export default function CampoData({
         onChange={e => { setToccato(false); scriviTesto(e.target.value); }}
         onBlur={esci}
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); esci(); setAperto(false); } }}
-        className={`${className} pr-10 ${incompleto ? 'border-error/60' : ''}`}
+        className={`${className} pr-10 ${incompleto || problema ? 'border-error/60' : dubbio ? 'border-warning/60' : ''}`}
       />
       {incompleto && (
         <p className="mt-1 text-[11px] font-medium text-error">Data non completa: scrivila come 31/08/1989.</p>
       )}
+      {problema && <p className="mt-1 text-[11px] font-medium text-error">{problema}</p>}
+      {dubbio && <p className="mt-1 text-[11px] font-medium text-warning">{dubbio}</p>}
       <button
         type="button"
         onClick={apri}

@@ -11,11 +11,18 @@
  */
 
 import type { Client } from '@/types';
+import { problemaDataNascita } from '@/lib/dataNascita';
 
 /** I campi che mancano per considerare completa la scheda, già in italiano. */
 export function campiMancanti(c: Pick<Client, 'birthDate' | 'gender' | 'address' | 'city'>): string[] {
   const out: string[] = [];
-  if (!c.birthDate) out.push('data di nascita');
+  /*
+    Una data impossibile e' peggio di una casella vuota: la casella vuota si
+    vede, il 1198 sembra un dato. Quindi conta come mancante — e la prima
+    volta che quella cliente torna, il check-in la fa sistemare a chi ce l'ha
+    davanti e puo' chiederle l'anno vero.
+  */
+  if (!c.birthDate || problemaDataNascita(c.birthDate)) out.push('data di nascita');
   if (!c.gender) out.push('sesso');
   if (!c.address?.trim()) out.push('indirizzo');
   if (!c.city?.trim()) out.push('città');

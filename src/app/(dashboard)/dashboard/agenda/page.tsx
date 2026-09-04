@@ -20,7 +20,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, CalendarDays, Plus,
   Clock, CheckCircle, Check, CalendarCheck, AlertCircle, Play, XCircle, Ban, ListTodo,
   Lock, X, Search, UserCircle, Minus, Package, Sparkles, AlertTriangle, Euro, UserPlus, Settings, Moon, Smartphone, Sun, MessageSquare, Users, Crown, Bell, CalendarX, Frown
-, Loader2, BellRing } from 'lucide-react';
+, Loader2, BellRing, Wallet } from 'lucide-react';
 import {
   formatDateLong, timeToMinutes, minutesToTime, getStatusLabel,
   getStatusColor, formatCurrency, getInitials, getCategoryLabel, guessGenderFromName,
@@ -64,6 +64,8 @@ import AvvisoCliente from '@/components/AvvisoCliente';
 import { nomiDoppi, omonimiDi, chiaveNome as chiaveOmonimi } from '@/lib/omonimi';
 import BuonoCompleannoBadge from '@/components/BuonoCompleanno';
 import CampoData from '@/components/ui/CampoData';
+import { saldoCredito } from '@/app/actions/credito';
+import { problemaDataNascita, avvisoDataNascita } from '@/lib/dataNascita';
 import { mandaRichiestaCaparra, restituisciCaparra, segnaCaparraPagata, trattieniCaparra } from '@/app/actions/caparra';
 import { descriviStato, type Caparra } from '@/lib/caparra';
 
@@ -3757,6 +3759,17 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
           (cp.status === 'active' || cp.status === 'expiring')
   ));
 
+  // Il credito della cliente, appena si apre il suo appuntamento.
+  useEffect(() => {
+    let vivo = true;
+    const id = clientData?.id;
+    if (!id) { setCreditoCliente(0); return; }
+    saldoCredito(id)
+      .then(s => { if (vivo) setCreditoCliente(s); })
+      .catch(() => { if (vivo) setCreditoCliente(0); });
+    return () => { vivo = false; };
+  }, [clientData?.id]);
+
   // La deroga della cliente, letta appena si apre il suo appuntamento.
   useEffect(() => {
     let vivo = true;
@@ -3836,6 +3849,16 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
 
   /** Se questa cliente è fra quelle che spendono di più, e quanto. */
   const [coccolaQuesta, setCoccolaQuesta] = useState<ClienteTop | null>(null);
+  /*
+    Il credito, scritto qui prima del check-in.
+
+    In cassa si scala da solo, quindi il conto torna comunque. Ma chi apre
+    l'appuntamento e' chi parla con la cliente, e sapere che le dobbiamo dei
+    soldi cambia quello che le dice — «guardi, le restano quindici euro da
+    usare» detto all'ingresso vale un'altra cosa rispetto a scoprirlo alla
+    cassa quando ha gia' tirato fuori il bancomat.
+  */
+  const [creditoCliente, setCreditoCliente] = useState(0);
   useEffect(() => {
     let vivo = true;
     clientiTop()
@@ -4316,7 +4339,10 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     else openCabinPicker();
   };
 
-  const schedaPronta = Boolean(schedaForm.birthDate && schedaForm.gender && schedaForm.address.trim() && schedaForm.city.trim());
+  const schedaPronta = Boolean(
+    schedaForm.birthDate && !problemaDataNascita(schedaForm.birthDate)
+    && schedaForm.gender && schedaForm.address.trim() && schedaForm.city.trim(),
+  );
   /*
     Cosa manca ancora, scritto.
 
@@ -4325,8 +4351,20 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     era una data. A schermo tutto pieno, il tasto morto, e nessun modo di
     capire perche'.
   */
+  /*
+    Una data impossibile vale come una data mancante.
+
+    In anagrafica ce ne sono sei — l'anno 200, il 1198, una signora nata nel
+    275760 — entrate una cifra alla volta da chi aveva il telefono
+    all'orecchio. Trattarle come «da completare» vuol dire che la prima volta
+    che quella cliente torna, qualcuno se ne accorge e la sistema: e' l'unico
+    momento in cui la persona giusta e' li' per dire l'anno vero.
+  */
+  const dataNascitaImpossibile = Boolean(schedaForm.birthDate) && Boolean(problemaDataNascita(schedaForm.birthDate));
+
   const schedaMancante = [
     !schedaForm.birthDate && 'la data di nascita',
+    dataNascitaImpossibile && 'una data di nascita che stia in piedi',
     !schedaForm.gender && 'se è donna o uomo',
     !schedaForm.address.trim() && "l'indirizzo",
     !schedaForm.city.trim() && 'la città',
@@ -4768,6 +4806,27 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
             {clientData?.id && (
               <div className="p-3 rounded-xl bg-bg-tertiary/50">
                 <PromemoriaCliente key={`${clientData.id}:${promemoriaVersione}`} clientId={clientData.id} />
+              </div>
+            )}
+
+            {/*
+              I soldi che le dobbiamo, in cima a quello che va detto.
+
+              Sta sopra alla corona perche' e' l'unica di queste righe che
+              riguarda un'azione da fare adesso: le altre descrivono chi e',
+              questa dice cosa succede quando paga.
+            */}
+            {creditoCliente > 0 && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-success/10 border border-success/30">
+                <Wallet className="w-4 h-4 text-success flex-shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-text-primary">
+                    Ha {formatCurrency(creditoCliente)} di credito da usare
+                  </p>
+                  <p className="text-xs text-text-secondary">
+                    Diglielo quando entra. In cassa si scalano da soli: il totale sarà già più basso.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -5432,6 +5491,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                   <label className="block text-xs font-bold text-text-secondary mb-1">Data di nascita *</label>
                   <CampoData value={schedaForm.birthDate}
                     onChange={v => setSchedaForm(f => ({ ...f, birthDate: v }))}
+                    controllo={problemaDataNascita} avviso={avvisoDataNascita}
                     className="w-full px-3 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50" />
                 </div>
                 <div>
