@@ -93,8 +93,14 @@ export default function AppClientiPage() {
             Tutto quello che l&apos;app propone alle clienti si decide qui: nessuna promozione richiede di toccare il codice.
           </p>
         </div>
+        <a
+          href="/dashboard/app-clienti/bacheca"
+          className="ml-auto rounded-lg border px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-black hover:text-white transition-colors"
+        >
+          ✨ Bacheca e promo
+        </a>
         {salvato && (
-          <span className="ml-auto flex items-center gap-1.5 text-xs text-success font-semibold">
+          <span className="flex items-center gap-1.5 text-xs text-success font-semibold">
             <CheckCircle className="w-4 h-4" /> Salvato
           </span>
         )}

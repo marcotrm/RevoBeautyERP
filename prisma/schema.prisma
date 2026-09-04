@@ -1449,3 +1449,30 @@ model ClientBadge {
   @@index([clientId])
   @@map("client_badges")
 }
+
+// ============================================================
+// BACHECA DELL'APP (promo del giorno e lavori del salone)
+// ============================================================
+/// Un post della bacheca: la promo di oggi o la foto di un lavoro.
+///
+/// La foto vive nel database come data-URI compressa dalla pagina del
+/// gestionale (~100 KB): per il ritmo di un centro — un post al giorno —
+/// regge per anni. Quando arriverà lo storage S3 della fase 3, migrare
+/// sarà spostare una colonna, non ripensare la bacheca.
+model AppPost {
+  id          String  @id @default(cuid())
+  /// 'promo' | 'lavoro'
+  tipo        String
+  titolo      String
+  testo       String  @default("")
+  /// data-URI jpeg compressa, o null per i post di solo testo
+  foto        String?
+  attivo      Boolean @default(true)
+  /// Se alla pubblicazione è partita la notifica a tutte
+  pushInviata Boolean @default(false)
+  creatoDa    String?
+  createdAt   String
+
+  @@index([attivo, createdAt])
+  @@map("app_posts")
+}

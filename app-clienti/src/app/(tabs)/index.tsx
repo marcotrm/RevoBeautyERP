@@ -146,7 +146,7 @@ export default function HomeScreen() {
             return (
               <Pressable style={styles.hero} onPress={() => router.push('/appuntamenti')}>
                 <Text style={styles.occhiello}>Il tuo prossimo appuntamento</Text>
-                <Text style={styles.heroQuando}>{quando(app.date)}{'\n'}alle {app.startTime}</Text>
+                <Text style={styles.heroQuando}>{quando(app.date)} alle {app.startTime}</Text>
                 <Text style={styles.heroCosa}>
                   {app.treatmentName}
                   {app.operatorName ? <Text style={styles.tenue}>{`  con ${app.operatorName}`}</Text> : null}
@@ -174,7 +174,7 @@ export default function HomeScreen() {
                   : 'Nessun appuntamento in programma'}
               </Text>
               <Text style={styles.heroQuando}>
-                {(giorniDa(dati?.ultimaVisita ?? null) ?? 0) > 30 ? 'Ci manchi!' : 'Quando\nci vediamo?'}
+                {(giorniDa(dati?.ultimaVisita ?? null) ?? 0) > 30 ? 'Ci manchi!' : 'Quando ci vediamo?'}
               </Text>
               <Text style={styles.heroCosa}>Tocca per prenotare</Text>
             </Pressable>
@@ -224,7 +224,16 @@ export default function HomeScreen() {
           </Pressable>
         ) : null}
 
-        {/* ── Le tre azioni di ogni giorno ── */}
+        {/* ── Promo e lavori del salone ── */}
+        <Pressable style={styles.riga} onPress={() => router.push('/bacheca')}>
+          <View style={styles.rigaSinistra}>
+            <Ionicons name="images-outline" size={18} color={colors.primaryDark} />
+            <Text style={styles.rigaTesto}>Promo e lavori del salone</Text>
+          </View>
+          <Icona nome="freccia" misura={19} colore={colors.textMuted} />
+        </Pressable>
+
+        {/* ── Le azioni di ogni giorno ── */}
         <View style={styles.azioni}>
           {([
             { icona: 'calendar-outline', testo: 'Prenota', rotta: '/prenota' },
@@ -233,7 +242,7 @@ export default function HomeScreen() {
             { icona: 'chatbubble-ellipses-outline', testo: 'Chat', rotta: '/chat' },
           ] as const).map((a) => (
             <Pressable key={a.rotta} style={styles.azione} onPress={() => router.push(a.rotta as never)}>
-              <Ionicons name={a.icona} size={22} color={colors.primaryDark} />
+              <Ionicons name={a.icona} size={20} color={colors.primaryDark} />
               <Text style={styles.azioneTesto}>{a.testo}</Text>
             </Pressable>
           ))}
@@ -271,23 +280,23 @@ const styles = StyleSheet.create({
   saluto: { ...typography.title, fontSize: 22, color: colors.textSecondary },
   errore: { ...typography.label, color: colors.error, marginTop: spacing.sm },
 
-  hero: { paddingTop: spacing.lg, paddingBottom: spacing.lg + 4, borderBottomWidth: 1, borderBottomColor: colors.border },
+  hero: { paddingTop: spacing.md, paddingBottom: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   occhiello: { ...typography.occhiello, color: colors.textSecondary },
   // 40px: è l'unica cosa grande della schermata, e va letta con lo sguardo di
   // chi tiene il telefono in una mano sola mentre esce di casa.
-  heroQuando: { fontFamily: fonts.serif600, fontSize: 40, lineHeight: 44, letterSpacing: -0.8, color: colors.textPrimary, marginTop: spacing.sm },
-  heroCosa: { ...typography.bodyForte, color: colors.textPrimary, marginTop: spacing.md },
+  heroQuando: { fontFamily: fonts.serif700, fontSize: 26, lineHeight: 31, letterSpacing: -0.5, color: colors.textPrimary, marginTop: 6 },
+  heroCosa: { ...typography.bodyForte, fontSize: 14.5, color: colors.textPrimary, marginTop: 6 },
   tenue: { ...typography.body, color: colors.textSecondary },
 
-  messaggioTesto: { ...typography.caption, fontSize: 13, color: colors.primaryDark, marginTop: spacing.sm },
+  messaggioTesto: { ...typography.caption, fontSize: 12.5, color: colors.primaryDark, marginTop: spacing.xs },
 
   // ── La tessera in una riga: scura, l'oggetto senza l'ingombro ──
   tessera: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     backgroundColor: colors.textPrimary,
     borderRadius: radius.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm + 2,
     paddingHorizontal: spacing.md,
   },
   tesseraTesto: { ...typography.body, fontSize: 14.5, color: colors.white, opacity: 0.9, flex: 1 },
@@ -300,7 +309,7 @@ const styles = StyleSheet.create({
 
   riga: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginTop: spacing.lg, paddingVertical: spacing.md,
+    marginTop: spacing.sm, paddingVertical: spacing.sm + 3,
     borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border,
   },
   rigaSinistra: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
@@ -308,26 +317,26 @@ const styles = StyleSheet.create({
   conta: { width: 19, height: 19, borderRadius: radius.full, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   contaNumero: { ...typography.captionForte, fontSize: 11, color: colors.white },
 
-  blocco: { marginTop: spacing.lg },
+  blocco: { marginTop: spacing.md },
   rigaTraSpazi: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   forte: { ...typography.bodyForte, color: colors.textPrimary, flex: 1 },
   piccolo: { ...typography.caption, color: colors.textSecondary },
   barra: { marginTop: spacing.sm },
 
   // ── Le tre azioni: contornate, alla pari. L'oro pieno resta alla tessera. ──
-  azioni: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xl },
+  azioni: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   azione: {
     flex: 1, alignItems: 'center', gap: spacing.xs,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm + 2,
     borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  azioneTesto: { ...typography.labelForte, fontSize: 13, color: colors.textPrimary },
+  azioneTesto: { ...typography.labelForte, fontSize: 12, color: colors.textPrimary },
 
   // ── Il centro, come su un biglietto da visita ──
   sede: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
   },
   sedeTesto: { ...typography.caption, fontSize: 12.5, color: colors.textSecondary },
 });

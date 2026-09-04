@@ -34,6 +34,10 @@ export { homeService } from './HomeProvider';
 export { waitlistService } from './WaitlistProvider';
 export type { DesiderioAttesa, NuovoDesiderio } from './WaitlistProvider';
 export { beautyService, revoAiService } from './BeautyProvider';
+export { bachecaService } from './BachecaProvider';
+export type { PostBacheca } from './BachecaProvider';
+export { profiloService, completezzaProfilo } from './ProfiloProvider';
+export type { ProfiloCliente, ModificheProfilo } from './ProfiloProvider';
 export type {
   DatiScore, ComponenteScore, SuggerimentoAutopilot, SlotAutopilot,
   Missione, BadgeCliente, DatiPassport, MessaggioRevoAI,
