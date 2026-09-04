@@ -416,7 +416,14 @@ model GiftCard {
   /// Il codice a barre stampato sulla card plastificata, quando il buono ne
   /// ha una. Si spara con la pistola al banco: e' l'unico modo in cui una
   /// cliente puo' usare il buono senza ricordarsi niente.
-  cardCode         String? @unique
+  ///
+  /// Senza @unique, e non per distrazione: all'avvio Railway esegue
+  /// `prisma db push`, che davanti a un vincolo unico da creare si ferma e
+  /// chiede --accept-data-loss. Si e' fermato davvero, e il gestionale e'
+  /// rimasto offline finche' non l'ho tolto. Che due buoni non finiscano
+  /// sulla stessa tessera lo controlla createGiftCard, dove si puo' anche
+  /// spiegare a chi sta al banco cos'e' andato storto.
+  cardCode         String?
 
   buyerId String?
   buyer   Client? @relation("GiftCardBuyer", fields: [buyerId], references: [id], onDelete: SetNull)

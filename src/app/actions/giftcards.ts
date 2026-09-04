@@ -67,10 +67,32 @@ export async function createGiftCard(data: {
   const exp = new Date(now);
   exp.setMonth(exp.getMonth() + data.validityMonths);
 
+  /*
+    Una tessera, un buono.
+
+    Il controllo sta qui e non nel database: un vincolo unico a schema fa
+    fermare il `prisma db push` che gira all'avvio su Railway, e il
+    gestionale non parte proprio — successo, il 4 settembre. Qui invece si
+    puo' anche dire a chi sta al banco di che card si tratta, che e' l'unica
+    cosa che gli serve per risolverla.
+  */
+  const card = normalizzaCard(data.cardCode);
+  if (card) {
+    const giaUsata = await prisma.giftCard.findFirst({
+      where: { cardCode: card },
+      select: { recipientName: true, remainingBalance: true },
+    });
+    if (giaUsata) {
+      throw new Error(
+        `Questa card e' gia' legata al buono di ${giaUsata.recipientName} (${giaUsata.remainingBalance.toFixed(2)} € residui). Usane un'altra.`
+      );
+    }
+  }
+
   const created = await prisma.giftCard.create({
     data: {
       code: generateCode(),
-      cardCode: normalizzaCard(data.cardCode) || null,
+      cardCode: card || null,
       purchasedBy: data.purchasedBy,
       recipientName: data.recipientName,
       recipientPhone: data.recipientPhone ?? null,
