@@ -732,6 +732,7 @@ export default function ClientDetailPage() {
 
         {activeTab === 'loyalty' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <BoxCodiceInvito clientId={client.id} />
             <div className="bg-bg-secondary border border-border rounded-2xl p-5">
               <h3 className="text-base font-display font-semibold text-text-primary mb-4">Programma Fedeltà</h3>
               <div className="text-center py-4">
@@ -934,6 +935,64 @@ export default function ClientDetailPage() {
           </div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * Il codice invito detto al banco: "vengo da parte di Maria, REVO-XXXX".
+ * Si scrive qui e il benvenuto arriva subito nel wallet della nuova
+ * cliente; il premio di chi ha invitato matura al suo primo incasso.
+ */
+function BoxCodiceInvito({ clientId }: { clientId: string }) {
+  const [codice, setCodice] = useState('');
+  const [esito, setEsito] = useState<{ ok: boolean; testo: string } | null>(null);
+  const [invio, setInvio] = useState(false);
+
+  const applica = async () => {
+    if (!codice.trim() || invio) return;
+    setInvio(true);
+    setEsito(null);
+    try {
+      const r = await fetch('/api/admin/referral-codice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, codice }),
+      });
+      const j = await r.json();
+      setEsito(r.ok
+        ? { ok: true, testo: `Fatto! ${j.importo} € di benvenuto accreditati (invitata da ${j.inviter}).` }
+        : { ok: false, testo: j.error || 'Codice non valido.' });
+      if (r.ok) setCodice('');
+    } catch {
+      setEsito({ ok: false, testo: 'Errore di rete: riprova.' });
+    } finally {
+      setInvio(false);
+    }
+  };
+
+  return (
+    <div className="bg-bg-secondary border border-border rounded-2xl p-5 lg:col-span-2">
+      <h3 className="text-base font-display font-semibold text-text-primary mb-1">🎁 Codice invito di un&apos;amica</h3>
+      <p className="text-xs text-text-muted mb-3">
+        Se questa cliente è nuova e arriva &quot;da parte di&quot; qualcuna con l&apos;app, scrivi qui il suo codice:
+        il credito di benvenuto entra subito nel wallet e si può usare già in questa cassa.
+      </p>
+      <div className="flex gap-2">
+        <input
+          value={codice}
+          onChange={(e) => setCodice(e.target.value.toUpperCase())}
+          placeholder="ES. MARIA-7K2P"
+          className="flex-1 border border-border bg-bg-primary rounded-lg px-3 py-2 text-sm font-mono tracking-wider text-text-primary"
+        />
+        <button onClick={() => void applica()} disabled={invio || !codice.trim()}
+          className="text-sm bg-black text-white rounded-lg px-4 py-2 disabled:opacity-40">
+          {invio ? 'Verifico…' : 'Applica'}
+        </button>
+      </div>
+      {esito && (
+        <p className={`text-sm mt-2 ${esito.ok ? 'text-success' : 'text-error'}`}>{esito.testo}</p>
+      )}
     </div>
   );
 }

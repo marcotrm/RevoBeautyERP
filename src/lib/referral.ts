@@ -169,7 +169,9 @@ export async function maturaReferral(nuovoClientId: string, telefonoNuovo: strin
   const candidati = await prisma.referral.findMany({
     where: { status: { in: ['invited', 'registered'] }, inviterRewardAt: null },
   });
-  const invito = candidati.find(r => coda(r.invitedPhone) === chiave);
+  // Prima il legame esplicito (codice inserito al banco), poi il telefono.
+  const invito = candidati.find(r => r.invitedClientId === nuovoClientId)
+    ?? candidati.find(r => coda(r.invitedPhone) === chiave);
   if (!invito) return false;
 
   const config = await leggiConfig();
@@ -185,15 +187,19 @@ export async function maturaReferral(nuovoClientId: string, telefonoNuovo: strin
     validoGiorni: config.referral.validoGiorni,
   });
 
-  await accreditaCredito({
-    clientId: nuovoClientId,
-    importo: config.referral.premioInvitata,
-    bucket: 'referral',
-    motivo: 'Benvenuta in RevoBeauty',
-    sourceType: 'referral',
-    sourceId: invito.id,
-    validoGiorni: config.referral.validoGiorni,
-  });
+  // L'amica può aver già avuto il benvenuto al banco (codice inserito al
+  // check-in): in quel caso qui non si paga due volte.
+  if (!invito.invitedRewardAt) {
+    await accreditaCredito({
+      clientId: nuovoClientId,
+      importo: config.referral.premioInvitata,
+      bucket: 'referral',
+      motivo: 'Benvenuta in RevoBeauty',
+      sourceType: 'referral',
+      sourceId: invito.id,
+      validoGiorni: config.referral.validoGiorni,
+    });
+  }
 
   await prisma.referral.update({
     where: { id: invito.id },
@@ -202,9 +208,111 @@ export async function maturaReferral(nuovoClientId: string, telefonoNuovo: strin
       invitedClientId: nuovoClientId,
       convertedAt: adesso,
       inviterRewardAt: adesso,
-      invitedRewardAt: adesso,
+      invitedRewardAt: invito.invitedRewardAt ?? adesso,
     },
   });
 
   return true;
+}
+
+export type EsitoCodice =
+  | { ok: true; inviter: string; importo: number }
+  | { ok: false; error: string };
+
+/**
+ * Il codice invito arriva al banco: la nuova cliente lo dice, l'operatrice
+ * lo scrive nella sua scheda.
+ *
+ * Qui l'amica prende SUBITO il suo benvenuto (spendibile già alla prima
+ * cassa), mentre il premio di chi l'ha invitata matura come sempre al primo
+ * incasso vero — così il legame è chiuso ma nessuno fabbrica credito
+ * inventando amiche che non verranno mai.
+ */
+export async function collegaCodiceInvito(params: {
+  clientId: string;
+  codice: string;
+  operatore?: string;
+}): Promise<EsitoCodice> {
+  const code = params.codice.trim().toUpperCase();
+  if (!code) return { ok: false, error: 'Scrivi il codice.' };
+
+  const riga = await prisma.referralCode.findUnique({ where: { code } });
+  if (!riga) return { ok: false, error: 'Codice non trovato: controlla le lettere (niente 0/O né 1/I).' };
+  if (riga.clientId === params.clientId) {
+    return { ok: false, error: 'È il codice della cliente stessa: non può invitare sé stessa.' };
+  }
+
+  const cliente = await prisma.client.findUnique({
+    where: { id: params.clientId },
+    select: { id: true, firstName: true, lastName: true, phone: true },
+  });
+  if (!cliente) return { ok: false, error: 'Cliente non trovata.' };
+
+  // Un solo invito a testa: se questa cliente è già legata a un invito
+  // (per telefono o per id), non se ne apre un altro.
+  const chiave = coda(cliente.phone);
+  const esistenti = await prisma.referral.findMany({ where: { status: { not: 'blocked' } } });
+  const gia = esistenti.find(r => r.invitedClientId === cliente.id)
+    ?? esistenti.find(r => chiave.length >= 9 && coda(r.invitedPhone) === chiave);
+  if (gia?.invitedRewardAt) {
+    return { ok: false, error: 'Questa cliente ha già avuto il credito di benvenuto.' };
+  }
+
+  // La cliente deve essere DAVVERO nuova: se ha già pagato qualcosa in
+  // passato, il benvenuto non ha senso e il codice serve solo a far credito.
+  // (La cassa registra il nome, non l'id: si confronta quello.)
+  const spese = await prisma.posTransaction.count({
+    where: { clientName: { equals: `${cliente.firstName} ${cliente.lastName}`.trim(), mode: 'insensitive' } },
+  });
+  if (spese > 0 && !gia) {
+    return { ok: false, error: 'Questa cliente ha già acquistato in passato: il codice vale solo per le nuove.' };
+  }
+
+  // Il codice scritto deve appartenere a chi risulta invitante, se il legame
+  // esisteva già da app: due invitanti per la stessa amica non stanno in piedi.
+  if (gia && gia.inviterClientId !== riga.clientId) {
+    return { ok: false, error: 'Questa cliente risulta già invitata da un\'altra persona.' };
+  }
+
+  const config = await leggiConfig();
+  const adesso = new Date().toISOString();
+  const nome = `${cliente.firstName} ${cliente.lastName}`.trim();
+
+  // Lega (o crea) l'invito e paga il benvenuto adesso.
+  const invito = gia
+    ? await prisma.referral.update({
+        where: { id: gia.id },
+        data: { invitedClientId: cliente.id, status: gia.status === 'invited' ? 'registered' : gia.status, invitedName: gia.invitedName || nome },
+      })
+    : await prisma.referral.create({
+        data: {
+          inviterClientId: riga.clientId,
+          invitedName: nome,
+          invitedPhone: cliente.phone || '',
+          invitedClientId: cliente.id,
+          status: 'registered',
+          createdAt: adesso,
+        },
+      });
+
+  await accreditaCredito({
+    clientId: cliente.id,
+    importo: config.referral.premioInvitata,
+    bucket: 'referral',
+    motivo: 'Benvenuta in RevoBeauty',
+    sourceType: 'referral',
+    sourceId: invito.id,
+    validoGiorni: config.referral.validoGiorni,
+  });
+  await prisma.referral.update({ where: { id: invito.id }, data: { invitedRewardAt: adesso } });
+
+  const invitante = await prisma.client.findUnique({
+    where: { id: riga.clientId },
+    select: { firstName: true, lastName: true },
+  });
+  return {
+    ok: true,
+    inviter: `${invitante?.firstName ?? ''} ${invitante?.lastName ?? ''}`.trim() || 'una cliente',
+    importo: config.referral.premioInvitata,
+  };
 }

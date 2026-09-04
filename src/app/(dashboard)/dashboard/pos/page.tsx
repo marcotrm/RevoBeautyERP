@@ -31,6 +31,7 @@ import { nomiDoppi, chiaveNome as chiaveOmonimi } from '@/lib/omonimi';
 import { descriviMisto } from '@/lib/pagamenti';
 import { usaCaparra } from '@/app/actions/caparra';
 import { saldoCredito, usaCredito } from '@/app/actions/credito';
+import { saldoWalletApp, usaWalletApp } from '@/app/actions/walletApp';
 
 interface CartItem {
   id: string;
@@ -59,7 +60,7 @@ const MISTO = { id: 'misto', label: 'Contanti + Carta' };
 function NewSaleModal({ onClose, onComplete, initialData }: {
   onClose: () => void;
   onComplete: (
-    tx: Omit<TransactionRecord, 'id'> & { scontrinoDopo?: boolean; creditoUsato?: number; clientIdCredito?: string },
+    tx: Omit<TransactionRecord, 'id'> & { scontrinoDopo?: boolean; creditoUsato?: number; clientIdCredito?: string; walletUsato?: number },
     debtPkgId?: string,
   ) => Promise<TransactionRecord | undefined>;
   initialData?: {
@@ -182,14 +183,24 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   */
   const [credito, setCredito] = useState(0);
   const [usaIlCredito, setUsaIlCredito] = useState(false);
+  /*
+    Il wallet dell'app: i crediti GUADAGNATI (amica invitata, cashback, premi).
+    Vive in un registro separato dal credito del banco, ma al momento di
+    pagare la cliente non deve saperlo: due righe verdi, stessa semplicita'.
+  */
+  const [walletApp, setWalletApp] = useState(0);
+  const [usaIlWalletApp, setUsaIlWalletApp] = useState(false);
 
   useEffect(() => {
     let vivo = true;
     const id = clienteScelto?.id;
-    if (!id) { setCredito(0); setUsaIlCredito(false); return; }
+    if (!id) { setCredito(0); setUsaIlCredito(false); setWalletApp(0); setUsaIlWalletApp(false); return; }
     saldoCredito(id)
       .then(s => { if (vivo) setCredito(s); })
       .catch(() => { if (vivo) setCredito(0); });
+    saldoWalletApp(id)
+      .then(s => { if (vivo) setWalletApp(s); })
+      .catch(() => { if (vivo) setWalletApp(0); });
     return () => { vivo = false; };
   }, [clienteScelto?.id]);
 
@@ -357,9 +368,13 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   // Non si scala mai piu' di quello che c'e' da pagare: il credito che avanza
   // resta sul suo conto, non si regala il resto.
   const creditoUsato = usaIlCredito ? Math.min(credito, dopoCaparra) : 0;
+  // Il wallet copre quel che resta dopo il credito del banco, mai di piu'.
+  const walletUsato = usaIlWalletApp
+    ? Math.min(walletApp, Math.max(0, Math.round((dopoCaparra - creditoUsato) * 100) / 100))
+    : 0;
   const finalTotal = isDebtPayment
     ? (customAmount ? Number(customAmount) : 0)
-    : Math.max(0, Math.round((dopoCaparra - creditoUsato) * 100) / 100);
+    : Math.max(0, Math.round((dopoCaparra - creditoUsato - walletUsato) * 100) / 100);
   const isMistoValid = paymentMethod === 'misto' ? Math.abs((Number(splitCash) + Number(splitCard)) - finalTotal) < 0.01 : true;
   // Resto: null se il contante battuto non copre il totale (o non è ancora stato inserito)
   const changeDue = (() => {
@@ -421,7 +436,8 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       scontrinoDopo: contanti,
       // Quanto credito si e' scalato, e a chi: si registra a incasso fatto.
       creditoUsato: creditoUsato > 0 ? creditoUsato : undefined,
-      clientIdCredito: creditoUsato > 0 ? clienteScelto?.id : undefined,
+      clientIdCredito: (creditoUsato > 0 || walletUsato > 0) ? clienteScelto?.id : undefined,
+      walletUsato: walletUsato > 0 ? walletUsato : undefined,
     }, initialData?.debtPkgId).catch(() => undefined);
     setSavedTx(saved || null);
     setSaving(false);
@@ -666,6 +682,27 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                             <span className="block text-[11px] text-text-muted">
                               {usaIlCredito
                                 ? `Scalati ${formatCurrency(creditoUsato)}${credito > creditoUsato ? ` · le restano ${formatCurrency(credito - creditoUsato)}` : ''}`
+                                : 'Tocca per usarlo su questo conto'}
+                            </span>
+                          </span>
+                        </button>
+                      )}
+
+                      {/* Il credito dell'app: amica invitata, cashback, premi. */}
+                      {walletApp > 0 && (
+                        <button onClick={() => setUsaIlWalletApp(v => !v)}
+                          className={`w-full flex items-center gap-2.5 mt-2 p-2.5 rounded-xl border-2 transition-colors text-left ${
+                            usaIlWalletApp ? 'border-accent bg-accent/10' : 'border-accent/40 bg-accent/5 hover:bg-accent/10'}`}>
+                          <span className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center ${usaIlWalletApp ? 'bg-accent border-accent' : 'border-accent/50'}`}>
+                            {usaIlWalletApp && <Check className="w-3 h-3 text-white" />}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-semibold text-accent">
+                              Ha {formatCurrency(walletApp)} di credito app (inviti e premi)
+                            </span>
+                            <span className="block text-[11px] text-text-muted">
+                              {usaIlWalletApp
+                                ? `Scalati ${formatCurrency(walletUsato)}${walletApp > walletUsato ? ` · le restano ${formatCurrency(walletApp - walletUsato)}` : ''}`
                                 : 'Tocca per usarlo su questo conto'}
                             </span>
                           </span>
@@ -1159,7 +1196,7 @@ function POSPageInner() {
   }, [router]);
 
   const handleNewSale = async (
-    tx: Omit<TransactionRecord, 'id'> & { scontrinoDopo?: boolean; creditoUsato?: number; clientIdCredito?: string },
+    tx: Omit<TransactionRecord, 'id'> & { scontrinoDopo?: boolean; creditoUsato?: number; clientIdCredito?: string; walletUsato?: number },
     debtPkgId?: string,
   ) => {
     const created = await addTransaction(tx);
@@ -1208,6 +1245,18 @@ function POSPageInner() {
         txId: created.id,
         operatore: [chi?.firstName, chi?.lastName].filter(Boolean).join(' ').trim() || undefined,
       }).catch(() => alert('Incasso registrato, ma il credito non risulta scalato: controllalo nella scheda della cliente.'));
+    }
+
+    // Il wallet dell'app si scala con la stessa regola: DOPO l'incasso.
+    if (tx.walletUsato && tx.clientIdCredito) {
+      const chi = useAuthStore.getState().user;
+      await usaWalletApp({
+        clientId: tx.clientIdCredito,
+        importo: tx.walletUsato,
+        txId: created.id,
+        operatore: [chi?.firstName, chi?.lastName].filter(Boolean).join(' ').trim() || undefined,
+      }).then(e => { if (!e.ok) alert('Incasso registrato, ma il credito app non risulta scalato: ' + (e.error || '')); })
+        .catch(() => alert('Incasso registrato, ma il credito app non risulta scalato: controllalo nella scheda della cliente.'));
     }
 
     // La caparra scalata da questo conto e' stata usata: si chiude qui.

@@ -112,7 +112,7 @@ export const CONFIG_DI_PARTENZA: ConfigApp = {
   punti: { perEuro: 1, prenotazioneApp: 10, puntiPerEuro: 100 },
   cashback: { attivo: true, percentualeBase: 3, validoGiorni: 90 },
   flashSlot: { scontoPercentuale: 20, durataMinuti: 120, anticipoMinimoMinuti: 90, orizzonteOre: 72 },
-  referral: { premioInvitante: 10, premioInvitata: 10, validoGiorni: 90, maxInviti: 20 },
+  referral: { premioInvitante: 5, premioInvitata: 5, validoGiorni: 90, maxInviti: 20 },
   notifiche: { attive: true, maxSettimana: 3, dalleOre: 9, alleOre: 20 },
   home: { messaggio: '', maxProposte: 5 },
   centro: {
