@@ -18,6 +18,7 @@ export async function createProduct(p: Omit<Product, 'id'> & { id?: string }): P
       price: p.price || 0, costPrice: p.costPrice || 0,
       stock: p.stock || 0, minStock: p.minStock ?? 5,
       locationId: p.locationId || 'loc1', isActive: p.isActive ?? true,
+      image: p.image || null,
       createdAt: new Date().toISOString(),
     },
   });

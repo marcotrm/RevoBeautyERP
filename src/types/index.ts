@@ -407,6 +407,14 @@ export interface Product {
   minStock: number;
   locationId: string;
   isActive: boolean;
+  /**
+   * La foto del prodotto, compressa dentro l'indirizzo stesso (data URI).
+   *
+   * La stessa immagine finisce in tre posti: lo scaffale del gestionale, lo
+   * shop pubblico e la vetrina dei premi nell'app delle clienti. Un prodotto
+   * senza foto, in una lista, non lo compra nessuno.
+   */
+  image?: string | null;
 }
 
 // --- Notifications ---

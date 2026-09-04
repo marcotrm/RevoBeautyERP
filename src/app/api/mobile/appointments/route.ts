@@ -9,6 +9,7 @@
 import { prisma } from '@/lib/prisma';
 import { clienteDaToken, tokenDaRichiesta } from '@/lib/mobileAuth';
 import { ORE_MINIME_DISDETTA, disdettabile } from '@/lib/mobileAppuntamenti';
+import { leggiPreTrattamento } from '@/lib/estetica';
 
 export async function GET(req: Request) {
   const cliente = await clienteDaToken(tokenDaRichiesta(req));
@@ -21,6 +22,7 @@ export async function GET(req: Request) {
     select: {
       id: true, date: true, startTime: true, endTime: true, treatmentName: true,
       treatmentCategory: true, operatorName: true, status: true, price: true, isLocked: true,
+      treatment: { select: { preTrattamento: true } },
     },
     orderBy: [{ date: 'desc' }, { startTime: 'desc' }],
   });
@@ -37,6 +39,11 @@ export async function GET(req: Request) {
     status: a.status,
     price: a.price,
     canCancel: disdettabile(a).ok,
+    // Le istruzioni pre-appuntamento hanno senso solo per ciò che deve
+    // ancora succedere: sul passato sarebbero rumore.
+    preparazione: a.date >= oggi && a.status !== 'cancelled' && a.status !== 'completed'
+      ? leggiPreTrattamento(a.treatment?.preTrattamento)
+      : null,
   });
 
   // "Futuro" è ciò che deve ancora succedere e non è già stato annullato:

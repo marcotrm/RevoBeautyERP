@@ -56,16 +56,16 @@ function vesti(r: {
 
 /** I prodotti che si possono ordinare: attivi e con qualcosa in magazzino. */
 export async function prodottiOrdinabili(): Promise<{
-  id: string; nome: string; marca: string; categoria: string; prezzo: number; disponibili: number;
+  id: string; nome: string; marca: string; categoria: string; prezzo: number; disponibili: number; foto: string | null;
 }[]> {
   const p = await prisma.product.findMany({
     where: { isActive: true, stock: { gt: 0 }, price: { gt: 0 } },
     orderBy: [{ category: 'asc' }, { name: 'asc' }],
-    select: { id: true, name: true, brand: true, category: true, price: true, stock: true },
+    select: { id: true, name: true, brand: true, category: true, price: true, stock: true, image: true },
   });
   return p.map(x => ({
     id: x.id, nome: x.name, marca: x.brand, categoria: x.category,
-    prezzo: x.price, disponibili: x.stock,
+    prezzo: x.price, disponibili: x.stock, foto: x.image,
   }));
 }
 

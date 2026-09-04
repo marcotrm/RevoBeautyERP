@@ -7,8 +7,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertTriangle, Plus, Search, Trash2, X, CheckCircle, Package, FileText, Upload, Loader2, Pencil,
-  ArrowDownCircle, ArrowUpCircle, History,
-} from 'lucide-react';
+  ArrowDownCircle, ArrowUpCircle, History, Camera } from 'lucide-react';
 import { useProductStore } from '@/stores/useProductStore';
 import { formatCurrency, generateId } from '@/lib/helpers';
 import { Product } from '@/types';
@@ -17,6 +16,7 @@ import { OUT_REASONS, IN_REASONS, reasonLabel } from '@/lib/stockReasons';
 import { recordStockMovement, getStockMovements, type StockMovementData } from '@/app/actions/products';
 import { useStaffNames } from '@/hooks/useStaffNames';
 import Ordini from './Ordini';
+import { rimpicciolisci } from '@/lib/immagini';
 
 const categories = ['Tutti', 'Viso', 'Corpo', 'Laser', 'Unghie', 'Capelli'];
 const PRODUCT_CATEGORIES = ['Viso', 'Corpo', 'Laser', 'Unghie', 'Capelli'];
@@ -204,6 +204,36 @@ function AddProductModal({ onClose, onSave, editing }: { onClose: () => void; on
   const [stock, setStock] = useState(editing ? String(editing.stock) : '');
   const [minStock, setMinStock] = useState(editing ? String(editing.minStock) : '5');
 
+  /*
+    La foto del prodotto.
+
+    Non e' un vezzo: la stessa immagine finisce in tre posti — lo scaffale qui
+    dentro, lo shop pubblico dove la cliente ordina, e la vetrina dei premi
+    nell'app. In una lista, un prodotto senza foto e' una riga di testo, e una
+    riga di testo non la compra nessuno.
+
+    Si rimpicciolisce sul telefono prima di partire: 800 pixel bastano per
+    guardarla, e un barattolo di crema fotografato in negozio pesa quattro
+    megabyte.
+  */
+  const [foto, setFoto] = useState<string>(editing?.image || '');
+  const [caricandoFoto, setCaricandoFoto] = useState(false);
+  const [guaiFoto, setGuaiFoto] = useState('');
+  const scegliFoto = useRef<HTMLInputElement>(null);
+
+  const prendiFoto = async (file?: File | null) => {
+    if (!file) return;
+    setCaricandoFoto(true);
+    setGuaiFoto('');
+    try {
+      setFoto(await rimpicciolisci(file, 800, 0.75));
+    } catch {
+      setGuaiFoto('Non sono riuscito ad aprire questa immagine: provane un\u2019altra.');
+    } finally {
+      setCaricandoFoto(false);
+    }
+  };
+
   const canSave = name.trim() && price && stock;
   const margin = price && costPrice ? Math.round(((Number(price) - Number(costPrice)) / Number(price)) * 100) : null;
 
@@ -222,6 +252,7 @@ function AddProductModal({ onClose, onSave, editing }: { onClose: () => void; on
       minStock: Number(minStock) || 5,
       locationId: editing?.locationId || 'loc-1',
       isActive: editing?.isActive ?? true,
+      image: foto || null,
     });
     onClose();
   };
@@ -271,6 +302,39 @@ function AddProductModal({ onClose, onSave, editing }: { onClose: () => void; on
                 <span className="text-xs text-success font-medium">Margine: {margin}% ({formatCurrency(Number(price) - Number(costPrice))} per unità)</span>
               </div>
             )}
+            {/* La foto: si vede subito, e si cambia con un tocco */}
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Foto del prodotto</label>
+              <input ref={scegliFoto} type="file" accept="image/*" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) prendiFoto(f); e.target.value = ''; }} />
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => scegliFoto.current?.click()}
+                  className="w-24 h-24 rounded-xl border-2 border-dashed border-border hover:border-accent/50 bg-bg-tertiary/50 flex items-center justify-center flex-shrink-0 overflow-hidden transition-colors">
+                  {caricandoFoto ? (
+                    <span className="text-[11px] text-text-muted">un attimo…</span>
+                  ) : foto ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={foto} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <Camera className="w-7 h-7 text-text-muted" />
+                  )}
+                </button>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] text-text-muted leading-relaxed">
+                    Si vede nello shop online e nella vetrina dei premi dell’app clienti.
+                    Basta una foto col telefono, appoggiato su un piano chiaro.
+                  </p>
+                  {foto && (
+                    <button type="button" onClick={() => setFoto('')}
+                      className="mt-1.5 text-[11px] font-semibold text-text-muted hover:text-error">
+                      Togli la foto
+                    </button>
+                  )}
+                  {guaiFoto && <p className="mt-1.5 text-[11px] text-error">{guaiFoto}</p>}
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div><label className="block text-sm font-medium text-text-secondary mb-1.5">Quantità in Stock *</label>
                 <input type="number" value={stock} onChange={e => setStock(e.target.value)} placeholder="0"
@@ -651,7 +715,24 @@ export default function InventoryPage() {
                       <input type="checkbox" checked={isSel} onChange={() => toggleOne(product.id)}
                         className="w-4 h-4 rounded border-border accent-accent cursor-pointer" />
                     </td>
-                    <td className="px-5 py-3.5"><div><p className="text-sm font-medium text-text-primary">{product.name}</p><p className="text-xs text-text-muted">{product.brand} • {product.category}</p></div></td>
+                    <td className="px-5 py-3.5">
+                      {/* La foto accanto al nome: uno scaffale si riconosce a
+                          colpo d'occhio, non leggendo quaranta righe di testo. */}
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-bg-tertiary border border-border flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          {product.image ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={product.image} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <Camera className="w-4 h-4 text-text-muted/50" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-text-primary">{product.name}</p>
+                          <p className="text-xs text-text-muted">{product.brand} • {product.category}</p>
+                        </div>
+                      </div>
+                    </td>
                     <td className="px-5 py-3.5 hidden md:table-cell"><span className="text-xs text-text-secondary font-mono">{product.sku}</span>{product.barcode && <p className="text-[10px] text-text-muted font-mono">{product.barcode}</p>}</td>
                     <td className="px-5 py-3.5 text-right"><span className="text-sm font-medium text-text-primary">{formatCurrency(product.price)}</span></td>
                     <td className="px-5 py-3.5 text-right"><span className="text-sm text-text-secondary">{formatCurrency(product.costPrice)}</span></td>

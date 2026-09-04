@@ -15,7 +15,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
 
-type Prodotto = { id: string; nome: string; marca: string; categoria: string; prezzo: number; disponibili: number };
+type Prodotto = { id: string; nome: string; marca: string; categoria: string; prezzo: number; disponibili: number; foto?: string | null };
 
 const P = '#A855F7';
 const eur = (n: number) => `${n.toFixed(2).replace('.', ',')} €`;
@@ -122,6 +122,12 @@ export default function Shop() {
                 const q = carrello[p.id] || 0;
                 return (
                   <div key={p.id} style={s.prodotto}>
+                    {/* La foto: senza, uno scaffale online e' un elenco di
+                        parole, e le creme non si comprano leggendo. */}
+                    {p.foto
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={p.foto} alt="" style={s.miniatura} />
+                      : <div style={{ ...s.miniatura, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🧴</div>}
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <p style={s.nomeProdotto}>{p.nome}</p>
                       <p style={s.marca}>
@@ -185,6 +191,7 @@ const s: Record<string, React.CSSProperties> = {
   sotto: { fontSize: 14, color: '#7c7488', margin: '0 0 18px', lineHeight: 1.5 },
   categoria: { fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.6, color: '#9a94a3', margin: '0 0 10px' },
   prodotto: { display: 'flex', alignItems: 'center', gap: 12, background: '#fff', border: '1px solid #ece6f4', borderRadius: 14, padding: '13px 15px' },
+  miniatura: { width: 54, height: 54, borderRadius: 10, objectFit: 'cover', background: '#f6f1fb', flexShrink: 0 },
   nomeProdotto: { margin: 0, fontSize: 15, fontWeight: 600 },
   marca: { margin: '2px 0 0', fontSize: 12, color: '#8b8394' },
   prezzo: { fontSize: 15, fontWeight: 700, flexShrink: 0 },

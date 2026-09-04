@@ -276,6 +276,10 @@ model Treatment {
   /// Chi lo esegue e con che tempi: [{ operatorId, duration, price? }].
   /// Vuoto o assente = lo fanno tutte, con la durata standard qui sopra.
   operatorSkills    Json?
+  /// Istruzioni per la cliente PRIMA dell'appuntamento, configurabili dal
+  /// pannello: { comePrepararsi, cosaEvitare, cosaPortare, oreAnticipo, avvertenze }.
+  /// Assente = nessuna preparazione da mostrare né promemoria dedicato.
+  preTrattamento    Json?
 
   appointments Appointment[]
 
@@ -1535,4 +1539,201 @@ model RiscattoPremio {
   @@index([clientId])
   @@index([stato])
   @@map("riscatti_premi")
+}
+
+// ============================================================
+// PERCORSI DI ESTETICA (modulo percorsi professionali dell'app)
+// ============================================================
+
+/// Il check-up estetico compilato dalla cliente nell'app: raccoglie obiettivi
+/// e abitudini, MAI diagnosi. Se dichiara condizioni da guardare, il flag
+/// `daValutare` accende la riga nel pannello e serve l'occhio di un'operatrice.
+model CheckupEstetico {
+  id           String  @id @default(cuid())
+  clientId     String
+  /// { obiettivi[], aree[], abitudini[], trattamentiPrecedenti, preferenze, condizioni[], note }
+  risposte     Json
+  daValutare   Boolean @default(false)
+  /// Quando la cliente ha acconsentito al trattamento di questi dati.
+  consensoIl   String
+  verificatoDa String?
+  verificatoIl String?
+  noteInterne  String?
+  createdAt    String
+
+  @@index([clientId])
+  @@index([createdAt])
+  @@map("checkup_estetici")
+}
+
+/// La consulenza digitale: la cliente dice cosa vorrebbe migliorare, il centro
+/// la prende in carico. Non prescrive nulla da sola: finisce sempre in mano
+/// a una persona, che può trasformarla in un percorso vero.
+model ConsulenzaApp {
+  id          String  @id @default(cuid())
+  clientId    String
+  clientName  String
+  /// Le aree scelte: ['viso','corpo','depilazione',...]
+  aree        Json
+  desiderio   String
+  /// nuova | in_carico | trasformata | chiusa
+  stato       String  @default("nuova")
+  presaDa     String?
+  percorsoId  String?
+  noteInterne String?
+  createdAt   String
+  updatedAt   String
+
+  @@index([clientId])
+  @@index([stato])
+  @@map("consulenze_app")
+}
+
+/// Il percorso personalizzato costruito dall'operatrice con la cliente.
+/// L'avanzamento mostrato è SOLO sedute fatte su pianificate: nessuna
+/// percentuale di "miglioramento" inventata dal software.
+model PercorsoEstetico {
+  id           String  @id @default(cuid())
+  clientId     String
+  clientName   String
+  nome         String
+  descrizione  String?
+  obiettivo    String
+  /// I trattamenti previsti: [{ nome }]
+  trattamenti  Json
+  seduteTotali Int
+  frequenza    String?
+  dataInizio   String
+  /// attivo | in_pausa | completato | mantenimento | interrotto
+  stato        String  @default("attivo")
+  /// Le tappe intermedie: [{ titolo, dopoSeduta, stato: 'in_arrivo'|'raggiunta' }]
+  tappe        Json?
+  /// Visibili alla cliente nell'app.
+  noteCliente  String?
+  /// Riservate al personale: non escono MAI dalle API mobile.
+  noteInterne  String?
+  mantenimento String?
+  creatoDa     String
+  createdAt    String
+  updatedAt    String
+
+  sedute SedutaPercorso[]
+  foto   FotoPercorso[]
+
+  @@index([clientId])
+  @@index([stato])
+  @@map("percorsi_estetici")
+}
+
+/// La seduta svolta: è insieme la scheda digitale del trattamento e il posto
+/// dove l'operatrice registra i progressi. La cliente vede solo le righe
+/// `condivisa`; le note interne restano di qua.
+model SedutaPercorso {
+  id              String  @id @default(cuid())
+  percorsoId      String
+  clientId        String
+  numero          Int
+  data            String
+  ora             String?
+  operatrice      String
+  trattamento     String
+  area            String?
+  durataMinuti    Int?
+  appointmentId   String?
+  /// Osservazioni professionali (condivise solo se `condivisa`).
+  osservazioni    String?
+  /// Come la cliente ha detto di aver risposto al trattamento.
+  rispostaCliente String?
+  /// Misure inserite A MANO: [{ nome, valore, unita }]. Niente di calcolato.
+  misurazioni     Json?
+  /// Indicazioni per il dopo, visibili alla cliente.
+  indicazioniDopo String?
+  noteInterne     String?
+  condivisa       Boolean @default(true)
+  /// Il controllo successivo: da_fissare | fissato | fatto
+  statoControllo  String?
+  createdAt       String
+  updatedAt       String
+
+  percorso PercorsoEstetico @relation(fields: [percorsoId], references: [id], onDelete: Cascade)
+
+  @@index([percorsoId])
+  @@index([clientId])
+  @@map("sedute_percorso")
+}
+
+/// La foto del percorso: privata, mai pubblicata da sola, mai analizzata da
+/// un'AI. Esce solo dalle API autenticate della cliente o del pannello.
+model FotoPercorso {
+  id         String  @id @default(cuid())
+  percorsoId String
+  clientId   String
+  sedutaId   String?
+  area       String
+  /// Data URL compressa, come ClientPhoto: privata per costruzione.
+  immagine   String
+  scattataIl String
+  /// 'cliente' oppure il nome dell'operatrice che l'ha caricata.
+  origine    String
+  createdAt  String
+
+  percorso PercorsoEstetico @relation(fields: [percorsoId], references: [id], onDelete: Cascade)
+
+  @@index([percorsoId])
+  @@index([clientId])
+  @@map("foto_percorso")
+}
+
+/// I consensi dell'app, revocabili: una riga per tipo, con lo stato corrente.
+/// tipo: 'foto-percorso' | 'checkup' | 'riattivazione'
+model ConsensoApp {
+  id         String  @id @default(cuid())
+  clientId   String
+  tipo       String
+  concesso   Boolean
+  /// Il testo che la cliente ha effettivamente accettato.
+  testo      String
+  concessoIl String?
+  revocatoIl String?
+  updatedAt  String
+
+  @@unique([clientId, tipo])
+  @@map("consensi_app")
+}
+
+/// La coda di riattivazione: il sistema PROPONE, una persona decide.
+/// Nessun messaggio parte da solo; qui resta scritto quando e perché.
+model RiattivazioneProposta {
+  id        String  @id @default(cuid())
+  clientId  String
+  nome      String
+  /// 'ritmo-interrotto' | 'percorso-interrotto' | 'mantenimento'
+  motivo    String
+  dettaglio String
+  messaggio String
+  /// proposta | inviata | scartata
+  stato     String  @default("proposta")
+  decisaDa  String?
+  canale    String?
+  inviataIl String?
+  createdAt String
+
+  @@index([clientId])
+  @@index([stato])
+  @@map("riattivazione_proposte")
+}
+
+/// Traccia minima degli accessi e delle modifiche sensibili (foto, consensi,
+/// note): chi, cosa, quando. Niente dati personali oltre l'id cliente.
+model AccessoSensibile {
+  id        String  @id @default(cuid())
+  chi       String
+  clientId  String?
+  azione    String
+  dettaglio String?
+  createdAt String
+
+  @@index([clientId])
+  @@index([createdAt])
+  @@map("accessi_sensibili")
 }
