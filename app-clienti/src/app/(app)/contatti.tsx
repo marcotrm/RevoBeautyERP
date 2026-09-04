@@ -24,7 +24,16 @@ import { colors, fonts, radius, spacing, typography } from '@/theme';
 
 function formatTime(iso: string): string {
   try {
-    return new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    const d = new Date(iso);
+    const ora = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    // Oggi basta l'ora; per i giorni prima si aggiunge "4 set": giorno e
+    // mese e basta — l'anno in una chat è solo rumore.
+    const oggi = new Date();
+    const stessoGiorno = d.getDate() === oggi.getDate()
+      && d.getMonth() === oggi.getMonth() && d.getFullYear() === oggi.getFullYear();
+    if (stessoGiorno) return ora;
+    const data = d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+    return `${data} · ${ora}`;
   } catch {
     return '';
   }
