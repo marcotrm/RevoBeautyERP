@@ -15,6 +15,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError, ChatMessage, chatService } from '@/api';
@@ -36,6 +37,7 @@ function formatTime(iso: string): string {
 
 export default function ContattiScreen() {
   const { token } = useAuth();
+  const altezzaHeader = useHeaderHeight();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
@@ -96,7 +98,11 @@ export default function ContattiScreen() {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        // L'offset è l'header VERO: ~90 quando la chat è aperta sopra le
+        // schede (con la barra del titolo), 0 quando è la scheda Chat.
+        // Il 90 fisso di prima, nella scheda, diventava un buco vuoto
+        // tra la casella e la tastiera.
+        keyboardVerticalOffset={Platform.OS === 'ios' ? altezzaHeader : 0}
       >
         {loading ? (
           <View style={styles.center}>
