@@ -568,6 +568,15 @@ export default function InventoryPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('Tutti');
+  /*
+    Il filtro per marca.
+
+    Le marche non sono un elenco fisso come le categorie: sono quelle che ci
+    sono davvero a scaffale, e cambiano quando arriva un fornitore nuovo.
+    Quindi si leggono dai prodotti, in ordine alfabetico, col numero accanto —
+    perche' «bella via 14» dice anche quanto di quello scaffale e' suo.
+  */
+  const [activeBrand, setActiveBrand] = useState('Tutti');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [movingProduct, setMovingProduct] = useState<Product | null>(null);
   const [historyProduct, setHistoryProduct] = useState<Product | null | undefined>(undefined); // undefined = chiuso, null = tutti
@@ -585,12 +594,23 @@ export default function InventoryPage() {
   const filtered = useMemo(() => {
     let list = [...products];
     if (activeCategory !== 'Tutti') list = list.filter(p => p.category === activeCategory);
+    if (activeBrand !== 'Tutti') list = list.filter(p => (p.brand || 'Senza marca') === activeBrand);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(p => p.name.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.barcode && p.barcode.includes(q)));
     }
     return list;
-  }, [products, search, activeCategory]);
+  }, [products, search, activeCategory, activeBrand]);
+
+  /** Le marche a scaffale, con quanti prodotti ha ognuna. */
+  const marche = useMemo(() => {
+    const conta = new Map<string, number>();
+    for (const p of products) {
+      const m = p.brand?.trim() || 'Senza marca';
+      conta.set(m, (conta.get(m) || 0) + 1);
+    }
+    return [...conta.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [products]);
 
   const lowStock = products.filter(p => p.stock <= p.minStock).length;
   const totalValue = products.reduce((s, p) => s + p.costPrice * p.stock, 0);
@@ -663,6 +683,46 @@ export default function InventoryPage() {
           ))}
         </div>
       </div>
+
+      {/* Le marche, su una riga sua: con due fornitori sono due tasti, con
+          dieci diventa una riga che scorre — e resta leggibile lo stesso. */}
+      {marche.length > 1 && (
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 -mt-1">
+          <span className="text-[11px] text-text-muted pr-1 flex-shrink-0">Marca:</span>
+          <button onClick={() => setActiveBrand('Tutti')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+              activeBrand === 'Tutti' ? 'bg-accent/10 text-accent border border-accent/20' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover border border-transparent'
+            }`}>Tutte</button>
+          {marche.map(([nome, quanti]) => (
+            <button key={nome} onClick={() => setActiveBrand(nome)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                activeBrand === nome ? 'bg-accent/10 text-accent border border-accent/20' : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover border border-transparent'
+              }`}>
+              {nome} <span className="text-text-muted">{quanti}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/*
+        Quando si filtra, il conto di quello che si sta guardando.
+
+        I riquadri in alto restano quelli di tutto il magazzino — sono i numeri
+        del centro, non della vista — ma con una marca selezionata la domanda
+        diventa un'altra: quanti pezzi ha quel fornitore e quanto vale la sua
+        parte di scaffale. E' il numero con cui si decide se e' ora di
+        riordinare.
+      */}
+      {(activeBrand !== 'Tutti' || activeCategory !== 'Tutti' || search.trim()) && (
+        <p className="text-xs text-text-muted -mt-1">
+          {filtered.length === 1 ? '1 prodotto' : `${filtered.length} prodotti`}
+          {activeBrand !== 'Tutti' ? ` di ${activeBrand}` : ''}
+          {' · '}valore a costo {formatCurrency(filtered.reduce((t, p) => t + p.costPrice * p.stock, 0))}
+          {filtered.some(p => p.stock <= p.minStock)
+            ? ` · ${filtered.filter(p => p.stock <= p.minStock).length} sotto scorta`
+            : ''}
+        </p>
+      )}
 
       {/* Barra azioni selezione */}
       <AnimatePresence>
