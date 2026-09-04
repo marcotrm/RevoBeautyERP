@@ -754,6 +754,34 @@ model ClientDocument {
 }
 
 // ============================================================
+// CREDITO DELLA CLIENTE
+// Soldi che il centro le deve: un anticipo lasciato, un trattamento pagato e
+// non fatto, un rimborso che si preferisce lasciare "sul conto". Prima
+// stavano su un foglietto attaccato al monitor, e al momento di pagare se ne
+// ricordava solo chi c'era quel giorno.
+//
+// Non un saldo e basta ma i MOVIMENTI: sui soldi «quanto» senza «da dove»
+// non si puo' controllare, e alla prima discussione con una cliente non c'e'
+// niente da guardare.
+// ============================================================
+model CreditMovement {
+  id        String  @id @default(cuid())
+  clientId  String
+  /// Positivo quando entra credito, negativo quando viene speso.
+  importo   Float
+  /// Perche': "anticipo lasciato al banco", "seduta non fatta", "sconto promesso".
+  motivo    String
+  /// La riga di cassa collegata, quando il carico e' stato pagato davvero o
+  /// il credito e' stato scalato da una vendita.
+  txId      String?
+  operatore String?
+  createdAt String
+
+  @@index([clientId])
+  @@map("credit_movements")
+}
+
+// ============================================================
 // ABBONAMENTI (rinnovo mensile)
 // Il pacchetto a sedute finisce; l'abbonamento no: si rinnova ogni mese
 // finche' qualcuno lo ferma. E' l'unica voce che rende prevedibile il

@@ -1,36 +1,31 @@
 /**
- * Home dell'app clienti.
+ * Home dell'app clienti — la scena, non il cruscotto.
  *
- * Deve rispondere in tre secondi a "quando torno?". Tutto il resto viene dopo,
- * e viene piccolo.
+ * Le versioni prima impilavano riquadri: tutto allo stesso volume, nessun
+ * punto da cui partire. Questa ha UNA scena: un sipario scuro nero/oro con
+ * il saluto e il prossimo appuntamento in grande — la risposta a "quando
+ * torno?" arriva prima ancora di mettere a fuoco. Sotto, poche righe chiare
+ * su avorio: l'azione di oggi, il percorso, due scorciatoie. Fine.
  *
- * La versione precedente metteva nove riquadri uno sotto l'altro — appuntamento,
- * tre contatori, avanzamento del livello, un invito, tre proposte colorate,
- * i percorsi — ognuno col suo bordo e la sua ombra. Nessuno era sbagliato: erano
- * tutti allo stesso volume, e l'occhio non aveva un punto da cui partire.
- *
- * Adesso: un fatto grande (il prossimo appuntamento), una riga sottile per i
- * numeri che non sono urgenze, e **un solo accento colorato** — la cosa che si
- * perde se non la si guarda oggi. Le altre proposte vivono in "Per te", che è
- * la schermata fatta apposta: qui resta il conteggio e un tocco per arrivarci.
+ * Il wow non è un fuoco d'artificio: è il sipario che si alza (fade + salita
+ * di 24pt all'apertura) e il contrasto fra il nero profondo e la luce dorata.
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
-  ActivityIndicator, Image, Linking, Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, View,
+  ActivityIndicator, Animated, Image, Linking, Pressable, RefreshControl,
+  ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError, beautyService, homeService, type DatiHome, type Proposta } from '@/api';
-import { Icona } from '@/components/ui/Icona';
 import { Progress } from '@/components/ui/Progress';
-import { ScoreRing } from '@/components/ui/ScoreRing';
 import { useApiData } from '@/hooks/useApiData';
-import { formatDate } from '@/utils/format';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, fonts, radius, spacing, typography } from '@/theme';
+import { formatDate } from '@/utils/format';
 
 const eur = (n: number) =>
   `${n.toLocaleString('it-IT', { minimumFractionDigits: n % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })} €`;
@@ -53,6 +48,15 @@ function quando(data: string): string {
   return `${maiuscolaIniziale(GIORNI[d.getDay()])} ${d.getDate()} ${MESI[d.getMonth()]}`;
 }
 
+/** Il saluto giusto per l'ora: un dettaglio che fa "pensata per me". */
+function saluto(): string {
+  const h = new Date().getHours();
+  if (h < 6) return 'Notte fonda';
+  if (h < 13) return 'Buongiorno';
+  if (h < 18) return 'Buon pomeriggio';
+  return 'Buonasera';
+}
+
 /** Giorni passati da una data ISO; null se la data manca o non si legge. */
 function giorniDa(iso: string | null): number | null {
   if (!iso) return null;
@@ -61,13 +65,7 @@ function giorniDa(iso: string | null): number | null {
   return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
 
-/**
- * La proposta che merita il colore, se ce n'è una.
- *
- * Una sola: due barrette colorate in una schermata fatta di spazio bianco si
- * annullano a vicenda. Vince quella che fa perdere qualcosa se non la guardi
- * oggi — prima le scadenze, poi le occasioni a tempo.
- */
+/** La proposta che merita attenzione oggi, se c'è: prima le scadenze. */
 function piuUrgente(proposte: Proposta[]): { p: Proposta; colore: string } | null {
   const scadenza = proposte.find(p => p.tipo === 'scadenza');
   if (scadenza) return { p: scadenza, colore: colors.urgent };
@@ -104,6 +102,23 @@ export default function HomeScreen() {
     setAggiornando(false);
   };
 
+  // ── Il sipario: la scena sale di 24pt e appare, una volta sola ──
+  const entrata = useRef(new Animated.Value(0)).current;
+  const entrato = useRef(false);
+  useEffect(() => {
+    if (!dati || entrato.current) return;
+    entrato.current = true;
+    Animated.timing(entrata, { toValue: 1, duration: 650, useNativeDriver: true }).start();
+  }, [dati, entrata]);
+  const scena = {
+    opacity: entrata,
+    transform: [{ translateY: entrata.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+  };
+  const sotto = {
+    opacity: entrata.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0, 1] }),
+    transform: [{ translateY: entrata.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+  };
+
   if (!dati && !errore) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -114,11 +129,14 @@ export default function HomeScreen() {
 
   const nome = dati?.user.nome ?? user?.nome ?? '';
   const app = dati?.prossimoAppuntamento;
+  const step = autopilot?.suggerimenti.find(s => s.aperta);
   const proposte = dati?.proposte ?? [];
   const urgente = piuUrgente(proposte);
   const altre = (dati?.proposteTotali ?? 0) - (urgente ? 1 : 0);
-  const percorso = dati?.percorsi?.[0];
+  const estetico = dati?.percorsoEstetico;
+  const pacchetto = dati?.percorsi?.[0];
   const centro = dati?.centro;
+  const manca = (giorniDa(dati?.ultimaVisita ?? null) ?? 0) > 30;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -126,262 +144,264 @@ export default function HomeScreen() {
         contentContainerStyle={styles.contenuto}
         refreshControl={<RefreshControl refreshing={aggiornando} onRefresh={aggiorna} tintColor={colors.primary} />}
       >
-        {/* ── Foto, saluto e Score: una riga sola ── */}
-        <View style={styles.testata}>
-          <Pressable style={styles.testataSinistra} onPress={() => router.push('/profilo')} hitSlop={6}>
-            {dati?.user.avatar ? (
-              <Image source={{ uri: dati.user.avatar }} style={styles.faccia} />
-            ) : (
-              <View style={styles.facciaVuota}>
-                <Text style={styles.facciaIniziali}>
-                  {`${nome[0] ?? ''}${dati?.user.cognome?.[0] ?? ''}`.toUpperCase()}
+        {/* ════ LA SCENA: nero profondo, luce dorata ════ */}
+        <Animated.View style={scena}>
+          <LinearGradient
+            colors={['#26221A', '#161513', '#0F0E0C']}
+            start={{ x: 0.1, y: 0 }} end={{ x: 0.7, y: 1 }}
+            style={styles.sipario}
+          >
+            {/* saluto + volto */}
+            <View style={styles.siparioTesta}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.salutoPiccolo}>{saluto()},</Text>
+                <Text style={styles.salutoNome} numberOfLines={1}>{nome} ✨</Text>
+              </View>
+              <Pressable onPress={() => router.push('/profilo')} hitSlop={6}>
+                {dati?.user.avatar ? (
+                  <Image source={{ uri: dati.user.avatar }} style={styles.faccia} />
+                ) : (
+                  <View style={styles.facciaVuota}>
+                    <Text style={styles.facciaIniziali}>
+                      {`${nome[0] ?? ''}${dati?.user.cognome?.[0] ?? ''}`.toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+            </View>
+
+            {/* il fatto grande */}
+            {app ? (
+              <Pressable onPress={() => router.push('/appuntamenti')}>
+                <Text style={styles.occhiello}>IL TUO PROSSIMO APPUNTAMENTO</Text>
+                <Text style={styles.grande}>{quando(app.date)}</Text>
+                <Text style={styles.grandeOra}>alle {app.startTime}</Text>
+                <Text style={styles.grandeSotto} numberOfLines={1}>
+                  {app.treatmentName}{app.operatorName ? `  ·  con ${app.operatorName}` : ''}
                 </Text>
+              </Pressable>
+            ) : step ? (
+              <Pressable onPress={() => router.push('/prenota')}>
+                <Text style={styles.occhiello}>È IL MOMENTO GIUSTO PER</Text>
+                <Text style={styles.grande} numberOfLines={2}>{step.treatmentName}</Text>
+                <Text style={styles.grandeSotto}>Finestra ideale fino al {formatDate(step.finestraA)}</Text>
+              </Pressable>
+            ) : (
+              <View>
+                <Text style={styles.occhiello}>{manca ? 'CI MANCHI!' : 'NESSUN APPUNTAMENTO'}</Text>
+                <Text style={styles.grande}>Quando ci{'\n'}vediamo?</Text>
               </View>
             )}
-            <Text style={styles.saluto}>Ciao {nome}</Text>
-          </Pressable>
-          {score ? (
-            <Pressable onPress={() => router.push('/score')} hitSlop={8}>
-              <ScoreRing valore={score.totale} misura={46} spessore={4} />
+
+            {/* il gesto: un solo bottone d'oro */}
+            <Pressable style={styles.bottoneOro} onPress={() => router.push(app ? '/appuntamenti' : '/prenota')}>
+              <Text style={styles.bottoneOroTxt}>{app ? 'Vedi i dettagli' : 'Prenota il tuo momento'}</Text>
+              <Ionicons name="arrow-forward" size={15} color="#161513" />
+            </Pressable>
+
+            {/* i numeri: perle sulla stoffa, non riquadri */}
+            <View style={styles.perle}>
+              <Pressable style={styles.perla} onPress={() => router.push('/wallet')}>
+                <Text style={styles.perlaValore}>{dati?.punti ?? 0}</Text>
+                <Text style={styles.perlaLabel}>punti</Text>
+              </Pressable>
+              <View style={styles.perlaDiv} />
+              <Pressable style={styles.perla} onPress={() => router.push('/wallet')}>
+                <Text style={styles.perlaValore}>{eur(dati?.wallet?.totale ?? 0)}</Text>
+                <Text style={styles.perlaLabel}>credito</Text>
+              </Pressable>
+              <View style={styles.perlaDiv} />
+              <Pressable style={styles.perla} onPress={() => router.push('/club')}>
+                <Text style={styles.perlaValore}>{dati?.club?.attuale?.name ?? '—'}</Text>
+                <Text style={styles.perlaLabel}>livello</Text>
+              </Pressable>
+              {score ? (
+                <>
+                  <View style={styles.perlaDiv} />
+                  <Pressable style={styles.perla} onPress={() => router.push('/score')}>
+                    <Text style={styles.perlaValore}>{score.totale}</Text>
+                    <Text style={styles.perlaLabel}>score</Text>
+                  </Pressable>
+                </>
+              ) : null}
+            </View>
+          </LinearGradient>
+        </Animated.View>
+
+        {/* ════ SOTTO IL SIPARIO: poche righe, tanta aria ════ */}
+        <Animated.View style={sotto}>
+          {errore ? <Text style={styles.errore}>{errore}</Text> : null}
+          {dati?.messaggio ? <Text style={styles.messaggio}>{dati.messaggio}</Text> : null}
+
+          {/* l'azione di oggi, se c'è: UNA riga */}
+          {app?.preparazione ? (
+            <Pressable style={styles.riga} onPress={() => router.push('/appuntamenti')}>
+              <Text style={styles.rigaEmoji}>🌿</Text>
+              <Text style={styles.rigaTesto} numberOfLines={1}>Preparati al tuo appuntamento</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
             </Pressable>
           ) : null}
-        </View>
-
-        {errore ? <Text style={styles.errore}>{errore}</Text> : null}
-        {dati?.messaggio ? <Text style={styles.messaggioTesto}>{dati.messaggio}</Text> : null}
-
-        {/* ── L'appuntamento (o il prossimo step): una card, non un titolo nudo ── */}
-        {(() => {
-          const step = autopilot?.suggerimenti.find((s) => s.aperta);
-          const manca = (giorniDa(dati?.ultimaVisita ?? null) ?? 0) > 30;
-          const card = app
-            ? { icona: 'calendar' as const, occhiello: 'IL TUO PROSSIMO APPUNTAMENTO',
-                titolo: `${quando(app.date)} alle ${app.startTime}`,
-                sotto: `${app.treatmentName}${app.operatorName ? ` · ${app.operatorName}` : ''}`,
-                rotta: '/appuntamenti' }
-            : step
-              ? { icona: 'sparkles' as const, occhiello: 'È IL MOMENTO GIUSTO PER',
-                  titolo: step.treatmentName,
-                  sotto: `Finestra ideale fino al ${formatDate(step.finestraA)} · tocca per gli orari`,
-                  rotta: '/prenota' }
-              : { icona: 'calendar' as const,
-                  occhiello: manca ? 'CI MANCHI!' : 'NESSUN APPUNTAMENTO',
-                  titolo: 'Quando ci vediamo?',
-                  sotto: 'Tocca per prenotare il tuo momento',
-                  rotta: '/prenota' };
-          return (
-            <Pressable style={styles.cardGrande} onPress={() => router.push(card.rotta as never)}>
-              <View style={styles.cardIcona}>
-                <Ionicons name={card.icona} size={20} color={colors.primaryDark} />
-              </View>
-              <View style={styles.cardTesti}>
-                <Text style={styles.cardOcchiello}>{card.occhiello}</Text>
-                <Text style={styles.cardTitolo}>{card.titolo}</Text>
-                <Text style={styles.cardSotto} numberOfLines={1}>{card.sotto}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.primaryDark} />
-            </Pressable>
-          );
-        })()}
-
-        {/* ── L'azione di oggi: la preparazione al prossimo appuntamento ── */}
-        {app?.preparazione ? (
-          <Pressable style={styles.riga} onPress={() => router.push('/appuntamenti')}>
-            <View style={styles.rigaSinistra}>
-              <Text style={styles.rigaTesto} numberOfLines={1}>
-                🌿 C&apos;è una preparazione per il tuo appuntamento
-              </Text>
-            </View>
-            <Icona nome="freccia" misura={19} colore={colors.textMuted} />
-          </Pressable>
-        ) : null}
-
-        {/* ── Il percorso estetico: obiettivo e sedute, dritto ai risultati ── */}
-        {dati?.percorsoEstetico ? (
-          <Pressable style={styles.blocco} onPress={() => router.push('/risultati')}>
-            <View style={styles.rigaTraSpazi}>
-              <Text style={styles.forte}>🌿 {dati.percorsoEstetico.nome}</Text>
-              <Text style={styles.piccolo}>
-                {dati.percorsoEstetico.seduteFatte} di {dati.percorsoEstetico.seduteTotali}
-              </Text>
-            </View>
-            <View style={styles.barra}>
-              <Progress
-                percentuale={(dati.percorsoEstetico.seduteFatte / Math.max(dati.percorsoEstetico.seduteTotali, 1)) * 100}
-                colore={colors.primary}
-              />
-            </View>
-            <Text style={styles.piccolo} numberOfLines={1}>
-              {dati.percorsoEstetico.obiettivo} · tocca per i tuoi risultati
-            </Text>
-          </Pressable>
-        ) : null}
-
-        {/* ── I tuoi numeri: riquadri, non una riga di testo ── */}
-        <View style={styles.tiles}>
-          <Pressable style={styles.tile} onPress={() => router.push('/wallet')}>
-            <Ionicons name="star" size={15} color={colors.primary} />
-            <Text style={styles.tileValore}>{dati?.punti ?? 0}</Text>
-            <Text style={styles.tileLabel}>punti</Text>
-          </Pressable>
-          <Pressable style={styles.tile} onPress={() => router.push('/wallet')}>
-            <Ionicons name="wallet" size={15} color={colors.primary} />
-            <Text style={styles.tileValore}>{eur(dati?.wallet?.totale ?? 0)}</Text>
-            <Text style={styles.tileLabel}>credito</Text>
-          </Pressable>
-          <Pressable style={[styles.tile, styles.tileNero]} onPress={() => router.push('/club')}>
-            <Ionicons name="diamond" size={15} color={colors.primaryLight} />
-            <Text style={[styles.tileValore, styles.tileValoreChiaro]}>
-              {dati?.club?.attuale?.name ?? 'Club'}
-            </Text>
-            <Text style={[styles.tileLabel, styles.tileLabelChiaro]}>il tuo livello</Text>
-          </Pressable>
-        </View>
-
-        {/* ── Per te: una riga sola, con dentro la cosa urgente se c'è ── */}
-        {urgente || altre > 0 ? (
-          <Pressable style={styles.riga} onPress={() => router.push('/per-te')}>
-            <View style={styles.rigaSinistra}>
-              {urgente ? <View style={[styles.pallino, { backgroundColor: urgente.colore }]} /> : null}
+          {urgente || altre > 0 ? (
+            <Pressable style={styles.riga} onPress={() => router.push('/per-te')}>
+              {urgente
+                ? <View style={[styles.pallino, { backgroundColor: urgente.colore }]} />
+                : <Text style={styles.rigaEmoji}>💛</Text>}
               <Text style={styles.rigaTesto} numberOfLines={1}>
                 {urgente ? urgente.p.titolo : 'Per te oggi'}
               </Text>
-              {altre > 0 ? (
-                <View style={styles.conta}><Text style={styles.contaNumero}>{altre}</Text></View>
-              ) : null}
-            </View>
-            <Icona nome="freccia" misura={19} colore={colors.textMuted} />
-          </Pressable>
-        ) : null}
-
-        {/* ── Il percorso aperto: uno, il primo ── */}
-        {percorso ? (
-          <Pressable style={styles.blocco} onPress={() => router.push('/percorsi')}>
-            <View style={styles.rigaTraSpazi}>
-              <Text style={styles.forte}>{percorso.nome}</Text>
-              <Text style={styles.piccolo}>{percorso.fatte} di {percorso.totali}</Text>
-            </View>
-            <View style={styles.barra}>
-              <Progress percentuale={(percorso.fatte / Math.max(percorso.totali, 1)) * 100} colore={percorso.colore} />
-            </View>
-          </Pressable>
-        ) : null}
-
-        {/* ── Le azioni di ogni giorno ── */}
-        <View style={styles.azioni}>
-          {([
-            // Solo quello che NON è già nella barra qui sotto
-            { icona: 'leaf-outline', testo: 'Risultati', rotta: '/risultati' },
-            { icona: 'sparkles-outline', testo: 'Revo AI', rotta: '/assistente' },
-          ] as const).map((a) => (
-            <Pressable key={a.rotta} style={styles.azione} onPress={() => router.push(a.rotta as never)}>
-              <Ionicons name={a.icona} size={20} color={colors.primaryDark} />
-              <Text style={styles.azioneTesto}>{a.testo}</Text>
+              {altre > 0 ? <View style={styles.conta}><Text style={styles.contaTxt}>{altre}</Text></View> : null}
+              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
             </Pressable>
-          ))}
-        </View>
+          ) : null}
 
-        {/* ── La sede: una riga discreta, tocca e si apre la mappa ── */}
-        {centro?.indirizzo ? (
-          <Pressable
-            style={styles.sede}
-            onPress={() =>
-              Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${centro.nome} ${centro.indirizzo}`)}`)
-            }
-          >
-            <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
-            <Text style={styles.sedeTesto}>
-              {centro.indirizzo}
-              {centro.orari ? ` · ${centro.orari}` : ''}
-            </Text>
-          </Pressable>
-        ) : null}
+          {/* il percorso: una card sola, la più importante */}
+          {estetico ? (
+            <Pressable style={styles.percorso} onPress={() => router.push('/risultati')}>
+              <Text style={styles.percorsoOcchiello}>IL TUO PERCORSO</Text>
+              <View style={styles.percorsoRiga}>
+                <Text style={styles.percorsoNome} numberOfLines={1}>{estetico.nome}</Text>
+                <Text style={styles.percorsoConte}>{estetico.seduteFatte}<Text style={styles.percorsoDi}> / {estetico.seduteTotali}</Text></Text>
+              </View>
+              <View style={styles.percorsoBarra}>
+                <Progress percentuale={(estetico.seduteFatte / Math.max(estetico.seduteTotali, 1)) * 100} colore={colors.primary} />
+              </View>
+              <Text style={styles.percorsoSotto} numberOfLines={1}>{estetico.obiettivo}</Text>
+            </Pressable>
+          ) : pacchetto ? (
+            <Pressable style={styles.percorso} onPress={() => router.push('/percorsi')}>
+              <Text style={styles.percorsoOcchiello}>IL TUO PERCORSO</Text>
+              <View style={styles.percorsoRiga}>
+                <Text style={styles.percorsoNome} numberOfLines={1}>{pacchetto.nome}</Text>
+                <Text style={styles.percorsoConte}>{pacchetto.fatte}<Text style={styles.percorsoDi}> / {pacchetto.totali}</Text></Text>
+              </View>
+              <View style={styles.percorsoBarra}>
+                <Progress percentuale={(pacchetto.fatte / Math.max(pacchetto.totali, 1)) * 100} colore={pacchetto.colore} />
+              </View>
+            </Pressable>
+          ) : null}
+
+          {/* due porte, non un corridoio di tasti */}
+          <View style={styles.porte}>
+            <Pressable style={styles.porta} onPress={() => router.push('/risultati')}>
+              <Ionicons name="leaf-outline" size={19} color={colors.primaryDark} />
+              <Text style={styles.portaTxt}>I miei risultati</Text>
+            </Pressable>
+            <Pressable style={styles.porta} onPress={() => router.push('/assistente')}>
+              <Ionicons name="sparkles-outline" size={19} color={colors.primaryDark} />
+              <Text style={styles.portaTxt}>Revo AI</Text>
+            </Pressable>
+          </View>
+
+          {/* la sede: una firma in fondo, tocca e si apre la mappa */}
+          {centro?.indirizzo ? (
+            <Pressable
+              style={styles.sede}
+              onPress={() =>
+                Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(`${centro.nome} ${centro.indirizzo}`)}`)
+              }
+            >
+              <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
+              <Text style={styles.sedeTxt}>
+                {centro.indirizzo}{centro.orari ? ` · ${centro.orari}` : ''}
+              </Text>
+            </Pressable>
+          ) : null}
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
+const ORO_CHIARO = '#E7D5A4';
+const ORO_TENUE = 'rgba(231, 213, 164, 0.55)';
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   centro: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  contenuto: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
+  contenuto: { padding: spacing.md, paddingBottom: spacing.xxl },
 
-  testata: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginTop: spacing.sm,
+  // ── la scena ──
+  sipario: {
+    borderRadius: 28,
+    padding: spacing.lg,
+    paddingBottom: spacing.md,
+    overflow: 'hidden',
   },
-  testataSinistra: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
-  faccia: { width: 40, height: 40, borderRadius: 20 },
+  siparioTesta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg },
+  salutoPiccolo: { ...typography.caption, fontSize: 13, color: ORO_TENUE },
+  salutoNome: { fontFamily: fonts.w800, fontSize: 24, color: '#FFFFFF', marginTop: 1 },
+  faccia: { width: 46, height: 46, borderRadius: 23, borderWidth: 1.5, borderColor: ORO_TENUE },
   facciaVuota: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary,
-    alignItems: 'center', justifyContent: 'center',
+    width: 46, height: 46, borderRadius: 23, borderWidth: 1.5, borderColor: ORO_TENUE,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  facciaIniziali: { fontFamily: fonts.w700, fontSize: 14, color: colors.white },
-  saluto: { ...typography.title, fontSize: 22, color: colors.textSecondary },
-  errore: { ...typography.label, color: colors.error, marginTop: spacing.sm },
+  facciaIniziali: { fontFamily: fonts.w800, fontSize: 15, color: ORO_CHIARO },
 
-  messaggioTesto: { ...typography.caption, fontSize: 12.5, color: colors.primaryDark, marginTop: spacing.xs },
+  occhiello: { ...typography.captionForte, fontSize: 10, letterSpacing: 1.6, color: ORO_TENUE, marginBottom: 6 },
+  grande: { fontFamily: fonts.w800, fontSize: 34, lineHeight: 38, color: '#FFFFFF' },
+  grandeOra: { fontFamily: fonts.w800, fontSize: 34, lineHeight: 38, color: ORO_CHIARO },
+  grandeSotto: { ...typography.body, fontSize: 14.5, color: 'rgba(255,255,255,0.75)', marginTop: 6 },
 
-  // ── La card grande: l'appuntamento ha un colore, non solo parole ──
-  cardGrande: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.primarySoft, borderRadius: radius.lg,
-    padding: spacing.md, marginTop: spacing.md,
-  },
-  cardIcona: {
-    width: 40, height: 40, borderRadius: radius.full,
-    backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center',
-  },
-  cardTesti: { flex: 1, minWidth: 0 },
-  cardOcchiello: { ...typography.captionForte, fontSize: 10, letterSpacing: 1.2, color: colors.primaryDark },
-  cardTitolo: { fontFamily: fonts.w800, fontSize: 18, color: colors.textPrimary, marginTop: 1 },
-  cardSotto: { ...typography.caption, fontSize: 12.5, color: colors.textSecondary, marginTop: 1 },
-
-  // ── I riquadri dei numeri ──
-  tiles: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
-  tile: {
-    flex: 1, alignItems: 'center', gap: 2,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.lg, paddingVertical: spacing.sm + 2,
-  },
-  tileNero: { backgroundColor: colors.textPrimary, borderColor: colors.textPrimary },
-  tileValore: { fontFamily: fonts.w800, fontSize: 16, color: colors.textPrimary },
-  tileValoreChiaro: { color: colors.white, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 },
-  tileLabel: { ...typography.caption, fontSize: 11, color: colors.textSecondary },
-  tileLabelChiaro: { color: 'rgba(255,255,255,0.65)' },
-
-  pallino: { width: 8, height: 8, borderRadius: radius.full },
-
-  riga: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginTop: spacing.sm, paddingVertical: spacing.sm + 3,
-    borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border,
-  },
-  rigaSinistra: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  rigaTesto: { ...typography.body, fontSize: 16, color: colors.textPrimary },
-  conta: { width: 19, height: 19, borderRadius: radius.full, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  contaNumero: { ...typography.captionForte, fontSize: 11, color: colors.white },
-
-  blocco: { marginTop: spacing.md },
-  rigaTraSpazi: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  forte: { ...typography.bodyForte, color: colors.textPrimary, flex: 1 },
-  piccolo: { ...typography.caption, color: colors.textSecondary },
-  barra: { marginTop: spacing.sm },
-
-  // ── Le tre azioni: contornate, alla pari. L'oro pieno resta alla tessera. ──
-  azioni: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
-  azione: {
-    flex: 1, alignItems: 'center', gap: spacing.xs,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  azioneTesto: { ...typography.labelForte, fontSize: 12, color: colors.textPrimary },
-
-  // ── Il centro, come su un biglietto da visita ──
-  sede: {
+  bottoneOro: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primaryLight ?? '#CBB06A',
+    borderRadius: radius.full, paddingHorizontal: spacing.lg, paddingVertical: 10,
     marginTop: spacing.md,
   },
-  sedeTesto: { ...typography.caption, fontSize: 12.5, color: colors.textSecondary },
+  bottoneOroTxt: { ...typography.labelForte, fontSize: 14, color: '#161513' },
+
+  perle: {
+    flexDirection: 'row', alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(231,213,164,0.25)',
+    marginTop: spacing.lg, paddingTop: spacing.sm + 2,
+  },
+  perla: { flex: 1, alignItems: 'center', paddingVertical: 2 },
+  perlaValore: { fontFamily: fonts.w800, fontSize: 15, color: '#FFFFFF' },
+  perlaLabel: { ...typography.caption, fontSize: 10.5, color: ORO_TENUE, marginTop: 1 },
+  perlaDiv: { width: StyleSheet.hairlineWidth, height: 26, backgroundColor: 'rgba(231,213,164,0.25)' },
+
+  // ── sotto ──
+  errore: { ...typography.caption, color: colors.urgent, marginTop: spacing.md, textAlign: 'center' },
+  messaggio: { ...typography.body, fontSize: 14, color: colors.textSecondary, marginTop: spacing.md, textAlign: 'center' },
+
+  riga: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: spacing.sm + 3, paddingHorizontal: spacing.xs,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+    marginTop: spacing.xs,
+  },
+  rigaEmoji: { fontSize: 14 },
+  rigaTesto: { ...typography.body, fontSize: 14.5, color: colors.textPrimary, flex: 1 },
+  pallino: { width: 8, height: 8, borderRadius: radius.full },
+  conta: {
+    minWidth: 20, height: 20, borderRadius: 10, backgroundColor: colors.primarySoft,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5,
+  },
+  contaTxt: { fontFamily: fonts.w700, fontSize: 11, color: colors.primaryDark },
+
+  percorso: {
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.md,
+  },
+  percorsoOcchiello: { ...typography.captionForte, fontSize: 10, letterSpacing: 1.4, color: colors.textSecondary },
+  percorsoRiga: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: spacing.sm, marginTop: 4 },
+  percorsoNome: { fontFamily: fonts.w700, fontSize: 16, color: colors.textPrimary, flex: 1 },
+  percorsoConte: { fontFamily: fonts.w800, fontSize: 16, color: colors.primaryDark },
+  percorsoDi: { fontFamily: fonts.w600, fontSize: 12, color: colors.textSecondary },
+  percorsoBarra: { marginTop: spacing.sm },
+  percorsoSotto: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs },
+
+  porte: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+  porta: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+    backgroundColor: colors.primarySoft, borderRadius: radius.lg, paddingVertical: spacing.md,
+  },
+  portaTxt: { ...typography.labelForte, fontSize: 13.5, color: colors.primaryDark },
+
+  sede: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    marginTop: spacing.xl,
+  },
+  sedeTxt: { ...typography.caption, fontSize: 12, color: colors.textSecondary },
 });
