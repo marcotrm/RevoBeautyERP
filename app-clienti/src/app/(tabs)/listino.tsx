@@ -6,6 +6,7 @@
  * già personalizzati per la cliente (donna/uomo) da /api/mobile/listino.
  */
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator, Pressable, RefreshControl, ScrollView,
@@ -22,12 +23,18 @@ import { metaCategoria } from '@/utils/categorie';
 import { formatDuration, formatPrice } from '@/utils/format';
 
 export default function ListinoScreen() {
+  const router = useRouter();
   const { data, isLoading, isRefreshing, error, refresh } = useApiData((token) =>
     catalogService.getListino(token)
   );
   const [vista, setVista] = useState<'trattamenti' | 'pacchetti'>('trattamenti');
   const [cerca, setCerca] = useState('');
   const [categoria, setCategoria] = useState('');
+  /*
+    Il trattamento aperto: un tocco e la riga si allarga con la spiegazione.
+    Uno alla volta — un listino con dieci schede aperte torna a essere un muro.
+  */
+  const [apertoId, setApertoId] = useState<string | null>(null);
 
   const q = cerca.trim().toLowerCase();
 
@@ -50,11 +57,28 @@ export default function ListinoScreen() {
 
   const pacchettiFiltrati = useMemo(() => {
     if (!data) return [];
-    return data.packages.filter(
-      (p) => !q
-        || p.name.toLowerCase().includes(q)
-        || (p.treatmentName ?? '').toLowerCase().includes(q)
-    );
+    /*
+      Il risparmio si calcola qui, coi prezzi già personalizzati (donna/uomo)
+      che il listino porta con sé: prezzo della seduta singola × sedute del
+      pacchetto, meno il prezzo del pacchetto. Se il trattamento non si trova
+      per nome, meglio nessuna scritta che un numero inventato.
+    */
+    const prezzoDi = new Map<string, number>();
+    for (const c of data.categories) {
+      for (const t of c.treatments) prezzoDi.set(t.name.toLowerCase().trim(), t.price);
+    }
+    return data.packages
+      .filter(
+        (p) => !q
+          || p.name.toLowerCase().includes(q)
+          || (p.treatmentName ?? '').toLowerCase().includes(q)
+      )
+      .map((p) => {
+        const singola = p.treatmentName ? prezzoDi.get(p.treatmentName.toLowerCase().trim()) : undefined;
+        const pieno = singola ? Math.round(singola * p.totalSessions * 100) / 100 : null;
+        const risparmio = pieno && pieno > p.price ? Math.round((pieno - p.price) * 100) / 100 : null;
+        return { ...p, pieno: risparmio ? pieno : null, risparmio };
+      });
   }, [data, q]);
 
   if (isLoading) {
@@ -152,15 +176,43 @@ export default function ListinoScreen() {
                   <Icona nome={c.meta.icona} misura={18} colore={colors.primaryDark} />
                   <Text style={styles.bloccoNome}>{c.meta.label}</Text>
                 </View>
-                {c.treatments.map((t) => (
-                  <View key={t.id} style={styles.riga}>
-                    <View style={styles.rigaTesti}>
-                      <Text style={styles.rigaNome}>{t.name}</Text>
-                      <Text style={styles.rigaSotto}>{formatDuration(t.duration)}</Text>
-                    </View>
-                    <Text style={styles.rigaPrezzo}>{formatPrice(t.price)}</Text>
-                  </View>
-                ))}
+                {c.treatments.map((t) => {
+                  const aperto = apertoId === t.id;
+                  return (
+                    <Pressable
+                      key={t.id}
+                      style={[styles.riga, aperto && styles.rigaAperta]}
+                      onPress={() => setApertoId(aperto ? null : t.id)}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: aperto }}
+                    >
+                      <View style={styles.rigaTesta}>
+                        <View style={styles.rigaTesti}>
+                          <Text style={styles.rigaNome}>{t.name}</Text>
+                          <Text style={styles.rigaSotto}>{formatDuration(t.duration)}</Text>
+                        </View>
+                        <Text style={styles.rigaPrezzo}>{formatPrice(t.price)}</Text>
+                        <Ionicons name={aperto ? 'chevron-up' : 'chevron-down'} size={14} color={colors.textSecondary} />
+                      </View>
+                      {aperto ? (
+                        <View style={styles.scheda}>
+                          <Text style={styles.schedaTesto}>
+                            {t.description?.trim()
+                              || 'Vuoi saperne di più su questo trattamento? Scrivici in chat: ti raccontiamo cos\'è e se fa per te.'}
+                          </Text>
+                          <View style={styles.schedaAzioni}>
+                            <Pressable style={styles.schedaBottone} onPress={() => router.push('/prenota')}>
+                              <Text style={styles.schedaBottoneTxt}>Prenota</Text>
+                            </Pressable>
+                            <Pressable style={styles.schedaLink} onPress={() => router.push('/chat')}>
+                              <Text style={styles.schedaLinkTxt}>Chiedi in chat</Text>
+                            </Pressable>
+                          </View>
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
               </View>
             ))
           )
@@ -182,8 +234,19 @@ export default function ListinoScreen() {
                   {p.description ? <Text style={styles.pacchettoDesc}>{p.description}</Text> : null}
                   <View style={styles.pacchettoFondo}>
                     <Text style={styles.pacchettoSedute}>{p.totalSessions} sedute</Text>
-                    <Text style={styles.pacchettoPrezzo}>{formatPrice(p.price)}</Text>
+                    <View style={styles.pacchettoPrezzi}>
+                      {p.pieno ? <Text style={styles.prezzoPieno}>{formatPrice(p.pieno)}</Text> : null}
+                      <Text style={styles.pacchettoPrezzo}>{formatPrice(p.price)}</Text>
+                    </View>
                   </View>
+                  {p.risparmio ? (
+                    <View style={styles.risparmio}>
+                      <Ionicons name="sparkles" size={12} color={colors.primaryDark} />
+                      <Text style={styles.risparmioTxt}>
+                        Risparmi {formatPrice(p.risparmio)} rispetto alle sedute singole
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
             ))
@@ -243,10 +306,21 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 0.8,
   },
   riga: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginBottom: spacing.xs, gap: spacing.md,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginBottom: spacing.xs,
   },
+  rigaAperta: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  rigaTesta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+  scheda: { marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
+  schedaTesto: { ...typography.caption, fontSize: 13, color: colors.textPrimary, lineHeight: 19 },
+  schedaAzioni: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.sm },
+  schedaBottone: {
+    backgroundColor: colors.primary, borderRadius: radius.full,
+    paddingHorizontal: spacing.lg, paddingVertical: 7,
+  },
+  schedaBottoneTxt: { ...typography.labelForte, fontSize: 13, color: colors.white },
+  schedaLink: { paddingVertical: 7 },
+  schedaLinkTxt: { ...typography.labelForte, fontSize: 13, color: colors.primaryDark, textDecorationLine: 'underline' },
   rigaTesti: { flex: 1, minWidth: 0 },
   rigaNome: { ...typography.body, fontSize: 15, color: colors.textPrimary },
   rigaSotto: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },
@@ -264,5 +338,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing.sm,
   },
   pacchettoSedute: { ...typography.label, color: colors.textSecondary },
+  pacchettoPrezzi: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
+  prezzoPieno: { ...typography.caption, fontSize: 13, color: colors.textSecondary, textDecorationLine: 'line-through' },
+  risparmio: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: colors.primarySoft, borderRadius: radius.md,
+    paddingHorizontal: spacing.sm, paddingVertical: 5, marginTop: spacing.sm,
+    alignSelf: 'flex-start',
+  },
+  risparmioTxt: { ...typography.captionForte, fontSize: 12, color: colors.primaryDark },
   pacchettoPrezzo: { ...typography.subtitle, color: colors.primary },
 });
