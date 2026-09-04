@@ -34,7 +34,7 @@ export default function AppLayout() {
       <Stack.Screen name="passport" options={{ title: 'Beauty Passport' }} />
       <Stack.Screen name="modifica-profilo" options={{ title: 'Il mio profilo' }} />
       <Stack.Screen name="reclamo" options={{ title: 'Reclamo anonimo' }} />
-      <Stack.Screen name="regali" options={{ title: 'Regali coi punti' }} />
+      <Stack.Screen name="sorprese" options={{ title: 'Beauty Box e sfide' }} />
       <Stack.Screen name="checkup" options={{ title: 'Check-up estetico' }} />
       <Stack.Screen name="consulenza" options={{ title: 'Consulenza' }} />
       <Stack.Screen name="risultati" options={{ title: 'I miei risultati' }} />

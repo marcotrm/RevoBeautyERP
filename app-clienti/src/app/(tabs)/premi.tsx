@@ -1,220 +1,305 @@
 /**
- * Premi: Beauty Box da aprire, sfide in corso e scorciatoie a Club e Wallet.
+ * La vetrina dei regali: prodotti veri dello scaffale, coi punti.
  *
- * Le box chiuse stanno in cima e si aprono con un tocco: il premio è già
- * stato estratto quando la box è stata assegnata, qui si scarta soltanto —
- * altrimenti due tocchi ravvicinati potrebbero estrarre due premi.
- *
- * La box è l'unica cosa colorata della schermata, ed è giusto così: è un
- * regalo da scartare, deve saltare all'occhio. Livello, credito e sfide
- * scendono a righe — sono informazioni, non inviti.
+ * Riscatti → i punti scendono subito e nasce un codice da mostrare al
+ * banco: il prodotto ti aspetta lì. Niente spedizioni, niente attese —
+ * il regalo è a due passi, come tutto il resto del centro.
  */
-import { useCallback, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { useRouter } from 'expo-router';
+import {
+  ActivityIndicator, Image, Pressable, RefreshControl, ScrollView,
+  StyleSheet, Text, View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError, homeService, type DatiHome } from '@/api';
-import { Button } from '@/components/ui/Button';
-import { Icona } from '@/components/ui/Icona';
-import { Progress } from '@/components/ui/Progress';
+import { ApiError, PremioVetrina, TrattamentoVetrina, regaliService } from '@/api';
+import { FormError } from '@/components/ui/FormError';
+import { useApiData } from '@/hooks/useApiData';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, fonts, radius, spacing, typography } from '@/theme';
+import { confirmAsync } from '@/utils/confirm';
 
-const eur = (n: number) => `${n.toLocaleString('it-IT', { maximumFractionDigits: 2 })} €`;
+const STATI: Record<string, { testo: string; colore: string }> = {
+  da_ritirare: { testo: 'Ti aspetta al banco', colore: colors.primaryDark },
+  consegnato: { testo: 'Ritirato', colore: colors.success },
+  annullato: { testo: 'Annullato · punti restituiti', colore: colors.textSecondary },
+};
 
 export default function PremiScreen() {
   const { token } = useAuth();
   const router = useRouter();
-  const [d, setD] = useState<DatiHome | null>(null);
-  const [aggiornando, setAggiornando] = useState(false);
-  const [apro, setApro] = useState('');
+  const { data, isLoading, isRefreshing, refresh } = useApiData((t) => regaliService.vetrina(t));
+  const [vista, setVista] = useState<'prodotti' | 'trattamenti'>('prodotti');
+  const [inCorso, setInCorso] = useState<string | null>(null);
+  const [errore, setErrore] = useState<string | null>(null);
 
-  const carica = useCallback(async () => {
-    if (!token) return;
-    setD(await homeService.home(token).catch(() => null));
-  }, [token]);
-
-  useFocusEffect(useCallback(() => { void carica(); }, [carica]));
-
-  const apri = async (winId: string) => {
-    if (!token) return;
-    setApro(winId);
+  const riscatta = async (premioId: string, tipo: 'prodotto' | 'trattamento', nome: string, punti: number) => {
+    if (!token || inCorso) return;
+    const conferma = await confirmAsync(
+      'Riscattare questo regalo?',
+      tipo === 'prodotto'
+        ? `${nome}\nCosta ${punti} punti: te li togliamo subito e il prodotto ti aspetta al banco.`
+        : `${nome}\nCosta ${punti} punti: te li togliamo subito, poi chiamaci o scrivici per prenotare la tua seduta in omaggio.`,
+      'Riscatta'
+    );
+    if (!conferma) return;
+    setErrore(null);
+    setInCorso(premioId);
     try {
-      const r = await homeService.apriPremio(token, winId);
-      Alert.alert(
-        '🎁 Hai vinto!',
-        r.premio.kind === 'credit' ? `${r.premio.nome}: ${eur(r.premio.valore)} accreditati nel tuo wallet.`
-          : r.premio.kind === 'points' ? `${r.premio.nome}: ${r.premio.valore} punti accreditati.`
-          : `${r.premio.nome}. Mostralo in centro alla prossima visita.`
-      );
-      await carica();
+      await regaliService.riscatta(token, premioId, tipo);
+      refresh();
     } catch (e) {
-      Alert.alert('Non è andata', e instanceof ApiError ? e.message : 'Riprova.');
+      setErrore(e instanceof ApiError ? e.message : 'Riscatto non riuscito. Riprova.');
     } finally {
-      setApro('');
+      setInCorso(null);
     }
   };
 
-  if (!d) {
+  if (isLoading || !data) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={styles.sfondo} edges={['top']}>
         <View style={styles.centro}><ActivityIndicator color={colors.primary} /></View>
       </SafeAreaView>
     );
   }
 
-  const box = d.proposte.filter(p => p.tipo === 'premio');
-  const sfide = d.proposte.filter(p => p.tipo === 'challenge');
-
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={styles.contenuto}
-        refreshControl={
-          <RefreshControl refreshing={aggiornando} tintColor={colors.primary}
-            onRefresh={async () => { setAggiornando(true); await carica(); setAggiornando(false); }} />
-        }
-      >
-        <Text style={styles.titolo}>Premi</Text>
+    <SafeAreaView style={styles.sfondo} edges={['top']}>
+    <ScrollView
+      contentContainerStyle={styles.contenuto}
+      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} tintColor={colors.primary} />}
+    >
+      <Text style={styles.testata}>Premi</Text>
+      {/* ── Il saldo, in chiaro ── */}
+      <View style={styles.saldo}>
+        <Ionicons name="star" size={16} color={colors.primaryLight} />
+        <Text style={styles.saldoTesto}>
+          Hai <Text style={styles.saldoForte}>{data.punti}</Text> punti da spendere
+        </Text>
+      </View>
 
-        {/* ── La vetrina dei regali veri: prodotti dello scaffale coi punti ── */}
-        <Pressable style={stiliRegali.vetrina} onPress={() => router.push('/regali')}>
-          <View style={stiliRegali.icona}>
-            <Ionicons name="gift" size={20} color={colors.primaryDark} />
+      <FormError message={errore} />
+
+      {/* ── Prodotti | Trattamenti ── */}
+      <View style={styles.divisore}>
+        {([['prodotti', 'Prodotti'], ['trattamenti', 'Trattamenti']] as const).map(([id, label]) => {
+          const on = vista === id;
+          return (
+            <Pressable key={id} style={[styles.divisoreTasto, on && styles.divisoreTastoOn]}
+              onPress={() => setVista(id)}
+              accessibilityRole="button" accessibilityState={{ selected: on }}>
+              <Text style={[styles.divisoreTxt, on && styles.divisoreTxtOn]}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* ── I regali da ritirare ── */}
+      {data.riscatti.filter((r) => r.stato === 'da_ritirare').map((r) => (
+        <View key={r.id} style={styles.ritiro}>
+          <View style={styles.cardTesti}>
+            <Text style={styles.ritiroOcchiello}>MOSTRA QUESTO CODICE AL BANCO</Text>
+            <Text style={styles.ritiroCodice}>{r.codice}</Text>
+            <Text style={styles.piccolo}>{r.nomeProdotto}</Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={stiliRegali.occhiello}>REGALI COI PUNTI</Text>
-            <Text style={stiliRegali.titolo}>Scegli il tuo prodotto</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.primaryDark} />
-        </Pressable>
+          <Ionicons name="gift" size={28} color={colors.primaryDark} />
+        </View>
+      ))}
 
-        {/* ── La box da scartare: l'unico blocco colorato ── */}
-        {box.map(p => (
-          <View key={p.id} style={styles.box}>
-            <Text style={styles.occhielloPremio}>{p.titolo}</Text>
-            <Text style={styles.boxTitolo}>Da aprire</Text>
-            <Text style={styles.piccolo}>{p.sottotitolo}</Text>
-            <Button
-              title={apro === p.azione.winId ? 'Apro…' : p.azione.label}
-              onPress={() => p.azione.winId && apri(p.azione.winId)}
-              loading={apro === p.azione.winId}
-              style={styles.bottone}
-            />
-          </View>
-        ))}
-
-        {/* ── Livello e credito: righe, non riquadri ── */}
-        {d.club?.attuale ? (
-          <Pressable style={styles.blocco} onPress={() => router.push('/club')}>
-            <View style={styles.rigaTop}>
-              <Text style={styles.forte}>{d.club.attuale.name}</Text>
-              <Text style={styles.piccolo}>
-                {d.club.prossimo ? `${eur(d.club.prossimo.mancaSpesa)} a ${d.club.prossimo.name}` : 'il tuo livello'}
-              </Text>
-            </View>
-            <View style={styles.barra}>
-              <Progress percentuale={d.club.avanzamento} colore={d.club.prossimo?.color} />
-            </View>
-          </Pressable>
-        ) : null}
-
-        <Pressable onPress={() => router.push('/wallet')}>
-          <Text style={styles.vita}>
-            {d.punti} punti
-            {d.wallet ? <Text style={styles.credito}>{`  ·  ${eur(d.wallet.totale)} di credito`}</Text> : null}
+      {/* ── La vetrina dei prodotti ── */}
+      {vista === 'prodotti' && (data.premi.length === 0 ? (
+        <View style={styles.vuoto}>
+          <Ionicons name="gift-outline" size={40} color={colors.textSecondary} />
+          <Text style={styles.vuotoTesto}>
+            La vetrina si sta riempiendo:{'\n'}presto qui troverai i regali coi punti.
           </Text>
-        </Pressable>
-
-        {/* ── Le sfide ── */}
-        {sfide.length ? (
-          <>
-            <Text style={styles.sezione}>Le tue sfide</Text>
-            <View style={styles.lista}>
-              {sfide.map(s => (
-                <View key={s.id} style={styles.riga}>
-                  <View style={styles.testi}>
-                    <Text style={styles.forte}>{s.titolo}</Text>
-                    <Text style={styles.piccolo}>{s.sottotitolo}</Text>
+        </View>
+      ) : (
+        <View style={styles.griglia}>
+          {data.premi.map((p: PremioVetrina) => {
+            const bastano = data.punti >= p.punti;
+            return (
+              <View key={p.premioId} style={styles.premio}>
+                {p.image ? (
+                  <Image source={{ uri: p.image }} style={styles.premioFoto} />
+                ) : (
+                  <View style={styles.premioFotoVuota}>
+                    <Ionicons name="gift-outline" size={26} color={colors.primaryDark} />
                   </View>
-                </View>
-              ))}
-            </View>
-          </>
-        ) : null}
+                )}
+                {p.brand ? <Text style={styles.premioBrand}>{p.brand}</Text> : null}
+                <Text style={styles.premioNome} numberOfLines={2}>{p.nome}</Text>
+                <Pressable
+                  style={[styles.premioBottone, (!bastano || !p.disponibile) && styles.premioBottoneSpento]}
+                  disabled={!bastano || !p.disponibile || inCorso === p.premioId}
+                  onPress={() => void riscatta(p.premioId, 'prodotto', `${p.brand ? `${p.brand} ` : ''}${p.nome}`, p.punti)}
+                >
+                  {inCorso === p.premioId ? (
+                    <ActivityIndicator size="small" color={colors.white} />
+                  ) : (
+                    <Text style={styles.premioBottoneTesto}>
+                      {!p.disponibile ? 'Esaurito' : `${p.punti} punti`}
+                    </Text>
+                  )}
+                </Pressable>
+                {!bastano && p.disponibile ? (
+                  <Text style={styles.mancano}>te ne mancano {p.punti - data.punti}</Text>
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+      ))}
 
-        {/* ── Porta un'amica ── */}
-        <Pressable style={styles.riga} onPress={() => router.push('/invita')}>
-          <View style={styles.testi}>
-            <Text style={styles.forte}>Porta un&apos;amica</Text>
-            <Text style={styles.piccolo}>Credito per te e per lei alla sua prima visita.</Text>
-          </View>
-          <Icona nome="freccia" misura={19} colore={colors.textMuted} />
-        </Pressable>
-
-        {!box.length && !sfide.length ? (
-          <Text style={styles.vuoto}>
-            Qui arrivano le Beauty Box e le sfide. Si sbloccano venendo in centro,
-            prenotando dall&apos;app e portando le amiche.
+      {/* ── La vetrina dei trattamenti ── */}
+      {vista === 'trattamenti' && ((data.trattamenti ?? []).length === 0 ? (
+        <View style={styles.vuoto}>
+          <Ionicons name="sparkles-outline" size={40} color={colors.textSecondary} />
+          <Text style={styles.vuotoTesto}>
+            Presto qui troverai anche i trattamenti{'\n'}da regalarti coi punti.
           </Text>
-        ) : null}
+        </View>
+      ) : (
+        <View>
+          {(data.trattamenti ?? []).map((t: TrattamentoVetrina) => {
+            const bastano = data.punti >= t.punti;
+            return (
+              <View key={t.premioId} style={styles.trattRiga}>
+                <View style={styles.trattIcona}>
+                  <Ionicons name="sparkles" size={18} color={colors.primaryDark} />
+                </View>
+                <View style={styles.cardTesti}>
+                  <Text style={styles.trattNome} numberOfLines={2}>{t.nome}</Text>
+                  <Text style={styles.piccolo}>{t.categoria} · {t.durata} min</Text>
+                  {!bastano ? (
+                    <Text style={styles.mancano}>te ne mancano {t.punti - data.punti}</Text>
+                  ) : null}
+                </View>
+                <Pressable
+                  style={[styles.trattBottone, !bastano && styles.premioBottoneSpento]}
+                  disabled={!bastano || inCorso === t.premioId}
+                  onPress={() => void riscatta(t.premioId, 'trattamento', t.nome, t.punti)}
+                >
+                  {inCorso === t.premioId ? (
+                    <ActivityIndicator size="small" color={colors.white} />
+                  ) : (
+                    <Text style={styles.premioBottoneTesto}>{t.punti} punti</Text>
+                  )}
+                </Pressable>
+              </View>
+            );
+          })}
+        </View>
+      ))}
 
-        <View style={styles.fondo} />
-      </ScrollView>
+      {/* ── Lo storico ── */}
+      {data.riscatti.filter((r) => r.stato !== 'da_ritirare').length > 0 ? (
+        <>
+          <Text style={styles.sezione}>I tuoi regali</Text>
+          {data.riscatti.filter((r) => r.stato !== 'da_ritirare').map((r) => (
+            <View key={r.id} style={styles.storicoRiga}>
+              <View style={styles.cardTesti}>
+                <Text style={styles.storicoNome}>{r.nomeProdotto}</Text>
+                <Text style={[styles.piccolo, { color: STATI[r.stato]?.colore }]}>
+                  {STATI[r.stato]?.testo ?? r.stato} · {r.punti} punti
+                </Text>
+              </View>
+            </View>
+          ))}
+        </>
+      ) : null}
+      {/* Le Beauty Box e le sfide vivono qui accanto, un tocco più in là. */}
+      <Pressable style={styles.sorprese} onPress={() => router.push('/sorprese')}>
+        <Ionicons name="gift-outline" size={18} color={colors.primaryDark} />
+        <Text style={styles.sorpreseTesto}>Beauty Box, sfide e livello</Text>
+        <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+      </Pressable>
+    </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  centro: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  contenuto: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
-
-  titolo: { ...typography.title, color: colors.textPrimary, marginTop: spacing.sm },
-
-  box: {
-    marginTop: spacing.lg, padding: spacing.lg,
-    backgroundColor: colors.rewardSoft, borderRadius: radius.lg,
+  sfondo: { flex: 1, backgroundColor: colors.background },
+  testata: { ...typography.title, color: colors.primary, marginBottom: spacing.md },
+  sorprese: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    paddingVertical: spacing.md, marginTop: spacing.lg,
+    borderTopWidth: 1, borderTopColor: colors.border,
   },
-  occhielloPremio: { ...typography.occhiello, color: colors.reward },
-  boxTitolo: { fontFamily: fonts.serif600, fontSize: 30, color: colors.textPrimary, marginTop: spacing.xs },
-  bottone: { marginTop: spacing.md },
-
-  blocco: { marginTop: spacing.lg },
-  rigaTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
-  barra: { marginTop: spacing.sm },
-
-  vita: { ...typography.body, color: colors.textPrimary, marginTop: spacing.lg },
-  credito: { ...typography.caption, color: colors.primaryDark, fontFamily: fonts.w600 },
-
-  sezione: { ...typography.subtitle, color: colors.textPrimary, marginTop: spacing.xl },
-  lista: { marginTop: spacing.sm },
-  riga: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border,
+  sorpreseTesto: { ...typography.body, fontSize: 15, color: colors.textPrimary, flex: 1 },
+  centro: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+  contenuto: { padding: spacing.lg, paddingBottom: spacing.xxl },
+  saldo: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+    backgroundColor: colors.textPrimary, borderRadius: radius.lg,
+    paddingVertical: spacing.sm + 2, marginBottom: spacing.md,
   },
-  testi: { flex: 1 },
-  forte: { ...typography.bodyForte, color: colors.textPrimary },
-  piccolo: { ...typography.caption, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
-
-  vuoto: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xl, lineHeight: 24 },
-  fondo: { height: spacing.xl },
-});
-
-
-// Stili dell'ingresso alla vetrina regali (separati per non toccare i tuoi)
-const stiliRegali = StyleSheet.create({
-  vetrina: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: colors.primarySoft, borderRadius: 20,
-    padding: 14, marginBottom: 14,
+  saldoTesto: { ...typography.body, fontSize: 14.5, color: colors.white },
+  saldoForte: { fontFamily: fonts.w800, fontSize: 16, color: colors.primaryLight },
+  cardTesti: { flex: 1, minWidth: 0 },
+  ritiro: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.primarySoft, borderRadius: radius.lg,
+    padding: spacing.md, marginBottom: spacing.md,
   },
-  icona: {
-    width: 38, height: 38, borderRadius: 999, backgroundColor: colors.white,
+  ritiroOcchiello: { ...typography.captionForte, fontSize: 10, letterSpacing: 1.2, color: colors.primaryDark },
+  ritiroCodice: { fontFamily: fonts.w800, fontSize: 28, letterSpacing: 4, color: colors.textPrimary, marginVertical: 2 },
+  piccolo: { ...typography.caption, color: colors.textSecondary },
+  vuoto: { alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xxl },
+  vuotoTesto: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
+  griglia: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  premio: {
+    flexBasis: '47%', flexGrow: 1,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.lg, padding: spacing.sm, alignItems: 'center',
+  },
+  premioFoto: { width: '100%', aspectRatio: 1, borderRadius: radius.md },
+  premioFotoVuota: {
+    width: '100%', aspectRatio: 1, borderRadius: radius.md,
+    backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center',
+  },
+  premioBrand: { ...typography.captionForte, fontSize: 10, letterSpacing: 1, color: colors.textSecondary, marginTop: spacing.sm, textTransform: 'uppercase' },
+  premioNome: { fontFamily: fonts.w700, fontSize: 13.5, color: colors.textPrimary, textAlign: 'center', marginTop: 2, minHeight: 34 },
+  premioBottone: {
+    alignSelf: 'stretch', alignItems: 'center', marginTop: spacing.sm,
+    backgroundColor: colors.primary, borderRadius: radius.full, paddingVertical: 8,
+  },
+  premioBottoneSpento: { backgroundColor: colors.disabled },
+  premioBottoneTesto: { ...typography.labelForte, fontSize: 13, color: colors.white },
+  mancano: { ...typography.caption, fontSize: 11, color: colors.textSecondary, marginTop: 4 },
+  sezione: { ...typography.subtitle, color: colors.textPrimary, marginTop: spacing.xl, marginBottom: spacing.sm },
+  divisore: {
+    flexDirection: 'row', backgroundColor: colors.backgroundAlt,
+    borderRadius: radius.full, padding: 3, marginBottom: spacing.md,
+  },
+  divisoreTasto: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: radius.full },
+  divisoreTastoOn: {
+    backgroundColor: colors.surface,
+    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 3, shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  divisoreTxt: { ...typography.label, color: colors.textSecondary },
+  divisoreTxtOn: { color: colors.textPrimary, fontFamily: fonts.w700 },
+  trattRiga: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm,
+  },
+  trattIcona: {
+    width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primarySoft,
     alignItems: 'center', justifyContent: 'center',
   },
-  occhiello: { fontSize: 10, letterSpacing: 1.2, color: colors.primaryDark, fontFamily: fonts.w700 },
-  titolo: { fontSize: 16, color: colors.textPrimary, fontFamily: fonts.w800, marginTop: 1 },
+  trattNome: { fontFamily: fonts.w700, fontSize: 14.5, color: colors.textPrimary },
+  trattBottone: {
+    alignItems: 'center', backgroundColor: colors.primary,
+    borderRadius: radius.full, paddingVertical: 8, paddingHorizontal: spacing.md,
+  },
+  storicoRiga: {
+    flexDirection: 'row', alignItems: 'center',
+    borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: spacing.sm,
+  },
+  storicoNome: { ...typography.body, fontSize: 14.5, color: colors.textPrimary },
 });
