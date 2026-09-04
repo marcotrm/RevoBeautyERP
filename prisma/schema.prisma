@@ -1376,3 +1376,76 @@ model WaitlistWish {
   @@index([stato])
   @@map("waitlist_wishes")
 }
+
+// ============================================================
+// REVO SCORE
+// ============================================================
+/// Fotografia giornaliera del punteggio: il grafico dell'evoluzione
+/// («+7 questo mese») si legge da qui, non si ricalcola sul passato.
+model ScoreSnapshot {
+  id         String @id @default(cuid())
+  clientId   String
+  /// YYYY-MM-DD (una per giorno per cliente)
+  data       String
+  totale     Int
+  /// { costanza, percorso, cura, community } — i pezzi da 100
+  componenti Json
+  createdAt  String
+
+  @@unique([clientId, data])
+  @@index([clientId])
+  @@map("score_snapshots")
+}
+
+// ============================================================
+// REVO AI — CONVERSAZIONI
+// ============================================================
+/// La chat con l'assistente: una conversazione per cliente, i messaggi
+/// in fila. Il costo si segna per vedere dal pannello quanto spende l'AI.
+model AiMessage {
+  id        String   @id @default(cuid())
+  clientId  String
+  /// 'cliente' | 'revo'
+  ruolo     String
+  testo     String
+  /// Strumenti usati dall'AI in questa risposta (nomi), per capire cosa fa.
+  strumenti String[] @default([])
+  modello   String?
+  costoUsd  Float?
+  createdAt String
+
+  @@index([clientId])
+  @@map("ai_messages")
+}
+
+// ============================================================
+// MISSIONI E BADGE
+// ============================================================
+/// Il riscatto di una missione. L'avanzamento NON sta qui: si calcola
+/// dai dati veri quando serve (una missione «3 sedute senza saltare» si
+/// legge dall'agenda, non da un contatore che può scordarsi di crescere).
+model MissionClaim {
+  id           String @id @default(cuid())
+  clientId     String
+  /// Codice della missione nel registro (lib/engines/missioni.ts)
+  codice       String
+  puntiDati    Int
+  riscattataAt String
+
+  @@unique([clientId, codice])
+  @@index([clientId])
+  @@map("mission_claims")
+}
+
+/// Badge conquistati: oggetti da bacheca nel Beauty Passport.
+model ClientBadge {
+  id          String @id @default(cuid())
+  clientId    String
+  codice      String
+  nome        String
+  assegnatoAt String
+
+  @@unique([clientId, codice])
+  @@index([clientId])
+  @@map("client_badges")
+}

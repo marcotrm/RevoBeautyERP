@@ -14,8 +14,9 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { apriModuloLaser, salvaConsensoLaser, type ModuloLaser } from '@/app/actions/consensoLaser';
+import { liberaTablet } from '@/app/actions/tablet';
 import { CONSENSO_LASER, DICHIARAZIONE_FINALE, TESTO_FOTO, DOMANDE_STORICO } from '@/lib/consensoLaserTesto';
 import FotoDocumento, { type DocumentoCompilato } from './FotoDocumento';
 
@@ -89,8 +90,31 @@ function Firma({ onChange }: { onChange: (dato: string | null) => void }) {
   );
 }
 
+/**
+ * Otto secondi di «grazie», poi il tablet torna alla schermata d'attesa.
+ *
+ * Il tempo serve a chi ha firmato per leggere che e' andato tutto bene; dopo,
+ * quella schermata col nome di una cliente non deve restare accesa sul banco
+ * finche' qualcuno se ne accorge.
+ */
+function RitornoAlTablet({ chiave }: { chiave: string }) {
+  const [manca, setManca] = useState(8);
+  useEffect(() => {
+    liberaTablet().catch(() => {});
+    const passo = setInterval(() => setManca(v => v - 1), 1000);
+    const fine = setTimeout(() => { window.location.href = `/tablet/${chiave}`; }, 8000);
+    return () => { clearInterval(passo); clearTimeout(fine); };
+  }, [chiave]);
+  return <p className="mt-6 text-sm text-gray-400">Il tablet torna in attesa fra {Math.max(0, manca)}…</p>;
+}
+
 export default function PaginaFirma() {
   const { gettone } = useParams<{ gettone: string }>();
+  /*
+    Il modulo e' arrivato sul tablet del centro: a firma fatta il tablet deve
+    tornare ad aspettare da solo. Chi ha firmato lo posa e se ne va.
+  */
+  const daTablet = useSearchParams().get('tablet');
   const [modulo, setModulo] = useState<ModuloLaser | null>(null);
   const [storico, setStorico] = useState<Record<string, string>>({});
   const [zone, setZone] = useState('');
@@ -164,6 +188,7 @@ export default function PaginaFirma() {
           <p className="mt-2 text-gray-600">
             Il consenso è firmato e resta nella tua scheda. Puoi restituire il tablet all&apos;operatrice.
           </p>
+          {daTablet && <RitornoAlTablet chiave={daTablet} />}
         </div>
       </div>
     );

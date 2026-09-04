@@ -9,6 +9,7 @@ import {
   type ClientPhoto, type ClientConsent, type MedicalRecord,
 } from '@/app/actions/clientRecords';
 import { compressImage } from '@/lib/imageCompress';
+import { mandaAlTablet, statoTablet } from '@/app/actions/tablet';
 import { linkConsensoCliente } from '@/app/actions/consensoLaser';
 import DettaglioConsenso from './DettaglioConsenso';
 import CaricaDocumento from './CaricaDocumento';
@@ -92,7 +93,7 @@ export default function ClientRecordTab({ clientId }: { clientId: string }) {
     sembrava rotto. Quindi si apre subito una scheda vuota e la si manda
     all'indirizzo appena arriva.
   */
-  const apriConsensoLaser = async () => {
+  const apriQui = async () => {
     const scheda = window.open('', '_blank');
     const l = await linkConsensoCliente(clientId).catch(() => null);
     if (l?.ok && l.url) {
@@ -102,6 +103,36 @@ export default function ClientRecordTab({ clientId }: { clientId: string }) {
     }
     scheda?.close();
     alert(l?.errore || 'Non riesco ad aprire il modulo');
+  };
+
+  /*
+    Dove far comparire il modulo.
+
+    Sul TABLET quando il centro ne ha uno collegato: e' il caso normale — la
+    cliente e' al banco, le si passa il tablet gia' aperto sul suo modulo.
+    Su QUESTO schermo quando il tablet non c'e', che e' la strada di prima:
+    senza tablet non si resta a piedi.
+  */
+  const [tabletCollegato, setTabletCollegato] = useState<boolean | null>(null);
+  const [mandato, setMandato] = useState('');
+
+  useEffect(() => {
+    let vivo = true;
+    statoTablet()
+      .then(t => { if (vivo) setTabletCollegato(t.collegato); })
+      .catch(() => { if (vivo) setTabletCollegato(false); });
+    return () => { vivo = false; };
+  }, []);
+
+  const apriConsensoLaser = async () => {
+    if (!tabletCollegato) { await apriQui(); return; }
+    const r = await mandaAlTablet(clientId).catch(() => null);
+    if (r?.ok) {
+      setMandato('Aperto sul tablet');
+      setTimeout(() => setMandato(''), 5000);
+      return;
+    }
+    alert(r?.errore || 'Non riesco a mandarlo al tablet');
   };
 
   const [loading, setLoading] = useState(true);
@@ -339,8 +370,11 @@ export default function ClientRecordTab({ clientId }: { clientId: string }) {
             */}
             <CaricaDocumento clientId={clientId} onFatto={() => setVersioneDoc(v => v + 1)} />
             <button onClick={apriConsensoLaser}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
-              <FileSignature className="w-4 h-4" /> Consenso laser sul tablet
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
+                mandato ? 'border-success/40 bg-success/10 text-success'
+                  : 'border-border text-text-secondary hover:bg-bg-hover'}`}>
+              <FileSignature className="w-4 h-4" />
+              {mandato || (tabletCollegato ? 'Manda al tablet' : 'Consenso laser')}
             </button>
             <button onClick={() => setShowConsent(true)}
               className="flex items-center gap-2 px-3 py-2 rounded-xl gradient-accent text-white text-sm font-medium hover:scale-105 transition-all">

@@ -219,7 +219,25 @@ export async function register() {
     }
   };
 
-  setInterval(() => { void tick(); void waTick(); void buchiTick(); void affiliatiTick(); void recensioniTick(); void autocriticaTick(); void rinnoviTick(); void notificheTick(); }, 60 * 1000);
+  /**
+   * Revo Score: la fotografia notturna, alle 03:30 — quando l'agenda dorme.
+   * L'upsert per (cliente, giorno) rende innocuo qualsiasi doppio giro.
+   */
+  let scoreFatto = '';
+  const scoreTick = async () => {
+    const { date, hhmm } = nowRome();
+    if (hhmm !== '03:30' || scoreFatto === date) return;
+    scoreFatto = date;
+    try {
+      const { snapshotScoreGiornaliero } = await import('@/lib/engines/score');
+      const e = await snapshotScoreGiornaliero();
+      console.log(`[score] snapshot notturno: ${e.salvati} clienti`);
+    } catch (err) {
+      console.error('[score] snapshot fallito', err);
+    }
+  };
+
+  setInterval(() => { void tick(); void waTick(); void buchiTick(); void affiliatiTick(); void recensioniTick(); void autocriticaTick(); void rinnoviTick(); void notificheTick(); void scoreTick(); }, 60 * 1000);
   console.log('[reports] Scheduler report Telegram attivo (invio alle 20:00 Europe/Rome)');
   console.log('[wa] Scheduler automazioni WhatsApp attivo');
   console.log('[copri-buchi] Scheduler copri buchi attivo');

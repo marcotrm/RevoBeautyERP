@@ -182,11 +182,175 @@ export async function abbinaListaAttesa(): Promise<{ avvisate: number; scadute: 
   return { avvisate, scadute: scadute.count };
 }
 
+// ------------------------------------------------------------
+// Revo Moments: il compleanno
+// ------------------------------------------------------------
+
+/**
+ * Gli auguri, una volta l'anno (refId = clientId:anno) e solo a chi ha
+ * l'app. La data di nascita in scheda gira in formati diversi: si estrae
+ * giorno e mese senza fare gli schizzinosi.
+ */
+export async function auguriDiCompleanno(): Promise<{ inviate: number }> {
+  const config = await leggiConfig();
+  if (!config.notifiche.attive) return { inviate: 0 };
+
+  const { data: oggi, hhmm } = adessoInItalia();
+  const ora = aMinuti(hhmm);
+  if (ora < config.notifiche.dalleOre * 60 || ora >= config.notifiche.alleOre * 60) return { inviate: 0 };
+
+  const [, meseOggi, giornoOggi] = oggi.split('-');
+  const anno = oggi.slice(0, 4);
+
+  const account = await prisma.mobileAccount.findMany({
+    select: { clientId: true, client: { select: { firstName: true, birthDate: true } } },
+  });
+
+  let inviate = 0;
+  for (const a of account) {
+    const nascita = String(a.client.birthDate || '');
+    // "1990-05-12" → 05-12 · "12/05/1990" → 05-12
+    let mese = '', giorno = '';
+    const iso = nascita.match(/^\d{4}-(\d{2})-(\d{2})/);
+    const ita = nascita.match(/^(\d{1,2})\/(\d{1,2})\/\d{4}/);
+    if (iso) { mese = iso[1]; giorno = iso[2]; }
+    else if (ita) { mese = ita[2].padStart(2, '0'); giorno = ita[1].padStart(2, '0'); }
+    if (mese !== meseOggi || giorno !== giornoOggi) continue;
+
+    const esito = await inviaNotifica({
+      clientId: a.clientId,
+      tipo: 'compleanno',
+      refId: `${a.clientId}:${anno}`,
+      titolo: `Tanti auguri, ${a.client.firstName}! 🎂`,
+      corpo: 'Oggi è il tuo giorno: passa a trovarci, ci piace festeggiarti.',
+      dati: { rotta: '/per-te' },
+    });
+    if (esito === 'inviata') inviate++;
+  }
+  return { inviate };
+}
+
+// ------------------------------------------------------------
+// Avvisi Autopilot: la finestra ideale si è aperta
+// ------------------------------------------------------------
+
+/** Numero della settimana: il freno «massimo un avviso a settimana». */
+function settimanaISO(): string {
+  const d = new Date();
+  const inizio = new Date(d.getFullYear(), 0, 1);
+  const sett = Math.ceil(((d.getTime() - inizio.getTime()) / 86400000 + inizio.getDay() + 1) / 7);
+  return `${d.getFullYear()}w${sett}`;
+}
+
+/**
+ * Una volta al giorno (fascia mattutina), per chi ha una finestra aperta e
+ * niente in agenda: un solo avviso a settimana per cliente — il refId con
+ * la settimana dentro È il freno, non serve contare nulla.
+ */
+export async function avvisiAutopilot(): Promise<{ inviate: number }> {
+  const config = await leggiConfig();
+  if (!config.notifiche.attive) return { inviate: 0 };
+
+  const { hhmm } = adessoInItalia();
+  if (hhmm < '10:00' || hhmm >= '11:00') return { inviate: 0 };
+
+  const { suggerimentiAutopilot } = await import('@/lib/engines/autopilot');
+  const account = await prisma.mobileAccount.findMany({ select: { clientId: true } });
+  const settimana = settimanaISO();
+
+  let inviate = 0;
+  for (const a of account) {
+    try {
+      const sugg = (await suggerimentiAutopilot(a.clientId)).find((s) => s.aperta);
+      if (!sugg) continue;
+      const esito = await inviaNotifica({
+        clientId: a.clientId,
+        tipo: 'autopilot',
+        refId: `${a.clientId}:${settimana}`,
+        titolo: 'È il momento giusto ✨',
+        corpo: `${sugg.treatmentName}: di solito lo fai ogni ${sugg.ogniGiorni} giorni e la tua finestra ideale è aperta. Tocca per vedere gli orari.`,
+        dati: { rotta: '/prenota' },
+      });
+      if (esito === 'inviata') inviate++;
+    } catch (err) {
+      console.error('[autopilot] avviso fallito per', a.clientId, err);
+    }
+  }
+  return { inviate };
+}
+
+// ------------------------------------------------------------
+// Revo Drop: lo slot in vetrina arriva a chi può volerlo
+// ------------------------------------------------------------
+
+/**
+ * Per ogni Flash Slot ancora aperto e fresco (ultime 3 ore), la push va
+ * alle clienti compatibili: chi quel trattamento (o quella categoria) l'ha
+ * già fatto. Massimo 20 per slot, le più recenti prima — la prima onda del
+ * progetto Drop; le onde successive arriveranno col pannello.
+ */
+export async function avvisiDrop(): Promise<{ inviate: number }> {
+  const config = await leggiConfig();
+  if (!config.notifiche.attive || !config.funzioni.flashSlot) return { inviate: 0 };
+
+  const adesso = new Date().toISOString();
+  const treOreFa = new Date(Date.now() - 3 * 3600000).toISOString();
+  const slots = await prisma.flashSlot.findMany({
+    where: { status: 'open', createdAt: { gte: treOreFa }, expiresAt: { gt: adesso } },
+    select: { id: true, treatmentId: true, treatmentName: true, date: true, startTime: true, price: true, fullPrice: true },
+  });
+  if (slots.length === 0) return { inviate: 0 };
+
+  let inviate = 0;
+  for (const slot of slots) {
+    const categoria = await prisma.treatment.findUnique({
+      where: { id: slot.treatmentId },
+      select: { category: true },
+    });
+    // Le compatibili: hanno fatto quel trattamento o quella categoria, e hanno l'app
+    const compatibili = await prisma.appointment.findMany({
+      where: {
+        status: 'completed',
+        OR: [
+          { treatmentId: slot.treatmentId },
+          ...(categoria?.category ? [{ treatmentCategory: categoria.category }] : []),
+        ],
+      },
+      orderBy: { date: 'desc' },
+      select: { clientId: true },
+      take: 200,
+    });
+    const conApp = await prisma.mobileAccount.findMany({
+      where: { clientId: { in: [...new Set(compatibili.map((c) => c.clientId))] } },
+      select: { clientId: true },
+    });
+
+    for (const c of conApp.slice(0, 20)) {
+      const esito = await inviaNotifica({
+        clientId: c.clientId,
+        tipo: 'drop',
+        refId: `${slot.id}:${c.clientId}`,
+        titolo: 'Revo Drop ⚡ solo per poco',
+        corpo: `${slot.treatmentName} · ${dataLeggibile(slot.date)} alle ${slot.startTime} a ${slot.price}€ invece di ${slot.fullPrice}€. Chi prima arriva…`,
+        dati: { rotta: '/per-te' },
+      });
+      if (esito === 'inviata') inviate++;
+    }
+  }
+  return { inviate };
+}
+
 /** Il giro completo, chiamato dallo scheduler. */
 export async function giroNotificheApp(): Promise<void> {
   const p = await promemoriaAppuntamenti();
   const w = await abbinaListaAttesa();
-  if (p.inviate || w.avvisate || w.scadute) {
-    console.log(`[notifiche-app] ${p.inviate} promemoria, ${w.avvisate} avvisi lista d'attesa, ${w.scadute} desideri scaduti`);
+  const c = await auguriDiCompleanno();
+  const au = await avvisiAutopilot();
+  const d = await avvisiDrop();
+  const tot = p.inviate + w.avvisate + c.inviate + au.inviate + d.inviate;
+  if (tot || w.scadute) {
+    console.log(
+      `[notifiche-app] ${p.inviate} promemoria · ${w.avvisate} lista d'attesa · ${c.inviate} auguri · ${au.inviate} autopilot · ${d.inviate} drop · ${w.scadute} desideri scaduti`
+    );
   }
 }

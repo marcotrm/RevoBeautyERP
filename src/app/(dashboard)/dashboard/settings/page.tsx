@@ -28,6 +28,7 @@ import { roleHasPermission } from '@/lib/permissions';
 import { CaparraConfig } from './CaparraConfig';
 import { CanaliConfig } from './CanaliConfig';
 import { SuonoTrillo } from './SuonoTrillo';
+import { TabletFirma } from './TabletFirma';
 
 const settingSections = [
   { id: 'general', label: 'Centro', icon: Building2, description: 'Nome, indirizzo, contatti' },
@@ -794,6 +795,7 @@ export default function SettingsPage() {
               <C95Config />
               <CaparraConfig />
               <CanaliConfig />
+              <TabletFirma />
               <SuonoTrillo />
               </div>
             )}
