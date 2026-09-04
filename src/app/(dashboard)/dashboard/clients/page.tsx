@@ -11,7 +11,7 @@ import Link from 'next/link';
 import {
   Search, Plus, Users, Crown,
   UserPlus, Clock, Phone, Mail,
-  ChevronRight, Heart, Download, X, CheckCircle, BarChart3, Trash2, Tag, Pencil, AlertTriangle, IdCard } from 'lucide-react';
+  ChevronRight, Heart, Download, X, CheckCircle, BarChart3, Trash2, Tag, Pencil, AlertTriangle, IdCard, PenLine } from 'lucide-react';
 import { formatCurrency, getInitials } from '@/lib/helpers';
 import AddClientModal from '@/components/AddClientModal';
 import { NO_AUTOFILL } from '@/lib/noAutofill';
@@ -183,6 +183,9 @@ export default function ClientsPage() {
         <div className="flex items-center gap-2">
           <Link href="/dashboard/clients/documenti" className="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all">
             <IdCard className="w-4 h-4" /> Documenti
+          </Link>
+          <Link href="/dashboard/clients/consensi" className="flex items-center gap-2 px-3 py-2 rounded-xl bg-bg-secondary border border-border text-text-primary text-sm font-medium hover:bg-bg-hover transition-all">
+            <PenLine className="w-4 h-4" /> Consensi
           </Link>
           <Link href="/dashboard/clients/analytics" className="flex items-center gap-2 px-3 py-2 rounded-xl gradient-accent text-white text-sm font-medium shadow-lg shadow-accent/20 hover:shadow-accent/30 hover:scale-105 transition-all">
             <BarChart3 className="w-4 h-4" /> Dashboard Clienti
