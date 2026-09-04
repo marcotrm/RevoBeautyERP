@@ -18,7 +18,7 @@ const KNOWN_CODES: ApiErrorCode[] = [
 ];
 
 interface RequestOptions {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'DELETE';
   /** Token di sessione: aggiunge l'header Authorization */
   token?: string;
   body?: unknown;

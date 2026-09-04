@@ -108,6 +108,66 @@ export async function promemoriaAppuntamenti(): Promise<{ inviate: number }> {
 }
 
 // ------------------------------------------------------------
+// Preparazione al trattamento
+// ------------------------------------------------------------
+
+/**
+ * Il promemoria di preparazione: parte quando mancano circa `oreAnticipo`
+ * ore all'appuntamento, solo per i trattamenti che hanno istruzioni.
+ *
+ * Non è pubblicità: è UN avviso per appuntamento (lucchetto in DB), nella
+ * fascia oraria consentita, che porta dritti alla scheda con le istruzioni.
+ */
+export async function promemoriaPreparazione(): Promise<{ inviate: number }> {
+  const config = await leggiConfig();
+  if (!config.notifiche.attive) return { inviate: 0 };
+
+  const { data: oggi, hhmm } = adessoInItalia();
+  const ora = aMinuti(hhmm);
+  const oraOk = ora >= config.notifiche.dalleOre * 60 && ora < config.notifiche.alleOre * 60;
+  if (!oraOk) return { inviate: 0 };
+
+  // Si guarda al massimo una settimana avanti: oltre, l'anticipo configurabile
+  // (fino a 168 ore) non arriva comunque.
+  const finoA = dataItaliaFra(7);
+  const prossimi = await prisma.appointment.findMany({
+    where: { date: { gte: oggi, lte: finoA }, status: { in: STATI_VIVI } },
+    select: {
+      id: true, clientId: true, date: true, startTime: true, treatmentName: true,
+      treatment: { select: { preTrattamento: true } },
+    },
+  });
+
+  const { leggiPreTrattamento } = await import('@/lib/estetica');
+  let inviate = 0;
+  for (const a of prossimi) {
+    const prep = leggiPreTrattamento(a.treatment?.preTrattamento);
+    if (!prep || !prep.oreAnticipo) continue;
+
+    // Minuti che mancano all'appuntamento, contando i giorni interi.
+    const giorniAvanti = Math.round((Date.parse(a.date) - Date.parse(oggi)) / 86400000);
+    const mancanoMin = giorniAvanti * 1440 + aMinuti(a.startTime) - ora;
+    // La finestra è larga un giorno di fascia oraria: il primo giro utile
+    // dopo la soglia invia, i successivi trovano il doppione e tacciono.
+    if (mancanoMin > prep.oreAnticipo * 60 || mancanoMin < 0) continue;
+
+    const esito = await inviaNotifica({
+      clientId: a.clientId,
+      tipo: 'preparazione',
+      refId: a.id,
+      titolo: `Prepariamoci al tuo ${a.treatmentName} 🌿`,
+      corpo: prep.comePrepararsi
+        ? prep.comePrepararsi.slice(0, 140)
+        : 'Qualche piccola attenzione prima dell\'appuntamento: le trovi nella tua scheda.',
+      dati: { rotta: '/appuntamenti' },
+    });
+    if (esito === 'inviata') inviate++;
+  }
+
+  return { inviate };
+}
+
+// ------------------------------------------------------------
 // Lista d'attesa intelligente
 // ------------------------------------------------------------
 
@@ -343,14 +403,15 @@ export async function avvisiDrop(): Promise<{ inviate: number }> {
 /** Il giro completo, chiamato dallo scheduler. */
 export async function giroNotificheApp(): Promise<void> {
   const p = await promemoriaAppuntamenti();
+  const pre = await promemoriaPreparazione();
   const w = await abbinaListaAttesa();
   const c = await auguriDiCompleanno();
   const au = await avvisiAutopilot();
   const d = await avvisiDrop();
-  const tot = p.inviate + w.avvisate + c.inviate + au.inviate + d.inviate;
+  const tot = p.inviate + pre.inviate + w.avvisate + c.inviate + au.inviate + d.inviate;
   if (tot || w.scadute) {
     console.log(
-      `[notifiche-app] ${p.inviate} promemoria · ${w.avvisate} lista d'attesa · ${c.inviate} auguri · ${au.inviate} autopilot · ${d.inviate} drop · ${w.scadute} desideri scaduti`
+      `[notifiche-app] ${p.inviate} promemoria · ${pre.inviate} preparazione · ${w.avvisate} lista d'attesa · ${c.inviate} auguri · ${au.inviate} autopilot · ${d.inviate} drop · ${w.scadute} desideri scaduti`
     );
   }
 }

@@ -18,14 +18,25 @@ export async function GET(request: Request) {
     prisma.product.findMany({
       where: {
         isActive: true,
+        /*
+          Si cerca anche per codice a barre e per SKU.
+
+          Al banco il prodotto ce l'hai in mano: leggerne il nome e ribatterlo
+          e' il modo lento di fare una cosa che il lettore fa in un secondo.
+          Col barcode si punta e si trova — ed e' anche l'unico modo di
+          distinguere due creme della stessa linea che sullo scaffale si
+          chiamano quasi uguale.
+        */
         ...(q ? { OR: [
           { name: { contains: q, mode: 'insensitive' } },
           { brand: { contains: q, mode: 'insensitive' } },
+          { barcode: { contains: q } },
+          { sku: { contains: q, mode: 'insensitive' } },
         ] } : {}),
       },
       orderBy: { name: 'asc' },
       take: 60,
-      select: { id: true, name: true, brand: true, category: true, stock: true, price: true, image: true },
+      select: { id: true, name: true, brand: true, category: true, stock: true, price: true, image: true, barcode: true },
     }),
     prisma.premioProdotto.findMany(),
   ]);

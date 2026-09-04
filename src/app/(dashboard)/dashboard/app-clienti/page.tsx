@@ -111,6 +111,18 @@ export default function AppClientiPage() {
         >
           🎁 Regali coi punti
         </a>
+        <a
+          href="/dashboard/app-clienti/percorsi-estetici"
+          className="rounded-lg border px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-black hover:text-white transition-colors"
+        >
+          🌿 Percorsi estetici
+        </a>
+        <a
+          href="/dashboard/app-clienti/preparazioni"
+          className="rounded-lg border px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-black hover:text-white transition-colors"
+        >
+          📋 Preparazioni
+        </a>
         {salvato && (
           <span className="flex items-center gap-1.5 text-xs text-success font-semibold">
             <CheckCircle className="w-4 h-4" /> Salvato

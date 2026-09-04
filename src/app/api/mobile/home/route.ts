@@ -15,6 +15,7 @@ import { livelloCliente } from '@/lib/club';
 import { leggiConfig } from '@/lib/appSettings';
 import { generaProposte } from '@/lib/proposte';
 import { tracciaMolti } from '@/lib/appEvents';
+import { leggiPreTrattamento } from '@/lib/estetica';
 
 export async function GET(req: Request) {
   const cliente = await clienteDaToken(tokenDaRichiesta(req));
@@ -25,11 +26,14 @@ export async function GET(req: Request) {
   const config = await leggiConfig();
   const oggi = new Date().toISOString().slice(0, 10);
 
-  const [prossimo, wallet, punti, livello, proposte, pacchetti] = await Promise.all([
+  const [prossimo, wallet, punti, livello, proposte, pacchetti, percorsoEstetico] = await Promise.all([
     prisma.appointment.findFirst({
       where: { clientId: cliente.id, date: { gte: oggi }, status: { notIn: ['cancelled', 'completed'] } },
       orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-      select: { id: true, date: true, startTime: true, endTime: true, treatmentName: true, operatorName: true, price: true },
+      select: {
+        id: true, date: true, startTime: true, endTime: true, treatmentName: true, operatorName: true, price: true,
+        treatment: { select: { preTrattamento: true } },
+      },
     }),
     config.funzioni.wallet ? saldoWallet(cliente.id) : Promise.resolve(null),
     saldoPunti(cliente.id),
@@ -41,6 +45,11 @@ export async function GET(req: Request) {
           select: { id: true, packageName: true, packageColor: true, totalSessions: true, usedSessions: true, expiryDate: true },
         })
       : Promise.resolve([]),
+    prisma.percorsoEstetico.findFirst({
+      where: { clientId: cliente.id, stato: { in: ['attivo', 'mantenimento'] } },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, nome: true, obiettivo: true, seduteTotali: true, stato: true, sedute: { select: { id: true } } },
+    }),
   ]);
 
   const daMostrare = proposte.slice(0, config.home.maxProposte);
@@ -57,7 +66,17 @@ export async function GET(req: Request) {
   return Response.json({
     user: utenteApp(cliente),
     messaggio: config.home.messaggio || null,
-    prossimoAppuntamento: prossimo,
+    prossimoAppuntamento: prossimo && {
+      id: prossimo.id, date: prossimo.date, startTime: prossimo.startTime, endTime: prossimo.endTime,
+      treatmentName: prossimo.treatmentName, operatorName: prossimo.operatorName, price: prossimo.price,
+      // Se il trattamento ha una preparazione, la Home la mette in evidenza.
+      preparazione: leggiPreTrattamento(prossimo.treatment?.preTrattamento),
+    },
+    percorsoEstetico: percorsoEstetico && {
+      id: percorsoEstetico.id, nome: percorsoEstetico.nome, obiettivo: percorsoEstetico.obiettivo,
+      stato: percorsoEstetico.stato,
+      seduteFatte: percorsoEstetico.sedute.length, seduteTotali: percorsoEstetico.seduteTotali,
+    },
     // Per il richiamo "ci manchi" quando non c'è nulla in agenda
     ultimaVisita: cliente.lastVisit || null,
     // Recapiti in fondo alla Home: modificabili dal gestionale, non dal codice

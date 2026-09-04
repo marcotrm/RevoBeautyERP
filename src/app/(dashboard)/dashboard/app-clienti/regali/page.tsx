@@ -19,6 +19,7 @@ interface Prodotto {
   stock: number;
   price: number;
   image: string | null;
+  barcode?: string | null;
   premio: { punti: number; attivo: boolean } | null;
 }
 
@@ -120,7 +121,7 @@ export default function RegaliPage() {
       <input
         value={q}
         onChange={e => setQ(e.target.value)}
-        placeholder="Cerca nel magazzino (nome o marca)…"
+        placeholder="Cerca nel magazzino: nome, marca o codice a barre…"
         className="w-full border rounded-lg px-3 py-2 mb-4"
       />
       <div className="space-y-2">
@@ -144,7 +145,13 @@ export default function RegaliPage() {
             </label>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{p.brand ? `${p.brand} · ` : ''}{p.name}</p>
-              <p className="text-xs text-gray-500">{p.category} · {p.stock} a scaffale · listino {p.price}€</p>
+              <p className="text-xs text-gray-500">
+                {p.category} · {p.stock} a scaffale · listino {p.price}€
+                {/* Il codice a barre in chiaro: e' quello che distingue due
+                    creme della stessa linea che sullo scaffale si chiamano
+                    quasi uguale. */}
+                {p.barcode ? <span className="font-mono"> · {p.barcode}</span> : ''}
+              </p>
             </div>
             <input
               type="number" min={0} placeholder="punti"
