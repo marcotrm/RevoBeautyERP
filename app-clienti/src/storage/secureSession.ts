@@ -12,6 +12,8 @@ import { Platform } from 'react-native';
 const TOKEN_KEY = 'revobeauty.session.token';
 /** Se l'introduzione è già stata vista: si mostra una volta sola. */
 const INTRO_KEY = 'revobeauty.intro.vista';
+/** Scelta sullo sblocco biometrico: '1' attivo, '0' rifiutato, assente = mai chiesto. */
+const FACEID_KEY = 'revobeauty.faceid.scelta';
 
 const isWeb = Platform.OS === 'web';
 
@@ -61,5 +63,33 @@ export async function segnaIntroVista(): Promise<void> {
     else await SecureStore.setItemAsync(INTRO_KEY, '1');
   } catch {
     // Se non si riesce a ricordarlo, al massimo la rivede: non è un problema
+  }
+}
+
+/**
+ * La scelta sullo sblocco con Face ID, come le app delle banche:
+ * si chiede una volta dopo il primo accesso, e si può rispondere no.
+ * 'attivo' | 'rifiutato' | null (null = mai chiesto).
+ * In caso di errore di lettura si considera "mai chiesto": al massimo
+ * la domanda ricompare, nessuno resta chiuso fuori.
+ */
+export async function sceltaFaceId(): Promise<'attivo' | 'rifiutato' | null> {
+  try {
+    const v = isWeb ? localStorage.getItem(FACEID_KEY) : await SecureStore.getItemAsync(FACEID_KEY);
+    if (v === '1') return 'attivo';
+    if (v === '0') return 'rifiutato';
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function salvaSceltaFaceId(attiva: boolean): Promise<void> {
+  try {
+    const v = attiva ? '1' : '0';
+    if (isWeb) localStorage.setItem(FACEID_KEY, v);
+    else await SecureStore.setItemAsync(FACEID_KEY, v);
+  } catch {
+    // Non memorizzata: la domanda ricomparirà alla prossima apertura
   }
 }

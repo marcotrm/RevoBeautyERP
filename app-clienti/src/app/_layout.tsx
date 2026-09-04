@@ -13,12 +13,13 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { BloccoBiometrico } from '@/components/BloccoBiometrico';
+import { ConsensoFaceId } from '@/components/ConsensoFaceId';
 import { AuthProvider } from '@/context/AuthContext';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, fontAssets } from '@/theme';
 
 function RootNavigator({ fontPronti }: { fontPronti: boolean }) {
-  const { user, isLoading, sbloccoNecessario } = useAuth();
+  const { user, isLoading, sbloccoNecessario, consensoFaceIdDaChiedere } = useAuth();
 
   // Splash minimale finché la sessione viene ripristinata da SecureStore:
   // evita il "flash" della schermata di login per un'utente già loggata.
@@ -32,10 +33,15 @@ function RootNavigator({ fontPronti }: { fontPronti: boolean }) {
     );
   }
 
-  // App riaperta con una sessione salvata: i dati restano coperti
-  // finché Face ID (o l'impronta) non conferma. Vedi BloccoBiometrico.
+  // App riaperta con una sessione salvata e Face ID attivo: i dati restano
+  // coperti finché la biometria non conferma. Vedi BloccoBiometrico.
   if (user && sbloccoNecessario) {
     return <BloccoBiometrico />;
+  }
+
+  // Subito dopo il primo accesso: la domanda sul Face ID, una volta sola.
+  if (user && consensoFaceIdDaChiedere) {
+    return <ConsensoFaceId />;
   }
 
   return (

@@ -15,7 +15,9 @@ import {
   clearSessionToken,
   getSessionToken,
   introGiaVista,
+  salvaSceltaFaceId,
   saveSessionToken,
+  sceltaFaceId,
   segnaIntroVista,
 } from '@/storage/secureSession';
 
@@ -29,13 +31,20 @@ export interface AuthContextValue {
   /** false solo alla primissima apertura dell'app su questo telefono */
   introVista: boolean;
   /**
-   * true quando l'app si è riaperta con una sessione salvata e il telefono
-   * ha Face ID/impronta: prima di mostrare i dati si chiede lo sblocco.
-   * Un accesso appena fatto col numero non lo richiede: la persona è lì.
+   * true quando l'app si è riaperta con una sessione salvata e la cliente
+   * ha ATTIVATO lo sblocco biometrico: prima di mostrare i dati si chiede
+   * Face ID. Un accesso appena fatto col numero non lo richiede: è lì lei.
    */
   sbloccoNecessario: boolean;
   /** Chiamata dal blocco biometrico quando Face ID va a buon fine. */
   sblocca: () => void;
+  /**
+   * true subito dopo il primo accesso, se il telefono ha Face ID/impronta
+   * e la domanda non è mai stata fatta: si chiede il consenso una volta sola.
+   */
+  consensoFaceIdDaChiedere: boolean;
+  /** Registra la risposta alla domanda sul Face ID ('Attiva' o 'Non ora'). */
+  rispondiConsensoFaceId: (attiva: boolean) => Promise<void>;
   /** Chiude l'introduzione: la ricorda sul telefono e sblocca l'accesso. */
   concludiIntro: () => Promise<void>;
   /** Manda il codice su WhatsApp. Non apre ancora nessuna sessione. */
@@ -71,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [introVista, setIntroVista] = useState<boolean>(true);
   const [sbloccoNecessario, setSbloccoNecessario] = useState<boolean>(false);
+  const [consensoFaceIdDaChiedere, setConsensoFaceIdDaChiedere] = useState<boolean>(false);
 
   // Ripristino sessione al primo avvio
   useEffect(() => {
@@ -88,9 +98,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const restoredUser = await authService.restoreSession(savedToken);
           if (!cancelled && restoredUser) {
             // Sessione ripristinata senza che nessuno abbia digitato nulla:
-            // se il telefono ha la biometria, i dati restano coperti finché
-            // Face ID (o l'impronta) non conferma che è davvero lei.
-            if (await biometriaDisponibile()) setSbloccoNecessario(true);
+            // se la cliente ha attivato lo sblocco biometrico, i dati restano
+            // coperti finché Face ID (o l'impronta) non conferma che è lei.
+            // Chi ha risposto "Non ora" entra diretta, come ha scelto.
+            const scelta = await sceltaFaceId();
+            if (scelta === 'attivo' && (await biometriaDisponibile())) {
+              setSbloccoNecessario(true);
+            }
             setUser(restoredUser);
             setToken(savedToken);
           } else if (!cancelled) {
@@ -125,6 +139,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
+   * Dopo un accesso fatto a mano: se la domanda sul Face ID non è mai stata
+   * fatta e il telefono lo supporta, è il momento giusto per farla — una
+   * volta sola, come le app delle banche.
+   */
+  const valutaConsensoFaceId = useCallback(async () => {
+    const scelta = await sceltaFaceId();
+    if (scelta === null && (await biometriaDisponibile())) {
+      setConsensoFaceIdDaChiedere(true);
+    }
+  }, []);
+
+  /**
    * Primo passo dell'accesso.
    *
    * Se il gestionale risponde con una sessione gia' aperta (accesso col solo
@@ -136,23 +162,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const esito = await authService.richiediCodice(telefono);
       if (esito.accessoDiretto && esito.token && esito.user) {
         await persistToken(esito.token);
+        await valutaConsensoFaceId();
         setUser(esito.user);
         setToken(esito.token);
       }
       return esito;
     },
-    [persistToken]
+    [persistToken, valutaConsensoFaceId]
   );
 
   const verificaCodice = useCallback(
     async (telefono: string, codice: string) => {
       const session = await authService.verificaCodice(telefono, codice);
       await persistToken(session.token);
+      await valutaConsensoFaceId();
       setUser(session.user);
       setToken(session.token);
     },
-    [persistToken]
+    [persistToken, valutaConsensoFaceId]
   );
+
+  /**
+   * Risposta alla domanda sul Face ID.
+   *
+   * "Attiva" fa partire subito una verifica biometrica: così il consenso di
+   * sistema di iOS compare adesso, davanti alla cliente, e non a sorpresa
+   * alla prossima apertura. Se la verifica non va a buon fine la scelta non
+   * viene salvata e la schermata resta lì (torna false).
+   */
+  const rispondiConsensoFaceId = useCallback(async (attiva: boolean) => {
+    if (!attiva) {
+      await salvaSceltaFaceId(false);
+      setConsensoFaceIdDaChiedere(false);
+      return;
+    }
+    try {
+      const esito = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Attiva lo sblocco con Face ID',
+        cancelLabel: 'Annulla',
+      });
+      if (esito.success) {
+        await salvaSceltaFaceId(true);
+        setConsensoFaceIdDaChiedere(false);
+      }
+    } catch {
+      // Biometria che non risponde: non si blocca nulla, la scelta resta aperta
+    }
+  }, []);
 
   // Il ricordo va tenuto anche qui, non solo sul telefono: la schermata di
   // accesso decide su questo valore, e se restasse a "non vista" rimanderebbe
@@ -173,15 +229,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setToken(null);
       setSbloccoNecessario(false);
+      setConsensoFaceIdDaChiedere(false);
     }
   }, [token]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user, token, isLoading, introVista, sbloccoNecessario,
-      sblocca, concludiIntro, richiediCodice, verificaCodice, signOut,
+      sblocca, consensoFaceIdDaChiedere, rispondiConsensoFaceId,
+      concludiIntro, richiediCodice, verificaCodice, signOut,
     }),
-    [user, token, isLoading, introVista, sbloccoNecessario, sblocca, concludiIntro, richiediCodice, verificaCodice, signOut]
+    [user, token, isLoading, introVista, sbloccoNecessario, sblocca,
+     consensoFaceIdDaChiedere, rispondiConsensoFaceId, concludiIntro, richiediCodice, verificaCodice, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
