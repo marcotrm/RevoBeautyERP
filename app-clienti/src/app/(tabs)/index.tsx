@@ -185,6 +185,39 @@ export default function HomeScreen() {
           );
         })()}
 
+        {/* ── L'azione di oggi: la preparazione al prossimo appuntamento ── */}
+        {app?.preparazione ? (
+          <Pressable style={styles.riga} onPress={() => router.push('/appuntamenti')}>
+            <View style={styles.rigaSinistra}>
+              <Text style={styles.rigaTesto} numberOfLines={1}>
+                🌿 C&apos;è una preparazione per il tuo appuntamento
+              </Text>
+            </View>
+            <Icona nome="freccia" misura={19} colore={colors.textMuted} />
+          </Pressable>
+        ) : null}
+
+        {/* ── Il percorso estetico: obiettivo e sedute, dritto ai risultati ── */}
+        {dati?.percorsoEstetico ? (
+          <Pressable style={styles.blocco} onPress={() => router.push('/risultati')}>
+            <View style={styles.rigaTraSpazi}>
+              <Text style={styles.forte}>🌿 {dati.percorsoEstetico.nome}</Text>
+              <Text style={styles.piccolo}>
+                {dati.percorsoEstetico.seduteFatte} di {dati.percorsoEstetico.seduteTotali}
+              </Text>
+            </View>
+            <View style={styles.barra}>
+              <Progress
+                percentuale={(dati.percorsoEstetico.seduteFatte / Math.max(dati.percorsoEstetico.seduteTotali, 1)) * 100}
+                colore={colors.primary}
+              />
+            </View>
+            <Text style={styles.piccolo} numberOfLines={1}>
+              {dati.percorsoEstetico.obiettivo} · tocca per i tuoi risultati
+            </Text>
+          </Pressable>
+        ) : null}
+
         {/* ── I tuoi numeri: riquadri, non una riga di testo ── */}
         <View style={styles.tiles}>
           <Pressable style={styles.tile} onPress={() => router.push('/wallet')}>
@@ -260,6 +293,7 @@ export default function HomeScreen() {
           {([
             // Solo quello che NON è già nella barra qui sotto
             { icona: 'pricetags-outline', testo: 'Listino', rotta: '/listino' },
+            { icona: 'leaf-outline', testo: 'Risultati', rotta: '/risultati' },
             { icona: 'sparkles-outline', testo: 'Revo AI', rotta: '/assistente' },
           ] as const).map((a) => (
             <Pressable key={a.rotta} style={styles.azione} onPress={() => router.push(a.rotta as never)}>

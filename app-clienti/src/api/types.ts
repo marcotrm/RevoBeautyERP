@@ -114,6 +114,14 @@ export interface Appointment {
   price: number;
   /** true se la disdetta è consentita (calcolato dal server, regola 24h) */
   canCancel: boolean;
+  /** Istruzioni pre-appuntamento del trattamento (solo sui futuri). */
+  preparazione?: {
+    comePrepararsi: string;
+    cosaEvitare: string;
+    cosaPortare: string;
+    oreAnticipo: number;
+    avvertenze: string;
+  } | null;
 }
 
 export interface AppointmentsData {

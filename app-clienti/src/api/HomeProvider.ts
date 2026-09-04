@@ -22,6 +22,15 @@ export interface DatiHome {
   prossimoAppuntamento: {
     id: string; date: string; startTime: string; endTime: string;
     treatmentName: string; operatorName: string; price: number;
+    preparazione?: {
+      comePrepararsi: string; cosaEvitare: string; cosaPortare: string;
+      oreAnticipo: number; avvertenze: string;
+    } | null;
+  } | null;
+  /** Il percorso estetico attivo, se il centro ne ha costruito uno. */
+  percorsoEstetico: {
+    id: string; nome: string; obiettivo: string; stato: string;
+    seduteFatte: number; seduteTotali: number;
   } | null;
   /** Data dell'ultima visita (ISO), per il richiamo "ci manchi". */
   ultimaVisita: string | null;

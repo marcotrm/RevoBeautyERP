@@ -37,6 +37,34 @@ const STATUS_LABELS: Record<string, string> = {
   no_show: 'Non presentata',
 };
 
+/**
+ * Come prepararsi: le istruzioni del trattamento, dentro la scheda
+ * dell'appuntamento. Configurate dal centro, uguali per tutte, col
+ * pulsante per scrivere in chat se resta un dubbio.
+ */
+function PreparazioneBlocco({ prep }: { prep: NonNullable<Appointment['preparazione']> }) {
+  const router = useRouter();
+  return (
+    <View style={styles.prep}>
+      <Text style={styles.prepTitolo}>🌿 COME PREPARARSI</Text>
+      {prep.comePrepararsi ? <Text style={styles.prepRiga}>{prep.comePrepararsi}</Text> : null}
+      {prep.cosaEvitare ? <Text style={styles.prepRiga}>✋ Da evitare: {prep.cosaEvitare}</Text> : null}
+      {prep.cosaPortare ? <Text style={styles.prepRiga}>👜 Da portare: {prep.cosaPortare}</Text> : null}
+      {prep.avvertenze ? <Text style={styles.prepAvvertenza}>⚠️ {prep.avvertenze}</Text> : null}
+      {prep.oreAnticipo > 0 ? (
+        <Text style={styles.prepRiga}>⏰ Inizia la preparazione almeno {prep.oreAnticipo} ore prima.</Text>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push('/contatti')}
+        style={({ pressed }) => [styles.prepBottone, pressed && { opacity: 0.7 }]}
+      >
+        <Text style={styles.prepBottoneTesto}>Hai dubbi? Scrivici</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function AppointmentCard({
   appointment,
   onCancel,
@@ -62,6 +90,8 @@ function AppointmentCard({
       <Text style={styles.cardMeta}>
         con {appointment.operatorName} · {formatPrice(appointment.price)}
       </Text>
+
+      {appointment.preparazione && <PreparazioneBlocco prep={appointment.preparazione} />}
 
       {onCancel && appointment.canCancel && (
         <Pressable
@@ -302,4 +332,16 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginTop: spacing.sm,
   },
+  prep: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+    gap: 4,
+  },
+  prepTitolo: { ...typography.captionForte, fontSize: 10, letterSpacing: 1.2, color: colors.primaryDark },
+  prepRiga: { ...typography.caption, fontSize: 13, color: colors.textPrimary, lineHeight: 18 },
+  prepAvvertenza: { ...typography.caption, fontSize: 13, color: colors.textPrimary, fontFamily: fonts.w700, lineHeight: 18 },
+  prepBottone: { alignSelf: 'flex-start', marginTop: spacing.xs },
+  prepBottoneTesto: { ...typography.labelForte, fontSize: 13, color: colors.primaryDark, textDecorationLine: 'underline' },
 });

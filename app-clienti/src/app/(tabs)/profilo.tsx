@@ -20,6 +20,10 @@ type Voce = { icona: keyof typeof Ionicons.glyphMap; testo: string; rotta: strin
 
 const VOCI: Voce[] = [
   { icona: 'calendar-outline', testo: 'I miei appuntamenti', rotta: '/appuntamenti' },
+  { icona: 'leaf-outline', testo: 'I miei risultati', rotta: '/risultati' },
+  { icona: 'clipboard-outline', testo: 'Check-up estetico', rotta: '/checkup' },
+  { icona: 'chatbubble-ellipses-outline', testo: 'Chiedi una consulenza', rotta: '/consulenza' },
+  { icona: 'shield-checkmark-outline', testo: 'I miei consensi', rotta: '/consensi' },
   { icona: 'trending-up-outline', testo: 'I miei percorsi', rotta: '/percorsi' },
   { icona: 'wallet-outline', testo: 'Beauty Wallet', rotta: '/wallet' },
   { icona: 'ribbon-outline', testo: 'Beauty Club', rotta: '/club' },
