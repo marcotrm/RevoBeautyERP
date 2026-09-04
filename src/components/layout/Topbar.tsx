@@ -19,21 +19,13 @@ import TastoWhatsApp from '@/components/TastoWhatsApp';
 import TastoRegali from '@/components/TastoRegali';
 import RubricaModal from '@/components/RubricaModal';
 
-const pageTitles: Record<string, string> = {
-  '/dashboard': 'Dashboard',
-  '/dashboard/agenda': 'Agenda',
-  '/dashboard/clients': 'Clienti',
-  '/dashboard/pos': 'Punto Cassa',
-  '/dashboard/scontrini': 'Scontrini Fiscali',
-  '/dashboard/packages': 'Pacchetti & Abbonamenti',
-  '/dashboard/packages/gift-cards': 'Buoni Regalo',
-  '/dashboard/inventory': 'Magazzino',
-  '/dashboard/marketing': 'Marketing',
-  '/dashboard/copri-buchi': 'Copri buchi',
-  '/dashboard/reports': 'Report & Analytics',
-  '/dashboard/staff': 'Gestione Staff',
-  '/dashboard/settings': 'Impostazioni',
-};
+/*
+  Il nome della pagina non si scrive due volte.
+
+  Stava qui in alto e ricompare, piu' grande, come titolo della pagina stessa
+  due centimetri sotto: la stessa parola letta due volte non aggiunge niente e
+  ruba lo spazio alle quattro icone, che invece si guardano di continuo.
+*/
 
 export default function Topbar() {
   const pathname = usePathname();
@@ -53,7 +45,6 @@ export default function Topbar() {
   };
 
   const unreadCount = mockNotifications.filter(n => !n.isRead).length;
-  const pageTitle = pageTitles[pathname || ''] || 'Revobeauty';
 
   return (
     <header className="h-16 border-b border-border bg-bg-secondary/80 backdrop-blur-xl flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
@@ -67,16 +58,16 @@ export default function Topbar() {
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* `min-w-0` + truncate: su un telefono stretto il titolo si accorcia
-            coi puntini invece di spingere le icone di destra fuori dallo
-            schermo — dove, col body a overflow nascosto, sarebbero perse. */}
+        {/*
+          L'ordine e' quello con cui si guardano, non quello con cui sono
+          nate: prima WhatsApp, che e' il canale da cui arriva quasi tutto,
+          poi la chat dell'app, poi i regali da preparare, e in fondo il
+          trillo — che e' l'unico che parte da noi e non da una cliente.
+        */}
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <h1 className="text-lg font-display font-semibold text-text-primary truncate min-w-0">
-            {pageTitle}
-          </h1>
+          <TastoWhatsApp />
           <ClientChat />
           <TastoRegali />
-          <TastoWhatsApp />
           <TastoTrillo />
         </div>
       </div>
