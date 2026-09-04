@@ -194,9 +194,15 @@ export default function HomeScreen() {
             )}
 
             {/* il gesto: un solo bottone d'oro */}
-            <Pressable style={styles.bottoneOro} onPress={() => router.push(app ? '/appuntamenti' : '/prenota')}>
-              <Text style={styles.bottoneOroTxt}>{app ? 'Vedi i dettagli' : 'Prenota il tuo momento'}</Text>
-              <Ionicons name="arrow-forward" size={15} color="#161513" />
+            {/* il gesto: il bottone d'oro, sempre, a tutta larghezza */}
+            {app ? (
+              <Pressable style={styles.dettagli} onPress={() => router.push('/appuntamenti')} hitSlop={6}>
+                <Text style={styles.dettagliTxt}>Vedi i dettagli →</Text>
+              </Pressable>
+            ) : null}
+            <Pressable style={styles.bottoneOro} onPress={() => router.push('/prenota')}>
+              <Text style={styles.bottoneOroTxt}>Prenota il tuo momento</Text>
+              <Ionicons name="arrow-forward" size={17} color="#161513" />
             </Pressable>
 
             {/* i numeri: perle sulla stoffa, non riquadri */}
@@ -346,14 +352,20 @@ const styles = StyleSheet.create({
   grandeOra: { fontFamily: fonts.w800, fontSize: 34, lineHeight: 38, color: ORO_CHIARO },
   grandeSotto: { ...typography.body, fontSize: 14.5, color: 'rgba(255,255,255,0.75)', marginTop: 6 },
 
+  dettagli: { alignSelf: 'flex-start', marginTop: spacing.xs },
+  dettagliTxt: { ...typography.labelForte, fontSize: 13.5, color: ORO_CHIARO },
   bottoneOro: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    alignSelf: 'flex-start',
+    // A tutta larghezza e ben alto: è IL gesto della Home, ora che Prenota
+    // non ha più la sua scheda nella barra.
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    alignSelf: 'stretch',
     backgroundColor: colors.primaryLight ?? '#CBB06A',
-    borderRadius: radius.full, paddingHorizontal: spacing.lg, paddingVertical: 10,
-    marginTop: spacing.md,
+    borderRadius: radius.full, paddingVertical: 15,
+    marginTop: spacing.lg,
+    shadowColor: '#E7D5A4', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
   },
-  bottoneOroTxt: { ...typography.labelForte, fontSize: 14, color: '#161513' },
+  bottoneOroTxt: { ...typography.labelForte, fontSize: 16, color: '#161513' },
 
   perle: {
     flexDirection: 'row', alignItems: 'center',
