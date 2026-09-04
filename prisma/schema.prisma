@@ -197,6 +197,8 @@ model Product {
   locationId String  @default("loc1")
   isActive   Boolean @default(true)
   createdAt  String  @default("")
+  /// Foto del prodotto (data-URI compressa): la vetrina dei regali la mostra
+  image      String?
 
   @@map("products")
 }
@@ -1495,4 +1497,42 @@ model Reclamo {
 
   @@index([letto, createdAt])
   @@map("reclami")
+}
+
+// ============================================================
+// REGALI COI PUNTI (prodotti dello scaffale riscattabili dall'app)
+// ============================================================
+/// Un prodotto del magazzino messo "in regalo": quanti punti costa.
+/// La scheda prodotto resta quella dell'inventario — qui c'è solo la
+/// decisione del centro: questo sì, a tanti punti.
+model PremioProdotto {
+  id        String  @id @default(cuid())
+  productId String  @unique
+  punti     Int
+  attivo    Boolean @default(true)
+  createdAt String
+
+  @@map("premi_prodotti")
+}
+
+/// Il riscatto: la cliente ha speso i punti, il prodotto la aspetta al banco.
+/// Il codice si mostra in negozio; alla consegna lo stato cambia e lo stock
+/// scala. I punti sono già stati tolti alla prenotazione del regalo.
+model RiscattoPremio {
+  id           String  @id @default(cuid())
+  clientId     String
+  clientName   String
+  productId    String
+  nomeProdotto String
+  punti        Int
+  /// da_ritirare | consegnato | annullato
+  stato        String  @default("da_ritirare")
+  /// Codice corto da mostrare al banco
+  codice       String  @unique
+  createdAt    String
+  consegnatoAt String?
+
+  @@index([clientId])
+  @@index([stato])
+  @@map("riscatti_premi")
 }

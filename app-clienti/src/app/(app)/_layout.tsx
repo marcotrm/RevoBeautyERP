@@ -36,6 +36,7 @@ export default function AppLayout() {
       <Stack.Screen name="bacheca" options={{ title: 'Promo e lavori' }} />
       <Stack.Screen name="modifica-profilo" options={{ title: 'Il mio profilo' }} />
       <Stack.Screen name="reclamo" options={{ title: 'Reclamo anonimo' }} />
+      <Stack.Screen name="regali" options={{ title: 'Regali coi punti' }} />
     </Stack>
   );
 }

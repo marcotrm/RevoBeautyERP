@@ -10,6 +10,7 @@
  * scendono a righe — sono informazioni, non inviti.
  */
 import { useCallback, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -77,6 +78,18 @@ export default function PremiScreen() {
         }
       >
         <Text style={styles.titolo}>Premi</Text>
+
+        {/* ── La vetrina dei regali veri: prodotti dello scaffale coi punti ── */}
+        <Pressable style={stiliRegali.vetrina} onPress={() => router.push('/regali')}>
+          <View style={stiliRegali.icona}>
+            <Ionicons name="gift" size={20} color={colors.primaryDark} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={stiliRegali.occhiello}>REGALI COI PUNTI</Text>
+            <Text style={stiliRegali.titolo}>Scegli il tuo prodotto</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.primaryDark} />
+        </Pressable>
 
         {/* ── La box da scartare: l'unico blocco colorato ── */}
         {box.map(p => (
@@ -188,4 +201,20 @@ const styles = StyleSheet.create({
 
   vuoto: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xl, lineHeight: 24 },
   fondo: { height: spacing.xl },
+});
+
+
+// Stili dell'ingresso alla vetrina regali (separati per non toccare i tuoi)
+const stiliRegali = StyleSheet.create({
+  vetrina: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.primarySoft, borderRadius: 20,
+    padding: 14, marginBottom: 14,
+  },
+  icona: {
+    width: 38, height: 38, borderRadius: 999, backgroundColor: colors.white,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  occhiello: { fontSize: 10, letterSpacing: 1.2, color: colors.primaryDark, fontFamily: fonts.w700 },
+  titolo: { fontSize: 16, color: colors.textPrimary, fontFamily: fonts.w800, marginTop: 1 },
 });

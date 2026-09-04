@@ -37,6 +37,8 @@ export { beautyService, revoAiService } from './BeautyProvider';
 export { bachecaService } from './BachecaProvider';
 export type { PostBacheca } from './BachecaProvider';
 export { profiloService, completezzaProfilo } from './ProfiloProvider';
+export { regaliService } from './RegaliProvider';
+export type { PremioVetrina, RiscattoRegalo, DatiRegali } from './RegaliProvider';
 export type { ProfiloCliente, ModificheProfilo } from './ProfiloProvider';
 export type {
   DatiScore, ComponenteScore, SuggerimentoAutopilot, SlotAutopilot,

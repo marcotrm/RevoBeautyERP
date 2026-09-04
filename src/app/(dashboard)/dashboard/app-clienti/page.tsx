@@ -105,6 +105,12 @@ export default function AppClientiPage() {
         >
           🕊️ Reclami anonimi
         </a>
+        <a
+          href="/dashboard/app-clienti/regali"
+          className="rounded-lg border px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-black hover:text-white transition-colors"
+        >
+          🎁 Regali coi punti
+        </a>
         {salvato && (
           <span className="flex items-center gap-1.5 text-xs text-success font-semibold">
             <CheckCircle className="w-4 h-4" /> Salvato
