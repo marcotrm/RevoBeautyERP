@@ -99,6 +99,12 @@ export default function AppClientiPage() {
         >
           ✨ Bacheca e promo
         </a>
+        <a
+          href="/dashboard/app-clienti/reclami"
+          className="rounded-lg border px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-black hover:text-white transition-colors"
+        >
+          🕊️ Reclami anonimi
+        </a>
         {salvato && (
           <span className="flex items-center gap-1.5 text-xs text-success font-semibold">
             <CheckCircle className="w-4 h-4" /> Salvato

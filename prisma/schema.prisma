@@ -1476,3 +1476,23 @@ model AppPost {
   @@index([attivo, createdAt])
   @@map("app_posts")
 }
+
+// ============================================================
+// RECLAMI ANONIMI DALL'APP
+// ============================================================
+/// Un reclamo anonimo: categoria e testo, NIENT'ALTRO.
+///
+/// L'anonimato non è una promessa, è un fatto del modello dati: qui non
+/// c'è clientId, non c'è nome, non c'è telefono. L'endpoint verifica che
+/// a scrivere sia una cliente vera (serve la sessione, contro lo spam)
+/// ma butta via l'identità prima di salvare.
+model Reclamo {
+  id        String  @id @default(cuid())
+  categoria String
+  testo     String
+  letto     Boolean @default(false)
+  createdAt String
+
+  @@index([letto, createdAt])
+  @@map("reclami")
+}

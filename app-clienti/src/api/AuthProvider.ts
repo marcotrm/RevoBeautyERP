@@ -17,6 +17,12 @@ export interface AuthProvider {
   /** Verifica il codice e apre la sessione */
   verificaCodice(telefono: string, codice: string): Promise<AuthSession>;
 
+  /** Accesso con numero + password: la porta normale, dopo la prima volta. */
+  accediConPassword(telefono: string, password: string): Promise<AuthSession & { passwordDaImpostare?: boolean }>;
+
+  /** Crea (o cambia) la password dell'account. */
+  impostaPassword(token: string, password: string): Promise<void>;
+
   /** Chiude la sessione lato server */
   signOut(token: string): Promise<void>;
 
@@ -25,5 +31,5 @@ export interface AuthProvider {
    * oppure null se il token non è più valido.
    * Usata al riavvio dell'app per ripristinare la sessione.
    */
-  restoreSession(token: string): Promise<User | null>;
+  restoreSession(token: string): Promise<{ user: User; passwordDaImpostare: boolean } | null>;
 }

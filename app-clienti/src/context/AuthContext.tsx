@@ -38,6 +38,12 @@ export interface AuthContextValue {
   sbloccoNecessario: boolean;
   /** Chiamata dal blocco biometrico quando Face ID va a buon fine. */
   sblocca: () => void;
+  /** true finché l'account non ha una password: l'app la fa creare subito. */
+  passwordDaImpostare: boolean;
+  /** Accesso con numero + password (la porta normale dopo la prima volta). */
+  accediConPassword: (telefono: string, password: string) => Promise<void>;
+  /** Crea la password dell'account e apre la porta. */
+  creaPassword: (password: string) => Promise<void>;
   /**
    * true subito dopo il primo accesso, se il telefono ha Face ID/impronta
    * e la domanda non è mai stata fatta: si chiede il consenso una volta sola.
@@ -80,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [introVista, setIntroVista] = useState<boolean>(true);
   const [sbloccoNecessario, setSbloccoNecessario] = useState<boolean>(false);
+  const [passwordDaImpostare, setPasswordDaImpostare] = useState<boolean>(false);
   const [consensoFaceIdDaChiedere, setConsensoFaceIdDaChiedere] = useState<boolean>(false);
 
   // Ripristino sessione al primo avvio
@@ -95,7 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const savedToken = await getSessionToken();
         if (savedToken) {
-          const restoredUser = await authService.restoreSession(savedToken);
+          const restored = await authService.restoreSession(savedToken);
+          const restoredUser = restored?.user ?? null;
+          if (!cancelled && restored) setPasswordDaImpostare(restored.passwordDaImpostare);
           if (!cancelled && restoredUser) {
             // Sessione ripristinata senza che nessuno abbia digitato nulla:
             // se la cliente ha attivato lo sblocco biometrico, i dati restano
@@ -163,6 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (esito.accessoDiretto && esito.token && esito.user) {
         await persistToken(esito.token);
         await valutaConsensoFaceId();
+        setPasswordDaImpostare(!!esito.passwordDaImpostare);
         setUser(esito.user);
         setToken(esito.token);
       }
@@ -220,6 +230,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const sblocca = useCallback(() => setSbloccoNecessario(false), []);
 
+  const accediConPassword = useCallback(
+    async (telefono: string, password: string) => {
+      const session = await authService.accediConPassword(telefono, password);
+      await persistToken(session.token);
+      await valutaConsensoFaceId();
+      setPasswordDaImpostare(false);
+      setUser(session.user);
+      setToken(session.token);
+    },
+    [persistToken, valutaConsensoFaceId]
+  );
+
+  const creaPassword = useCallback(
+    async (password: string) => {
+      if (!token) return;
+      await authService.impostaPassword(token, password);
+      setPasswordDaImpostare(false);
+    },
+    [token]
+  );
+
   const signOut = useCallback(async () => {
     try {
       if (token) await authService.signOut(token);
@@ -230,6 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(null);
       setSbloccoNecessario(false);
       setConsensoFaceIdDaChiedere(false);
+      setPasswordDaImpostare(false);
     }
   }, [token]);
 
@@ -237,10 +269,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user, token, isLoading, introVista, sbloccoNecessario,
       sblocca, consensoFaceIdDaChiedere, rispondiConsensoFaceId,
+      passwordDaImpostare, accediConPassword, creaPassword,
       concludiIntro, richiediCodice, verificaCodice, signOut,
     }),
     [user, token, isLoading, introVista, sbloccoNecessario, sblocca,
-     consensoFaceIdDaChiedere, rispondiConsensoFaceId, concludiIntro, richiediCodice, verificaCodice, signOut]
+     consensoFaceIdDaChiedere, rispondiConsensoFaceId,
+     passwordDaImpostare, accediConPassword, creaPassword,
+     concludiIntro, richiediCodice, verificaCodice, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

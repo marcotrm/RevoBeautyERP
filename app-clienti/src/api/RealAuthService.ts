@@ -21,14 +21,27 @@ export class RealAuthService implements AuthProvider {
     });
   }
 
+  accediConPassword(telefono: string, password: string) {
+    return apiRequest<AuthSession & { passwordDaImpostare?: boolean }>('/api/mobile/auth/login-password', {
+      method: 'POST',
+      body: { telefono, password },
+    });
+  }
+
+  async impostaPassword(token: string, password: string): Promise<void> {
+    await apiRequest<{ ok: boolean }>('/api/mobile/auth/set-password', {
+      method: 'POST', token, body: { password },
+    });
+  }
+
   async signOut(token: string): Promise<void> {
     await apiRequest<{ success: boolean }>('/api/mobile/auth/logout', { method: 'POST', token });
   }
 
-  async restoreSession(token: string): Promise<User | null> {
+  async restoreSession(token: string): Promise<{ user: User; passwordDaImpostare: boolean } | null> {
     try {
-      const { user } = await apiRequest<{ user: User }>('/api/mobile/auth/me', { token });
-      return user;
+      const r = await apiRequest<{ user: User; passwordDaImpostare?: boolean }>('/api/mobile/auth/me', { token });
+      return { user: r.user, passwordDaImpostare: !!r.passwordDaImpostare };
     } catch {
       // Token scaduto/invalidato (o server irraggiungibile): niente sessione
       return null;

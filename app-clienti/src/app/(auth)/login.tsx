@@ -30,7 +30,7 @@ import { TextField } from '@/components/ui/TextField';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, fonts, spacing, typography } from '@/theme';
 
-type Passo = 'numero' | 'codice';
+type Passo = 'numero' | 'codice' | 'password';
 
 /** Numero leggibile mentre si digita: 340 123 4567 */
 function formattaTelefono(grezzo: string): string {
@@ -40,11 +40,12 @@ function formattaTelefono(grezzo: string): string {
 }
 
 export default function LoginScreen() {
-  const { richiediCodice, verificaCodice, introVista } = useAuth();
+  const { richiediCodice, verificaCodice, accediConPassword, introVista } = useAuth();
 
   const [passo, setPasso] = useState<Passo>('numero');
   const [telefono, setTelefono] = useState('');
   const [codice, setCodice] = useState('');
+  const [password, setPassword] = useState('');
   const [nome, setNome] = useState<string | null>(null);
   const [avviso, setAvviso] = useState<string | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
@@ -79,6 +80,11 @@ export default function LoginScreen() {
       // portarci alla home. Passare alla schermata del codice farebbe comparire
       // per un istante una domanda a cui nessuno deve rispondere.
       if (esito.accessoDiretto) return;
+      // L'account ha la password: niente codice, si chiede quella
+      if (esito.richiedePassword) {
+        setPasso('password');
+        return;
+      }
       setPasso('codice');
       setAttesa(60);
       // Sui server di sviluppo WhatsApp non è configurato e il codice torna
@@ -112,9 +118,23 @@ export default function LoginScreen() {
     }
   };
 
+  const entraConPassword = async () => {
+    setErrore(null);
+    setOccupato(true);
+    try {
+      await accediConPassword(soloCifre, password);
+      // Il redirect lo fa il root layout appena `user` cambia
+    } catch (e) {
+      setErrore(e instanceof ApiError ? e.message : 'Numero o password non corretti.');
+    } finally {
+      setOccupato(false);
+    }
+  };
+
   const cambiaNumero = () => {
     setPasso('numero');
     setCodice('');
+    setPassword('');
     setErrore(null);
     setAvviso(null);
     setNome(null);
@@ -158,6 +178,40 @@ export default function LoginScreen() {
                 L&apos;app è per le clienti del centro. Se il tuo numero non viene riconosciuto,
                 chiedi in negozio di essere registrata.
               </Text>
+            </>
+          ) : passo === 'password' ? (
+            <>
+              <Text style={styles.subtitle}>
+                {nome ? `Ciao ${nome}! ` : ''}Inserisci la tua password per entrare.
+              </Text>
+
+              <FormError message={errore} />
+
+              <TextField
+                label="Password"
+                placeholder="La tua password"
+                secureTextEntry
+                autoComplete="current-password"
+                value={password}
+                onChangeText={setPassword}
+                editable={!occupato}
+              />
+
+              <Button
+                title="Entra"
+                onPress={entraConPassword}
+                loading={occupato}
+                disabled={password.length < 8}
+              />
+
+              <View style={styles.azioni}>
+                <Text style={styles.attesa}>
+                  Password dimenticata? Chiedi in negozio: la azzeriamo e ne crei una nuova.
+                </Text>
+                <Pressable onPress={cambiaNumero} disabled={occupato}>
+                  <Text style={styles.linkTenue}>Cambia numero</Text>
+                </Pressable>
+              </View>
             </>
           ) : (
             <>

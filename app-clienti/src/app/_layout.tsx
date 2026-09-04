@@ -15,6 +15,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { BloccoBiometrico } from '@/components/BloccoBiometrico';
 import { ConsensoFaceId } from '@/components/ConsensoFaceId';
+import { CreaPassword } from '@/components/CreaPassword';
 import { NotifichePush } from '@/components/NotifichePush';
 import { SplashAnimata } from '@/components/SplashAnimata';
 import { AuthProvider } from '@/context/AuthContext';
@@ -22,7 +23,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { colors, fontAssets } from '@/theme';
 
 function RootNavigator({ fontPronti }: { fontPronti: boolean }) {
-  const { user, isLoading, sbloccoNecessario, consensoFaceIdDaChiedere } = useAuth();
+  const { user, isLoading, sbloccoNecessario, consensoFaceIdDaChiedere, passwordDaImpostare } = useAuth();
 
   // Splash minimale finché la sessione viene ripristinata da SecureStore:
   // evita il "flash" della schermata di login per un'utente già loggata.
@@ -40,6 +41,12 @@ function RootNavigator({ fontPronti }: { fontPronti: boolean }) {
   // coperti finché la biometria non conferma. Vedi BloccoBiometrico.
   if (user && sbloccoNecessario) {
     return <BloccoBiometrico />;
+  }
+
+  // Senza password l'account è aperto a chiunque conosca il numero:
+  // la si crea adesso, e questa porta non si salta.
+  if (user && passwordDaImpostare) {
+    return <CreaPassword />;
   }
 
   // Subito dopo il primo accesso: la domanda sul Face ID, una volta sola.

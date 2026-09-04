@@ -53,6 +53,13 @@ export interface RichiestaCodice {
   accessoDiretto?: boolean;
   token?: string;
   user?: User;
+  /**
+   * L'account ha già una password: l'app mostra il campo e si entra da
+   * /auth/login-password. Il numero da solo non basta più.
+   */
+  richiedePassword?: boolean;
+  /** Prima volta senza password: l'app la fa creare prima di tutto. */
+  passwordDaImpostare?: boolean;
 }
 
 // ---------- Listino (tab Pacchetti) ----------

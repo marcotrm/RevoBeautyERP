@@ -35,6 +35,7 @@ export default function AppLayout() {
       <Stack.Screen name="passport" options={{ title: 'Beauty Passport' }} />
       <Stack.Screen name="bacheca" options={{ title: 'Promo e lavori' }} />
       <Stack.Screen name="modifica-profilo" options={{ title: 'Il mio profilo' }} />
+      <Stack.Screen name="reclamo" options={{ title: 'Reclamo anonimo' }} />
     </Stack>
   );
 }

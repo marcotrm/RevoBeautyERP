@@ -21,7 +21,7 @@
  *     Finché la verifica non c'è, questa seconda strada non è percorribile.
  */
 
-import { preparaCodice, entraDirettamente, serveIlCodice, eNumeroDiProva, OTP_DURATA_MIN } from '@/lib/mobileAuth';
+import { preparaCodice, entraDirettamente, serveIlCodice, eNumeroDiProva, statoPassword, OTP_DURATA_MIN } from '@/lib/mobileAuth';
 import { utenteApp } from '@/lib/mobileUser';
 import { prisma } from '@/lib/prisma';
 import { sendD360Template, sendD360Text } from '@/lib/whatsapp360';
@@ -41,6 +41,18 @@ function testoCodice(codice: string): string {
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const telefono = String(body?.telefono || body?.phone || '');
+
+  /*
+    La password, quando c'è, viene prima di tutto: il numero da solo dice
+    chi sei, non che sei tu — chiunque conosca il numero di una cliente
+    potrebbe entrarle nell'account. Chi l'ha creata entra da
+    /auth/login-password; l'app, vedendo `richiedePassword`, mostra il
+    campo. Il codice WhatsApp resta la via di recupero.
+  */
+  const stato = await statoPassword(telefono);
+  if (stato.ok && stato.haPassword) {
+    return Response.json({ ok: true, richiedePassword: true, inviato: false, scadeTraMinuti: 0, nome: stato.nome });
+  }
 
   /*
     Accesso col solo numero.
@@ -80,6 +92,8 @@ export async function POST(req: Request) {
       nome: entrata.nome,
       token: entrata.token,
       user: utenteApp(cliente),
+      // Prima volta senza password: l'app la fa creare subito
+      passwordDaImpostare: true,
     });
   }
 

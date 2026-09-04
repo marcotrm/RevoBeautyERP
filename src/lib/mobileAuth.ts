@@ -318,3 +318,85 @@ export async function chiudiSessione(token: string): Promise<void> {
     data: { sessionToken: null },
   });
 }
+
+/* ------------------------------------------------------------------ */
+/* La password dell'account                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Il numero da solo dice CHI SEI, non che sei tu: chiunque conosca il
+ * numero di una cliente potrebbe entrarle nell'account. La password si
+ * crea (obbligatoria) al primo accesso, e da lì in poi si entra con
+ * numero + password. La azzera il centro dalla scheda cliente quando
+ * una cliente la dimentica: l'identità la verifica una persona, di
+ * persona — che per un centro estetico è la cosa più naturale del mondo.
+ */
+
+import bcrypt from 'bcryptjs';
+
+export function passwordValida(p: string): boolean {
+  return typeof p === 'string' && p.length >= 8;
+}
+
+/** L'account di questo numero ha già una password? (E come si chiama lei.) */
+export async function statoPassword(
+  telefonoGrezzo: string
+): Promise<{ ok: true; haPassword: boolean; nome: string } | { ok: false; code: 'VALIDATION' | 'USER_NOT_FOUND'; error: string }> {
+  const phone = normalizePhone(String(telefonoGrezzo || ''));
+  if (!isSendablePhone(phone)) {
+    return { ok: false, code: 'VALIDATION', error: 'Numero di cellulare non valido. Scrivilo come 3401234567.' };
+  }
+  const trovata = await trovaCliente(phone);
+  if (!trovata) {
+    return { ok: false, code: 'USER_NOT_FOUND', error: 'Questo numero non risulta fra le clienti del centro. Chiedi in negozio di essere registrata, poi riprova.' };
+  }
+  return { ok: true, haPassword: !!trovata.account?.passwordHash, nome: trovata.cliente.firstName };
+}
+
+/** Accesso con numero + password: la porta normale, dopo la prima volta. */
+export async function entraConPassword(telefonoGrezzo: string, password: string): Promise<EsitoAccesso> {
+  const phone = normalizePhone(String(telefonoGrezzo || ''));
+  if (!isSendablePhone(phone)) {
+    return { ok: false, code: 'VALIDATION', error: 'Numero di cellulare non valido.' };
+  }
+  const trovata = await trovaCliente(phone);
+  // Stesso errore per numero sconosciuto e password sbagliata: rispondere in
+  // due modi diversi direbbe a un curioso quali numeri hanno l'account.
+  const rifiuto = { ok: false as const, code: 'VALIDATION' as const, error: 'Numero o password non corretti.' };
+  if (!trovata?.account?.passwordHash) return rifiuto;
+  if (!bcrypt.compareSync(String(password || ''), trovata.account.passwordHash)) return rifiuto;
+
+  const token = nuovoToken();
+  const adesso = new Date().toISOString();
+  await prisma.mobileAccount.update({
+    where: { id: trovata.account.id },
+    data: {
+      phone,
+      sessionToken: hashToken(token),
+      lastLoginAt: adesso,
+      otpHash: null, otpExpiresAt: null, otpAttempts: 0,
+    },
+  });
+  return { ok: true, token, clientId: trovata.cliente.id, nome: trovata.cliente.firstName };
+}
+
+/** Salva la password (hash bcrypt) sull'account della cliente. */
+export async function impostaPassword(clientId: string, password: string): Promise<boolean> {
+  if (!passwordValida(password)) return false;
+  const account = await prisma.mobileAccount.findUnique({ where: { clientId } });
+  if (!account) return false;
+  await prisma.mobileAccount.update({
+    where: { id: account.id },
+    data: { passwordHash: bcrypt.hashSync(password, 10) },
+  });
+  return true;
+}
+
+/** L'account di questa cliente ha la password? (Per /me e per i gate dell'app.) */
+export async function passwordImpostata(clientId: string): Promise<boolean> {
+  const account = await prisma.mobileAccount.findUnique({
+    where: { clientId },
+    select: { passwordHash: true },
+  });
+  return !!account?.passwordHash;
+}
