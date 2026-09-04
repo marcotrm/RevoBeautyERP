@@ -25,6 +25,7 @@ import { headers } from 'next/headers';
 import { descriviDispositivo } from '@/lib/dispositivo';
 import { leggiDocumento, type LetturaDocumento } from '@/lib/documento';
 import { sessoDaNome } from '@/lib/sessoDaNome';
+import { DOMANDE_STORICO } from '@/lib/consensoLaserTesto';
 import { salvaDocumento } from '@/app/actions/documenti';
 
 const TITOLO = 'Consenso Laser/Epilazione';
@@ -294,7 +295,21 @@ async function salvaDavvero(
 }
 
 /** Il consenso piu' recente di una cliente: serve al banco per sapere se c'e'. */
-export async function consensoLaserDi(clientId: string): Promise<{ quando: string; zone?: string } | null> {
+export interface ConsensoTrovato {
+  quando: string;
+  zone?: string;
+  /**
+   * Quello che ha dichiarato, gia' pronto da leggere al banco.
+   *
+   * Il consenso firmato non e' solo una spunta amministrativa: dentro c'e' se
+   * prende farmaci, se ha avuto herpes, se e' stata al sole la settimana
+   * scorsa. Sono le cose che possono far rimandare la seduta, e finivano nel
+   * database senza che nessuno le rileggesse prima di accendere la macchina.
+   */
+  risposte: { testo: string; valore: string; attenzione: boolean }[];
+}
+
+export async function consensoLaserDi(clientId: string): Promise<ConsensoTrovato | null> {
   if (!clientId) return null;
   const c = await prisma.clientConsent.findFirst({
     where: { clientId, title: TITOLO },
@@ -302,8 +317,32 @@ export async function consensoLaserDi(clientId: string): Promise<{ quando: strin
     select: { signedAt: true, data: true },
   });
   if (!c) return null;
-  const d = (c.data || {}) as { zone?: string };
-  return { quando: c.signedAt, zone: d.zone };
+  const d = (c.data || {}) as { zone?: string; storico?: Record<string, string> };
+  const storico = d.storico || {};
+
+  /*
+    Cosa merita un'occhiata prima di cominciare.
+
+    Un «si' » a cura ormonale, farmaci o herpes va guardato; una risposta
+    libera — l'ultima esposizione al sole, da quanto non si depila — va letta
+    e basta, perche' il giudizio spetta a chi ha la macchina in mano.
+  */
+  const daGuardare = new Set(['ormonale', 'farmaci', 'herpes']);
+  const risposte = DOMANDE_STORICO
+    .map(q => {
+      const v = String(storico[q.id] ?? '').trim();
+      if (!v || v === 'no') return null;
+      const dettaglio = String(storico[`${q.id}_dettaglio`] ?? '').trim();
+      const valore = q.tipo === 'sino' ? (v === 'si' ? 'sì' : v) : v;
+      return {
+        testo: q.testo,
+        valore: dettaglio ? `${valore} — ${dettaglio}` : valore,
+        attenzione: daGuardare.has(q.id) && v === 'si',
+      };
+    })
+    .filter((x): x is { testo: string; valore: string; attenzione: boolean } => x !== null);
+
+  return { quando: c.signedAt, zone: d.zone, risposte };
 }
 
 // ============================================================

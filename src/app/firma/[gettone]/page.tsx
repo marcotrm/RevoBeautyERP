@@ -275,9 +275,23 @@ export default function PaginaFirma() {
         <p className="text-sm text-gray-600 mb-3">Servono a capire se oggi si può fare la seduta in sicurezza.</p>
 
         <div className="space-y-3">
-          {domande.map(d => (
-            <div key={d.id} className="rounded-2xl bg-white border border-gray-200 p-4">
-              <p className="font-medium mb-3">{d.testo}</p>
+          {domande.map(d => {
+            /*
+              Obbligatorio, e si vede.
+
+              Servono tutte, ma prima non si capiva quali mancassero finche'
+              non si arrivava in fondo e il tasto non si accendeva: si tornava
+              su a cercare, e chi si stanca chiude la pagina. Adesso la domanda
+              senza risposta ha il bordo rosso e il suo «obbligatorio» acceso,
+              e quando la risposta c'e' si spegne tutto.
+            */
+            const risposta = d.tipo === 'conferma' ? storico[d.id] === 'si' : Boolean(storico[d.id]);
+            return (
+            <div key={d.id} className={`rounded-2xl bg-white border p-4 ${risposta ? 'border-gray-200' : 'border-red-200'}`}>
+              <p className="font-medium mb-3">
+                {d.testo}
+                {!risposta && <span className="ml-2 text-[13px] font-semibold text-red-600">obbligatorio</span>}
+              </p>
 
               {d.tipo === 'sino' && (
                 <div className="flex gap-3">
@@ -324,7 +338,8 @@ export default function PaginaFirma() {
                   className="mt-3 w-full px-4 py-3 rounded-xl border-2 border-gray-200 text-base focus:outline-none focus:border-amber-600" />
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="mt-4 rounded-2xl bg-white border border-gray-200 p-4">
@@ -361,10 +376,24 @@ export default function PaginaFirma() {
 
         {errore && <p className="mt-4 text-center font-medium text-red-600">{errore}</p>}
 
+        {/*
+          Cosa manca, tutto e per esteso.
+
+          Prima ne diceva tre e poi tre puntini: si sistemavano quelle, il
+          tasto restava spento, e non c'era modo di sapere perche'. Sono al
+          massimo sette righe: si scrivono tutte.
+        */}
         {mancano.length > 0 && (
-          <p className="mt-4 text-center text-sm text-amber-700">
-            Manca ancora: {mancano.slice(0, 3).join(', ')}{mancano.length > 3 ? '…' : ''}
-          </p>
+          <div className="mt-4 rounded-2xl border-2 border-red-200 bg-red-50 p-4">
+            <p className="text-[15px] font-bold text-red-800">
+              {mancano.length === 1 ? 'Manca una cosa sola:' : `Mancano ${mancano.length} cose:`}
+            </p>
+            <ul className="mt-2 space-y-1">
+              {mancano.map((m, i) => (
+                <li key={i} className="text-[15px] text-red-700">• {m}</li>
+              ))}
+            </ul>
+          </div>
         )}
 
         <button type="button" onClick={salva} disabled={mancano.length > 0 || salvando}

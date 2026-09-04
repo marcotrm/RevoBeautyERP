@@ -56,6 +56,7 @@ import { senzaOmaggioInaugurazione } from '@/lib/omaggioInaugurazione';
 import { esoneriScheda, esoneraScheda, togliEsoneroScheda, type EsoneroScheda } from '@/app/actions/esoneroScheda';
 import {
   ultimoConsensoLaser, registraConsensoLaser, consensoLaserDi, linkConsensoLaser, mandaLinkConsenso,
+  type ConsensoTrovato,
   type FirmaLaser,
 } from '@/app/actions/consensoLaser';
 import SegniCliente from '@/components/SegniCliente';
@@ -4231,7 +4232,7 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     // sedute vecchie salvate senza categoria.
     return cat === 'laser' || /laser/i.test(s.treatmentName || '');
   });
-  const [consensoLaser, setConsensoLaser] = useState<{ ultima: FirmaLaser | null } | null>(null);
+  const [consensoLaser, setConsensoLaser] = useState<{ ultima: FirmaLaser | null; modulo?: ConsensoTrovato | null } | null>(null);
   const [consensoBusy, setConsensoBusy] = useState(false);
   /** Il modulo firmato sul tablet: e' la firma vera, la spunta al banco e' un'altra cosa. */
   const [moduloFirmato, setModuloFirmato] = useState<{ quando: string; zone?: string } | null>(null);
@@ -4245,17 +4246,21 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
       clientData?.id ? consensoLaserDi(clientData.id).catch(() => null) : null,
     ]);
     /*
-      Chi ha gia' firmato non viene fermato.
+      Chi ha gia' firmato non viene fermato, ma quello che ha dichiarato si
+      legge.
 
-      Il popup serve a non far entrare in cabina senza consenso: se il modulo
-      e' stato compilato ieri sera dal telefono, quel controllo e' gia' passato
-      e fermare il check-in sarebbe solo un tasto in piu' con la cliente
-      davanti. Il consenso resta visibile nella sua scheda.
+      Prima il check-in passava dritto: il consenso c'era, quindi via. Ma
+      dentro quel consenso c'e' scritto se prende farmaci, se ha avuto herpes,
+      se e' stata al sole la settimana scorsa — le cose che possono far
+      rimandare la seduta — e finivano nel database senza che nessuno le
+      rileggesse prima di accendere la macchina.
+
+      Quindi ora si vede un riquadro verde con le sue risposte e un tasto solo:
+      niente da firmare, solo da guardare.
     */
-    if (modulo) { proseguiCheckIn(); return; }
-    setModuloFirmato(null);
+    setModuloFirmato(modulo ? { quando: modulo.quando, zone: modulo.zone } : null);
     setEsitoLink(null);
-    setConsensoLaser({ ultima });
+    setConsensoLaser({ ultima, modulo });
   };
 
   /** Apre il modulo sul tablet: stessa pagina che riceve la cliente per link. */
@@ -5624,14 +5629,22 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConsensoLaser(null)} />
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-            className="relative z-10 w-full max-w-md rounded-2xl border-2 border-warning/50 bg-bg-secondary shadow-2xl overflow-hidden">
-            <div className="flex items-center gap-3 px-5 py-4 bg-warning/10">
-              <div className="w-11 h-11 rounded-full bg-warning/20 flex items-center justify-center text-warning flex-shrink-0">
-                <AlertTriangle className="w-6 h-6" />
+            className={`relative z-10 w-full max-w-md rounded-2xl border-2 bg-bg-secondary shadow-2xl overflow-hidden ${
+              consensoLaser.modulo ? 'border-success/50' : 'border-warning/50'}`}>
+            <div className={`flex items-center gap-3 px-5 py-4 ${consensoLaser.modulo ? 'bg-success/10' : 'bg-warning/10'}`}>
+              <div className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
+                consensoLaser.modulo ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'}`}>
+                {consensoLaser.modulo ? <CheckCircle className="w-6 h-6" /> : <AlertTriangle className="w-6 h-6" />}
               </div>
               <div>
-                <h3 className="text-lg font-display font-bold text-text-primary">Fai firmare il consenso</h3>
-                <p className="text-xs text-text-secondary">Seduta laser: il modulo si firma prima, non dopo.</p>
+                <h3 className="text-lg font-display font-bold text-text-primary">
+                  {consensoLaser.modulo ? 'Consenso già firmato' : 'Fai firmare il consenso'}
+                </h3>
+                <p className="text-xs text-text-secondary">
+                  {consensoLaser.modulo
+                    ? 'Guarda cosa ha dichiarato prima di cominciare.'
+                    : 'Seduta laser: il modulo si firma prima, non dopo.'}
+                </p>
               </div>
             </div>
 
@@ -5644,12 +5657,40 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
               </div>
 
               {/*
+                Quello che ha dichiarato lei, in chiaro.
+
+                Non tutto: solo quello che non e' un «no». Un elenco di sette
+                righe con sei «no» non lo legge nessuno, e la riga che conta ci
+                si perde dentro.
+              */}
+              {consensoLaser.modulo && (
+                <div className="rounded-xl border border-border bg-bg-tertiary/50 p-3 space-y-2">
+                  <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
+                    Ha dichiarato — firmato il {new Date(consensoLaser.modulo.quando).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })}
+                  </p>
+                  {consensoLaser.modulo.risposte.length === 0 ? (
+                    <p className="text-sm text-success">Nessuna controindicazione dichiarata.</p>
+                  ) : (
+                    consensoLaser.modulo.risposte.map((r, i) => (
+                      <div key={i} className={`text-sm ${r.attenzione ? 'text-warning font-semibold' : 'text-text-primary'}`}>
+                        {r.attenzione && <AlertTriangle className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />}
+                        {r.testo}: <strong>{r.valore}</strong>
+                      </div>
+                    ))
+                  )}
+                  {consensoLaser.modulo.zone && (
+                    <p className="text-[11px] text-text-muted">Zone concordate: {consensoLaser.modulo.zone}</p>
+                  )}
+                </div>
+              )}
+
+              {/*
                 Il modulo digitale viene prima di tutto: e' la firma vera, con
                 le risposte della cliente e la sua grafia. La spunta al banco
                 resta sotto, per i fogli firmati prima di oggi e per chi il
                 tablet non lo vuole toccare.
               */}
-              <div className="rounded-xl border border-border bg-bg-tertiary/50 p-3 space-y-2">
+              {!consensoLaser.modulo && <div className="rounded-xl border border-border bg-bg-tertiary/50 p-3 space-y-2">
                 {moduloFirmato ? (
                   <p className="text-xs font-semibold text-success">
                     ✓ Modulo firmato sul tablet il {new Date(moduloFirmato.quando).toLocaleDateString('it-IT')}
@@ -5669,9 +5710,9 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                   </button>
                 </div>
                 {esitoLink && <p className="text-[11px] text-text-muted">{esitoLink}</p>}
-              </div>
+              </div>}
 
-              {consensoLaser.ultima ? (
+              {consensoLaser.modulo ? null : consensoLaser.ultima ? (
                 <div className="rounded-xl bg-success/10 border border-success/25 px-3 py-2">
                   <p className="text-xs font-semibold text-success">Risulta già firmato</p>
                   <p className="text-[11px] text-text-secondary">
@@ -5691,17 +5732,26 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
             </div>
 
             <div className="p-5 pt-0 space-y-2">
-              <button onClick={confermaConsensoLaser} disabled={consensoBusy}
-                className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-60">
-                {consensoBusy ? 'Registro…' : 'Ha firmato — vai al check-in'}
-              </button>
-              <button onClick={() => setConsensoLaser(null)}
-                className="w-full py-2 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
-                Non ancora — mi fermo qui
-              </button>
-              <p className="text-[10px] text-text-muted text-center">
-                La firma resta sul foglio di carta. Qui si segna solo chi l&apos;ha confermata e quando.
-              </p>
+              {consensoLaser.modulo ? (
+                <button onClick={() => { setConsensoLaser(null); proseguiCheckIn(); }}
+                  className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity">
+                  Ho letto — vai al check-in
+                </button>
+              ) : (
+                <>
+                  <button onClick={confermaConsensoLaser} disabled={consensoBusy}
+                    className="w-full py-2.5 rounded-xl gradient-accent text-white text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-60">
+                    {consensoBusy ? 'Registro…' : 'Ha firmato — vai al check-in'}
+                  </button>
+                  <button onClick={() => setConsensoLaser(null)}
+                    className="w-full py-2 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
+                    Non ancora — mi fermo qui
+                  </button>
+                  <p className="text-[10px] text-text-muted text-center">
+                    La firma resta sul foglio di carta. Qui si segna solo chi l&apos;ha confermata e quando.
+                  </p>
+                </>
+              )}
             </div>
           </motion.div>
         </div>
