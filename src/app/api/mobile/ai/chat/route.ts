@@ -199,7 +199,13 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error('[revo-ai] errore:', err);
     return Response.json(
-      { error: 'Revo ha avuto un contrattempo. Riprova, o scrivici nella chat del centro.', code: 'UNKNOWN' },
+      {
+        error: 'Revo ha avuto un contrattempo. Riprova, o scrivici nella chat del centro.',
+        code: 'UNKNOWN',
+        // Il motivo tecnico viaggia a parte: l'app non lo mostra, chi
+        // debugga sì (stesso pattern della disdetta vocale).
+        dettaglio: (err as Error).message?.slice(0, 300),
+      },
       { status: 502 }
     );
   }
