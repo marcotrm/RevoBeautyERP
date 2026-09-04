@@ -56,8 +56,15 @@ function catenaFornitori(): Fornitore[] {
   return catena;
 }
 
-function modelloDi(fornitore: Fornitore): string {
-  return process.env.AI_MODEL || modelloPer('lavoro', fornitore);
+function modelloDi(fornitore: Fornitore, principale: boolean): string {
+  // AI_MODEL comanda solo sul fornitore scelto: un nome buono per Gemini
+  // sarebbe insensato per chi fa da ripiego, e viceversa.
+  if (principale && process.env.AI_MODEL) return process.env.AI_MODEL;
+  // Gemini di suo: il flash. Revo legge un listino e scrive due righe —
+  // la velocità QUI è l'esperienza (30 secondi di attesa non sono AI, sono
+  // una sala d'aspetto).
+  if (fornitore === 'gemini') return process.env.AI_GEMINI_MODEL || 'gemini-flash-latest';
+  return modelloPer('lavoro', fornitore);
 }
 
 /**
@@ -86,7 +93,7 @@ export async function chiedi(params: {
 
   let ultimoErrore: Error | null = null;
   for (const fornitore of catena) {
-    const modello = modelloDi(fornitore);
+    const modello = modelloDi(fornitore, fornitore === catena[0]);
     try {
       return await giroConStrumenti(fornitore, modello, params, tools, [...messaggi]);
     } catch (err) {
