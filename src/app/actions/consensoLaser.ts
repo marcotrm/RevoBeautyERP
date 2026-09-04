@@ -217,7 +217,14 @@ export async function salvaConsensoLaser(
     scritto sul consenso. Chi lo riapre fra un anno vede il tesserino e non
     deve fidarsi di una trascrizione fatta di corsa.
   */
-  if (r.documento?.foto && r.documento.numero) {
+  /*
+    Basta il numero, la foto e' un di piu'.
+
+    Prima ci volevano tutte e due, e chi non riusciva a far aprire la foto al
+    telefono restava senza documento in archivio anche dopo averlo scritto a
+    mano: il consenso c'era, il documento no, e a fine giro non tornava niente.
+  */
+  if (r.documento?.numero) {
     await salvaDocumento({
       clientId: dati.clientId,
       tipo: r.documento.tipo,

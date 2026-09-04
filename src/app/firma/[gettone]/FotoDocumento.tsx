@@ -43,30 +43,109 @@ const TIPI: { id: string; nome: string }[] = [
  *
  * Dal telefono arrivano foto da otto megapixel: sono quattro megabyte che
  * viaggiano su una tacca di rete, e per leggere un numero stampato bastano
- * millesettecento pixel di lato. Con la compressione la lettura parte in un
- * secondo invece che in venti.
+ * millesettecento pixel di lato.
+ *
+ * Ci sono tre strade per aprire l'immagine, e si provano in fila. Non e'
+ * pignoleria: la prima versione ne aveva una sola — FileReader, poi <img> — e
+ * bastava una foto HEIC dell'iPhone per farla fallire con «non sono riuscito
+ * ad aprire la foto». Dopo quel messaggio non c'era piu' niente da fare.
  */
-function rimpicciolisci(file: File, latoMax = 1700, qualita = 0.82): Promise<string> {
-  return new Promise((risolvi, rifiuta) => {
+
+/** Il motivo tecnico dell'ultimo tentativo fallito: serve a capire, non a chi firma. */
+let ultimoMotivo = '';
+
+export function motivoFoto(): string { return ultimoMotivo; }
+
+/** Strada 1: quella buona. Decodifica anche l'HEIC dove il sistema lo sa fare. */
+async function daBitmap(file: File): Promise<CanvasImageSource & { width: number; height: number }> {
+  if (typeof createImageBitmap !== 'function') throw new Error('createImageBitmap assente');
+  return createImageBitmap(file);
+}
+
+/** Strada 2: l'indirizzo temporaneo del file, senza passare da base64. */
+function daObjectUrl(file: File): Promise<HTMLImageElement> {
+  return new Promise((ok, no) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); ok(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); no(new Error('il browser non apre questo formato')); };
+    img.src = url;
+  });
+}
+
+/** Strada 3: la vecchia, base64. Costosa in memoria ma funziona dove le altre no. */
+function daBase64(file: File): Promise<HTMLImageElement> {
+  return new Promise((ok, no) => {
     const lettore = new FileReader();
-    lettore.onerror = () => rifiuta(new Error('lettura fallita'));
+    lettore.onerror = () => no(new Error('il file non si legge'));
     lettore.onload = () => {
       const img = new Image();
-      img.onerror = () => rifiuta(new Error('immagine non valida'));
-      img.onload = () => {
-        const scala = Math.min(1, latoMax / Math.max(img.width, img.height));
-        const c = document.createElement('canvas');
-        c.width = Math.round(img.width * scala);
-        c.height = Math.round(img.height * scala);
-        const ctx = c.getContext('2d');
-        if (!ctx) { rifiuta(new Error('canvas non disponibile')); return; }
-        ctx.drawImage(img, 0, 0, c.width, c.height);
-        risolvi(c.toDataURL('image/jpeg', qualita));
-      };
+      img.onload = () => ok(img);
+      img.onerror = () => no(new Error('immagine non valida'));
       img.src = String(lettore.result);
     };
     lettore.readAsDataURL(file);
   });
+}
+
+/** Il file cosi' com'e', quando ridimensionarlo non riesce: meglio pesante che niente. */
+function comEStata(file: File): Promise<string> {
+  return new Promise((ok, no) => {
+    const l = new FileReader();
+    l.onerror = () => no(new Error('il file non si legge'));
+    l.onload = () => ok(String(l.result));
+    l.readAsDataURL(file);
+  });
+}
+
+async function rimpicciolisci(file: File, latoMax = 1700, qualita = 0.82): Promise<string> {
+  const guai: string[] = [];
+  let sorgente: (CanvasImageSource & { width: number; height: number }) | HTMLImageElement | null = null;
+
+  for (const [nome, prova] of [
+    ['bitmap', daBitmap], ['objectUrl', daObjectUrl], ['base64', daBase64],
+  ] as const) {
+    try {
+      sorgente = await prova(file);
+      break;
+    } catch (e) {
+      guai.push(`${nome}: ${(e as Error).message}`);
+    }
+  }
+
+  if (!sorgente) {
+    ultimoMotivo = guai.join(' · ');
+    // Nessuna delle tre l'ha aperta, ma il file c'e': lo si manda com'e'.
+    // Il lettore ci prova lo stesso, e se non ce la fa i campi si scrivono.
+    return comEStata(file);
+  }
+
+  try {
+    const w = sorgente.width;
+    const h = sorgente.height;
+    /*
+      Il tetto sui pixel non e' scaramanzia: su iOS un canvas oltre i sedici
+      megapixel esce nero o non esce affatto, e il risultato e' una foto vuota
+      mandata al lettore — che poi «non si legge», e non si capisce perche'.
+    */
+    const scala = Math.min(1, latoMax / Math.max(w, h), Math.sqrt(16_000_000 / (w * h)));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * scala));
+    c.height = Math.max(1, Math.round(h * scala));
+    const ctx = c.getContext('2d');
+    if (!ctx) throw new Error('canvas non disponibile');
+    ctx.drawImage(sorgente as CanvasImageSource, 0, 0, c.width, c.height);
+    const fuori = c.toDataURL('image/jpeg', qualita);
+    // Un canvas fallito su iOS non lancia: restituisce una stringa cortissima.
+    if (!fuori || fuori.length < 2000) throw new Error('il ridimensionamento e\' uscito vuoto');
+    ultimoMotivo = '';
+    return fuori;
+  } catch (e) {
+    ultimoMotivo = `ridimensionamento: ${(e as Error).message}`;
+    return comEStata(file);
+  } finally {
+    (sorgente as ImageBitmap)?.close?.();
+  }
 }
 
 export default function FotoDocumento({ gettone, giaAgliAtti, onChange }: {
@@ -129,9 +208,21 @@ export default function FotoDocumento({ gettone, giaAgliAtti, onChange }: {
       };
       setCampi(d);
       onChange(d.numero ? d : null);
-    } catch {
-      setProblema('Non sono riuscito ad aprire la foto: riprova.');
-      setFoto(null);
+    } catch (e) {
+      /*
+        Nemmeno cosi'. Ma fermarsi qui vorrebbe dire lasciare una persona
+        davanti a un modulo che non si chiude: i campi si aprono lo stesso e
+        si scrivono a mano, che e' come si faceva con la fotocopiatrice.
+
+        Il motivo tecnico si scrive piccolo sotto: senza, l'unica cosa che si
+        poteva fare era indovinare — ed e' quello che e' successo, per giorni.
+      */
+      const motivo = motivoFoto() || (e as Error)?.message || '';
+      setProblema(`Non riesco ad aprire la foto${motivo ? ` (${motivo})` : ''}. Puoi riprovare, oppure scrivere i dati qui sotto.`);
+      setCampi({
+        foto: '', anteprima: '', tipo: 'carta_identita',
+        numero: '', nome: '', cognome: '', dataNascita: '', scadenza: '',
+      });
     } finally {
       setLeggendo(false);
     }
@@ -197,12 +288,16 @@ export default function FotoDocumento({ gettone, giaAgliAtti, onChange }: {
         </div>
       )}
 
-      {foto && campi && (
+      {campi && (
         <div className="mt-4 space-y-4">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={foto} alt="Il tuo documento" className="w-full rounded-xl border border-gray-200" />
+          {foto && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={foto} alt="Il tuo documento" className="w-full rounded-xl border border-gray-200" />
+          )}
           <div className="flex items-center justify-between">
-            <p className="text-[13px] text-gray-500">Controlla che sia tutto giusto</p>
+            <p className="text-[13px] text-gray-500">
+              {foto ? 'Controlla che sia tutto giusto' : 'Scrivi i dati del documento'}
+            </p>
             <button type="button" onClick={() => input.current?.click()}
               className="text-[14px] font-semibold text-amber-700 underline">Rifai la foto</button>
           </div>
