@@ -264,7 +264,20 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
       .then(r => { if (vivo) setRegali(r); })
       .catch(() => { if (vivo) setRegali(null); });
     saldoCredito(id)
-      .then(s => { if (vivo) setCredito(s); })
+      .then(s => {
+        if (!vivo) return;
+        setCredito(s);
+        /*
+          Se ha del credito, si usa: acceso di default.
+
+          Prima bisognava toccarlo, e un credito che qualcuno deve ricordarsi
+          di spendere e' lo stesso foglietto attaccato al monitor da cui siamo
+          partiti. Resta un tasto: si vede quanto si sta scalando e si puo'
+          spegnere in un tocco, ma il caso normale — glieli dobbiamo, li
+          usiamo — non chiede piu' niente a nessuno.
+        */
+        setUsaIlCredito(s > 0 && !initialData?.debtPkgId);
+      })
       .catch(() => { if (vivo) setCredito(0); });
     saldoWalletApp(id)
       .then(s => { if (vivo) setWalletApp(s); })
@@ -487,9 +500,16 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
   const dopoBuonoRegalo = Math.max(0, Math.round((dopoCaparra - buonoRegaloUsato) * 100) / 100);
   // Non si scala mai piu' di quello che c'e' da pagare: il credito che avanza
   // resta sul suo conto, non si regala il resto.
-  const creditoUsato = usaIlCredito ? Math.min(credito, dopoBuonoRegalo) : 0;
+  /*
+    Sulla rata di un pacchetto il credito NON si tocca.
+
+    Li' l'importo lo scrive a mano l'operatrice e il totale non passa da
+    questi conti: scalare il credito vorrebbe dire farlo sparire senza che la
+    cliente paghi un euro di meno. Si dice, e si usa alla prima vendita vera.
+  */
+  const creditoUsato = usaIlCredito && !isDebtPayment ? Math.min(credito, dopoBuonoRegalo) : 0;
   // Il wallet copre quel che resta dopo il credito del banco, mai di piu'.
-  const walletUsato = usaIlWalletApp
+  const walletUsato = usaIlWalletApp && !isDebtPayment
     ? Math.min(walletApp, Math.max(0, Math.round((dopoBuonoRegalo - creditoUsato) * 100) / 100))
     : 0;
   const finalTotal = isDebtPayment
@@ -531,6 +551,189 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
     Quindi l'incasso si registra, lo scontrino aspetta un tasto.
   */
   const contanti = paymentMethod === 'contanti';
+
+  /*
+    I soldi che ha gia' con noi: regali, buono, credito, wallet.
+
+    Stavano scritti dentro il ramo del pagamento rata, e comparivano SOLO
+    quando si incassava la rata di un pacchetto: su una vendita normale — la
+    quasi totalita' degli incassi — il credito non si vedeva nemmeno. Chi
+    aveva quindici euro da scalare non se li vedeva offrire mai.
+
+    Adesso il pezzo e' uno solo e si disegna in tutti e due i casi, sopra al
+    totale. Un blocco solo vuol dire anche che la prossima modifica non puo'
+    finire per sbaglio in meta' cassa.
+  */
+  const soldiGiaSuoi = (
+    <>
+                        {/*
+                          Il regalo che aspetta: e' roba sua, gia' pagata coi
+                          punti. Il codice sta scritto grande perche' lo si
+                          confronta con quello sul suo telefono mentre le si
+                          parla, e il tasto sta qui perche' la mano e' gia' qui.
+                        */}
+                        {esitoRegalo && (
+                          <p className="mt-2 text-[11px] text-success font-medium">✓ {esitoRegalo}</p>
+                        )}
+
+                        {regali?.daConsegnare.map(r => (
+                          <div key={r.id} className="mt-2 p-2.5 rounded-xl border-2 border-warning/50 bg-warning/10 space-y-2">
+                            <div className="flex items-start gap-2">
+                              <Gift className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-warning">Ha un regalo da ritirare</p>
+                                <p className="text-[11px] text-text-secondary truncate">
+                                  {r.nome} · {r.punti} punti
+                                  {r.tipo === 'trattamento' ? ' · trattamento gia\' pagato coi punti' : ''}
+                                </p>
+                              </div>
+                              <span className="px-2 py-1 rounded-lg bg-bg-primary border border-border font-mono text-xs font-bold tracking-widest text-text-primary flex-shrink-0">
+                                {r.codice}
+                              </span>
+                            </div>
+                            <button onClick={() => void consegnaRegalo(r.id)} disabled={consegnando === r.id}
+                              className="w-full py-1.5 rounded-lg bg-warning text-white text-xs font-bold disabled:opacity-40">
+                              {consegnando === r.id ? 'Un attimo…' : 'Consegnato ora'}
+                            </button>
+                          </div>
+                        ))}
+
+                        {/*
+                          Nessun regalo in attesa, ma i punti le bastano gia': si
+                          dice a voce, ed e' qui che vale — davanti alla cassa si
+                          accorge di avere qualcosa in mano, a casa no.
+                        */}
+                        {regali && regali.daConsegnare.length === 0 && regali.allaPortata.length > 0 && (
+                          <p className="mt-2 text-[11px] text-text-secondary">
+                            🎁 Ha <strong className="text-text-primary">{regali.punti} punti</strong>: le bastano per
+                            {' '}<strong className="text-text-primary">{regali.allaPortata[0].nome}</strong> ({regali.allaPortata[0].punti} punti)
+                            {regali.allaPortata.length > 1 ? ` e altri ${regali.allaPortata.length - 1}` : ''} — glielo dici?
+                          </p>
+                        )}
+
+                        {/*
+                          La card plastificata: si spara qui.
+
+                          Sta in cassa e non nella scheda della cliente perche'
+                          la tessera vale per chi ce l'ha in mano — puo'
+                          presentarsi la sorella della festeggiata, e il buono
+                          e' comunque suo.
+                        */}
+                        {!isDebtPayment && (cardRegalo ? (
+                          <div className="mt-2 p-2.5 rounded-xl border-2 border-accent/50 bg-accent/5">
+                            <div className="flex items-start gap-2">
+                              <Gift className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-accent">
+                                  Buono di {cardRegalo.recipientName} · − {formatCurrency(buonoRegaloUsato)}
+                                </p>
+                                <p className="text-[11px] text-text-muted">
+                                  {cardRegalo.cardCode || cardRegalo.code} · aveva {formatCurrency(cardRegalo.remainingBalance)}
+                                  {cardRegalo.remainingBalance > buonoRegaloUsato
+                                    ? ` · le restano ${formatCurrency(Math.round((cardRegalo.remainingBalance - buonoRegaloUsato) * 100) / 100)} per la prossima volta`
+                                    : ' · si esaurisce con questo conto'}
+                                </p>
+                              </div>
+                              <button onClick={() => { setCardRegalo(null); setErroreCard(''); }}
+                                className="text-[11px] text-text-muted hover:text-error flex-shrink-0">Togli</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-2">
+                            <div className="flex gap-1.5 items-center">
+                              <input value={codiceCard}
+                                onChange={e => { setCodiceCard(e.target.value.toUpperCase()); setErroreCard(''); }}
+                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void trovaCard(); } }}
+                                placeholder="🎁 Spara la card del buono regalo"
+                                className="flex-1 min-w-0 border border-border bg-bg-primary rounded-lg px-2 py-1.5 text-xs font-mono tracking-wider text-text-primary placeholder:font-sans placeholder:tracking-normal" />
+                              <button onClick={() => void trovaCard()} disabled={cercandoCard || !codiceCard.trim()}
+                                className="text-xs bg-black text-white rounded-lg px-3 py-1.5 disabled:opacity-40 flex-shrink-0">
+                                {cercandoCard ? '…' : 'Usa'}
+                              </button>
+                            </div>
+                            {erroreCard && <p className="text-[11px] mt-1 text-error">{erroreCard}</p>}
+                          </div>
+                        ))}
+
+                        {/* Il credito che le dobbiamo: si vede sempre, si usa
+                            solo se qualcuno lo decide. */}
+                        {credito > 0 && isDebtPayment && (
+                          <p className="mt-2 text-[11px] text-success">
+                            Ha {formatCurrency(credito)} di credito: si scala su una vendita, non sulla rata di un pacchetto.
+                          </p>
+                        )}
+
+                        {credito > 0 && !isDebtPayment && (
+                          <button onClick={() => setUsaIlCredito(v => !v)}
+                            className={`w-full flex items-center gap-2.5 mt-2 p-2.5 rounded-xl border-2 transition-colors text-left ${
+                              usaIlCredito ? 'border-success bg-success/10' : 'border-success/40 bg-success/5 hover:bg-success/10'}`}>
+                            <span className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center ${usaIlCredito ? 'bg-success border-success' : 'border-success/50'}`}>
+                              {usaIlCredito && <Check className="w-3 h-3 text-white" />}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-sm font-semibold text-success">
+                                Ha {formatCurrency(credito)} di credito
+                              </span>
+                              <span className="block text-[11px] text-text-muted">
+                                {usaIlCredito
+                                  ? `Scalati ${formatCurrency(creditoUsato)}${credito > creditoUsato ? ` · le restano ${formatCurrency(credito - creditoUsato)}` : ''}`
+                                  : 'Tocca per usarlo su questo conto'}
+                              </span>
+                            </span>
+                          </button>
+                        )}
+
+                        {/* "Vengo da parte di…": il codice invito si gioca qui. */}
+                        {clienteScelto && (
+                          <div className="mt-2">
+                            {!mostraCodice ? (
+                              <button onClick={() => setMostraCodice(true)}
+                                className="text-[12px] font-medium text-accent hover:underline">
+                                🎁 Ha un codice invito? Inseriscilo
+                              </button>
+                            ) : (
+                              <div className="flex gap-1.5 items-center">
+                                <input
+                                  value={codiceInvito}
+                                  onChange={e => setCodiceInvito(e.target.value.toUpperCase())}
+                                  placeholder="ES. MARIA-7K2P"
+                                  className="flex-1 min-w-0 border border-border bg-bg-primary rounded-lg px-2 py-1.5 text-xs font-mono tracking-wider text-text-primary"
+                                />
+                                <button onClick={() => void applicaCodiceInvito()}
+                                  disabled={applicandoCodice || !codiceInvito.trim()}
+                                  className="text-xs bg-black text-white rounded-lg px-3 py-1.5 disabled:opacity-40 flex-shrink-0">
+                                  {applicandoCodice ? '…' : 'Applica'}
+                                </button>
+                              </div>
+                            )}
+                            {esitoCodice && (
+                              <p className={`text-[11px] mt-1 ${esitoCodice.ok ? 'text-success' : 'text-error'}`}>{esitoCodice.testo}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Il credito dell'app: amica invitata, cashback, premi. */}
+                        {walletApp > 0 && !isDebtPayment && (
+                          <button onClick={() => setUsaIlWalletApp(v => !v)}
+                            className={`w-full flex items-center gap-2.5 mt-2 p-2.5 rounded-xl border-2 transition-colors text-left ${
+                              usaIlWalletApp ? 'border-accent bg-accent/10' : 'border-accent/40 bg-accent/5 hover:bg-accent/10'}`}>
+                            <span className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center ${usaIlWalletApp ? 'bg-accent border-accent' : 'border-accent/50'}`}>
+                              {usaIlWalletApp && <Check className="w-3 h-3 text-white" />}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-sm font-semibold text-accent">
+                                Ha {formatCurrency(walletApp)} di credito app (inviti e premi)
+                              </span>
+                              <span className="block text-[11px] text-text-muted">
+                                {usaIlWalletApp
+                                  ? `Scalati ${formatCurrency(walletUsato)}${walletApp > walletUsato ? ` · le restano ${formatCurrency(walletApp - walletUsato)}` : ''}`
+                                  : 'Tocca per usarlo su questo conto'}
+                              </span>
+                            </span>
+                          </button>
+                        )}
+    </>
+  );
 
   const handleComplete = async () => {
     if (!canComplete || saving) return;
@@ -804,166 +1007,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                         </div>
                       )}
 
-                      {/*
-                        Il regalo che aspetta: e' roba sua, gia' pagata coi
-                        punti. Il codice sta scritto grande perche' lo si
-                        confronta con quello sul suo telefono mentre le si
-                        parla, e il tasto sta qui perche' la mano e' gia' qui.
-                      */}
-                      {esitoRegalo && (
-                        <p className="mt-2 text-[11px] text-success font-medium">✓ {esitoRegalo}</p>
-                      )}
-
-                      {regali?.daConsegnare.map(r => (
-                        <div key={r.id} className="mt-2 p-2.5 rounded-xl border-2 border-warning/50 bg-warning/10 space-y-2">
-                          <div className="flex items-start gap-2">
-                            <Gift className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold text-warning">Ha un regalo da ritirare</p>
-                              <p className="text-[11px] text-text-secondary truncate">
-                                {r.nome} · {r.punti} punti
-                                {r.tipo === 'trattamento' ? ' · trattamento gia\' pagato coi punti' : ''}
-                              </p>
-                            </div>
-                            <span className="px-2 py-1 rounded-lg bg-bg-primary border border-border font-mono text-xs font-bold tracking-widest text-text-primary flex-shrink-0">
-                              {r.codice}
-                            </span>
-                          </div>
-                          <button onClick={() => void consegnaRegalo(r.id)} disabled={consegnando === r.id}
-                            className="w-full py-1.5 rounded-lg bg-warning text-white text-xs font-bold disabled:opacity-40">
-                            {consegnando === r.id ? 'Un attimo…' : 'Consegnato ora'}
-                          </button>
-                        </div>
-                      ))}
-
-                      {/*
-                        Nessun regalo in attesa, ma i punti le bastano gia': si
-                        dice a voce, ed e' qui che vale — davanti alla cassa si
-                        accorge di avere qualcosa in mano, a casa no.
-                      */}
-                      {regali && regali.daConsegnare.length === 0 && regali.allaPortata.length > 0 && (
-                        <p className="mt-2 text-[11px] text-text-secondary">
-                          🎁 Ha <strong className="text-text-primary">{regali.punti} punti</strong>: le bastano per
-                          {' '}<strong className="text-text-primary">{regali.allaPortata[0].nome}</strong> ({regali.allaPortata[0].punti} punti)
-                          {regali.allaPortata.length > 1 ? ` e altri ${regali.allaPortata.length - 1}` : ''} — glielo dici?
-                        </p>
-                      )}
-
-                      {/*
-                        La card plastificata: si spara qui.
-
-                        Sta in cassa e non nella scheda della cliente perche'
-                        la tessera vale per chi ce l'ha in mano — puo'
-                        presentarsi la sorella della festeggiata, e il buono
-                        e' comunque suo.
-                      */}
-                      {!isDebtPayment && (cardRegalo ? (
-                        <div className="mt-2 p-2.5 rounded-xl border-2 border-accent/50 bg-accent/5">
-                          <div className="flex items-start gap-2">
-                            <Gift className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold text-accent">
-                                Buono di {cardRegalo.recipientName} · − {formatCurrency(buonoRegaloUsato)}
-                              </p>
-                              <p className="text-[11px] text-text-muted">
-                                {cardRegalo.cardCode || cardRegalo.code} · aveva {formatCurrency(cardRegalo.remainingBalance)}
-                                {cardRegalo.remainingBalance > buonoRegaloUsato
-                                  ? ` · le restano ${formatCurrency(Math.round((cardRegalo.remainingBalance - buonoRegaloUsato) * 100) / 100)} per la prossima volta`
-                                  : ' · si esaurisce con questo conto'}
-                              </p>
-                            </div>
-                            <button onClick={() => { setCardRegalo(null); setErroreCard(''); }}
-                              className="text-[11px] text-text-muted hover:text-error flex-shrink-0">Togli</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="mt-2">
-                          <div className="flex gap-1.5 items-center">
-                            <input value={codiceCard}
-                              onChange={e => { setCodiceCard(e.target.value.toUpperCase()); setErroreCard(''); }}
-                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void trovaCard(); } }}
-                              placeholder="🎁 Spara la card del buono regalo"
-                              className="flex-1 min-w-0 border border-border bg-bg-primary rounded-lg px-2 py-1.5 text-xs font-mono tracking-wider text-text-primary placeholder:font-sans placeholder:tracking-normal" />
-                            <button onClick={() => void trovaCard()} disabled={cercandoCard || !codiceCard.trim()}
-                              className="text-xs bg-black text-white rounded-lg px-3 py-1.5 disabled:opacity-40 flex-shrink-0">
-                              {cercandoCard ? '…' : 'Usa'}
-                            </button>
-                          </div>
-                          {erroreCard && <p className="text-[11px] mt-1 text-error">{erroreCard}</p>}
-                        </div>
-                      ))}
-
-                      {/* Il credito che le dobbiamo: si vede sempre, si usa
-                          solo se qualcuno lo decide. */}
-                      {credito > 0 && (
-                        <button onClick={() => setUsaIlCredito(v => !v)}
-                          className={`w-full flex items-center gap-2.5 mt-2 p-2.5 rounded-xl border-2 transition-colors text-left ${
-                            usaIlCredito ? 'border-success bg-success/10' : 'border-success/40 bg-success/5 hover:bg-success/10'}`}>
-                          <span className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center ${usaIlCredito ? 'bg-success border-success' : 'border-success/50'}`}>
-                            {usaIlCredito && <Check className="w-3 h-3 text-white" />}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-sm font-semibold text-success">
-                              Ha {formatCurrency(credito)} di credito
-                            </span>
-                            <span className="block text-[11px] text-text-muted">
-                              {usaIlCredito
-                                ? `Scalati ${formatCurrency(creditoUsato)}${credito > creditoUsato ? ` · le restano ${formatCurrency(credito - creditoUsato)}` : ''}`
-                                : 'Tocca per usarlo su questo conto'}
-                            </span>
-                          </span>
-                        </button>
-                      )}
-
-                      {/* "Vengo da parte di…": il codice invito si gioca qui. */}
-                      {clienteScelto && (
-                        <div className="mt-2">
-                          {!mostraCodice ? (
-                            <button onClick={() => setMostraCodice(true)}
-                              className="text-[12px] font-medium text-accent hover:underline">
-                              🎁 Ha un codice invito? Inseriscilo
-                            </button>
-                          ) : (
-                            <div className="flex gap-1.5 items-center">
-                              <input
-                                value={codiceInvito}
-                                onChange={e => setCodiceInvito(e.target.value.toUpperCase())}
-                                placeholder="ES. MARIA-7K2P"
-                                className="flex-1 min-w-0 border border-border bg-bg-primary rounded-lg px-2 py-1.5 text-xs font-mono tracking-wider text-text-primary"
-                              />
-                              <button onClick={() => void applicaCodiceInvito()}
-                                disabled={applicandoCodice || !codiceInvito.trim()}
-                                className="text-xs bg-black text-white rounded-lg px-3 py-1.5 disabled:opacity-40 flex-shrink-0">
-                                {applicandoCodice ? '…' : 'Applica'}
-                              </button>
-                            </div>
-                          )}
-                          {esitoCodice && (
-                            <p className={`text-[11px] mt-1 ${esitoCodice.ok ? 'text-success' : 'text-error'}`}>{esitoCodice.testo}</p>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Il credito dell'app: amica invitata, cashback, premi. */}
-                      {walletApp > 0 && (
-                        <button onClick={() => setUsaIlWalletApp(v => !v)}
-                          className={`w-full flex items-center gap-2.5 mt-2 p-2.5 rounded-xl border-2 transition-colors text-left ${
-                            usaIlWalletApp ? 'border-accent bg-accent/10' : 'border-accent/40 bg-accent/5 hover:bg-accent/10'}`}>
-                          <span className={`w-4 h-4 rounded flex-shrink-0 border-2 flex items-center justify-center ${usaIlWalletApp ? 'bg-accent border-accent' : 'border-accent/50'}`}>
-                            {usaIlWalletApp && <Check className="w-3 h-3 text-white" />}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block text-sm font-semibold text-accent">
-                              Ha {formatCurrency(walletApp)} di credito app (inviti e premi)
-                            </span>
-                            <span className="block text-[11px] text-text-muted">
-                              {usaIlWalletApp
-                                ? `Scalati ${formatCurrency(walletUsato)}${walletApp > walletUsato ? ` · le restano ${formatCurrency(walletApp - walletUsato)}` : ''}`
-                                : 'Tocca per usarlo su questo conto'}
-                            </span>
-                          </span>
-                        </button>
-                      )}
+                      {soldiGiaSuoi}
                       <div className="border-t border-border mt-3 pt-3 flex justify-between"><span className="text-base font-semibold text-text-primary">Totale da Incassare</span><span className="text-xl font-display font-bold text-accent">{formatCurrency(finalTotal)}</span></div>
                     </>
                   ) : (
@@ -992,6 +1036,7 @@ function NewSaleModal({ onClose, onComplete, initialData }: {
                           <input type="number" value={discount} onChange={e => setDiscount(e.target.value)} placeholder="0" className="w-20 px-2 py-1 rounded-lg bg-bg-tertiary border border-border text-sm text-text-primary text-right focus:outline-none focus:border-accent/50" />
                         </div>
                       </div>
+                      {soldiGiaSuoi}
                       <div className="border-t border-border pt-2 flex justify-between"><span className="text-base font-semibold text-text-primary">Totale</span><span className="text-xl font-display font-bold text-accent">{formatCurrency(finalTotal)}</span></div>
                     </>
                   )}
