@@ -42,6 +42,16 @@ const aMinuti = (hhmm: string) => {
 /** 0=domenica … 6=sabato di una data YYYY-MM-DD (a mezzogiorno: niente sorprese di fuso). */
 const giornoSettimana = (data: string) => new Date(`${data}T12:00:00`).getDay();
 
+/** "oggi", "domani" o "sabato 5 settembre": come lo direbbe una persona. */
+function dataLeggibile(data: string): string {
+  const oggi = adessoInItalia().data;
+  if (data === oggi) return 'oggi';
+  if (data === dataItaliaFra(1)) return 'domani';
+  return new Intl.DateTimeFormat('it-IT', {
+    timeZone: 'Europe/Rome', weekday: 'long', day: 'numeric', month: 'long',
+  }).format(new Date(`${data}T12:00:00`));
+}
+
 // ------------------------------------------------------------
 // Promemoria appuntamenti
 // ------------------------------------------------------------
@@ -157,7 +167,7 @@ export async function abbinaListaAttesa(): Promise<{ avvisate: number; scadute: 
         tipo: 'waitlist',
         refId: `${d.id}:${posto.id}`,
         titolo: 'Si è liberato un posto! 🎉',
-        corpo: `${posto.treatmentName} · ${posto.date === oggi ? 'oggi' : posto.date} alle ${posto.startTime}${posto.operatorName ? ` con ${posto.operatorName}` : ''}. Prenota prima che voli via.`,
+        corpo: `${posto.treatmentName} · ${dataLeggibile(posto.date)} alle ${posto.startTime}${posto.operatorName ? ` con ${posto.operatorName}` : ''}. Prenota prima che voli via.`,
         dati: { rotta: '/prenota' },
       });
 
