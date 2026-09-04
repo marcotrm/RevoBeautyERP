@@ -82,7 +82,7 @@ function SignaturePad({ onChange }: { onChange: (data: string | null) => void })
   );
 }
 
-export default function ClientRecordTab({ clientId }: { clientId: string }) {
+export default function ClientRecordTab({ clientId, nomeCliente }: { clientId: string; nomeCliente?: string }) {
   /** Apre il modulo del consenso laser per questa cliente, su una scheda nuova. */
   /*
     La scheda si apre PRIMA di sapere l'indirizzo.
@@ -419,7 +419,7 @@ export default function ClientRecordTab({ clientId }: { clientId: string }) {
       {/* Il consenso firmato, per intero */}
       <AnimatePresence>
         {consensoAperto && (
-          <DettaglioConsenso key={versioneDoc} consenso={consensoAperto} clientId={clientId} onChiudi={() => setConsensoAperto(null)} />
+          <DettaglioConsenso key={versioneDoc} consenso={consensoAperto} clientId={clientId} nomeCliente={nomeCliente} onChiudi={() => setConsensoAperto(null)} />
         )}
       </AnimatePresence>
 

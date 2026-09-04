@@ -63,8 +63,8 @@ function leggiRisposta(domanda: typeof DOMANDE_STORICO[number], valore?: string)
   return { testo: v, attenzione: false };
 }
 
-export default function DettaglioConsenso({ consenso, clientId, onChiudi }: {
-  consenso: ConsensoDaVedere; clientId?: string; onChiudi: () => void;
+export default function DettaglioConsenso({ consenso, clientId, nomeCliente, onChiudi }: {
+  consenso: ConsensoDaVedere; clientId?: string; nomeCliente?: string; onChiudi: () => void;
 }) {
   const [testoAperto, setTestoAperto] = useState(false);
   const [documento, setDocumento] = useState<DocumentoSalvato | null>(null);
@@ -93,17 +93,25 @@ export default function DettaglioConsenso({ consenso, clientId, onChiudi }: {
   return (
     <>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm" onClick={onChiudi} />
+        className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-sm niente-stampa" onClick={onChiudi} />
       <motion.div initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 16 }}
         className="fixed inset-0 z-[71] flex items-center justify-center p-4 pointer-events-none">
-        <div className="w-full max-w-2xl max-h-[90vh] flex flex-col bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden pointer-events-auto">
+        <div className="da-stampare w-full max-w-2xl max-h-[90vh] flex flex-col bg-bg-secondary border border-border rounded-2xl shadow-2xl overflow-hidden pointer-events-auto">
 
           <div className="flex items-start justify-between gap-3 px-6 py-4 border-b border-border flex-shrink-0">
             <div className="min-w-0">
               <h3 className="text-lg font-display font-semibold text-text-primary">{consenso.title}</h3>
+              {/*
+                Il nome di chi ha firmato, sul foglio.
+
+                A schermo si sa gia' di chi e' la scheda che si sta guardando;
+                su un foglio stampato no, e un consenso senza il nome di chi
+                l'ha firmato non e' un documento, e' una pagina di risposte.
+              */}
+              {nomeCliente && <p className="text-sm font-medium text-text-primary">{nomeCliente}</p>}
               <p className="text-xs text-text-muted capitalize">{quando}</p>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0 niente-stampa">
               <button onClick={() => window.print()}
                 className="px-3 py-2 rounded-xl border border-border text-xs font-medium text-text-secondary hover:bg-bg-hover">
                 Stampa

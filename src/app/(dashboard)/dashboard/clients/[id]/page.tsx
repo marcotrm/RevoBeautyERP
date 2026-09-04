@@ -727,7 +727,7 @@ export default function ClientDetailPage() {
         )}
 
         {activeTab === 'documents' && client && (
-          <ClientRecordTab clientId={client.id} />
+          <ClientRecordTab clientId={client.id} nomeCliente={`${client.firstName} ${client.lastName}`.trim()} />
         )}
 
         {activeTab === 'loyalty' && (

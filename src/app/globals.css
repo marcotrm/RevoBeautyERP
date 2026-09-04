@@ -374,3 +374,93 @@ body.trascinando .appointment-block { transition: none; }
   user-select: none;
   -webkit-user-select: none;
 }
+
+/* ============================================================
+   STAMPA
+   ============================================================
+
+   Un consenso firmato ogni tanto va stampato: lo chiede la cliente, o lo
+   chiede chi fa un controllo. Con `window.print()` pero' finiva sul foglio
+   TUTTO il gestionale — menu di sinistra, barra in alto, l'agenda dietro — e
+   il modulo, che a schermo sta in un riquadro alto al massimo il 90% della
+   finestra con lo scorrimento suo, veniva tagliato dopo la prima pagina.
+
+   Qui si stampa solo quello che serve: si nasconde tutto e si rende visibile
+   il solo riquadro marcato `da-stampare`, tirato fuori dal suo riquadro e
+   messo sul foglio come un documento normale.
+   ============================================================ */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  html, body {
+    background: #fff !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Si spegne tutto, e si riaccende solo il documento. Sembra brutale ed e'
+     il modo piu' solido: non dipende da come sono annidati i riquadri. */
+  body * {
+    visibility: hidden !important;
+  }
+  .da-stampare, .da-stampare * {
+    visibility: visible !important;
+  }
+
+  .da-stampare {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    padding: 0 !important;
+  }
+
+  /* Dentro al documento: niente scorrimenti, niente altezze bloccate. Ogni
+     parte che a schermo scorreva, sul foglio si distende. */
+  .da-stampare * {
+    overflow: visible !important;
+    max-height: none !important;
+    color: #111 !important;
+    box-shadow: none !important;
+  }
+
+  /* I riquadri restano riconoscibili anche in bianco e nero: un contorno
+     grigio chiaro invece dei fondi colorati, che in stampa diventano macchie. */
+  .da-stampare .rounded-xl,
+  .da-stampare .rounded-2xl {
+    background: #fff !important;
+    border: 1px solid #ddd !important;
+  }
+
+  /* Una risposta e la sua domanda non si separano fra due fogli: letta da
+     sola, «sì» puo' voler dire il contrario di quello che e' stato firmato. */
+  .da-stampare li,
+  .da-stampare .rounded-xl,
+  .da-stampare .rounded-2xl,
+  .da-stampare img {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .da-stampare img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Quello che serve solo a schermo: i tasti, la X per chiudere, lo sfondo
+     scuro del popup. */
+  .niente-stampa {
+    display: none !important;
+  }
+}

@@ -372,21 +372,22 @@ export default function FotoDocumento({ gettone, giaAgliAtti, onChange }: {
                 className="mt-1 w-full min-w-0 px-3 py-3 rounded-xl border border-gray-300 text-[16px]" />
             </label>
             {/*
-              I due campi data stanno stretti, e su iPhone si accavallavano.
+              I due campi data, uno per riga sul telefono.
 
-              Un `input[type=date]` porta con se' una larghezza minima decisa
-              dal sistema — il calendarietto piu' la data scritta per esteso —
-              e in una colonna di griglia quella misura vince sulla colonna:
-              il secondo campo finiva sopra al primo. `min-w-0` toglie quel
-              diritto di prelazione e li fa stringere davvero, e il testo un
-              filo piu' piccolo gli ridà l'aria che serve.
+              Un `input[type=date]` su iPhone scrive la data per esteso — «12
+              giu 1991» — accanto all'icona del calendario, e quella larghezza
+              se la prende comunque: con `min-w-0` la casella si stringe ma il
+              testo dentro no, e continua a sbordare sopra alla casella
+              accanto. Affiancarli in 375 pixel e' una battaglia persa: sul
+              telefono stanno uno sotto l'altro, da tablet in su tornano in
+              fila. Sono anche piu' facili da centrare col dito.
             */}
-            <label className="block min-w-0">
+            <label className="block min-w-0 col-span-2 sm:col-span-1">
               <span className="text-[13px] font-semibold text-gray-700">Data di nascita</span>
               <input type="date" value={campi.dataNascita} onChange={e => cambia('dataNascita', e.target.value)}
                 className="mt-1 w-full min-w-0 px-2.5 py-3 rounded-xl border border-gray-300 text-[15px]" />
             </label>
-            <label className="block min-w-0">
+            <label className="block min-w-0 col-span-2 sm:col-span-1">
               <span className="text-[13px] font-semibold text-gray-700">Scadenza</span>
               <input type="date" value={campi.scadenza} onChange={e => cambia('scadenza', e.target.value)}
                 className="mt-1 w-full min-w-0 px-2.5 py-3 rounded-xl border border-gray-300 text-[15px]" />
