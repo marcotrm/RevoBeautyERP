@@ -28,13 +28,13 @@ export const colors = {
   secondarySoft: '#F0EDE7',
 
   // — Neutri caldi
-  background: '#FAF8F4',        // --rb-bg
-  backgroundAlt: '#F5F0E8',     // --rb-surface-alt
+  background: '#FFFFFF',        // bianco puro: l'identità è oro, bianco e nero
+  backgroundAlt: '#F7F6F2',     // un velo appena percettibile per le fasce alternate
   surface: '#FFFFFF',           // --rb-surface
   textPrimary: '#1A1A1A',       // --rb-text
   textSecondary: '#6B6B6B',     // --rb-text-muted
   textMuted: '#9C978C',
-  border: '#E8E2D6',            // --rb-border
+  border: '#E9E5DB',            // caldo ma discreto: su bianco disegna, non sporca
 
   // — Significati: ogni proposta ha un tono, non un colore a caso
   urgent: '#A6432E',            // terracotta scura: sta per scadere

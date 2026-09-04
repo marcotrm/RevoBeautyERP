@@ -24,7 +24,7 @@
     "android": {
       "package": "it.revobeauty.clienti",
       "adaptiveIcon": {
-        "backgroundColor": "#FAF8F4",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -40,7 +40,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FAF8F4",
+          "backgroundColor": "#FFFFFF",
           "image": "./assets/images/splash-revobeauty.png",
           "imageWidth": 240,
           "resizeMode": "contain",
