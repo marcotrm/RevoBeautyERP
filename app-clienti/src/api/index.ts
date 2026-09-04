@@ -33,5 +33,10 @@ export type {
 export { homeService } from './HomeProvider';
 export { waitlistService } from './WaitlistProvider';
 export type { DesiderioAttesa, NuovoDesiderio } from './WaitlistProvider';
+export { beautyService, revoAiService } from './BeautyProvider';
+export type {
+  DatiScore, ComponenteScore, SuggerimentoAutopilot, SlotAutopilot,
+  Missione, BadgeCliente, DatiPassport, MessaggioRevoAI,
+} from './BeautyProvider';
 export type { DatiHome, DatiWallet, Proposta, Percorso, FlashSlotApp, DatiReferral, MovimentoWallet } from './HomeProvider';
 export * from './types';

@@ -29,6 +29,10 @@ export default function AppLayout() {
       <Stack.Screen name="listino" options={{ title: 'Trattamenti e pacchetti' }} />
       <Stack.Screen name="contatti" options={{ title: 'Scrivici' }} />
       <Stack.Screen name="lista-attesa" options={{ title: 'Avvisami se si libera' }} />
+      <Stack.Screen name="score" options={{ title: 'Revo Score' }} />
+      <Stack.Screen name="assistente" options={{ title: 'Revo AI' }} />
+      <Stack.Screen name="missioni" options={{ title: 'Missioni' }} />
+      <Stack.Screen name="passport" options={{ title: 'Beauty Passport' }} />
     </Stack>
   );
 }

@@ -23,9 +23,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ApiError, homeService, type DatiHome, type Proposta } from '@/api';
+import { ApiError, beautyService, homeService, type DatiHome, type Proposta } from '@/api';
 import { Icona } from '@/components/ui/Icona';
 import { Progress } from '@/components/ui/Progress';
+import { ScoreRing } from '@/components/ui/ScoreRing';
+import { useApiData } from '@/hooks/useApiData';
+import { formatDate } from '@/utils/format';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, fonts, radius, spacing, typography } from '@/theme';
 
@@ -79,6 +82,8 @@ export default function HomeScreen() {
   const [dati, setDati] = useState<DatiHome | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
   const [aggiornando, setAggiornando] = useState(false);
+  const { data: score } = useApiData((t) => beautyService.score(t));
+  const { data: autopilot } = useApiData((t) => beautyService.autopilot(t));
 
   const carica = useCallback(async () => {
     if (!token) return;
@@ -178,6 +183,12 @@ export default function HomeScreen() {
                 <Text style={styles.cartaEtichetta}>credito</Text>
               </View>
             ) : null}
+            {score ? (
+              <Pressable style={styles.cartaRing} onPress={() => router.push('/score')} hitSlop={6}>
+                <ScoreRing valore={score.totale} misura={62} spessore={5} suScuro />
+                <Text style={styles.cartaEtichetta}>Revo Score</Text>
+              </Pressable>
+            ) : null}
           </View>
           {dati?.club?.prossimo ? (
             <View style={styles.cartaBarra}>
@@ -195,6 +206,22 @@ export default function HomeScreen() {
             </View>
           ) : null}
         </Pressable>
+
+        {/* ── Il prossimo step: la finestra aperta dell'Autopilot ── */}
+        {(() => {
+          const step = autopilot?.suggerimenti.find((s) => s.aperta);
+          if (!step) return null;
+          return (
+            <Pressable style={styles.step} onPress={() => router.push('/prenota')}>
+              <Text style={styles.stepOcchiello}>IL TUO PROSSIMO STEP</Text>
+              <Text style={styles.stepTitolo}>{step.treatmentName}</Text>
+              <Text style={styles.stepDettaglio}>
+                Di solito ogni {step.ogniGiorni} giorni · finestra ideale fino al {formatDate(step.finestraA)}
+              </Text>
+              <Text style={styles.stepAzione}>Vedi gli orari →</Text>
+            </Pressable>
+          );
+        })()}
 
         {/* ── L'unico accento: quello che si perde se non lo guardi ── */}
         {urgente ? (
@@ -236,6 +263,7 @@ export default function HomeScreen() {
           {([
             { icona: 'calendar-outline', testo: 'Prenota', rotta: '/prenota' },
             { icona: 'pricetags-outline', testo: 'Listino', rotta: '/listino' },
+            { icona: 'sparkles-outline', testo: 'Revo AI', rotta: '/assistente' },
             { icona: 'chatbubble-ellipses-outline', testo: 'Scrivici', rotta: '/contatti' },
           ] as const).map((a) => (
             <Pressable key={a.rotta} style={styles.azione} onPress={() => router.push(a.rotta as never)}>
@@ -320,7 +348,20 @@ const styles = StyleSheet.create({
   cartaNumeri: { flexDirection: 'row', gap: spacing.xl, marginTop: spacing.md },
   cartaValore: { fontFamily: fonts.serif600, fontSize: 28, color: colors.white },
   cartaEtichetta: { ...typography.caption, color: colors.white, opacity: 0.6 },
+  cartaRing: { marginLeft: 'auto', alignItems: 'center', gap: 2 },
   cartaBarra: { marginTop: spacing.md },
+
+  // ── Il prossimo step (Autopilot): l'unico blocco che si prende l'oro ──
+  step: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  stepOcchiello: { ...typography.captionForte, fontSize: 10.5, letterSpacing: 1.5, color: colors.primaryDark },
+  stepTitolo: { ...typography.subtitle, fontSize: 18, color: colors.textPrimary, marginTop: 4 },
+  stepDettaglio: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  stepAzione: { ...typography.labelForte, color: colors.primaryDark, marginTop: spacing.sm },
   cartaBarraFondo: { height: 4, borderRadius: radius.full, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' },
   cartaBarraPieno: { height: '100%', borderRadius: radius.full, backgroundColor: colors.primary },
   cartaProssimo: { ...typography.caption, color: colors.white, opacity: 0.6, marginTop: spacing.xs },
