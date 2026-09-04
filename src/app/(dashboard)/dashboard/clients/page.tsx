@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import AvatarCliente from '@/components/AvatarCliente';
 import SegniCliente from '@/components/SegniCliente';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useClientStore } from '@/stores/useClientStore';
@@ -55,10 +56,14 @@ function ClientRow({ client, checked, onToggle, onEdit, onDelete }: { client: Cl
       <input type="checkbox" checked={checked} onChange={() => onToggle(client.id)}
         className="w-4 h-4 rounded border-border accent-accent cursor-pointer flex-shrink-0" />
       <Link href={`/dashboard/clients/${client.id}`} className="flex items-center gap-4 p-3.5 rounded-xl hover:bg-bg-hover border border-transparent hover:border-border transition-all duration-200 group flex-1 min-w-0">
-        <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-          style={{ background: client.vipLevel >= 2 ? 'linear-gradient(135deg, #A855F7, #EC4899)' : '#3B82F6' }}>
-          {getInitials(client.firstName, client.lastName)}
-        </div>
+        {client.avatar ? (
+          <AvatarCliente nome={`${client.firstName} ${client.lastName}`} avatar={client.avatar} size={40} />
+        ) : (
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+            style={{ background: client.vipLevel >= 2 ? 'linear-gradient(135deg, #A855F7, #EC4899)' : '#3B82F6' }}>
+            {getInitials(client.firstName, client.lastName)}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium text-text-primary truncate">{client.firstName} {client.lastName}</p>

@@ -29,6 +29,8 @@ export interface DocumentoCompilato {
   cognome: string;
   dataNascita: string;
   scadenza: string;
+  /** 'M' o 'F' quando il documento lo dice: sulla carta d'identita' c'e' scritto. */
+  sesso?: 'M' | 'F';
 }
 
 const TIPI: { id: string; nome: string }[] = [
@@ -232,6 +234,7 @@ export default function FotoDocumento({ gettone, giaAgliAtti, onChange }: {
       const d: DocumentoCompilato = {
         foto: dataUrl,
         anteprima: mini,
+        sesso: r.sesso,
         tipo: r.tipo || 'carta_identita',
         numero: r.numero || '',
         nome: r.nome || '',
@@ -358,25 +361,35 @@ export default function FotoDocumento({ gettone, giaAgliAtti, onChange }: {
                 className="mt-1 w-full px-3 py-3 rounded-xl border border-gray-300 text-[16px] font-semibold" />
               {!campi.numero && <span className="text-[13px] text-amber-700">Non sono riuscito a leggerlo: scrivilo tu.</span>}
             </label>
-            <label className="block">
+            <label className="block min-w-0">
               <span className="text-[13px] font-semibold text-gray-700">Nome</span>
               <input type="text" value={campi.nome} onChange={e => cambia('nome', e.target.value)}
-                className="mt-1 w-full px-3 py-3 rounded-xl border border-gray-300 text-[16px]" />
+                className="mt-1 w-full min-w-0 px-3 py-3 rounded-xl border border-gray-300 text-[16px]" />
             </label>
-            <label className="block">
+            <label className="block min-w-0">
               <span className="text-[13px] font-semibold text-gray-700">Cognome</span>
               <input type="text" value={campi.cognome} onChange={e => cambia('cognome', e.target.value)}
-                className="mt-1 w-full px-3 py-3 rounded-xl border border-gray-300 text-[16px]" />
+                className="mt-1 w-full min-w-0 px-3 py-3 rounded-xl border border-gray-300 text-[16px]" />
             </label>
-            <label className="block">
+            {/*
+              I due campi data stanno stretti, e su iPhone si accavallavano.
+
+              Un `input[type=date]` porta con se' una larghezza minima decisa
+              dal sistema — il calendarietto piu' la data scritta per esteso —
+              e in una colonna di griglia quella misura vince sulla colonna:
+              il secondo campo finiva sopra al primo. `min-w-0` toglie quel
+              diritto di prelazione e li fa stringere davvero, e il testo un
+              filo piu' piccolo gli ridà l'aria che serve.
+            */}
+            <label className="block min-w-0">
               <span className="text-[13px] font-semibold text-gray-700">Data di nascita</span>
               <input type="date" value={campi.dataNascita} onChange={e => cambia('dataNascita', e.target.value)}
-                className="mt-1 w-full px-3 py-3 rounded-xl border border-gray-300 text-[16px]" />
+                className="mt-1 w-full min-w-0 px-2.5 py-3 rounded-xl border border-gray-300 text-[15px]" />
             </label>
-            <label className="block">
+            <label className="block min-w-0">
               <span className="text-[13px] font-semibold text-gray-700">Scadenza</span>
               <input type="date" value={campi.scadenza} onChange={e => cambia('scadenza', e.target.value)}
-                className="mt-1 w-full px-3 py-3 rounded-xl border border-gray-300 text-[16px]" />
+                className="mt-1 w-full min-w-0 px-2.5 py-3 rounded-xl border border-gray-300 text-[15px]" />
             </label>
           </div>
         </div>

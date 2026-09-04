@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import AvatarCliente from '@/components/AvatarCliente';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import { useClientStore } from '@/stores/useClientStore';
@@ -229,16 +230,25 @@ export default function ClientDetailPage() {
             {/* Avatar with Glow */}
             <div className="relative group">
               <div className="absolute inset-0 bg-accent/20 rounded-full blur-xl group-hover:bg-accent/30 transition-colors duration-500" />
-              <div
-                className="relative w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-display font-bold shadow-lg border-2 border-border/50 backdrop-blur-sm"
-                style={{
-                  background: client.vipLevel >= 2
-                    ? 'linear-gradient(135deg, #A855F7, #EC4899)'
-                    : 'linear-gradient(135deg, #3B82F6, #8B5CF6)',
-                }}
-              >
-                {getInitials(client.firstName, client.lastName)}
-              </div>
+              {client.avatar ? (
+                <AvatarCliente
+                  nome={`${client.firstName} ${client.lastName}`}
+                  avatar={client.avatar}
+                  size={96}
+                  className="relative shadow-lg border-2 border-border/50"
+                />
+              ) : (
+                <div
+                  className="relative w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-display font-bold shadow-lg border-2 border-border/50 backdrop-blur-sm"
+                  style={{
+                    background: client.vipLevel >= 2
+                      ? 'linear-gradient(135deg, #A855F7, #EC4899)'
+                      : 'linear-gradient(135deg, #3B82F6, #8B5CF6)',
+                  }}
+                >
+                  {getInitials(client.firstName, client.lastName)}
+                </div>
+              )}
             </div>
 
             <div className="flex-1 min-w-0 flex flex-col items-center sm:items-start text-center sm:text-left mt-2 sm:mt-0">

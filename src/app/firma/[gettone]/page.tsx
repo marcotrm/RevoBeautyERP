@@ -18,6 +18,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { apriModuloLaser, salvaConsensoLaser, type ModuloLaser } from '@/app/actions/consensoLaser';
 import { liberaTablet } from '@/app/actions/tablet';
 import { CONSENSO_LASER, DICHIARAZIONE_FINALE, TESTO_FOTO, DOMANDE_STORICO } from '@/lib/consensoLaserTesto';
+import { sessoDaNome } from '@/lib/sessoDaNome';
 import FotoDocumento, { type DocumentoCompilato } from './FotoDocumento';
 
 /** Il riquadro della firma: dito o pennino, niente mouse necessario. */
@@ -137,9 +138,31 @@ export default function PaginaFirma() {
 
   const rispondi = (id: string, valore: string) => setStorico(s => ({ ...s, [id]: valore }));
 
+  /*
+    A un uomo non si chiede se e' in stato di gravidanza.
+
+    Sembra una battuta e invece e' la cosa che fa capire alla persona che sta
+    compilando un modulo che nessuno ha letto: se il gestionale sa chi sei —
+    e lo sa, dalla scheda, dal nome e dal documento che hai appena
+    fotografato — quella domanda non deve nemmeno comparire.
+
+    Si guarda in quest'ordine: il documento appena letto (sulla carta
+    d'identita' il sesso c'e' scritto), poi il nome sul documento, poi quello
+    che dice la scheda. Nel dubbio la domanda RESTA: chiederla a chi non
+    serve e' una figuraccia, non farla a chi serve e' un problema serio.
+  */
+  const maschio = (() => {
+    if (documento?.sesso) return documento.sesso === 'M';
+    const daNomeDocumento = documento?.nome ? sessoDaNome(documento.nome) : null;
+    if (daNomeDocumento) return daNomeDocumento === 'M';
+    return modulo?.sesso === 'M';
+  })();
+
+  const domande = DOMANDE_STORICO.filter(d => !(d.id === 'gravidanza' && maschio));
+
   const mancano = (() => {
     const m: string[] = [];
-    for (const d of DOMANDE_STORICO) {
+    for (const d of domande) {
       if (d.tipo === 'conferma') { if (storico[d.id] !== 'si') m.push(d.testo); continue; }
       if (!storico[d.id]) m.push(d.testo);
     }
@@ -158,7 +181,17 @@ export default function PaginaFirma() {
       storico, zone, consensoFoto: foto, firma,
       documento: documento || undefined,
     })
-      .catch(() => ({ ok: false, errore: 'Salvataggio non riuscito. Riprova.' }));
+      /*
+        Anche qui il motivo, non solo «non riuscito».
+
+        Se la chiamata non arriva nemmeno al server — rete che cade, foto
+        troppo pesante — chi sta firmando deve poter dire al centro cos'ha
+        letto, altrimenti l'unica informazione che gira e' «non va».
+      */
+      .catch((e: unknown) => ({
+        ok: false,
+        errore: `Non sono riuscito a salvare (${String((e as { message?: string })?.message || e).slice(0, 110)}). Controlla la rete e riprova.`,
+      }));
     setSalvando(false);
     if (r.ok) setFatto(true);
     else setErrore(r.errore || 'Salvataggio non riuscito.');
@@ -242,7 +275,7 @@ export default function PaginaFirma() {
         <p className="text-sm text-gray-600 mb-3">Servono a capire se oggi si può fare la seduta in sicurezza.</p>
 
         <div className="space-y-3">
-          {DOMANDE_STORICO.map(d => (
+          {domande.map(d => (
             <div key={d.id} className="rounded-2xl bg-white border border-gray-200 p-4">
               <p className="font-medium mb-3">{d.testo}</p>
 

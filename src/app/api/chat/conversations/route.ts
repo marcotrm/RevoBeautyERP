@@ -38,5 +38,13 @@ export async function GET() {
   const conversations = [...byClient.values()].sort((a, b) => (a.lastAt < b.lastAt ? 1 : -1));
   const totalUnread = conversations.reduce((s, c) => s + c.unread, 0);
 
-  return Response.json({ conversations, totalUnread });
+  // La foto del profilo caricata dall'app, dove c'è: la chat mostra il volto
+  const clienti = await prisma.client.findMany({
+    where: { id: { in: conversations.map((c) => c.clientId) } },
+    select: { id: true, avatar: true },
+  });
+  const avatarDi = new Map(clienti.map((c) => [c.id, c.avatar]));
+  const conAvatar = conversations.map((c) => ({ ...c, avatar: avatarDi.get(c.clientId) ?? null }));
+
+  return Response.json({ conversations: conAvatar, totalUnread });
 }

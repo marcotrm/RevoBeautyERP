@@ -24,6 +24,7 @@ import { WA_TEMPLATES } from '@/lib/wa-templates';
 import { headers } from 'next/headers';
 import { descriviDispositivo } from '@/lib/dispositivo';
 import { leggiDocumento, type LetturaDocumento } from '@/lib/documento';
+import { sessoDaNome } from '@/lib/sessoDaNome';
 import { salvaDocumento } from '@/app/actions/documenti';
 
 const TITOLO = 'Consenso Laser/Epilazione';
@@ -58,6 +59,16 @@ export interface ModuloLaser {
    * quello che c'e' e si chiede solo se e' cambiato.
    */
   documento?: { tipo: string; numero: string; quando: string } | null;
+  /**
+   * 'M' o 'F', per quel che ne sappiamo prima che compili.
+   *
+   * Serve a non chiedere a un uomo se e' in stato di gravidanza. Si guarda la
+   * scheda, e dove il campo e' vuoto — succede su una scheda su otto — si
+   * ripiega sul nome di battesimo. Se non si capisce, resta null e la domanda
+   * si fa: chiederla a chi non serve e' una figuraccia, non farla a chi serve
+   * e' un problema serio.
+   */
+  sesso?: 'M' | 'F' | null;
 }
 
 /** Il link da aprire sul tablet o da mandare in chat. */
@@ -116,6 +127,11 @@ export async function apriModuloLaser(gettone: string): Promise<ModuloLaser> {
     zone,
     operatrice: a?.operatorName,
     documento: doc ? { tipo: doc.tipo, numero: doc.numero, quando: doc.createdAt } : null,
+    sesso: (() => {
+      const inScheda = String(cliente.gender || '').trim().toUpperCase();
+      if (inScheda === 'M' || inScheda === 'F') return inScheda as 'M' | 'F';
+      return sessoDaNome(cliente.firstName || '');
+    })(),
     giaFirmato: ultimo ? { id: ultimo.id, quando: ultimo.signedAt } : null,
   };
 }
@@ -168,14 +184,48 @@ export async function leggiDocumentoDalModulo(gettone: string, foto: string): Pr
 export async function salvaConsensoLaser(
   gettone: string, r: RisposteLaser,
 ): Promise<{ ok: boolean; errore?: string }> {
+  try {
+    return await salvaDavvero(gettone, r);
+  } catch (e) {
+    /*
+      Se salta qualcosa, lo si DICE.
+
+      «Salvataggio non riuscito» e basta e' il messaggio che ha tenuto
+      nascosto per settimane un errore banale: davanti a quella scritta non
+      si puo' fare niente — ne' chi firma, ne' chi al banco prova a capire.
+      Il motivo tecnico si scrive corto, e resta nei log del server per esteso.
+    */
+    const motivo = String((e as { message?: string })?.message || e).slice(0, 140);
+    console.error('[consenso] salvataggio fallito:', motivo);
+    return { ok: false, errore: `Non sono riuscito a salvare (${motivo}). Riprova, o fallo vedere al centro.` };
+  }
+}
+
+async function salvaDavvero(
+  gettone: string, r: RisposteLaser,
+): Promise<{ ok: boolean; errore?: string }> {
   const dati = leggiConferma<Gettone>(gettone);
   if (!dati?.clientId) return { ok: false, errore: 'Il link non è più valido.' };
   if (!r.firma || r.firma.length < 100) return { ok: false, errore: 'Manca la firma.' };
 
-  const a = await prisma.appointment.findUnique({
-    where: { id: dati.appointmentId },
-    select: { id: true, date: true, startTime: true, operatorName: true, treatmentName: true, services: true },
-  });
+  /*
+    L'appuntamento c'e' solo se il link nasce da un appuntamento.
+
+    Il modulo si apre anche dalla scheda della cliente e dal tablet, e in quei
+    casi il gettone porta solo il clientId. Qui pero' si chiedeva comunque
+    l'appuntamento, e Prisma davanti a un id `undefined` non risponde «non
+    trovato»: LANCIA. Il salvataggio moriva li', e alla cliente arrivava
+    «Salvataggio non riuscito» dopo aver compilato tutto e firmato.
+
+    Da quanto? Da sempre: ogni consenso aperto dalla scheda invece che
+    dall'appuntamento e' morto cosi', in silenzio, e nessuno sapeva perche'.
+  */
+  const a = dati.appointmentId
+    ? await prisma.appointment.findUnique({
+      where: { id: dati.appointmentId },
+      select: { id: true, date: true, startTime: true, operatorName: true, treatmentName: true, services: true },
+    })
+    : null;
 
   const dispositivo = descriviDispositivo((await headers()).get('user-agent'));
 

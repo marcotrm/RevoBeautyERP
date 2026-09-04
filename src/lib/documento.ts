@@ -38,6 +38,15 @@ export interface LetturaDocumento {
   /** YYYY-MM-DD. */
   dataNascita?: string;
   scadenza?: string;
+  /**
+   * M o F, quando il documento lo dice.
+   *
+   * Sulla carta d'identita' c'e' scritto sotto «SESSO». Serve a non chiedere
+   * a un uomo se e' in stato di gravidanza — capita, ed e' il genere di
+   * domanda che fa capire alla persona che nessuno sta leggendo davvero
+   * quello che ha appena scritto.
+   */
+  sesso?: 'M' | 'F';
   /** Quanto il modello si fida di quello che ha letto, da 0 a 1. */
   sicurezza?: number;
 }
@@ -54,6 +63,7 @@ Rispondi SOLO con un oggetto JSON, senza testo attorno e senza blocchi di codice
   "cognome": "solo il cognome",
   "dataNascita": "AAAA-MM-GG",
   "scadenza": "AAAA-MM-GG oppure vuoto",
+  "sesso": "M"|"F"|"" (sulla carta d'identità è scritto sotto SESSO; sulla patente non c'è, allora lascia vuoto),
   "sicurezza": 0.0-1.0
 }
 
@@ -264,6 +274,8 @@ async function unaLettura(
       cognome: stringa(d.cognome),
       dataNascita: data(d.dataNascita),
       scadenza: data(d.scadenza),
+      sesso: stringa(d.sesso).toUpperCase() === 'M' ? 'M'
+        : stringa(d.sesso).toUpperCase() === 'F' ? 'F' : undefined,
       sicurezza: typeof d.sicurezza === 'number' ? Math.max(0, Math.min(1, d.sicurezza)) : undefined,
     };
   }

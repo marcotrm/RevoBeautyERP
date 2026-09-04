@@ -5,17 +5,12 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, X, Send, ChevronLeft, AlertTriangle } from 'lucide-react';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { getInitials } from '@/lib/helpers';
+import AvatarCliente from '@/components/AvatarCliente';
 
 const WAIT_ALERT_MS = 10 * 60 * 1000; // 10 minuti
 
-type Conversation = { clientId: string; clientName: string; lastBody: string; lastAt: string; lastSender: string; unread: number; oldestUnreadAt: string | null };
+type Conversation = { clientId: string; clientName: string; lastBody: string; lastAt: string; lastSender: string; unread: number; oldestUnreadAt: string | null; avatar?: string | null };
 type Message = { id: string; clientId: string; clientName: string; sender: string; body: string; operatorName?: string | null; createdAt: string };
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  return getInitials(parts[0] || '', parts[1] || '');
-}
 
 export default function ClientChat() {
   const [open, setOpen] = useState(false);
@@ -143,6 +138,7 @@ export default function ClientChat() {
                       <ChevronLeft className="w-5 h-5" />
                     </button>
                   )}
+                  {activeConv ? <AvatarCliente nome={activeConv.clientName} avatar={activeConv.avatar} size={28} /> : null}
                   <h3 className="text-base font-display font-semibold text-text-primary truncate">{activeConv ? activeConv.clientName : 'Chat clienti'}</h3>
                 </div>
                 <button onClick={() => setOpen(false)} className="p-2 rounded-xl hover:bg-bg-hover text-text-secondary flex-shrink-0"><X className="w-5 h-5" /></button>
@@ -159,7 +155,7 @@ export default function ClientChat() {
                   ) : conversations.map(c => (
                     <button key={c.clientId} onClick={() => openConversation(c.clientId)}
                       className="w-full flex items-center gap-3 px-5 py-3 hover:bg-bg-hover transition-colors text-left border-b border-border/40">
-                      <div className="w-10 h-10 rounded-full gradient-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0">{initials(c.clientName)}</div>
+                      <AvatarCliente nome={c.clientName} avatar={c.avatar} size={40} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-text-primary truncate">{c.clientName}</p>
                         <p className="text-xs text-text-muted truncate">{c.lastSender === 'operator' ? 'Tu: ' : ''}{c.lastBody}</p>
