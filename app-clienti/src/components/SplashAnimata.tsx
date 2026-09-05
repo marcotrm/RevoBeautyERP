@@ -10,8 +10,8 @@
  * sola dopo ~2,5 secondi. Un tocco la salta: chi apre l'app venti volte
  * al giorno non deve guardarla venti volte.
  */
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, Pressable, StyleSheet, Text } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Animated, Easing, Image, Pressable, StyleSheet, Text, useAnimatedValue } from 'react-native';
 
 import { colors, fonts } from '@/theme';
 
@@ -20,20 +20,20 @@ const DURATA_RESPIRO = 900;
 const DURATA_USCITA = 450;
 
 export function SplashAnimata({ onFine }: { onFine: () => void }) {
-  const logoOpacita = useRef(new Animated.Value(0)).current;
-  const logoScala = useRef(new Animated.Value(0.82)).current;
-  const nomeOpacita = useRef(new Animated.Value(0)).current;
-  const nomeSalita = useRef(new Animated.Value(10)).current;
-  const velo = useRef(new Animated.Value(1)).current;
-  const veloScala = useRef(new Animated.Value(1)).current;
+  const logoOpacita = useAnimatedValue(0);
+  const logoScala = useAnimatedValue(0.82);
+  const nomeOpacita = useAnimatedValue(0);
+  const nomeSalita = useAnimatedValue(10);
+  const velo = useAnimatedValue(1);
+  const veloScala = useAnimatedValue(1);
   const [finita, setFinita] = useState(false);
 
-  const chiudi = useRef(() => {
+  const chiudi = useCallback(() => {
     Animated.parallel([
       Animated.timing(velo, { toValue: 0, duration: DURATA_USCITA, easing: Easing.in(Easing.quad), useNativeDriver: true }),
       Animated.timing(veloScala, { toValue: 1.05, duration: DURATA_USCITA, easing: Easing.in(Easing.quad), useNativeDriver: true }),
     ]).start(() => setFinita(true));
-  }).current;
+  }, [velo, veloScala]);
 
   useEffect(() => {
     const sequenza = Animated.sequence([

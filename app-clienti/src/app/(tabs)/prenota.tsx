@@ -112,24 +112,30 @@ export default function PrenotaScreen() {
     scelti sono coperti (in ordine), e qui il prezzo scende a zero PRIMA
     della conferma — la cliente non deve scoprirlo al banco.
   */
-  const [coperture, setCoperture] = useState<({ pacchetto: string; rimaste: number } | null)[]>([]);
+  type Copertura = { pacchetto: string; rimaste: number } | null;
+  // La risposta si tiene insieme alla combinazione di trattamenti per cui è
+  // stata chiesta: così una copertura vecchia non può fare da prezzo a una
+  // scelta nuova mentre la risposta è ancora per strada.
+  const [coperture, setCoperture] = useState<{ chiave: string; dati: Copertura[] }>({ chiave: '', dati: [] });
   const chiaveScelte = sceltePiene.map(s => s.treatmentId).join(',');
   useEffect(() => {
+    if (!token || !chiaveScelte) return;
     let vivo = true;
-    if (!token || !chiaveScelte) { setCoperture([]); return; }
     bookingService.copertura(token, chiaveScelte.split(','))
-      .then(c => { if (vivo) setCoperture(c); })
-      .catch(() => { if (vivo) setCoperture([]); });
+      .then(c => { if (vivo) setCoperture({ chiave: chiaveScelte, dati: c }); })
+      .catch(() => { if (vivo) setCoperture({ chiave: chiaveScelte, dati: [] }); });
     return () => { vivo = false; };
   }, [token, chiaveScelte]);
+  /** Le coperture buone adesso: quelle di un'altra combinazione non contano. */
+  const coperteOra = coperture.chiave === chiaveScelte ? coperture.dati : [];
   /** La copertura del trattamento all'indice i di `scelte` (se pieno). */
   const coperturaDi = (i: number) => {
     const idx = scelte.slice(0, i + 1).filter(x => x.treatmentId).length - 1;
-    return scelte[i]?.treatmentId ? coperture[idx] ?? null : null;
+    return scelte[i]?.treatmentId ? coperteOra[idx] ?? null : null;
   };
 
   const totalePrezzo = sceltePiene.reduce((s, x, idx) => {
-    if (coperture[idx]) return s; // inclusa nel pacchetto: 0 €
+    if (coperteOra[idx]) return s; // inclusa nel pacchetto: 0 €
     const t = treatments.find(t => t.id === x.treatmentId); return s + (t ? priceOf(t) : 0);
   }, 0);
 
@@ -193,11 +199,14 @@ export default function PrenotaScreen() {
    * suoi orari. Il primo giorno utile è già selezionato — un tocco in meno,
    * e si capisce subito come funziona.
    */
-  const [giornoSel, setGiornoSel] = useState<string | null>(null);
-  useEffect(() => {
-    if (!giorniMostrati || giorniMostrati.length === 0) { setGiornoSel(null); return; }
-    if (!giorniMostrati.some(g => g.date === giornoSel)) setGiornoSel(giorniMostrati[0].date);
-  }, [giorniMostrati, giornoSel]);
+  const [giornoToccato, setGiornoToccato] = useState<string | null>(null);
+  // Il giorno aperto si ricava, non si insegue con un effetto: è quello
+  // toccato finché resta fra i giorni trovati, altrimenti il primo utile.
+  // Così cambiando i trattamenti non c'è il lampo in cui non è aperto nulla.
+  const giornoSel =
+    giorniMostrati?.some(g => g.date === giornoToccato)
+      ? giornoToccato
+      : giorniMostrati?.[0]?.date ?? null;
   const giornoAperto = giorniMostrati?.find(g => g.date === giornoSel) ?? null;
 
   const submit = async () => {
@@ -501,7 +510,7 @@ export default function PrenotaScreen() {
                     const haScelto = scelto?.date === g.date;
                     return (
                       <Pressable key={g.date} style={[styles.giornoCard, on && styles.giornoCardOn]}
-                        onPress={() => setGiornoSel(g.date)}
+                        onPress={() => setGiornoToccato(g.date)}
                         accessibilityRole="button" accessibilityState={{ selected: on }}>
                         <Text style={[styles.giornoSett, on && styles.giornoTxtOn]}>
                           {d.toLocaleDateString('it-IT', { weekday: 'short' })}

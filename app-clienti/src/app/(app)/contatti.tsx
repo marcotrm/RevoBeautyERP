@@ -62,6 +62,9 @@ export default function ContattiScreen() {
 
   // Caricamento iniziale + aggiornamento automatico ogni 5 secondi
   useEffect(() => {
+    // set-state-in-effect non guarda oltre l'`await`: `load` non scrive
+    // niente nello stato prima che la chat sia tornata dal server.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
     const t = setInterval(load, 5000);
     return () => clearInterval(t);

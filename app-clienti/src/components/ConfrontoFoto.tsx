@@ -3,7 +3,7 @@
  * la linea e la foto "dopo" si svela. Niente giudizi, niente punteggi:
  * solo gli occhi della cliente su due momenti del suo percorso.
  */
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Image, PanResponder, StyleSheet, Text, View } from 'react-native';
 
 import { colors, fonts, radius, spacing } from '@/theme';
@@ -17,22 +17,22 @@ interface Props {
 
 export function ConfrontoFoto({ prima, dopo, lato }: Props) {
   const [quota, setQuota] = useState(0.5);
-  const quotaRef = useRef(0.5);
 
   const muovi = (x: number) => {
     const q = Math.max(0.05, Math.min(0.95, x / lato));
-    quotaRef.current = q;
     setQuota(q);
   };
 
-  const pan = useRef(
+  // Creato una volta sola, con la funzione di partenza di `useState`: prima
+  // il PanResponder veniva ricostruito a ogni render per poi essere buttato.
+  const [pan] = useState(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (e) => muovi(e.nativeEvent.locationX),
       onPanResponderMove: (e) => muovi(e.nativeEvent.locationX),
     })
-  ).current;
+  );
 
   return (
     <View style={{ width: lato }}>

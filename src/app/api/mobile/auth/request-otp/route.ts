@@ -21,7 +21,7 @@
  *     Finché la verifica non c'è, questa seconda strada non è percorribile.
  */
 
-import { preparaCodice, entraDirettamente, serveIlCodice, eNumeroDiProva, statoPassword, OTP_DURATA_MIN } from '@/lib/mobileAuth';
+import { preparaCodice, entraDirettamente, serveIlCodice, eNumeroDiProva, passwordNonRichiesta, statoPassword, OTP_DURATA_MIN } from '@/lib/mobileAuth';
 import { utenteApp } from '@/lib/mobileUser';
 import { prisma } from '@/lib/prisma';
 import { sendD360Template, sendD360Text } from '@/lib/whatsapp360';
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     campo. Il codice WhatsApp resta la via di recupero.
   */
   const stato = await statoPassword(telefono);
-  if (stato.ok && stato.haPassword) {
+  if (stato.ok && stato.haPassword && !passwordNonRichiesta(telefono)) {
     return Response.json({ ok: true, richiedePassword: true, inviato: false, scadeTraMinuti: 0, nome: stato.nome });
   }
 
@@ -92,8 +92,9 @@ export async function POST(req: Request) {
       nome: entrata.nome,
       token: entrata.token,
       user: utenteApp(cliente),
-      // Prima volta senza password: l'app la fa creare subito
-      passwordDaImpostare: true,
+      // Prima volta senza password: l'app la fa creare subito. L'unica
+      // esclusa è la verifica Apple: vedi `passwordNonRichiesta`.
+      passwordDaImpostare: !passwordNonRichiesta(telefono),
     });
   }
 

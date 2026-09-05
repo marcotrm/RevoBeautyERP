@@ -55,6 +55,28 @@ export function eNumeroDiProva(phone: string): boolean {
   return Boolean(p && p.phone === phone);
 }
 
+/**
+ * La porta della password non si chiude davanti a chi rivede l'app per Apple.
+ *
+ * Entrando col solo numero l'app fa creare subito una password, e da lì in poi
+ * quella diventa l'unica via. Per il numero della verifica va bene la prima
+ * volta — il revisore se la crea — ma non la seconda: alla revisione dopo si
+ * troverebbe davanti un campo password che nessuno gli ha dato, e quello che
+ * scrive nel rifiuto è «impossibile completare la verifica» (linea guida 2.1),
+ * il motivo più comune per cui vengono respinte le app riservate ai clienti.
+ *
+ * Per quel solo numero, quindi, la password non si chiede e non si impone.
+ * Vale solo se DEMO_PHONE e DEMO_OTP ci sono entrambe: si spegne togliendone
+ * una, e con essa sparisce anche questa eccezione.
+ *
+ * Accetta il numero come lo scrive l'app, non normalizzato: chi chiama qui ha
+ * quasi sempre in mano il numero grezzo, e farlo normalizzare a lui è il modo
+ * migliore per dimenticarsene in uno dei punti.
+ */
+export function passwordNonRichiesta(telefonoGrezzo: string | null | undefined): boolean {
+  return eNumeroDiProva(normalizePhone(String(telefonoGrezzo || '')));
+}
+
 const sha = (v: string) => createHash('sha256').update(v).digest('hex');
 
 /** Come il token di sessione viene salvato: mai in chiaro. */
