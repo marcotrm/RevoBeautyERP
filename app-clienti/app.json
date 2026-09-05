@@ -71,7 +71,9 @@
         {
           "photosPermission": "RevoBeauty usa le tue foto solo per la foto del profilo."
         }
-      ]
+      ],
+      "expo-image",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -42,7 +42,7 @@ export function ConfrontoFoto({ prima, dopo, lato }: Props) {
         accessibilityLabel={`Confronto: prima del ${prima.scattataIl}, dopo del ${dopo.scattataIl}. Trascina per confrontare.`}
       >
         {/* Sotto: il "dopo", intero. */}
-        <Image source={{ uri: dopo.immagine }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        <Image source={{ uri: dopo.immagine }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         {/* Sopra: il "prima", ritagliato fino al cursore. */}
         <View style={[styles.ritaglio, { width: lato * quota }]}>
           <Image source={{ uri: prima.immagine }} style={{ width: lato, height: lato }} resizeMode="cover" />
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg, overflow: 'hidden',
     backgroundColor: colors.backgroundAlt, borderWidth: 1, borderColor: colors.border,
   },
-  ritaglio: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
+  ritaglio: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, overflow: 'hidden' },
   linea: { position: 'absolute', top: 0, bottom: 0, width: 2, backgroundColor: colors.white },
   pomello: {
     position: 'absolute', width: 28, height: 28, borderRadius: 14,

@@ -6,7 +6,7 @@
  * racconta il problema, si invia — e si torna con la coscienza leggera.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { useHeaderHeight } from '@react-navigation/elements';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
