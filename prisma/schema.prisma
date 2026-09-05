@@ -1799,3 +1799,81 @@ model PremioTrattamento {
 
   @@map("premi_trattamenti")
 }
+
+// ============================================================
+// CONSENSI VERSIONATI
+//
+// Un consenso non e' una spunta: e' una persona che ha letto UN testo preciso
+// e ha detto si' o no in un momento preciso. Se il testo cambia dopo, quello
+// che lei ha accettato resta quello di allora — altrimenti fra un anno non si
+// puo' piu' dire a cosa avesse acconsentito, che e' l'unica cosa che serve
+// sapere quando qualcuno lo chiede.
+//
+// Per questo il testo sta in una riga sua, versionata e mai modificata: si
+// pubblica una versione nuova, non si riscrive quella vecchia. E la scelta
+// della cliente punta alla versione, non al tipo.
+// ============================================================
+
+/// Il testo di un consenso in una versione precisa. Non si modifica mai:
+/// cambiare il testo vuol dire pubblicare una versione nuova.
+model DocumentoConsenso {
+  id             String  @id @default(cuid())
+  /// privacy | dati | foto | foto-condivisione | trattamento | marketing
+  tipo           String
+  /// La data di pubblicazione fa da versione: '2026-09-05'.
+  versione       String
+  titolo         String
+  /// Cosa la cliente ha davanti agli occhi, per esteso.
+  testo          String
+  /// Una riga che riassume, per l'elenco: non sostituisce il testo.
+  sommario       String?
+  /// Serve la firma grafica, o basta la scelta?
+  firmaRichiesta Boolean @default(false)
+  /// Senza questo il servizio non si puo' erogare. Il marketing non lo e' MAI.
+  necessario     Boolean @default(false)
+  /// La versione in vigore per quel tipo. Le vecchie restano, spente.
+  attivo         Boolean @default(true)
+  creatoDa       String
+  createdAt      String
+
+  scelte ConsensoFirmato[]
+
+  @@unique([tipo, versione])
+  @@index([tipo])
+  @@map("documenti_consenso")
+}
+
+/// La scelta di una cliente su un documento preciso. Una riga per ogni volta
+/// che sceglie: accettare, rifiutare, revocare. Non si sovrascrive niente,
+/// cosi' lo storico e' leggibile dall'inizio alla fine.
+model ConsensoFirmato {
+  id          String  @id @default(cuid())
+  clientId    String
+  documentoId String
+  /// Copiati qui apposta: se il documento venisse cancellato per errore,
+  /// questa riga deve continuare a dire di cosa si trattava.
+  tipo        String
+  versione    String
+  /// accettato | rifiutato | revocato
+  scelta      String
+  /// La firma disegnata, quando il documento la richiede. Non esce mai dalle
+  /// API della cliente: si vede solo dalla ricevuta e dal gestionale.
+  firma       String?
+  /// tablet | whatsapp | banco | app
+  modalita    String
+  /// Chi era presente al banco, quando c'era qualcuno.
+  operatrice  String?
+  quando      String
+  /// Il codice della ricevuta: corto, leggibile ad alta voce.
+  ricevuta    String  @unique
+  /// Quando questa scelta e' stata superata da una revoca.
+  revocatoIl  String?
+  revocatoDa  String?
+  createdAt   String
+
+  documento DocumentoConsenso @relation(fields: [documentoId], references: [id])
+
+  @@index([clientId])
+  @@index([tipo])
+  @@map("consensi_firmati")
+}
