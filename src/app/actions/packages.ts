@@ -138,6 +138,36 @@ export async function activatePackage(
   const prezzo = round2(Math.max(0, Math.min(prezzoConcordato ?? pkg.price, pkg.price)));
   const sconto = round2(pkg.price - prezzo);
 
+  /*
+    Il pacchetto va agganciato alla SCHEDA, non solo al nome.
+
+    Chi lo attiva dalla pagina pacchetti scrive il nome e basta, e il legame
+    con la cliente restava vuoto: il pacchetto esisteva, era pagato, si
+    scalavano le sedute — ma nella sua scheda non compariva, e al banco
+    risultava che non ne avesse. Dodici pacchetti erano finiti cosi'.
+
+    Se il nome corrisponde a UNA sola cliente si aggancia; se corrisponde a
+    due omonime non si indovina: resta senza legame, che e' meglio di un
+    pacchetto attaccato alla persona sbagliata.
+  */
+  let idCliente = clientId ?? null;
+  if (!idCliente && clientName.trim()) {
+    const pezzi = clientName.trim().split(/\s+/);
+    const nome = pezzi[0];
+    const cognome = pezzi.slice(1).join(' ');
+    if (cognome) {
+      const trovate = await prisma.client.findMany({
+        where: {
+          firstName: { equals: nome, mode: 'insensitive' },
+          lastName: { equals: cognome, mode: 'insensitive' },
+        },
+        select: { id: true },
+        take: 2,
+      });
+      if (trovate.length === 1) idCliente = trovate[0].id;
+    }
+  }
+
   const created = await prisma.clientPackage.create({
     data: {
       clientName,
@@ -169,7 +199,7 @@ export async function activatePackage(
         : [],
       payments: JSON.parse(JSON.stringify([{ id: `pay-${Date.now()}`, date: today, amount: firstPayment, method: paymentMethod, operator }])),
       packageId: pkg.id,
-      clientId: clientId ?? null,
+      clientId: idCliente,
     },
   });
 
@@ -230,7 +260,20 @@ async function giftBalance(
   return toClientPackage(updated);
 }
 
-export async function addPayment(cpId: string, amount: number, method: PackagePayment['method'], operator: string, note?: string) {
+/**
+ * Una rata pagata dopo, sul pacchetto.
+ *
+ * `giaInCassa` esiste per un motivo preciso: quando la rata si paga dalla
+ * cassa, la riga in cassa l'ha gia' scritta la cassa. Senza questo, ogni rata
+ * finiva registrata DUE volte — «Rata Pacchetto: X» dal punto cassa e «Saldo
+ * pacchetto: X» da qui, stesso importo, stesso minuto — e l'incasso del
+ * giorno risultava piu' alto di quello che era davvero entrato nel cassetto.
+ * Successo per mesi su ogni pacchetto pagato a rate.
+ */
+export async function addPayment(
+  cpId: string, amount: number, method: PackagePayment['method'], operator: string, note?: string,
+  opzioni?: { giaInCassa?: boolean },
+) {
   const cp = await prisma.clientPackage.findUniqueOrThrow({ where: { id: cpId } });
   if (method === 'Regalo') return giftBalance(cp, amount, operator, note);
 
@@ -249,14 +292,16 @@ export async function addPayment(cpId: string, amount: number, method: PackagePa
     },
   });
 
-  // Registra anche il saldo/acconto successivo in cassa
-  await recordPosPayment({
-    clientName: cp.clientName,
-    amount,
-    method,
-    operator,
-    label: `Saldo pacchetto: ${cp.packageName}`,
-  });
+  // In cassa ci va solo se non ci e' gia' andata: vedi il commento sopra.
+  if (!opzioni?.giaInCassa) {
+    await recordPosPayment({
+      clientName: cp.clientName,
+      amount,
+      method,
+      operator,
+      label: `Saldo pacchetto: ${cp.packageName}`,
+    });
+  }
 
   return toClientPackage(updated);
 }

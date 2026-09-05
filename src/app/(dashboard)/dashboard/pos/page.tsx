@@ -1505,7 +1505,9 @@ function POSPageInner() {
   ) => {
     const created = await addTransaction(tx);
     if (debtPkgId) {
-      addPayment(debtPkgId, created.total, created.method as any, created.operator, 'Pagamento da Cassa');
+      // `giaInCassa`: la riga in cassa e' questa qui sopra. Senza, la rata
+      // veniva registrata due volte e l'incasso del giorno saliva da solo.
+      addPayment(debtPkgId, created.total, created.method as any, created.operator, 'Pagamento da Cassa', { giaInCassa: true });
     }
     /*
       Incasso anticipato: la seduta e' pagata, ma e' un altro giorno.

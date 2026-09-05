@@ -60,7 +60,7 @@ interface PackageStore {
   deletePackage: (id: string) => Promise<void>;
 
   activatePackage: (pkg: PackageItem, clientName: string, validityMonths: number, firstPayment: number, paymentMethod: PackagePayment['method'], operator: string, paymentPlan: 'full' | 'installments', prezzoConcordato?: number, motivoSconto?: string) => Promise<void>;
-  addPayment: (cpId: string, amount: number, method: PackagePayment['method'], operator: string, note?: string) => Promise<void>;
+  addPayment: (cpId: string, amount: number, method: PackagePayment['method'], operator: string, note?: string, opzioni?: { giaInCassa?: boolean }) => Promise<void>;
   useSession: (cpId: string, operator: string, note: string) => Promise<void>;
   deleteClientPackage: (cpId: string) => Promise<void>;
 
@@ -133,9 +133,9 @@ export const usePackageStore = create<PackageStore>()((set, get) => ({
     }
   },
 
-  addPayment: async (cpId, amount, method, operator, note) => {
+  addPayment: async (cpId, amount, method, operator, note, opzioni) => {
     try {
-      const updated = await addPaymentAction(cpId, amount, method, operator, note);
+      const updated = await addPaymentAction(cpId, amount, method, operator, note, opzioni);
       set((s) => ({
         clientPackages: s.clientPackages.map(cp => cp.id === cpId ? updated : cp),
       }));
