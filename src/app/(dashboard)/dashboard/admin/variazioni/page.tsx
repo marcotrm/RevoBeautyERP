@@ -21,6 +21,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { CalendarX2, Trash2, ArrowRightLeft, Pencil, Plus, ShieldAlert, RefreshCw } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
 import { variazioniDelGiorno, type GiornataVariazioni } from '@/app/actions/diario';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 const oggiIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Rome' });
 
@@ -76,10 +77,34 @@ export default function VariazioniAgenda() {
         </button>
       </div>
 
+      {/*
+        Il rifiuto con la via d'uscita accanto.
+
+        Questa pagina chiede una sessione riconosciuta dal server, e chi era
+        gia' dentro da prima non ce l'ha: il suo accesso vive solo nel
+        browser. Dirglielo e basta lo lascia fermo davanti a un avviso —
+        «rifai l'accesso» da dove? Il tasto fa le due cose al posto suo.
+      */}
       {dati && !dati.ok && (
         <div className="flex items-start gap-3 p-4 rounded-2xl border border-warning/30 bg-warning/10">
           <ShieldAlert className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-text-secondary">{dati.errore}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-text-secondary">{dati.errore}</p>
+            {dati.errore?.includes('accesso') && (
+              <>
+                <p className="text-xs text-text-muted mt-1">
+                  Da stamattina l&apos;accesso lascia anche una firma sul server, ed è quella che
+                  questa pagina controlla. Le sessioni aperte prima non ce l&apos;hanno: si rimedia
+                  uscendo e rientrando una volta sola.
+                </p>
+                <button
+                  onClick={() => { useAuthStore.getState().logout(); window.location.href = '/login'; }}
+                  className="mt-2.5 px-4 py-2 rounded-xl gradient-accent text-white text-xs font-bold">
+                  Esci e rientra
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
 

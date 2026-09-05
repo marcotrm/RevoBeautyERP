@@ -487,6 +487,14 @@ export default function ClientDetailPage() {
                   { label: 'Telefono', value: client.phone },
                   { label: 'Email', value: client.email || '—' },
                   { label: 'Data di Nascita', value: client.birthDate ? formatBirthDate(client.birthDate) : '—' },
+                  /*
+                    L'indirizzo mancava, e non per una scelta: era scritto in
+                    archivio — 346 schede su 464 ce l'hanno — e semplicemente
+                    non veniva mai messo a schermo. Il check-in lo chiede
+                    perfino come obbligatorio, e poi chi apriva la scheda non
+                    lo trovava piu'.
+                  */
+                  { label: 'Indirizzo', value: client.address || '—' },
                   { label: 'Città', value: client.city || '—' },
                   { label: 'Genere', value: client.gender === 'F' ? 'Donna' : client.gender === 'M' ? 'Uomo' : '—' },
                 ].map((field) => (
