@@ -68,16 +68,28 @@ export async function apriSessione(s: Sessione): Promise<boolean> {
   const gettone = firmaConferma({ ...s, emessa: new Date().toISOString() } as Contenuto, durata);
   if (!gettone) return false;
 
-  const c = await cookies();
-  c.set(COOKIE, gettone, {
-    httpOnly: true,
-    sameSite: 'lax',
-    // In locale il browser non manda i cookie `secure` su http.
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: Math.floor(durata / 1000),
-  });
-  return true;
+  /*
+    Se il cookie non si puo' scrivere, si entra lo stesso.
+
+    `cookies()` funziona dentro una richiesta; chiamato altrove — durante il
+    disegno di una pagina, o da uno script — lancia. Far fallire l'accesso per
+    questo vorrebbe dire chiudere fuori il centro per un dettaglio tecnico:
+    meglio una sessione senza cookie, che e' esattamente com'era prima.
+  */
+  try {
+    const c = await cookies();
+    c.set(COOKIE, gettone, {
+      httpOnly: true,
+      sameSite: 'lax',
+      // In locale il browser non manda i cookie `secure` su http.
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: Math.floor(durata / 1000),
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Chi sta chiamando, o null. Non lancia mai: chi decide e' chi la chiede. */
