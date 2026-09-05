@@ -1877,3 +1877,52 @@ model ConsensoFirmato {
   @@index([tipo])
   @@map("consensi_firmati")
 }
+
+// ============================================================
+// RICHIAMI: le persone da richiamare
+//
+// Sono quelle che chiedono un prezzo e poi ci pensano, quelle che scrivono
+// «vi faccio sapere», quelle a cui hai promesso di riprovare a chiamare
+// lunedi'. Finivano su un post-it, e i post-it si perdono: dopo tre giorni
+// nessuno si ricorda ne' chi era ne' cosa voleva.
+//
+// Qui c'e' la cosa in piu' che il foglietto non fa: torna a bussare da solo
+// all'ora giusta, e quando la chiami finisce con un esito scritto — prenotato,
+// non interessata, non risponde — che dice com'e' andata anche a chi non
+// c'era.
+// ============================================================
+model Richiamo {
+  id                String  @id @default(cuid())
+  nome              String
+  cognome           String
+  telefono          String
+  /// Cosa le interessa: «epilazione laser gambe», «pacchetto pressoterapia».
+  interesse         String
+  note              String?
+  /// da_richiamare | risolto
+  stato             String  @default("da_richiamare")
+  /// prenotato | non_interessata | non_risponde | ci_pensa | numero_sbagliato | gia_cliente | altro
+  esito             String?
+  esitoNota         String?
+  /// Quando farlo ricomparire (ISO).
+  prossimoTentativo String
+  /// Ogni quanti minuti ribussare, se resta aperto.
+  ripetiOgniMin     Int     @default(120)
+  tentativi         Int     @default(0)
+  ultimoTentativo   String?
+  /// alta | normale
+  priorita          String  @default("normale")
+  /// Quando preferisce essere chiamata: mattina | pomeriggio | sera | qualsiasi.
+  fascia            String  @default("qualsiasi")
+  /// Se e' gia' in anagrafica, il legame con la sua scheda.
+  clientId          String?
+  creatoDa          String
+  chiusoDa          String?
+  chiusoIl          String?
+  createdAt         String
+  updatedAt         String
+
+  @@index([stato])
+  @@index([prossimoTentativo])
+  @@map("richiami")
+}

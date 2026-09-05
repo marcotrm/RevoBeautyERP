@@ -64,6 +64,7 @@ import AvvisoCliente from '@/components/AvvisoCliente';
 import { nomiDoppi, omonimiDi, chiaveNome as chiaveOmonimi } from '@/lib/omonimi';
 import BuonoCompleannoBadge from '@/components/BuonoCompleanno';
 import CampoData from '@/components/ui/CampoData';
+import TastoRichiami from '@/components/TastoRichiami';
 import { saldoCredito } from '@/app/actions/credito';
 import { problemaDataNascita, avvisoDataNascita } from '@/lib/dataNascita';
 import { mandaRichiestaCaparra, restituisciCaparra, segnaCaparraPagata, trattieniCaparra } from '@/app/actions/caparra';
@@ -6446,6 +6447,11 @@ export default function AgendaPage() {
             <Sparkles className="w-4 h-4" />
             <span className="hidden lg:inline">Cerca buchi</span>
           </button>
+
+          {/* Le persone da richiamare: sta qui perche' l'agenda e' la
+              schermata aperta tutto il giorno, ed e' li' che il promemoria
+              deve poter saltare fuori da solo. */}
+          <TastoRichiami />
 
           <a href="/agenda-mobile" target="_blank" rel="noopener noreferrer"
             className={`${ICONA} border bg-sky-500/10 border-sky-500/30 text-sky-500 hover:bg-sky-500/20`}
