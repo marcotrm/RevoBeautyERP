@@ -4020,8 +4020,25 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
     ? Math.max(1, Math.round((Date.parse(appointment.checkOutAt) - Date.parse(appointment.checkInAt)) / 60000))
     : null;
 
-  // Pacchetti da cui si può ancora scalare una seduta
-  const usablePkgs = clientPkgs.filter(cp => cp.usedSessions < cp.totalSessions);
+  /*
+    Pacchetti da cui si puo' ancora scalare una seduta, IN ORDINE DI SCADENZA.
+
+    L'ordine non e' un dettaglio estetico: quando una cliente ha due pacchetti
+    uguali — l'ultima seduta del vecchio e uno nuovo appena comprato — il
+    pacchetto si sceglie cercando il nome, e senza un ordine si prendeva
+    quello che capitava primo nell'elenco. E' successo: la seduta e' stata
+    scalata dal pacchetto NUOVO lasciando il vecchio fermo a una seduta dalla
+    fine, che poi scade con dentro dei soldi gia' pagati.
+
+    Prima quello che scade prima, poi quello comprato prima: si finisce
+    sempre il piu' vecchio, che e' l'unico ordine che non fa perdere sedute a
+    nessuno.
+  */
+  const usablePkgs = [...clientPkgs]
+    .filter(cp => cp.usedSessions < cp.totalSessions)
+    .sort((a, b) =>
+      (a.expiryDate || '9999').localeCompare(b.expiryDate || '9999')
+      || (a.purchaseDate || '').localeCompare(b.purchaseDate || ''));
   // Quanto resta comunque da incassare: i trattamenti della seduta che non sono
   // a 0 € (la manicure fatta insieme al massaggio del pacchetto, per capirci).
   const totaleDaIncassare = services.filter(s => s.price > 0).reduce((s, x) => s + x.price, 0);
