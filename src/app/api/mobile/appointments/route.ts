@@ -23,6 +23,7 @@ export async function GET(req: Request) {
     select: {
       id: true, date: true, startTime: true, endTime: true, treatmentName: true,
       treatmentCategory: true, operatorName: true, status: true, price: true, isLocked: true,
+      treatmentId: true, services: true,
       treatment: { select: { preTrattamento: true } },
     },
     orderBy: [{ date: 'desc' }, { startTime: 'desc' }],
@@ -41,6 +42,10 @@ export async function GET(req: Request) {
     status: a.status,
     price: a.price,
     canCancel: disdettabile(a).ok,
+    // Per lo "Sposta": stessi trattamenti, nuova data.
+    servizi: Array.isArray(a.services) && (a.services as unknown[]).length > 0
+      ? (a.services as { treatmentId?: string }[]).filter(s => s?.treatmentId).map(s => ({ treatmentId: String(s.treatmentId) }))
+      : [{ treatmentId: a.treatmentId }],
     // Le istruzioni pre-appuntamento hanno senso solo per ciò che deve
     // ancora succedere: sul passato sarebbero rumore.
     preparazione: a.date >= oggi && a.status !== 'cancelled' && a.status !== 'completed'

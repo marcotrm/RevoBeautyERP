@@ -9,6 +9,7 @@
 import { prisma } from '@/lib/prisma';
 import { clienteDaToken, tokenDaRichiesta } from '@/lib/mobileAuth';
 import { consensoAttivo, registraAccesso } from '@/lib/estetica';
+import { salvaFoto, eliminaFotoStorage } from '@/lib/fotoStorage';
 
 const MAX_BYTE = 500 * 1024; // base64 già compressa dal telefono
 
@@ -48,9 +49,11 @@ export async function POST(req: Request) {
   }
 
   const ora = new Date().toISOString();
+  // Nel bucket se c'è, in tabella se no: la cliente non deve saperlo.
+  const nelBucket = await salvaFoto(immagine, `percorsi/${percorsoId}`).catch(() => null);
   const foto = await prisma.fotoPercorso.create({
     data: {
-      percorsoId, clientId: cliente.id, area, immagine,
+      percorsoId, clientId: cliente.id, area, immagine: nelBucket ?? immagine,
       scattataIl: ora.slice(0, 10), origine: 'cliente', createdAt: ora,
     },
   });
@@ -82,7 +85,9 @@ export async function DELETE(req: Request) {
     );
   }
 
+  const daCancellare = await prisma.fotoPercorso.findUnique({ where: { id: foto.id }, select: { immagine: true } });
   await prisma.fotoPercorso.delete({ where: { id: foto.id } });
+  if (daCancellare) await eliminaFotoStorage(daCancellare.immagine);
   await registraAccesso('cliente', cliente.id, 'foto-eliminata', id);
 
   return Response.json({ ok: true });

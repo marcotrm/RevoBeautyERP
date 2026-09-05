@@ -30,7 +30,32 @@ export interface NotificaDaInviare {
 
 export type EsitoInvio = 'inviata' | 'doppione' | 'no-token' | 'errore';
 
+/**
+ * Che famiglia è questa notifica, per le preferenze della cliente.
+ * I promemoria dei PROPRI appuntamenti e la chat non si spengono: sono
+ * servizio, non pubblicità. Il resto sì, famiglia per famiglia.
+ */
+function famigliaDi(tipo: string): 'promo' | 'auguri' | 'occasioni' | null {
+  if (tipo === 'post') return 'promo';
+  if (tipo === 'compleanno') return 'auguri';
+  if (['autopilot', 'drop', 'riattivazione'].includes(tipo)) return 'occasioni';
+  return null; // promemoria-24h/2h, preparazione, waitlist, chat, percorso-creato…
+}
+
 export async function inviaNotifica(n: NotificaDaInviare): Promise<EsitoInvio> {
+  // 0. Le preferenze della cliente: chi ha spento una famiglia non la riceve.
+  //    Si controlla PRIMA del lucchetto: una riga "silenziata" nel registro
+  //    bloccherebbe per sempre l'invio anche se lei riaccende domani.
+  const famiglia = famigliaDi(n.tipo);
+  if (famiglia) {
+    const account = await prisma.mobileAccount.findUnique({
+      where: { clientId: n.clientId },
+      select: { notifichePreferenze: true },
+    });
+    const pref = account?.notifichePreferenze as Record<string, boolean> | null;
+    if (pref && pref[famiglia] === false) return 'no-token';
+  }
+
   // 1. Lucchetto: la riga nasce prima dell'invio.
   let rigaId: string;
   try {

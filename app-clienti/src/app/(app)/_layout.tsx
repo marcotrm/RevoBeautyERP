@@ -35,6 +35,8 @@ export default function AppLayout() {
       <Stack.Screen name="modifica-profilo" options={{ title: 'Il mio profilo' }} />
       <Stack.Screen name="reclamo" options={{ title: 'Reclamo anonimo' }} />
       <Stack.Screen name="sorprese" options={{ title: 'Beauty Box e sfide' }} />
+      <Stack.Screen name="sposta" options={{ title: 'Sposta appuntamento' }} />
+      <Stack.Screen name="preferenze-notifiche" options={{ title: 'Notifiche' }} />
       <Stack.Screen name="checkup" options={{ title: 'Check-up estetico' }} />
       <Stack.Screen name="consulenza" options={{ title: 'Consulenza' }} />
       <Stack.Screen name="risultati" options={{ title: 'I miei risultati' }} />

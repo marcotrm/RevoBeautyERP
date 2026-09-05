@@ -74,6 +74,7 @@ function AppointmentCard({
   onCancel?: (a: Appointment) => void;
   cancelling?: boolean;
 }) {
+  const router = useRouter();
   const isCancelled = appointment.status === 'cancelled';
 
   return (
@@ -94,18 +95,34 @@ function AppointmentCard({
       {appointment.preparazione && <PreparazioneBlocco prep={appointment.preparazione} />}
 
       {onCancel && appointment.canCancel && (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => onCancel(appointment)}
-          disabled={cancelling}
-          style={({ pressed }) => [styles.cancelButton, pressed && { opacity: 0.7 }]}
-        >
-          {cancelling ? (
-            <ActivityIndicator size="small" color={colors.error} />
-          ) : (
-            <Text style={styles.cancelButtonText}>Disdici appuntamento</Text>
-          )}
-        </Pressable>
+        <View style={styles.azioniRiga}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push({
+              pathname: '/sposta',
+              params: {
+                id: appointment.id,
+                treatments: (appointment.servizi ?? []).map(s => s.treatmentId).join(','),
+                nome: appointment.treatmentName,
+              },
+            })}
+            style={({ pressed }) => [styles.spostaButton, pressed && { opacity: 0.7 }]}
+          >
+            <Text style={styles.spostaButtonText}>Sposta</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => onCancel(appointment)}
+            disabled={cancelling}
+            style={({ pressed }) => [styles.cancelButton, pressed && { opacity: 0.7 }]}
+          >
+            {cancelling ? (
+              <ActivityIndicator size="small" color={colors.error} />
+            ) : (
+              <Text style={styles.cancelButtonText}>Disdici</Text>
+            )}
+          </Pressable>
+        </View>
       )}
       {onCancel && !appointment.canCancel && !isCancelled && (
         <Text style={styles.cannotCancelHint}>
@@ -310,9 +327,19 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
+  azioniRiga: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  spostaButton: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.full,
+    backgroundColor: colors.primary,
+    minHeight: 32,
+    justifyContent: 'center',
+  },
+  spostaButtonText: { ...typography.labelForte, fontSize: 13, color: colors.white },
   cancelButton: {
     alignSelf: 'flex-start',
-    marginTop: spacing.sm,
+    marginTop: 0,
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.md,
     borderRadius: radius.full,

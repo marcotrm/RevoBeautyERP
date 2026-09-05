@@ -60,12 +60,19 @@ export interface RicercaOrari {
   from?: string | null;
   to?: string | null;
   giorni?: number;
+  /** Lo spostamento: l'appuntamento da non contare fra gli occupati. */
+  ignoraAppointmentId?: string | null;
 }
+
+/** La copertura pacchetto di un trattamento scelto (nell'ordine della richiesta). */
+export type CoperturaPacchetto = { pacchetto: string; rimaste: number } | null;
 
 export interface BookingProvider {
   treatments(): Promise<BookingTreatment[]>;
   operators(): Promise<BookingOperator[]>;
   availability(date: string, treatmentId: string, gender: 'male' | 'female'): Promise<BookingSlot[]>;
+  /** Quali dei trattamenti scelti sono coperti da un pacchetto (in ordine). */
+  copertura(token: string, treatmentIds: string[]): Promise<CoperturaPacchetto[]>;
   search(req: RicercaOrari): Promise<GiornoDisponibile[]>;
   book(token: string, payload: {
     date: string; startTime: string; gender: 'male' | 'female';
@@ -93,6 +100,16 @@ export class RealBookingService implements BookingProvider {
   }
 
   /** "Quando posso venire?": i primi giorni utili, filtrati come vuole la cliente. */
+  /** Quali dei trattamenti scelti sono coperti da un pacchetto (in ordine). */
+  async copertura(token: string, treatmentIds: string[]): Promise<CoperturaPacchetto[]> {
+    if (treatmentIds.length === 0) return [];
+    const r = await apiRequest<{ coperture: CoperturaPacchetto[] }>(
+      `/api/mobile/pacchetto-copre?treatmentIds=${encodeURIComponent(treatmentIds.join(','))}`,
+      { token },
+    );
+    return r.coperture || [];
+  }
+
   async search(req: RicercaOrari): Promise<GiornoDisponibile[]> {
     const r = await apiRequest<{ giorni: GiornoDisponibile[] }>('/api/booking/search', {
       method: 'POST',

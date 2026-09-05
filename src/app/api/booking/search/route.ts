@@ -38,6 +38,8 @@ export async function POST(request: Request) {
   const res = await cercaSlot({
     dateFrom,
     giorni: Number(b.giorni) || 21,
+    // Per lo spostamento: il posto vecchio dell'appuntamento stesso è libero.
+    ignoraAppointmentId: b.ignoraAppointmentId ? String(b.ignoraAppointmentId) : null,
     services,
     gender: b.gender === 'male' ? 'male' : 'female',
     giorniSettimana,

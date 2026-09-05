@@ -5,7 +5,7 @@ import { persist } from 'zustand/middleware';
 import { User } from '@/types';
 import { mockCurrentUser } from '@/lib/mock-data';
 import { useRolesStore } from '@/stores/useRolesStore';
-import { authenticate, getAccountById } from '@/app/actions/accounts';
+import { authenticate, getAccountById, esci } from '@/app/actions/accounts';
 
 interface AuthStore {
   user: User | null;
@@ -58,6 +58,9 @@ export const useAuthStore = create<AuthStore>()(
 
       logout: () => {
         set({ user: null, isAuthenticated: false });
+        // Anche la sessione sul server: il cookie firmato deve sparire, o
+        // uscire dal gestionale lascerebbe aperta la porta che conta davvero.
+        esci().catch(() => {});
       },
 
       setCurrentLocation: (locationId: string) => {

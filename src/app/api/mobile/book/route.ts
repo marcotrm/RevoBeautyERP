@@ -10,6 +10,8 @@ import { avanzaSfide } from '@/lib/challenge';
 import { muoviPunti } from '@/lib/wallet';
 import { leggiConfig } from '@/lib/appSettings';
 import { traccia } from '@/lib/appEvents';
+import { soloNome } from '@/lib/nomiPropri';
+import { pacchettiAttivi, pacchettoCheCopre } from '@/lib/pacchettoInPrenotazione';
 
 export const runtime = 'nodejs';
 
@@ -64,6 +66,23 @@ export async function POST(request: Request) {
   const metaDi = new Map(trattamenti.map(t => [t.id, t]));
   const principale = slot.assegnazioni[0];
 
+  /*
+    Le sedute del pacchetto nascono a 0 € con la nota che il check-out
+    riconosce: si scala la seduta, non si incassa due volte.
+  */
+  const pacchetti = await pacchettiAttivi(client.id);
+  const impegnate = new Map<string, number>();
+  const coperture: string[] = [];
+  const righeServizi = slot.assegnazioni.map(a => {
+    const cov = pacchettoCheCopre(client.id, a.treatmentName, pacchetti, impegnate);
+    if (cov) {
+      impegnate.set(cov.packageName, (impegnate.get(cov.packageName) ?? 0) + 1);
+      if (!coperture.includes(cov.packageName)) coperture.push(cov.packageName);
+    }
+    return { ...a, price: cov ? 0 : a.price, daPacchetto: Boolean(cov) };
+  });
+  const prezzoDaPagare = righeServizi.reduce((s2, r) => s2 + r.price, 0);
+
   const appointment = await prisma.appointment.create({
     data: {
       clientId: client.id,
@@ -78,8 +97,8 @@ export async function POST(request: Request) {
       endTime: slot.endTime,
       duration: slot.durataTotale,
       status: 'confirmed',
-      price: slot.prezzoTotale,
-      services: slot.assegnazioni.map(a => ({
+      price: prezzoDaPagare,
+      services: righeServizi.map(a => ({
         treatmentId: a.treatmentId,
         treatmentName: a.treatmentName,
         treatmentCategory: metaDi.get(a.treatmentId)?.category || 'body',
@@ -90,7 +109,9 @@ export async function POST(request: Request) {
         operatorName: a.operatorName,
       })),
       color: metaDi.get(principale.treatmentId)?.color || '#A855F7',
-      notes: 'Prenotazione da app',
+      notes: coperture.length
+        ? `Prenotazione da app · 📦 Seduta da pacchetto ${coperture.join(', ')}`
+        : 'Prenotazione da app',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       createdBy: 'mobile-app',
@@ -148,7 +169,9 @@ export async function POST(request: Request) {
     success: true,
     appointment: {
       date: appointment.date, startTime: appointment.startTime, endTime: appointment.endTime,
-      treatmentName: appointment.treatmentName, operatorName: appointment.operatorName, price: appointment.price,
+      treatmentName: appointment.treatmentName, operatorName: soloNome(appointment.operatorName), price: appointment.price,
+      /** I pacchetti che coprono la seduta: l'app lo scrive in conferma. */
+      pacchetti: coperture,
     },
   });
 }

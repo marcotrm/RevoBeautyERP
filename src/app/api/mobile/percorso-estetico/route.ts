@@ -7,6 +7,7 @@
 import { prisma } from '@/lib/prisma';
 import { clienteDaToken, tokenDaRichiesta } from '@/lib/mobileAuth';
 import { percorsoPerCliente, consensoAttivo, registraAccesso } from '@/lib/estetica';
+import { urlFoto } from '@/lib/fotoStorage';
 
 export async function GET(req: Request) {
   const cliente = await clienteDaToken(tokenDaRichiesta(req));
@@ -43,8 +44,19 @@ export async function GET(req: Request) {
     await registraAccesso('cliente', cliente.id, 'foto-viste');
   }
 
+  // Le foto nel bucket escono come link firmati a scadenza, mai come chiavi.
+  const vista = await Promise.all(
+    percorsi.map(async (p) => {
+      const v = percorsoPerCliente(p, p.sedute, p.foto, consensoFoto);
+      v.foto = await Promise.all(
+        v.foto.map(async (f) => ({ ...f, immagine: await urlFoto(f.immagine) }))
+      );
+      return v;
+    })
+  );
+
   return Response.json({
-    percorsi: percorsi.map((p) => percorsoPerCliente(p, p.sedute, p.foto, consensoFoto)),
+    percorsi: vista,
     consensoFoto,
     prossimoAppuntamento: prossimo,
     checkup: checkup && {

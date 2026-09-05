@@ -15,6 +15,14 @@ import { ApiError, MessaggioRevoAI, revoAiService } from '@/api';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, fonts, radius, spacing, typography } from '@/theme';
 
+/** Quello che Revo sta facendo davvero, raccontato mentre lo fa. */
+const FRASI_ATTESA = [
+  'Ci sto pensando…',
+  'Sto guardando il listino…',
+  "Controllo l'agenda…",
+  'Un attimo, quasi fatto…',
+];
+
 const SUGGERIMENTI = [
   'Cosa mi consigli per la pelle?',
   'Sabato ho una cerimonia, che posso fare?',
@@ -27,8 +35,22 @@ const SUGGERIMENTI = [
  * bruttissimi. Un parser vero sarebbe troppo; per il grassetto basta
  * alternare i pezzi fra i doppi asterischi.
  */
-function TestoRevo({ testo, chiaro }: { testo: string; chiaro?: boolean }) {
-  const parti = testo.split('**');
+function TestoRevo({ testo, chiaro, anima }: { testo: string; chiaro?: boolean; anima?: boolean }) {
+  // L'effetto macchina da scrivere: la risposta "arriva" invece di piombare.
+  // Solo sull'ultimo messaggio appena ricevuto: lo storico è già letto.
+  const [visibili, setVisibili] = useState(anima ? 0 : testo.length);
+  useEffect(() => {
+    if (!anima) { setVisibili(testo.length); return; }
+    let i = 0;
+    const t = setInterval(() => {
+      i += 4;
+      setVisibili(Math.min(testo.length, i));
+      if (i >= testo.length) clearInterval(t);
+    }, 16);
+    return () => clearInterval(t);
+  }, [anima, testo]);
+
+  const parti = testo.slice(0, visibili).split('**');
   return (
     <Text style={[styles.bollaTesto, chiaro && styles.bollaTestoMia]}>
       {parti.map((p, i) => (i % 2 === 1 ? <Text key={i} style={styles.grassetto}>{p}</Text> : p))}
@@ -44,6 +66,8 @@ export default function AssistenteScreen() {
   const [testo, setTesto] = useState('');
   const [caricamento, setCaricamento] = useState(true);
   const [pensando, setPensando] = useState(false);
+  const [fraseAttesa, setFraseAttesa] = useState(0);
+  const [daAnimare, setDaAnimare] = useState<string | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -61,6 +85,14 @@ export default function AssistenteScreen() {
     return () => clearTimeout(id);
   }, [messaggi, pensando]);
 
+  // Le frasi d'attesa girano: non cambiano la velocità, cambiano l'attesa.
+  useEffect(() => {
+    if (!pensando) return;
+    setFraseAttesa(0);
+    const t = setInterval(() => setFraseAttesa((f) => (f + 1) % FRASI_ATTESA.length), 2500);
+    return () => clearInterval(t);
+  }, [pensando]);
+
   const invia = async (contenuto?: string) => {
     const corpo = (contenuto ?? testo).trim();
     if (!corpo || !token || pensando) return;
@@ -73,6 +105,7 @@ export default function AssistenteScreen() {
     ]);
     try {
       const r = await revoAiService.chiedi(token, corpo);
+      setDaAnimare(r.messaggio.id);
       setMessaggi((prev) => [...prev, r.messaggio]);
     } catch (e) {
       setErrore(e instanceof ApiError ? e.message : 'Revo ha avuto un contrattempo. Riprova.');
@@ -92,7 +125,7 @@ export default function AssistenteScreen() {
       {caricamento ? (
         <View style={styles.centro}><ActivityIndicator color={colors.primary} /></View>
       ) : (
-        <ScrollView ref={scrollRef} style={styles.flex} contentContainerStyle={[styles.lista, messaggi.length === 0 && { flexGrow: 1, justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })} style={styles.flex} contentContainerStyle={[styles.lista, messaggi.length === 0 && { flexGrow: 1, justifyContent: 'center' }]} keyboardShouldPersistTaps="handled">
           {messaggi.length === 0 ? (
             <View style={styles.vuoto}>
               <Ionicons name="sparkles-outline" size={40} color={colors.primary} />
@@ -113,7 +146,7 @@ export default function AssistenteScreen() {
               return (
                 <View key={m.id} style={[styles.rigaBolla, mia ? styles.rigaDx : styles.rigaSx]}>
                   <View style={[styles.bolla, mia ? styles.bollaMia : styles.bollaRevo]}>
-                    <TestoRevo testo={m.testo} chiaro={mia} />
+                    <TestoRevo testo={m.testo} chiaro={mia} anima={!mia && m.id === daAnimare} />
                   </View>
                 </View>
               );
@@ -121,8 +154,9 @@ export default function AssistenteScreen() {
           )}
           {pensando ? (
             <View style={[styles.rigaBolla, styles.rigaSx]}>
-              <View style={[styles.bolla, styles.bollaRevo]}>
+              <View style={[styles.bolla, styles.bollaRevo, styles.bollaAttesa]}>
                 <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.attesaTesto}>{FRASI_ATTESA[fraseAttesa]}</Text>
               </View>
             </View>
           ) : null}
@@ -180,6 +214,8 @@ const styles = StyleSheet.create({
   bollaTesto: { ...typography.body, color: colors.textPrimary },
   bollaTestoMia: { color: colors.white },
   grassetto: { fontFamily: fonts.w700 },
+  bollaAttesa: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  attesaTesto: { ...typography.caption, fontSize: 13, color: colors.textSecondary },
   errore: { ...typography.caption, color: colors.error, textAlign: 'center', paddingBottom: spacing.xs },
   inputRiga: {
     flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm,

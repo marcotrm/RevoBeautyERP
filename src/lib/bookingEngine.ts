@@ -214,7 +214,7 @@ export function competenzePerOperatrice(
  * Riempire un calendario di due settimane girando giorno per giorno voleva
  * dire ottanta interrogazioni al database: così sono quattro.
  */
-async function caricaContesto(dateFrom: string, dateTo: string, regole: Regole): Promise<Contesto> {
+async function caricaContesto(dateFrom: string, dateTo: string, regole: Regole, ignoraAppointmentId?: string | null): Promise<Contesto> {
   const centro = await leggiCentro().catch(() => null);
   const settimaneCoinvolte = new Set<string>();
   for (let d = new Date(dateFrom + 'T12:00:00'); d <= new Date(dateTo + 'T12:00:00'); d.setDate(d.getDate() + 7)) {
@@ -233,7 +233,10 @@ async function caricaContesto(dateFrom: string, dateTo: string, regole: Regole):
     }),
     prisma.operatorWeekSchedule.findMany({ where: { weekStart: { in: [...settimaneCoinvolte] } } }),
     prisma.appointment.findMany({
-      where: { date: { gte: dateFrom, lte: dateTo }, status: { in: STATI_OCCUPANTI } },
+      where: {
+        date: { gte: dateFrom, lte: dateTo }, status: { in: STATI_OCCUPANTI },
+        ...(ignoraAppointmentId ? { id: { not: ignoraAppointmentId } } : {}),
+      },
       select: { date: true, operatorId: true, startTime: true, endTime: true, services: true },
     }),
     prisma.agendaBlock.findMany({
@@ -373,6 +376,11 @@ export interface RichiestaDisponibilita {
   /** Fascia oraria preferita dalla cliente, es. dalle 14:00 alle 19:00. */
   oraDa?: string | null;
   oraA?: string | null;
+  /**
+   * Un appuntamento da NON contare fra gli occupati: serve allo spostamento,
+   * dove il posto vecchio dell'appuntamento stesso deve risultare libero.
+   */
+  ignoraAppointmentId?: string | null;
 }
 
 /**
@@ -622,7 +630,7 @@ export async function slotDisponibili(req: RichiestaDisponibilita): Promise<{
   if (!passi) return { slots: [], durataTotale: 0, prezzoTotale: 0 };
 
   const { prenotazione } = await leggiConfig();
-  const ctx = await caricaContesto(req.date, req.date, prenotazione);
+  const ctx = await caricaContesto(req.date, req.date, prenotazione, req.ignoraAppointmentId);
   return {
     slots: slotDelGiorno(ctx, req.date, [passi], req.oraDa, req.oraA),
     durataTotale: passi.reduce((s, p) => s + p.duration, 0),
@@ -635,6 +643,8 @@ export interface RicercaSlot {
   dateFrom: string;
   /** Quanti giorni guardare in avanti. */
   giorni: number;
+  /** Come in RichiestaDisponibilita: l'appuntamento che si sta spostando. */
+  ignoraAppointmentId?: string | null;
   services: ServizioRichiesto[];
   /**
    * I trattamenti della seconda persona, quando si prenota in due.
@@ -721,7 +731,7 @@ export async function cercaSlot(req: RicercaSlot): Promise<{
   }
   if (date.length === 0) return { giorni: [], durataTotale: 0, prezzoTotale: 0, vuoti: [] };
 
-  const ctx = await caricaContesto(date[0], date[date.length - 1], prenotazione);
+  const ctx = await caricaContesto(date[0], date[date.length - 1], prenotazione, req.ignoraAppointmentId);
   const max = Math.min(Math.max(1, req.maxPerGiorno || 40), 100);
 
   const giorni: GiornoDisponibile[] = [];

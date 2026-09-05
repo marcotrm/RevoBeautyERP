@@ -114,6 +114,8 @@ export interface Appointment {
   price: number;
   /** true se la disdetta è consentita (calcolato dal server, regola 24h) */
   canCancel: boolean;
+  /** I trattamenti della seduta, per lo "Sposta" (stessi servizi, altra data). */
+  servizi?: { treatmentId: string }[];
   /** Istruzioni pre-appuntamento del trattamento (solo sui futuri). */
   preparazione?: {
     comePrepararsi: string;

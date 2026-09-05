@@ -32,6 +32,7 @@ const VOCI: Voce[] = [
   { icona: 'flag-outline', testo: 'Missioni', rotta: '/missioni' },
   { icona: 'book-outline', testo: 'Beauty Passport', rotta: '/passport' },
   { icona: 'notifications-outline', testo: 'Lista d\'attesa', rotta: '/lista-attesa' },
+  { icona: 'options-outline', testo: 'Notifiche', rotta: '/preferenze-notifiche' },
   { icona: 'eye-off-outline', testo: 'Reclamo anonimo', rotta: '/reclamo' },
 ];
 

@@ -106,7 +106,30 @@ export default function PrenotaScreen() {
   const totaleDurata = sceltePiene.reduce((s, x) => {
     const t = treatments.find(t => t.id === x.treatmentId); return s + (t ? durOf(t) : 0);
   }, 0);
-  const totalePrezzo = sceltePiene.reduce((s, x) => {
+
+  /*
+    Le sedute già pagate col pacchetto: il server dice quali dei trattamenti
+    scelti sono coperti (in ordine), e qui il prezzo scende a zero PRIMA
+    della conferma — la cliente non deve scoprirlo al banco.
+  */
+  const [coperture, setCoperture] = useState<({ pacchetto: string; rimaste: number } | null)[]>([]);
+  const chiaveScelte = sceltePiene.map(s => s.treatmentId).join(',');
+  useEffect(() => {
+    let vivo = true;
+    if (!token || !chiaveScelte) { setCoperture([]); return; }
+    bookingService.copertura(token, chiaveScelte.split(','))
+      .then(c => { if (vivo) setCoperture(c); })
+      .catch(() => { if (vivo) setCoperture([]); });
+    return () => { vivo = false; };
+  }, [token, chiaveScelte]);
+  /** La copertura del trattamento all'indice i di `scelte` (se pieno). */
+  const coperturaDi = (i: number) => {
+    const idx = scelte.slice(0, i + 1).filter(x => x.treatmentId).length - 1;
+    return scelte[i]?.treatmentId ? coperture[idx] ?? null : null;
+  };
+
+  const totalePrezzo = sceltePiene.reduce((s, x, idx) => {
+    if (coperture[idx]) return s; // inclusa nel pacchetto: 0 €
     const t = treatments.find(t => t.id === x.treatmentId); return s + (t ? priceOf(t) : 0);
   }, 0);
 
@@ -388,6 +411,13 @@ export default function PrenotaScreen() {
                         <Text style={styles.change}>Cambia</Text>
                       </Pressable>
 
+                      {coperturaDi(i) && (
+                        <View style={styles.pacchettoRiga}>
+                          <Text style={styles.pacchettoTxt}>
+                            📦 Inclusa nel tuo pacchetto · {coperturaDi(i)!.rimaste} sedut{coperturaDi(i)!.rimaste === 1 ? 'a rimasta' : 'e rimaste'} · 0 €
+                          </Text>
+                        </View>
+                      )}
                       {opsTratt.length === 1 && (
                         <Text style={styles.muted}>Lo fa {opsTratt[0].nomeBreve} ✨</Text>
                       )}
@@ -612,6 +642,12 @@ const styles = StyleSheet.create({
   indietro: { paddingVertical: spacing.sm, paddingHorizontal: spacing.xs },
   indietroTxt: { ...typography.label, fontSize: 14, color: colors.primaryDark, fontFamily: fonts.w700 },
   tornaSu: { alignSelf: 'flex-start', paddingVertical: spacing.xs, marginBottom: spacing.xs },
+  pacchettoRiga: {
+    backgroundColor: colors.primarySoft, borderRadius: radius.md,
+    paddingHorizontal: spacing.sm, paddingVertical: 6, marginTop: spacing.xs,
+    alignSelf: 'flex-start',
+  },
+  pacchettoTxt: { ...typography.captionForte, fontSize: 12, color: colors.primaryDark },
   tornaSuTxt: { ...typography.label, fontSize: 14, color: colors.primaryDark, fontFamily: fonts.w700 },
 
   // ── la striscia delle date ──

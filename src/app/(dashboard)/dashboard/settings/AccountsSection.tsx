@@ -52,7 +52,9 @@ export function AccountsSection() {
       setEditingAccount(account);
       setFormData({
         firstName: account.firstName, lastName: account.lastName, email: account.email,
-        password: account.password, roleId: account.roleId, active: account.active,
+        // La password non si rilegge: dall'archivio esce un hash, e il campo
+        // resta vuoto. Vuoto vuol dire «non la cambiare».
+        password: '', roleId: account.roleId, active: account.active,
       });
     } else {
       setEditingAccount(null);
@@ -62,7 +64,9 @@ export function AccountsSection() {
   };
 
   const handleSave = async () => {
-    if (!formData.firstName.trim() || !formData.email.trim() || !formData.password.trim() || !formData.roleId) {
+    // In modifica la password puo' restare vuota: si cambia solo se si scrive.
+    if (!formData.firstName.trim() || !formData.email.trim() || !formData.roleId
+      || (!editingAccount && !formData.password.trim())) {
       setError('Compila nome, email, password e permesso.');
       return;
     }
@@ -213,7 +217,9 @@ export function AccountsSection() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">Password</label>
+                    <label className="block text-xs font-semibold text-text-secondary mb-1.5 uppercase tracking-wider">
+                      Password {editingAccount && <span className="normal-case font-normal text-text-muted">— lascia vuoto per non cambiarla</span>}
+                    </label>
                     <div className="relative">
                       <input type={showPassword ? 'text' : 'password'} value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} placeholder="••••••••"
                         className="w-full px-4 pr-11 py-2.5 rounded-xl bg-bg-tertiary border border-border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent/50 transition-colors" />

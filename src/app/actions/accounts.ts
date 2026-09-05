@@ -1,7 +1,9 @@
 'use server';
 
+import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { headers } from 'next/headers';
+import { apriSessione, chiudiSessione } from '@/lib/sessione';
 import { descriviDispositivo } from '@/lib/dispositivo';
 import { sendTelegram } from '@/lib/telegram';
 import { DEFAULT_ACCOUNTS } from '@/lib/rolesConfig';
@@ -11,11 +13,27 @@ export interface GestionaleAccount {
   firstName: string;
   lastName: string;
   email: string;
+  /*
+    Non esce piu' di qui.
+
+    Prima l'elenco account tornava la password in chiaro e la finestra di
+    modifica la mostrava scritta: bastava aprire quella schermata — o guardare
+    la risposta della chiamata — per leggere le password di tutti. Adesso in
+    archivio c'e' un hash, e da qui esce sempre stringa vuota: per cambiarla si
+    scrive quella nuova, non si legge quella vecchia.
+  */
   password: string;
   roleId: string;
   active: boolean;
   createdAt: string;
 }
+
+/** Un hash bcrypt si riconosce dal prefisso: $2a$, $2b$, $2y$. */
+const eHash = (v: string) => /^\$2[aby]\$/.test(String(v || ''));
+
+/** Fuori non esce mai niente che assomigli a una password. */
+const senzaPassword = (a: { password: string } & Record<string, unknown>) =>
+  ({ ...a, password: '' }) as GestionaleAccount;
 
 /** Semina gli account di default se la tabella è vuota. Idempotente. */
 async function ensureSeeded() {
@@ -39,7 +57,7 @@ async function ensureSeeded() {
 export async function getAccounts(): Promise<GestionaleAccount[]> {
   await ensureSeeded();
   const rows = await prisma.appUser.findMany({ orderBy: { createdAt: 'asc' } });
-  return rows as GestionaleAccount[];
+  return rows.map(senzaPassword);
 }
 
 export async function createAccount(data: Omit<GestionaleAccount, 'id' | 'createdAt'>): Promise<GestionaleAccount> {
@@ -51,13 +69,13 @@ export async function createAccount(data: Omit<GestionaleAccount, 'id' | 'create
       firstName: data.firstName.trim(),
       lastName: data.lastName.trim(),
       email,
-      password: data.password,
+      password: bcrypt.hashSync(data.password, 10),
       roleId: data.roleId,
       active: data.active,
       createdAt: new Date().toISOString().slice(0, 10),
     },
   });
-  return row as GestionaleAccount;
+  return senzaPassword(row);
 }
 
 export async function updateAccount(
@@ -70,8 +88,19 @@ export async function updateAccount(
     if (other && other.id !== id) throw new Error('Esiste già un account con questa email.');
     data = { ...data, email };
   }
+  /*
+    La password si cambia solo se ne arriva una nuova.
+
+    Il modulo la manda vuota quando non la si tocca: scriverla cosi' com'e'
+    vorrebbe dire azzerare la password di qualcuno modificandogli il cognome.
+  */
+  if ('password' in data) {
+    const nuova = String(data.password || '');
+    if (!nuova.trim()) { const { password: _p, ...resto } = data; data = resto; }
+    else data = { ...data, password: bcrypt.hashSync(nuova, 10) };
+  }
   const row = await prisma.appUser.update({ where: { id }, data });
-  return row as GestionaleAccount;
+  return senzaPassword(row);
 }
 
 export async function deleteAccount(id: string): Promise<boolean> {
@@ -99,14 +128,54 @@ export async function authenticate(email: string, password: string): Promise<Ges
   const pulita = email.trim().toLowerCase();
   const acc = await prisma.appUser.findUnique({ where: { email: pulita } });
 
+  /*
+    Le password vecchie sono in chiaro: si accettano una volta sola.
+
+    Cambiarle tutte di colpo vorrebbe dire chiudere fuori il centro nel mezzo
+    di una giornata di lavoro. Cosi' invece il primo accesso di ognuno la
+    riscrive come hash e da li' in poi in archivio non c'e' piu' niente da
+    leggere. Chi non entra mai resta in chiaro finche' non entra: e' il motivo
+    per cui va comunque cambiata a mano quella degli account fermi.
+  */
+  const giusta = !acc ? false
+    : eHash(acc.password) ? bcrypt.compareSync(password, acc.password)
+      : acc.password === password;
+
   const esito = !acc ? 'inesistente'
     : !acc.active ? 'account_spento'
-      : acc.password !== password ? 'password_errata'
+      : !giusta ? 'password_errata'
         : 'ok';
 
   await registraAccesso({ email: pulita, acc: esito === 'ok' ? acc : null, esito });
+  if (esito !== 'ok' || !acc) return null;
 
-  return esito === 'ok' ? (acc as GestionaleAccount) : null;
+  if (!eHash(acc.password)) {
+    await prisma.appUser.update({
+      where: { id: acc.id },
+      data: { password: bcrypt.hashSync(password, 10) },
+    }).catch(() => {});
+  }
+
+  /*
+    Da qui in poi la sessione vive anche sul server.
+
+    Il cookie firmato e' quello che permette alle API di sapere chi sta
+    chiamando: senza, l'unica prova di essere entrati era una riga nel browser
+    — che chiunque abbia il tablet in mano puo' scriversi da solo.
+  */
+  await apriSessione({
+    tipo: 'operatrice',
+    accountId: acc.id,
+    roleId: acc.roleId,
+    nome: `${acc.firstName} ${acc.lastName}`.trim(),
+  });
+
+  return senzaPassword(acc);
+}
+
+/** Esce davvero: il cookie non scade, si cancella. */
+export async function esci(): Promise<void> {
+  await chiudiSessione();
 }
 
 /**
@@ -287,5 +356,5 @@ export async function elencoAccessi(opts: { email?: string; limite?: number } = 
 /** Ritorna un account per id (per aggiornare ruolo/stato della sessione corrente). */
 export async function getAccountById(id: string): Promise<GestionaleAccount | null> {
   const acc = await prisma.appUser.findUnique({ where: { id } });
-  return (acc as GestionaleAccount) ?? null;
+  return acc ? senzaPassword(acc) : null;
 }

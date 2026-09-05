@@ -13,11 +13,19 @@ export interface AppointmentsProvider {
    * oltre il limite lancia ApiError con code 'TOO_LATE'.
    */
   cancel(token: string, appointmentId: string): Promise<void>;
+  /** Sposta un appuntamento su nuova data/ora (stessa regola 24h). */
+  move(token: string, appointmentId: string, date: string, time: string): Promise<void>;
 }
 
 export class RealAppointmentsService implements AppointmentsProvider {
   list(token: string): Promise<AppointmentsData> {
     return apiRequest<AppointmentsData>('/api/mobile/appointments', { token });
+  }
+
+  async move(token: string, appointmentId: string, date: string, time: string): Promise<void> {
+    await apiRequest<{ ok: boolean }>('/api/mobile/appointments/move', {
+      method: 'POST', token, body: { appointmentId, date, time },
+    });
   }
 
   async cancel(token: string, appointmentId: string): Promise<void> {

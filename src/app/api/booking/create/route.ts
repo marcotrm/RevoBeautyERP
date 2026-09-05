@@ -6,6 +6,7 @@ import { findClientByPhone, todayInItaly } from '@/lib/voice';
 import { sendAppointmentConfirmation } from '@/lib/wa-appointments';
 import { slotDisponibili, type ServizioRichiesto } from '@/lib/bookingEngine';
 import { soloNome } from '@/lib/nomiPropri';
+import { pacchettiAttivi, pacchettoCheCopre } from '@/lib/pacchettoInPrenotazione';
 import { apriCaparra, mandaRichiestaCaparra } from '@/app/actions/caparra';
 
 export const runtime = 'nodejs';
@@ -88,6 +89,25 @@ export async function POST(request: Request) {
   const metaDi = new Map(trattamenti.map(t => [t.id, t]));
   const principale = slot.assegnazioni[0];
 
+  /*
+    Le sedute già pagate col pacchetto: se un trattamento è coperto, nasce a
+    0 € con la nota «📦 Seduta da pacchetto» — al check-out si scala da sola.
+    Prima l'app prenotava a prezzo pieno e al banco si rischiava di scalare
+    la seduta E incassare il trattamento: due volte gli stessi soldi.
+  */
+  const pacchetti = await pacchettiAttivi(client.id);
+  const impegnate = new Map<string, number>();
+  const coperture: string[] = [];
+  const righeServizi = slot.assegnazioni.map(a => {
+    const cov = pacchettoCheCopre(client.id, a.treatmentName, pacchetti, impegnate);
+    if (cov) {
+      impegnate.set(cov.packageName, (impegnate.get(cov.packageName) ?? 0) + 1);
+      if (!coperture.includes(cov.packageName)) coperture.push(cov.packageName);
+    }
+    return { ...a, price: cov ? 0 : a.price, daPacchetto: Boolean(cov) };
+  });
+  const prezzoDaPagare = righeServizi.reduce((s, r) => s + r.price, 0);
+
   const adesso = new Date().toISOString();
   const appointment = await prisma.appointment.create({
     data: {
@@ -106,8 +126,8 @@ export async function POST(request: Request) {
       endTime: slot.endTime,
       duration: slot.durataTotale,
       status: 'confirmed',
-      price: slot.prezzoTotale,
-      services: slot.assegnazioni.map(a => ({
+      price: prezzoDaPagare,
+      services: righeServizi.map(a => ({
         treatmentId: a.treatmentId,
         treatmentName: a.treatmentName,
         treatmentCategory: metaDi.get(a.treatmentId)?.category || 'body',
@@ -118,7 +138,11 @@ export async function POST(request: Request) {
         operatorName: a.operatorName,
       })),
       color: metaDi.get(principale.treatmentId)?.color || '#A855F7',
-      notes: 'Prenotazione online',
+      // La nota col nome del pacchetto è quella che il check-out riconosce
+      // per scalare la seduta in automatico, senza domande.
+      notes: coperture.length
+        ? `Prenotazione online · 📦 Seduta da pacchetto ${coperture.join(', ')}`
+        : 'Prenotazione online',
       createdAt: adesso,
       updatedAt: adesso,
       createdBy: 'online-booking',
@@ -175,9 +199,12 @@ export async function POST(request: Request) {
       // Verso la cliente solo il nome di battesimo; in agenda resta intero.
       operatorName: soloNome(appointment.operatorName),
       price: appointment.price,
-      servizi: slot.assegnazioni.map(a => ({
+      servizi: righeServizi.map(a => ({
         nome: a.treatmentName, orario: a.startTime, operatrice: soloNome(a.operatorName), prezzo: a.price,
+        daPacchetto: a.daPacchetto || undefined,
       })),
+      /** I pacchetti che coprono questa seduta: l'app lo dice in conferma. */
+      pacchetti: coperture,
     },
   });
 }

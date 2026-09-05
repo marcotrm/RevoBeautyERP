@@ -6,6 +6,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { registraAccesso } from '@/lib/estetica';
+import { salvaFoto, eliminaFotoStorage, urlFoto } from '@/lib/fotoStorage';
 
 const adesso = () => new Date().toISOString();
 const testo = (v: unknown, max = 2000) => String(v ?? '').trim().slice(0, max) || null;
@@ -46,7 +47,12 @@ export async function GET(request: Request) {
     },
   });
 
-  return Response.json({ percorsi });
+  // Le chiavi del bucket diventano link firmati anche per il pannello.
+  const conUrl = await Promise.all(percorsi.map(async (p) => ({
+    ...p,
+    foto: await Promise.all(p.foto.map(async (f) => ({ ...f, immagine: await urlFoto(f.immagine) }))),
+  })));
+  return Response.json({ percorsi: conUrl });
 }
 
 export async function POST(request: Request) {
@@ -210,12 +216,14 @@ export async function POST(request: Request) {
     if (!immagine.startsWith('data:image/') || immagine.length > 500 * 1024) {
       return Response.json({ error: 'La foto non è valida o è troppo grande.' }, { status: 400 });
     }
+    const nelBucket = await salvaFoto(immagine, `percorsi/${percorsoId}`).catch(() => null);
     const foto = await prisma.fotoPercorso.create({
       data: {
         percorsoId, clientId: percorso.clientId,
         sedutaId: testo(body.sedutaId, 60),
         area: testo(body.area, 60) ?? 'Area trattata',
-        immagine, scattataIl: String(body.scattataIl ?? ora.slice(0, 10)).slice(0, 10),
+        immagine: nelBucket ?? immagine,
+        scattataIl: String(body.scattataIl ?? ora.slice(0, 10)).slice(0, 10),
         origine: operatrice, createdAt: ora,
       },
     });
@@ -225,9 +233,10 @@ export async function POST(request: Request) {
 
   if (azione === 'fotoElimina') {
     const id = String(body.id ?? '');
-    const foto = await prisma.fotoPercorso.findUnique({ where: { id }, select: { id: true, clientId: true } });
+    const foto = await prisma.fotoPercorso.findUnique({ where: { id }, select: { id: true, clientId: true, immagine: true } });
     if (!foto) return Response.json({ error: 'Foto non trovata.' }, { status: 404 });
     await prisma.fotoPercorso.delete({ where: { id } });
+    await eliminaFotoStorage(foto.immagine);
     await registraAccesso(operatrice, foto.clientId, 'foto-eliminata', id);
     return Response.json({ ok: true });
   }

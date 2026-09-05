@@ -123,6 +123,13 @@ model MobileAccount {
    */
   otpSentAt    String?
 
+  /**
+   * Cosa vuole ricevere: { promo, auguri, occasioni } (true/false).
+   * Assente = tutto attivo. Promemoria dei PROPRI appuntamenti e chat
+   * non si spengono da qui: non sono pubblicità, sono servizio.
+   */
+  notifichePreferenze Json?
+
   clientId String @unique
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
