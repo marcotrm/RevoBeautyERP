@@ -22,9 +22,10 @@ import { PhoneCall, X, Plus, Check, Clock, Phone, Trash2, RotateCcw } from 'luci
 import { useAuthStore } from '@/stores/useAuthStore';
 import {
   nuovoRichiamo, richiamiAperti, richiamiChiusi, chiudiRichiamo, rimandaRichiamo,
-  riapriRichiamo, eliminaRichiamo, ESITI,
-  type RigaRichiamo, type EsitoRichiamo,
+  riapriRichiamo, eliminaRichiamo,
+  type RigaRichiamo,
 } from '@/app/actions/richiami';
+import { ESITI, type EsitoRichiamo } from '@/lib/esitiRichiamo';
 
 /** Le fasce, con l'ora in cui il promemoria torna a bussare. */
 const FASCE: { id: string; testo: string; ora: string }[] = [

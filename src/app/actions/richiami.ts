@@ -15,22 +15,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
-
-export type EsitoRichiamo =
-  | 'prenotato' | 'non_interessata' | 'non_risponde' | 'ci_pensa'
-  | 'numero_sbagliato' | 'gia_cliente' | 'altro';
-
-export const ESITI: { id: EsitoRichiamo; testo: string; chiude: boolean }[] = [
-  { id: 'prenotato', testo: 'Ha prenotato', chiude: true },
-  { id: 'non_interessata', testo: 'Non interessata', chiude: true },
-  { id: 'gia_cliente', testo: 'Era già cliente', chiude: true },
-  { id: 'numero_sbagliato', testo: 'Numero sbagliato', chiude: true },
-  // Questi due NON chiudono niente: la telefonata va rifatta, e il promemoria
-  // deve tornare. Segnarli come «fatto» sarebbe il modo piu' rapido per
-  // perdere proprio le persone che stavano quasi per dire di sì.
-  { id: 'non_risponde', testo: 'Non risponde', chiude: false },
-  { id: 'ci_pensa', testo: 'Ci pensa, richiamare', chiude: false },
-];
+import { ESITI, type EsitoRichiamo } from '@/lib/esitiRichiamo';
 
 export interface RigaRichiamo {
   id: string;
