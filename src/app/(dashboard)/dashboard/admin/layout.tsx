@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard, Receipt, ShoppingCart, TrendingUp,
-  Target, FileBarChart, Wallet, Flag, FileSpreadsheet, Landmark,
+  Target, FileBarChart, Wallet, Flag, FileSpreadsheet, Landmark, CalendarX2,
 } from 'lucide-react';
 import { useFixedCostStore } from '@/stores/useFixedCostStore';
 import { useVariableCostStore } from '@/stores/useVariableCostStore';
@@ -26,6 +26,7 @@ const adminNav = [
   { href: '/dashboard/admin/goals', label: 'Obiettivi', icon: Flag },
   { href: '/dashboard/admin/partner-expenses', label: 'Spese Soci', icon: Wallet },
   { href: '/dashboard/admin/reports', label: 'Report', icon: FileBarChart },
+  { href: '/dashboard/admin/variazioni', label: 'Variazioni agenda', icon: CalendarX2 },
   { href: '/dashboard/admin/esporta', label: 'Esporta dati', icon: FileSpreadsheet },
 ];
 

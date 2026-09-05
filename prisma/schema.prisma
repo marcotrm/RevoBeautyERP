@@ -1926,3 +1926,55 @@ model Richiamo {
   @@index([prossimoTentativo])
   @@map("richiami")
 }
+
+// ============================================================
+// DIARIO DELL'AGENDA
+//
+// Chi ha toccato cosa, e quando. Serve a rispondere all'unica domanda a cui
+// oggi non si puo' rispondere: «stamattina c'erano piu' appuntamenti, dove
+// sono finiti?». Un appuntamento annullato resta in archivio e si ritrova;
+// uno ELIMINATO spariva del tutto — c'era perfino un tasto che prometteva di
+// non lasciare traccia — e da li' in poi non restava niente da guardare.
+//
+// Qui la riga resta anche quando l'appuntamento non c'e' piu': dentro c'e' la
+// sua copia intera. Non e' un sistema per controllare le persone: e' il
+// registro che permette di distinguere una disdetta vera da un buco, e di
+// smettere di sospettare guardando i fatti.
+// ============================================================
+model DiarioAgenda {
+  id            String   @id @default(cuid())
+  /// creato | modificato | annullato | eliminato | riattivato
+  azione        String
+  appointmentId String
+  /// La riga com'era prima. Per un eliminato e' l'unica cosa che ne resta.
+  prima         Json?
+  /// La riga come e' rimasta.
+  dopo          Json?
+  /// I cambiamenti scritti in italiano: «orario 15:00 → 16:30».
+  cambiamenti   String[] @default([])
+  /// Copiati fuori dal JSON per poter cercare e sommare senza aprirlo.
+  clientName    String
+  data          String
+  ora           String
+  trattamento   String
+  prezzo        Float    @default(0)
+  motivo        String?
+  /// Chi l'ha fatto: dalla sessione se c'e', altrimenti da chi ha chiamato.
+  chi           String
+  chiId         String?
+  quando        String
+  /*
+    Quando un annullamento e uno spostamento sono la stessa cosa.
+
+    Se subito dopo aver annullato si crea un altro appuntamento per la stessa
+    persona, quella non e' una seduta persa: e' una seduta spostata, e vederla
+    fra i «cancellati» farebbe suonare un allarme per niente. Il collegamento
+    si scrive qui, quando lo si riconosce.
+  */
+  spostatoIn    String?
+
+  @@index([data])
+  @@index([quando])
+  @@index([azione])
+  @@map("diario_agenda")
+}

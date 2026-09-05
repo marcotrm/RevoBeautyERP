@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { segnaInDiario } from '@/lib/diarioAgenda';
 import { avanzaSfide } from '@/lib/challenge';
 import { Appointment } from '@/types';
 import { mockOperators, mockTreatments, mockClients } from '@/lib/mock-data';
@@ -98,6 +99,14 @@ export async function createAppointment(data: Omit<Appointment, 'id' | 'createdA
     }))
     .catch(() => {});
 
+  // Nel diario: serve a distinguere una seduta persa da una spostata, che si
+  // riconosce solo vedendo l'annullamento e la creazione uno accanto all'altra.
+  await segnaInDiario({
+    azione: 'creato',
+    appointmentId: appointment.id,
+    dopo: appointment as unknown as Record<string, unknown> & { id: string },
+  });
+
   return appointment as unknown as Appointment;
 }
 
@@ -139,6 +148,16 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
         select: { status: true, clientId: true, discountAmount: true, price: true, date: true, startTime: true, services: true },
       })
     : null;
+
+  /*
+    La riga intera com'era, per il diario.
+
+    `prev` sopra prende solo i campi che servono agli avvisi. Qui serve tutto,
+    perche' la domanda a cui il diario deve rispondere — «cosa e' cambiato» —
+    non si puo' fare su mezza riga. E' una lettura in piu' per ogni modifica:
+    il prezzo di poter dire cos'e' successo.
+  */
+  const primaIntera = await prisma.appointment.findUnique({ where: { id } });
   const appointment = await prisma.appointment.update({
     where: { id },
     data: {
@@ -149,6 +168,28 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
       updatedAt: new Date().toISOString()
     }
   });
+
+  /*
+    Annullare non e' modificare: nel diario sono due voci diverse.
+
+    Fra cento righe di «modificato» un annullamento passa inosservato, ed e'
+    proprio quello che si va a cercare quando a fine giornata i conti non
+    tornano.
+  */
+  if (primaIntera) {
+    const eraAnnullato = primaIntera.status === 'cancelled';
+    const oraAnnullato = appointment.status === 'cancelled';
+    await segnaInDiario({
+      azione: !eraAnnullato && oraAnnullato ? 'annullato'
+        : eraAnnullato && !oraAnnullato ? 'riattivato'
+          : 'modificato',
+      appointmentId: id,
+      prima: primaIntera as unknown as Record<string, unknown> & { id: string },
+      dopo: appointment as unknown as Record<string, unknown> & { id: string },
+      motivo: (updates.cancelReason as string | undefined) || null,
+    });
+  }
+
   /*
     Orario cambiato: si avvisa la cliente.
 
@@ -270,10 +311,26 @@ export async function updateAppointmentAction(id: string, updates: Partial<Appoi
   return appointment as unknown as Appointment;
 }
 
-export async function deleteAppointmentAction(id: string) {
-  await prisma.appointment.delete({
-    where: { id }
-  });
+/**
+ * Eliminare non vuol piu' dire sparire.
+ *
+ * Il tasto in agenda diceva «elimina senza traccia», e manteneva la promessa:
+ * la riga se ne andava e non restava niente da guardare — ne' chi fosse la
+ * cliente, ne' quanto costava quella seduta. Adesso, prima di cancellare, la
+ * riga intera finisce nel diario: l'appuntamento sparisce dall'agenda, ma
+ * chiunque abbia il permesso puo' ancora vedere cosa c'era e chi l'ha tolto.
+ */
+export async function deleteAppointmentAction(id: string, chiDichiarato?: string) {
+  const prima = await prisma.appointment.findUnique({ where: { id } });
+  await prisma.appointment.delete({ where: { id } });
+  if (prima) {
+    await segnaInDiario({
+      azione: 'eliminato',
+      appointmentId: id,
+      prima: prima as unknown as Record<string, unknown> & { id: string },
+      chiDichiarato,
+    });
+  }
   return true;
 }
 

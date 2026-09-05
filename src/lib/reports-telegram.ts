@@ -192,7 +192,57 @@ export async function buildClientiNuoviReport(date?: string): Promise<string> {
 }
 
 // Invia i report abilitati. `force` ignora i toggle (usato dal tasto "Invia ora").
-export async function sendDailyReports(opts: { which?: 'incassi' | 'staff' | 'clienti' | 'both'; force?: boolean } = {}): Promise<{ sent: string[] }> {
+/**
+ * Le variazioni dell'agenda di oggi, la sera.
+ *
+ * Non e' una lista di sospetti: e' il conto di cosa e' uscito dall'agenda
+ * mentre il centro lavorava. Gli spostamenti si contano a parte perche' non
+ * sono perdite — annullare e rifare subito e' quello che succede quando una
+ * cliente chiede di cambiare giorno — e confonderli farebbe suonare un
+ * allarme per niente, che e' il modo migliore per farlo ignorare.
+ *
+ * Le eliminazioni si scrivono per ultime e per nome: un appuntamento tolto
+ * dall'archivio e' l'unica cosa che, prima, non lasciava alcuna traccia.
+ */
+async function buildVariazioniReport(): Promise<string> {
+  const { riepilogoVariazioniDiOggi } = await import('@/app/actions/diario');
+  const r = await riepilogoVariazioniDiOggi();
+  const eur = (n: number) => `${n.toFixed(2).replace('.', ',')} €`;
+
+  if (r.annullati.length === 0 && r.eliminati.length === 0 && r.spostati.length === 0) {
+    return '📋 <b>Agenda</b>\nOggi nessun appuntamento tolto o spostato.';
+  }
+
+  const righe: string[] = ['📋 <b>Variazioni dell\'agenda di oggi</b>'];
+
+  if (r.annullati.length > 0) {
+    righe.push(`\n❌ <b>Annullati (${r.annullati.length})</b>`);
+    for (const v of r.annullati) {
+      righe.push(`• ${v.data.split('-').reverse().slice(0, 2).join('/')} ${v.ora} · ${v.clientName} · ${eur(v.prezzo)}`
+        + `\n   ${v.motivo || 'nessun motivo'} — ${v.chi}`);
+    }
+  }
+
+  if (r.eliminati.length > 0) {
+    righe.push(`\n🗑 <b>ELIMINATI dall'archivio (${r.eliminati.length})</b>`);
+    for (const v of r.eliminati) {
+      righe.push(`• ${v.data.split('-').reverse().slice(0, 2).join('/')} ${v.ora} · ${v.clientName} · ${v.trattamento} · ${eur(v.prezzo)}`
+        + `\n   tolto da ${v.chi}`);
+    }
+  }
+
+  if (r.spostati.length > 0) {
+    righe.push(`\n🔄 <b>Spostati (${r.spostati.length})</b> — rifatti subito, non sono perdite`);
+    for (const v of r.spostati) righe.push(`• ${v.clientName} · ${v.ora}`);
+  }
+
+  if (r.persiEuro > 0) {
+    righe.push(`\n💸 Valore uscito dall'agenda: <b>${eur(r.persiEuro)}</b>`);
+  }
+  return righe.join('\n');
+}
+
+export async function sendDailyReports(opts: { which?: 'incassi' | 'staff' | 'clienti' | 'variazioni' | 'both'; force?: boolean } = {}): Promise<{ sent: string[] }> {
   const cfg = await getTelegramConfig();
   const sent: string[] = [];
   const which = opts.which || 'both';
@@ -207,6 +257,17 @@ export async function sendDailyReports(opts: { which?: 'incassi' | 'staff' | 'cl
   if ((which === 'both' || which === 'clienti') && (opts.force || cfg.reportClientiNuovi)) {
     const r = await sendTelegram(await buildClientiNuoviReport());
     if (r.ok) sent.push('clienti');
+  }
+  /*
+    Le variazioni partono sempre, senza un interruttore che le spenga.
+
+    E' l'unico avviso che serve proprio a chi non era in centro, e un
+    interruttore in Impostazioni lo puo' spegnere chiunque ci arrivi. Se non
+    c'e' niente da dire, il messaggio lo dice in una riga.
+  */
+  if (which === 'both' || which === 'variazioni') {
+    const r = await sendTelegram(await buildVariazioniReport());
+    if (r.ok) sent.push('variazioni');
   }
   return { sent };
 }

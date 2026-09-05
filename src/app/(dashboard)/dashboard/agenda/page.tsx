@@ -5353,14 +5353,20 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
               </div>
             )}
 
-            {/* Elimina definitivamente (solo per errori di inserimento) */}
+            {/*
+              Eliminare resta possibile — un appuntamento battuto per sbaglio
+              va tolto — ma non e' piu' invisibile: prima c'era scritto «senza
+              traccia» e la promessa era mantenuta, e da li' in poi non
+              restava niente da guardare. Adesso la riga finisce nel diario
+              con nome, ora, prezzo e chi l'ha tolta, e chi preme lo sa.
+            */}
             {!['in_progress', 'in_cabin'].includes(appointment.status) && (
               <div className="pt-3 border-t border-border mt-4">
                 {confirmDelete ? (
                   <div className="flex items-center gap-2">
                     <button onClick={() => { onDelete(appointment.id); onClose(); }}
                       className="flex-1 py-2.5 rounded-xl bg-error text-white text-sm font-medium hover:bg-error/90 transition-colors">
-                      Sì, elimina senza traccia
+                      Sì, elimina
                     </button>
                     <button onClick={() => setConfirmDelete(false)}
                       className="px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-text-secondary hover:bg-bg-hover transition-colors">
@@ -5373,7 +5379,10 @@ function DetailPanel({ appointment: appointmentProp, onClose, onEdit, onStatusCh
                     Elimina definitivamente (errore di inserimento)
                   </button>
                 )}
-                <p className="text-[10px] text-text-muted text-center mt-1">Per le disdette usa &quot;Annulla&quot;: resta nello storico del cliente.</p>
+                <p className="text-[10px] text-text-muted text-center mt-1">
+                  Per le disdette usa &quot;Annulla&quot;: resta nello storico del cliente.
+                  Ogni eliminazione viene registrata con nome, ora e chi l&apos;ha fatta.
+                </p>
               </div>
             )}
           </div>
