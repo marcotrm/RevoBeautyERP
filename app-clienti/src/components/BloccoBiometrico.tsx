@@ -18,10 +18,12 @@ import { colors, fonts, spacing, typography } from '@/theme';
 export function BloccoBiometrico() {
   const { sblocca, signOut } = useAuth();
   const [fallita, setFallita] = useState(false);
-  const [inCorso, setInCorso] = useState(false);
+  // Si nasce già "in corso": la richiesta parte da sola appena la schermata
+  // compare, quindi il bottone è spento fin dal primo fotogramma invece di
+  // accendersi per un istante e spegnersi subito.
+  const [inCorso, setInCorso] = useState(true);
 
   const chiediSblocco = useCallback(async () => {
-    setInCorso(true);
     try {
       const esito = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Sblocca RevoBeauty',
@@ -44,8 +46,17 @@ export function BloccoBiometrico() {
   // La richiesta parte appena la schermata compare: il gesto naturale è
   // guardare il telefono, non premere un bottone.
   useEffect(() => {
+    // set-state-in-effect non guarda oltre l'`await`: qui dentro non si
+    // scrive niente nello stato prima che il telefono abbia risposto.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void chiediSblocco();
   }, [chiediSblocco]);
+
+  /** Il bottone «Sblocca»: qui l'attesa la si accende a mano. */
+  const riprova = () => {
+    setInCorso(true);
+    void chiediSblocco();
+  };
 
   return (
     <View style={styles.container}>
@@ -54,7 +65,7 @@ export function BloccoBiometrico() {
         {fallita ? 'Sblocco non riuscito.' : 'Sblocca con Face ID per continuare.'}
       </Text>
 
-      <Button title="Sblocca" onPress={chiediSblocco} loading={inCorso} style={styles.bottone} />
+      <Button title="Sblocca" onPress={riprova} loading={inCorso} style={styles.bottone} />
 
       <Pressable onPress={() => void signOut()} disabled={inCorso}>
         <Text style={styles.esci}>Esci e accedi con un altro numero</Text>

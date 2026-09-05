@@ -40,7 +40,7 @@ function TestoRevo({ testo, chiaro, anima }: { testo: string; chiaro?: boolean; 
   // Solo sull'ultimo messaggio appena ricevuto: lo storico è già letto.
   const [visibili, setVisibili] = useState(anima ? 0 : testo.length);
   useEffect(() => {
-    if (!anima) { setVisibili(testo.length); return; }
+    if (!anima) return;
     let i = 0;
     const t = setInterval(() => {
       i += 4;
@@ -50,7 +50,10 @@ function TestoRevo({ testo, chiaro, anima }: { testo: string; chiaro?: boolean; 
     return () => clearInterval(t);
   }, [anima, testo]);
 
-  const parti = testo.slice(0, visibili).split('**');
+  // Senza animazione il testo è già tutto lì: si ricava qui invece di
+  // scriverlo nello stato dall'interno dell'effetto, che costava un render
+  // in più a ogni messaggio dello storico.
+  const parti = (anima ? testo.slice(0, visibili) : testo).split('**');
   return (
     <Text style={[styles.bollaTesto, chiaro && styles.bollaTestoMia]}>
       {parti.map((p, i) => (i % 2 === 1 ? <Text key={i} style={styles.grassetto}>{p}</Text> : p))}
@@ -86,9 +89,10 @@ export default function AssistenteScreen() {
   }, [messaggi, pensando]);
 
   // Le frasi d'attesa girano: non cambiano la velocità, cambiano l'attesa.
+  // Si riparte dalla prima in `invia`, dove l'attesa comincia davvero: farlo
+  // qui dentro voleva dire scrivere nello stato dall'interno di un effetto.
   useEffect(() => {
     if (!pensando) return;
-    setFraseAttesa(0);
     const t = setInterval(() => setFraseAttesa((f) => (f + 1) % FRASI_ATTESA.length), 2500);
     return () => clearInterval(t);
   }, [pensando]);
@@ -98,6 +102,7 @@ export default function AssistenteScreen() {
     if (!corpo || !token || pensando) return;
     setErrore(null);
     setTesto('');
+    setFraseAttesa(0);
     setPensando(true);
     setMessaggi((prev) => [
       ...prev,
@@ -131,8 +136,7 @@ export default function AssistenteScreen() {
               <Ionicons name="sparkles-outline" size={40} color={colors.primary} />
               <Text style={styles.vuotoTitolo}>Ciao, sono Revo ✨</Text>
               <Text style={styles.vuotoTesto}>
-                Conosco il tuo percorso: chiedimi un consiglio, un orario, un'idea
-                per un'occasione speciale.
+                {"Conosco il tuo percorso: chiedimi un consiglio, un orario, un'idea per un'occasione speciale."}
               </Text>
               {SUGGERIMENTI.map((s) => (
                 <Pressable key={s} style={styles.suggerimento} onPress={() => void invia(s)}>

@@ -10,7 +10,6 @@
  * scendono a righe — sono informazioni, non inviti.
  */
 import { useCallback, useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';

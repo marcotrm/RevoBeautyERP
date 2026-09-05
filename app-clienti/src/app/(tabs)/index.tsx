@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
   ActivityIndicator, Animated, Image, Linking, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, View,
+  ScrollView, StyleSheet, Text, useAnimatedValue, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -103,7 +103,7 @@ export default function HomeScreen() {
   };
 
   // ── Il sipario: la scena sale di 24pt e appare, una volta sola ──
-  const entrata = useRef(new Animated.Value(0)).current;
+  const entrata = useAnimatedValue(0);
   const entrato = useRef(false);
   useEffect(() => {
     if (!dati || entrato.current) return;

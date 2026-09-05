@@ -3,7 +3,7 @@
  * salvata sul telefono vale ancora: se no, si torna alla schermata di accesso.
  */
 
-import { clienteDaToken, tokenDaRichiesta, passwordImpostata } from '@/lib/mobileAuth';
+import { clienteDaToken, tokenDaRichiesta, passwordImpostata, passwordNonRichiesta } from '@/lib/mobileAuth';
 import { utenteApp } from '@/lib/mobileUser';
 
 export async function GET(req: Request) {
@@ -13,7 +13,10 @@ export async function GET(req: Request) {
   }
   return Response.json({
     user: utenteApp(cliente),
-    // L'app tiene chiusa la porta finché la password non c'è
-    passwordDaImpostare: !(await passwordImpostata(cliente.id)),
+    // L'app tiene chiusa la porta finché la password non c'è. Riaprendo
+    // l'app si ripassa di qui, quindi l'eccezione della verifica Apple va
+    // ripetuta anche qui: vedi `passwordNonRichiesta`.
+    passwordDaImpostare:
+      !(await passwordImpostata(cliente.id)) && !passwordNonRichiesta(cliente.phone),
   });
 }

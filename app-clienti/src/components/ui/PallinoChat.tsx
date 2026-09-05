@@ -2,13 +2,13 @@
  * Il pallino rosso che lampeggia sull'icona della Chat quando il centro
  * ha risposto. Pulsa piano — deve chiamare l'occhio, non fare l'allarme.
  */
-import { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet } from 'react-native';
+import { useEffect } from 'react';
+import { Animated, Easing, StyleSheet, useAnimatedValue } from 'react-native';
 
 import { colors } from '@/theme';
 
 export function PallinoChat() {
-  const battito = useRef(new Animated.Value(1)).current;
+  const battito = useAnimatedValue(1);
 
   useEffect(() => {
     const ciclo = Animated.loop(
