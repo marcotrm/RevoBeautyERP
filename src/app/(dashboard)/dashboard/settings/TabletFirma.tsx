@@ -38,6 +38,23 @@ export function TabletFirma() {
 
   const origine = typeof window !== 'undefined' ? window.location.origin : 'https://erp.revobeauty.it';
   const link = stato?.chiave ? `${origine}/tablet/${stato.chiave}` : '';
+  /*
+    La postazione: lo stesso tablet, la stessa chiave, un'altra schermata.
+
+    Il link della firma resta quello di sempre e continua a funzionare — chi
+    lo usa tutti i giorni non deve accorgersi di niente. Questo apre invece la
+    postazione completa, dove l'operatrice entra col suo account e puo'
+    passare il tablet alla cliente.
+  */
+  const linkPostazione = stato?.chiave ? `${origine}/tablet/${stato.chiave}/postazione` : '';
+  const [copiatoP, setCopiatoP] = useState(false);
+  const copiaPostazione = async () => {
+    try {
+      await navigator.clipboard.writeText(linkPostazione);
+      setCopiatoP(true);
+      setTimeout(() => setCopiatoP(false), 1800);
+    } catch { /* niente permesso: il link resta a schermo */ }
+  };
 
   const crea = useCallback(async (rifare: boolean) => {
     if (rifare && !confirm('Il tablet collegato adesso smetterà di funzionare e andrà ricollegato. Procedo?')) return;
@@ -123,6 +140,26 @@ export function TabletFirma() {
                   In questo momento sul tablet c’è il modulo di {stato.inAttesa.cliente} in attesa di firma.
                 </p>
               )}
+            </div>
+          </div>
+
+          {/* La postazione, sotto: e' lo stesso dispositivo con dentro di piu'. */}
+          <div className="rounded-xl border border-accent/25 bg-accent/[0.04] p-3.5 space-y-2">
+            <p className="text-sm font-semibold text-text-primary">Postazione completa (nuova)</p>
+            <p className="text-[12px] text-text-secondary leading-relaxed">
+              Stessa chiave, un&apos;altra schermata: l&apos;operatrice entra col suo account e da lì passa il
+              tablet alla cliente. Finché nessuno entra, il tablet mostra solo il nome del centro.
+              La sessione della cliente si chiude da sola dopo qualche minuto senza tocchi.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 min-w-0 px-2.5 py-2 rounded-lg bg-bg-tertiary border border-border text-[11px] text-text-secondary truncate">
+                {linkPostazione}
+              </code>
+              <button onClick={copiaPostazione}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-xs font-semibold text-text-secondary hover:bg-bg-hover flex-shrink-0">
+                {copiatoP ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiatoP ? 'Copiato' : 'Copia'}
+              </button>
             </div>
           </div>
 
