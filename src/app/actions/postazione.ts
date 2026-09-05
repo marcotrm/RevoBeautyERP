@@ -258,3 +258,55 @@ export async function cercaClienteDaTablet(q: string): Promise<RigaCliente[]> {
     telefonoCoda: (c.phone || '').slice(-3),
   }));
 }
+
+// ============================================================
+// Quello che la cliente puo' fare col tablet in mano.
+//
+// Tutte queste prendono l'id della cliente DALLA SESSIONE e non dai
+// parametri. E' la regola che tiene separate le persone su un dispositivo
+// condiviso: se l'id arrivasse da fuori, cambiarlo sarebbe questione di
+// aprire gli strumenti del browser.
+// ============================================================
+
+import { clienteDalTablet } from '@/lib/sessione';
+import {
+  consensiDaChiedere, registraScelta,
+  type DocumentoDaLeggere,
+} from '@/app/actions/consensiVersionati';
+
+export interface ConsensiPerLaCliente {
+  cliente: string;
+  documenti: DocumentoDaLeggere[];
+}
+
+/** I consensi di CHI ha il tablet in mano adesso. */
+export async function mieiConsensi(): Promise<ConsensiPerLaCliente> {
+  const s = await clienteDalTablet();
+  return {
+    cliente: s.nome || '',
+    documenti: await consensiDaChiedere(s.clientId!),
+  };
+}
+
+/**
+ * La cliente accetta o rifiuta, dal tablet.
+ *
+ * Il rifiuto e' una risposta valida e si registra come tutte le altre: un
+ * modulo che si puo' solo accettare non raccoglie un consenso, raccoglie una
+ * firma. Per i documenti necessari il centro poi decide cosa fare — ma la
+ * decisione e' di una persona, non di un tasto disabilitato.
+ */
+export async function firmaConsensoDalTablet(dati: {
+  documentoId: string;
+  scelta: 'accettato' | 'rifiutato';
+  firma?: string;
+}): Promise<{ ok: boolean; errore?: string; ricevuta?: string }> {
+  const s = await clienteDalTablet();
+  return registraScelta({
+    clientId: s.clientId!,
+    documentoId: dati.documentoId,
+    scelta: dati.scelta,
+    firma: dati.firma,
+    modalita: 'tablet',
+  });
+}

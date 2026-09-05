@@ -13,83 +13,14 @@
  * altre schede. Si apre solo con un gettone firmato che dura tre giorni.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { apriModuloLaser, salvaConsensoLaser, type ModuloLaser } from '@/app/actions/consensoLaser';
 import { liberaTablet } from '@/app/actions/tablet';
 import { CONSENSO_LASER, DICHIARAZIONE_FINALE, TESTO_FOTO, DOMANDE_STORICO } from '@/lib/consensoLaserTesto';
 import { sessoDaNome } from '@/lib/sessoDaNome';
 import FotoDocumento, { type DocumentoCompilato } from './FotoDocumento';
-
-/** Il riquadro della firma: dito o pennino, niente mouse necessario. */
-function Firma({ onChange }: { onChange: (dato: string | null) => void }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const giu = useRef(false);
-  const scritto = useRef(false);
-
-  useEffect(() => {
-    const c = ref.current;
-    if (!c) return;
-    // La tela si disegna alla risoluzione vera dello schermo, se no la firma
-    // esce sgranata proprio sul tablet, che e' l'unico posto dove si usa.
-    const scala = window.devicePixelRatio || 1;
-    const r = c.getBoundingClientRect();
-    c.width = r.width * scala;
-    c.height = r.height * scala;
-    const ctx = c.getContext('2d');
-    if (!ctx) return;
-    ctx.scale(scala, scala);
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#111827';
-  }, []);
-
-  const punto = (e: React.PointerEvent) => {
-    const c = ref.current!;
-    const r = c.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
-  };
-
-  return (
-    <div>
-      <canvas
-        ref={ref}
-        onPointerDown={e => {
-          e.currentTarget.setPointerCapture(e.pointerId);
-          giu.current = true; scritto.current = true;
-          const ctx = ref.current!.getContext('2d')!;
-          const p = punto(e); ctx.beginPath(); ctx.moveTo(p.x, p.y);
-        }}
-        onPointerMove={e => {
-          if (!giu.current) return;
-          const ctx = ref.current!.getContext('2d')!;
-          const p = punto(e); ctx.lineTo(p.x, p.y); ctx.stroke();
-        }}
-        onPointerUp={() => {
-          if (!giu.current) return;
-          giu.current = false;
-          if (scritto.current) onChange(ref.current!.toDataURL('image/png'));
-        }}
-        onPointerLeave={() => { giu.current = false; }}
-        className="w-full h-44 rounded-2xl bg-white border-2 border-dashed border-gray-300 touch-none"
-        style={{ touchAction: 'none' }}
-      />
-      <button
-        type="button"
-        onClick={() => {
-          const c = ref.current!;
-          c.getContext('2d')!.clearRect(0, 0, c.width, c.height);
-          scritto.current = false;
-          onChange(null);
-        }}
-        className="mt-2 text-sm font-medium text-gray-500 underline"
-      >
-        Cancella e rifai la firma
-      </button>
-    </div>
-  );
-}
+import Firma from '@/components/FirmaGrafica';
 
 /**
  * Otto secondi di «grazie», poi il tablet torna alla schermata d'attesa.

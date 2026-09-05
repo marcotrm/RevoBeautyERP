@@ -24,9 +24,11 @@ import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore }
 import { useParams } from 'next/navigation';
 import {
   statoPostazione, entraComeOperatrice, passaAllaCliente, chiudiPostazione,
-  appuntamentiDiOggi, cercaClienteDaTablet,
+  appuntamentiDiOggi, cercaClienteDaTablet, mieiConsensi, firmaConsensoDalTablet,
   type StatoPostazione, type RigaOggi, type RigaCliente,
 } from '@/app/actions/postazione';
+import type { DocumentoDaLeggere } from '@/app/actions/consensiVersionati';
+import FirmaGrafica from '@/components/FirmaGrafica';
 
 /** Dopo quanti secondi di immobilita' si avvisa, prima di chiudere. */
 const PREAVVISO_S = 10;
@@ -247,6 +249,16 @@ function ModoOperatrice({ chiave, stato, onCambio }: {
    ============================================================ */
 function ModoCliente({ stato, onFine }: { stato: StatoPostazione; onFine: () => void }) {
   const [restano, setRestano] = useState(stato.timeoutMinuti * 60);
+  /*
+    I documenti che mancano a LEI.
+
+    Arrivano da un'azione che non accetta nessun id: legge la sessione e da
+    li' sa di chi si tratta. La stessa pagina, aperta da un'altra cliente
+    cinque minuti dopo, vede i documenti dell'altra e non puo' vedere questi.
+  */
+  const [daFirmare, setDaFirmare] = useState<DocumentoDaLeggere[] | null>(null);
+  const [aperto, setAperto] = useState<DocumentoDaLeggere | null>(null);
+  const [fatto, setFatto] = useState<string | null>(null);
   // Si riempie al primo battito dell'intervallo: `Date.now()` mentre la
   // pagina si disegna e' una lettura del mondo esterno, e sul server darebbe
   // un istante diverso da quello del tablet.
@@ -265,6 +277,17 @@ function ModoCliente({ stato, onFine }: { stato: StatoPostazione; onFine: () => 
     onFine();
     window.location.reload();
   }, [onFine]);
+
+  const caricaConsensi = useCallback(() => {
+    mieiConsensi()
+      .then(r => setDaFirmare(r.documenti.filter(d => !d.giaScelto)))
+      .catch(() => setDaFirmare([]));
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(caricaConsensi, 0);
+    return () => clearTimeout(t);
+  }, [caricaConsensi]);
 
   // Ogni tocco rimette il contatore all'inizio.
   useEffect(() => {
@@ -287,6 +310,20 @@ function ModoCliente({ stato, onFine }: { stato: StatoPostazione; onFine: () => 
 
   const nome = (stato.cliente || '').split(' ')[0];
 
+  if (aperto) {
+    return (
+      <LeggiEFirma
+        documento={aperto}
+        onFatto={ricevuta => {
+          setAperto(null);
+          setFatto(ricevuta);
+          caricaConsensi();
+        }}
+        onIndietro={() => setAperto(null)}
+      />
+    );
+  }
+
   return (
     <main style={s.pagina}>
       <div style={s.centro}>
@@ -294,24 +331,139 @@ function ModoCliente({ stato, onFine }: { stato: StatoPostazione; onFine: () => 
         <h1 style={s.titolo}>Ciao {nome}</h1>
         <p style={s.sotto}>Questo tablet è tuo per qualche minuto.</p>
 
-        {/*
-          Qui compariranno, una fase alla volta, le cose che puo' fare: il
-          check-in, i consensi, la consulenza, il questionario. Finche' non
-          sono collegate davvero non si mettono a schermo: un tasto che non fa
-          niente su un tablet in mano a una cliente e' peggio di un tasto che
-          non c'e'.
-        */}
-        <p style={s.nota}>
-          Fra poco potrai fare il check-in, firmare i consensi e rispondere alle domande
-          direttamente da qui. Per adesso passa pure il tablet all&apos;operatrice.
-        </p>
+        {fatto && (
+          <p style={s.conferma}>
+            Fatto. La tua ricevuta è <b>{fatto}</b>: se ti serve una copia, chiedila in centro.
+          </p>
+        )}
 
-        <button onClick={() => void finisci()} style={s.bottoneGrande}>Ho finito</button>
+        {/*
+          Le cose da fare arrivano una fase alla volta. Quelle collegate
+          davvero si vedono; le altre non si mettono a schermo, perche' un
+          tasto che non fa niente in mano a una cliente e' peggio di un tasto
+          che non c'e'.
+        */}
+        {daFirmare === null ? (
+          <p style={s.nota}>Un attimo…</p>
+        ) : daFirmare.length > 0 ? (
+          <>
+            <p style={s.nota}>
+              Prima di cominciare ci sono {daFirmare.length === 1 ? 'un documento da leggere' : `${daFirmare.length} documenti da leggere`}.
+            </p>
+            <button onClick={() => setAperto(daFirmare[0])} style={s.bottoneGrande}>
+              Leggi e firma
+            </button>
+          </>
+        ) : (
+          <p style={s.nota}>
+            Non c&apos;è niente da firmare: è tutto a posto. Passa pure il tablet all&apos;operatrice.
+          </p>
+        )}
+
+        <button onClick={() => void finisci()} style={daFirmare && daFirmare.length > 0 ? s.bottoneChiaro : s.bottoneGrande}>
+          Ho finito
+        </button>
 
         {restano <= PREAVVISO_S && (
           <p style={s.avviso}>
             Nessuno tocca lo schermo da un po&apos;: fra {Math.max(0, restano)} second{restano === 1 ? 'o' : 'i'} torno alla schermata iniziale.
           </p>
+        )}
+      </div>
+    </main>
+  );
+}
+
+/* ============================================================
+   Un documento alla volta: si legge, si sceglie, si firma.
+   ============================================================ */
+function LeggiEFirma({ documento, onFatto, onIndietro }: {
+  documento: DocumentoDaLeggere;
+  onFatto: (ricevuta: string) => void;
+  onIndietro: () => void;
+}) {
+  const [firma, setFirma] = useState<string | null>(null);
+  const [occupato, setOccupato] = useState(false);
+  const [errore, setErrore] = useState('');
+  /*
+    Il tasto si accende solo dopo aver scorso il testo fino in fondo.
+
+    Non e' un vezzo: un consenso accettato senza averlo aperto e' esattamente
+    quello che rende inutile tutto il resto. Non impedisce di firmare senza
+    leggere davvero — nessun software puo' — ma toglie il caso in cui si
+    accetta senza nemmeno sapere che c'era del testo.
+  */
+  const [lettoFino, setLettoFino] = useState(false);
+
+  const scegli = async (scelta: 'accettato' | 'rifiutato') => {
+    setOccupato(true);
+    setErrore('');
+    try {
+      const r = await firmaConsensoDalTablet({ documentoId: documento.id, scelta, firma: firma || undefined });
+      if (!r.ok) { setErrore(r.errore || 'Non sono riuscito a salvare.'); return; }
+      onFatto(r.ricevuta || '');
+    } catch {
+      setErrore('Errore di rete: riprova.');
+    } finally { setOccupato(false); }
+  };
+
+  const serveFirma = documento.firmaRichiesta;
+
+  return (
+    <main style={{ ...s.pagina, justifyContent: 'flex-start', paddingTop: 20 }}>
+      <div style={s.colonna}>
+        <div style={s.barra}>
+          <div style={{ minWidth: 0 }}>
+            <p style={s.barraTitolo}>{documento.titolo}</p>
+            <p style={s.barraSotto}>
+              versione del {documento.versione.slice(0, 10).split('-').reverse().join('/')}
+              {documento.necessario ? ' · necessario per il servizio' : ' · facoltativo'}
+            </p>
+          </div>
+          <button onClick={onIndietro} style={s.bottoneChiaro}>Indietro</button>
+        </div>
+
+        <div
+          onScroll={e => {
+            const el = e.currentTarget;
+            if (el.scrollTop + el.clientHeight >= el.scrollHeight - 24) setLettoFino(true);
+          }}
+          style={s.testo}
+        >
+          {documento.testo.split('\n\n').map((par, i) => (
+            <p key={i} style={{ margin: '0 0 14px', lineHeight: 1.6, fontSize: 16 }}>{par}</p>
+          ))}
+        </div>
+
+        {!lettoFino && <p style={s.notaPiccola}>Scorri il testo fino in fondo per continuare.</p>}
+
+        {serveFirma && lettoFino && (
+          <div style={{ background: '#fff', border: '1px solid #ece6f4', borderRadius: 16, padding: 14 }}>
+            <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600 }}>Firma qui sotto</p>
+            <FirmaGrafica onChange={setFirma} />
+          </div>
+        )}
+
+        {errore && <p style={s.errore}>{errore}</p>}
+
+        {/*
+          Rifiutare e' una risposta, non un errore: sta accanto ad accettare,
+          scritta uguale. Un modulo che si puo' solo accettare non raccoglie un
+          consenso, raccoglie una firma.
+        */}
+        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <button onClick={() => void scegli('rifiutato')} disabled={occupato || !lettoFino}
+            style={{ ...s.bottoneChiaro, flex: 1, opacity: occupato || !lettoFino ? 0.5 : 1 }}>
+            Non acconsento
+          </button>
+          <button onClick={() => void scegli('accettato')}
+            disabled={occupato || !lettoFino || (serveFirma && !firma)}
+            style={{ ...s.bottoneGrande, flex: 2, marginTop: 0, opacity: occupato || !lettoFino || (serveFirma && !firma) ? 0.5 : 1 }}>
+            {occupato ? 'Un attimo…' : serveFirma ? 'Firmo e acconsento' : 'Acconsento'}
+          </button>
+        </div>
+        {serveFirma && lettoFino && !firma && (
+          <p style={s.notaPiccola}>Per acconsentire serve la firma qui sopra.</p>
         )}
       </div>
     </main>
@@ -367,5 +519,14 @@ const s: Record<string, React.CSSProperties> = {
   pilla: { fontSize: 12, fontWeight: 700, color: '#A855F7', background: '#f6edfe', borderRadius: 999, padding: '7px 11px', flexShrink: 0 },
   pillaVerde: { fontSize: 12, fontWeight: 700, color: '#16a34a', background: '#dcfce7', borderRadius: 999, padding: '7px 11px', flexShrink: 0 },
   errore: { color: '#dc2626', fontSize: 14, margin: '6px 0 0' },
+  testo: {
+    background: '#fff', border: '1px solid #ece6f4', borderRadius: 16, padding: '18px 20px',
+    maxHeight: '52vh', overflowY: 'auto', color: '#332c3d',
+  },
+  notaPiccola: { fontSize: 13, color: '#8b8394', margin: 0 },
+  conferma: {
+    background: '#dcfce7', color: '#166534', borderRadius: 12, padding: '10px 14px',
+    fontSize: 14, margin: 0,
+  },
   avviso: { color: '#b45309', background: '#fef3c7', borderRadius: 12, padding: '10px 14px', fontSize: 14, margin: '10px 0 0' },
 };
