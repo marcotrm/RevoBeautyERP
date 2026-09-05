@@ -259,9 +259,34 @@ export function normalizePhone(raw: string): string {
   return n;
 }
 
-/** Vero se il numero sembra un cellulare italiano valido e contattabile. */
+/**
+ * Vero se a questo numero si puo' scrivere su WhatsApp.
+ *
+ * Il controllo era scritto sull'Italia e basta: qualsiasi numero che non
+ * cominciasse per 393 veniva rifiutato come «non valido». Le clienti straniere
+ * esistono — una svizzera che scrive per un pedicure e' arrivata fin dentro la
+ * chat, con la conversazione aperta, e non si poteva rispondere. Detto cosi',
+ * per giunta, sembrava un numero sbagliato: era invece il gestionale che non
+ * conosceva altri prefissi.
+ *
+ * Adesso: cellulare italiano come prima; qualunque altro numero in formato
+ * internazionale (prefisso di stato, da 9 a 15 cifre) passa. Quello che non
+ * passa e' il numero italiano NON cellulare — un fisso su WhatsApp non c'e', e
+ * scriverci vuol dire pagare una conversazione per un errore.
+ */
 export function isSendablePhone(raw: string | null | undefined): boolean {
   if (!raw) return false;
   const n = normalizePhone(raw);
-  return /^393\d{8,9}$/.test(n);
+  if (/^393\d{8,9}$/.test(n)) return true;
+  // Italiano ma non cellulare: fisso, numero verde, o cifre sbagliate.
+  if (n.startsWith('39')) return false;
+  /*
+    Estero: si controlla la forma, non il paese.
+
+    Sapere se un numero norvegese e' un cellulare vorrebbe dire tenersi in
+    casa le regole di duecento operatori telefonici, che cambiano. Se la forma
+    e' quella giusta si prova a mandare: se il numero non esiste lo dice
+    WhatsApp, e l'errore si legge nella chat.
+  */
+  return /^[1-9]\d{8,14}$/.test(n);
 }
